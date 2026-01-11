@@ -3,8 +3,12 @@
 @tailwind utilities;
 
 body {
-  font-family: system-ui, sans-serif;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
+
 
 /* ---------- UI: Modal + Toast ---------- */
 .ui-hidden { display: none; }
@@ -114,4 +118,16 @@ body {
 .ui-field-error {
   border: 1px solid #ef4444 !important;
   outline: none !important;
+}
+
+/* Tipografia mais refinada (tira o “grosseiro” sem quebrar o layout) */
+h1.font-black, h2.font-black, h3.font-black,
+h1.font-bold,  h2.font-bold,  h3.font-bold {
+  font-weight: 600 !important;     /* semibold */
+  letter-spacing: -0.01em;
+}
+
+/* Labels em caps mais elegantes */
+label {
+  letter-spacing: 0.06em;
 }

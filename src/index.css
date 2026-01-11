@@ -2,9 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: system-ui, sans-serif;
+body{
+  font-family: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-weight: 400;
 }
+
+
+
+
 
 /* ---------- UI: Modal + Toast ---------- */
 .ui-hidden { display: none; }
@@ -115,3 +120,39 @@ body {
   border: 1px solid #ef4444 !important;
   outline: none !important;
 }
+
+/* =========================
+   Tipografia mais premium
+   (reduz o peso exagerado do Tailwind)
+========================= */
+
+body{
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
+/* O maior vilão do “craquelado” */
+.font-black { font-weight: 650 !important; }   /* se não aceitar 650, use 600 */
+.font-extrabold { font-weight: 650 !important; }
+.font-bold { font-weight: 550 !important; }    /* ou 500 */
+.font-semibold { font-weight: 500 !important; }
+
+/* Títulos ganham cara mais refinada */
+h1, h2, h3{
+  letter-spacing: -0.015em;
+}
+/* ===== Tipografia refinada ===== */
+.ui-kicker {
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.ui-amount {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+

@@ -923,7 +923,8 @@ const App: React.FC = () => {
                   )}
                 </div>
               )}
-              <button type="button" onClick={handleAddTransaction} className="w-full py-4 bg-indigo-600 shadow-xl shadow-indigo-100 dark:shadow-none text-white font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-wider mt-2">Efetuar Lançamento</button>
+              <button type="button" onClick={handleAddTransaction} className="w-full py-4 bg-indigo-600 shadow-xl shadow-indigo-100 dark:shadow-none text-white font-semibold rounded-2xl hover:scale-[1.02] active:scale-95 transition-all tracking-wide mt-2"
+>Efetuar Lançamento</button>
             </div>
           </div>
         </div>

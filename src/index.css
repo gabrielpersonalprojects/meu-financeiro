@@ -6,3 +6,105 @@ body {
   font-family: system-ui, sans-serif;
 }
 
+/* ---------- UI: Modal + Toast ---------- */
+.ui-hidden { display: none; }
+
+#ui-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+#ui-modal .ui-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+}
+
+#ui-modal .ui-modal-card {
+  position: relative;
+  width: min(92vw, 420px);
+  margin: 18vh auto 0;
+  background: #fff;
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 18px 60px rgba(0,0,0,0.25);
+}
+
+.ui-modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ui-modal-message {
+  margin: 10px 0 0;
+  font-size: 14px;
+  opacity: 0.8;
+  line-height: 1.35;
+}
+
+.ui-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.ui-btn {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ui-btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+
+.ui-btn-primary {
+  background: #111;
+  color: #fff;
+}
+
+/* Toasts */
+.ui-toasts {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 10000;
+}
+
+.ui-toast {
+  width: min(92vw, 360px);
+  background: #111;
+  color: #fff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.25);
+  font-size: 14px;
+  line-height: 1.25;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.ui-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ui-toast.success { background: #0f172a; }
+.ui-toast.error { background: #7f1d1d; }
+.ui-toast.info { background: #111; }
+
+/* Campos com erro (opcional) */
+.ui-field-error {
+  border: 1px solid #ef4444 !important;
+  outline: none !important;
+}

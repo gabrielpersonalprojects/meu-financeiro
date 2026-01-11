@@ -12,5 +12,22 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Modal (Confirm) -->
+<div id="ui-modal" class="ui-hidden">
+  <div class="ui-backdrop"></div>
+
+  <div class="ui-modal-card">
+    <h3 id="ui-modal-title" class="ui-modal-title">Confirmar</h3>
+    <p id="ui-modal-message" class="ui-modal-message">Tem certeza?</p>
+
+    <div class="ui-modal-actions">
+      <button id="ui-modal-cancel" class="ui-btn ui-btn-ghost">Cancelar</button>
+      <button id="ui-modal-confirm" class="ui-btn ui-btn-primary">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="ui-toasts" class="ui-toasts"></div>
   </body>
 </html>

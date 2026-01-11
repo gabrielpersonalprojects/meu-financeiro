@@ -370,23 +370,38 @@ const App: React.FC = () => {
     setter((parseInt(clean) / 100).toFixed(2).replace('.', ','));
   };
 
-  const handleLimparDados = () => {
-    if (window.confirm('CUIDADO: Isso apagará TODOS os dados DO PERFIL ATUAL permanentemente. Deseja continuar?')) {
-      isClearingRef.current = true;
-      setIsClearing(true);
-      const prefix = activeProfileId === 'default' ? '' : `${activeProfileId}_`;
-      localStorage.removeItem(`${prefix}transacoes`);
-      localStorage.removeItem(`${prefix}categorias`);
-      localStorage.removeItem(`${prefix}metodosPagamento`);
-      localStorage.removeItem(`${prefix}userName`);
-      setTransacoes([]);
-      setCategorias(CATEGORIAS_PADRAO);
-      setMetodosPagamento({ credito: [], debito: [] });
-      setUserName('');
-      setNameInput('');
-      setTimeout(() => { window.location.reload(); }, 300);
-    }
-  };
+ const handleLimparDados = async () => {
+  const ok = await confirm({
+    title: "Limpar dados",
+    message: "CUIDADO: Isso apagará TODOS os dados DO PERFIL ATUAL permanentemente. Deseja continuar?",
+    confirmText: "Sim, apagar tudo",
+    cancelText: "Cancelar",
+  });
+
+  if (!ok) return;
+
+  isClearingRef.current = true;
+  setIsClearing(true);
+
+  const prefix = activeProfileId === "default" ? "" : `${activeProfileId}_`;
+
+  localStorage.removeItem(`${prefix}transacoes`);
+  localStorage.removeItem(`${prefix}categorias`);
+  localStorage.removeItem(`${prefix}metodosPagamento`);
+  localStorage.removeItem(`${prefix}userName`);
+
+  setTransacoes([]);
+  setCategorias(CATEGORIAS_PADRAO);
+  setMetodosPagamento({ credito: [], debito: [] });
+  setUserName("");
+  setNameInput("");
+
+  toast("Dados do perfil atual apagados com sucesso.", "success");
+
+  // Se você realmente quiser recarregar a página:
+  setTimeout(() => window.location.reload(), 400);
+};
+
 
   const handleSaveName = () => {
     setUserName(nameInput.trim());
@@ -444,45 +459,263 @@ const App: React.FC = () => {
   }, [transacoes]);
 
   const handleAddTransaction = () => {
-    const valorNum = extrairValorMoeda(formValor);
-    if (!valorNum) { alert('Por favor, preencha o valor.'); return; }
-    if (!formCat) { alert('Por favor, selecione uma categoria.'); return; }
-    if (formTipo === 'despesa') {
-      if (isParceladoMode === null) { alert('Por favor, selecione se o pagamento é À vista ou Parcelado.'); return; }
-      if (!isParceladoMode && !formTipoGasto) { alert('Por favor, selecione o tipo de gasto (Fixo ou Variável).'); return; }
+  const valorNum = extrairValorMoeda(formValor);
+
+  if (!valorNum) {
+    toast("Por favor, preencha o valor.", "error");
+    return;
+  }
+
+  if (!formCat) {
+    toast("Por favor, selecione uma categoria.", "error");
+    return;
+  }
+
+  if (formTipo === "despesa") {
+    if (isParceladoMode === null) {
+      toast("Por favor, selecione se o pagamento é À vista ou Parcelado.", "error");
+      return;
     }
-    const newTrans: Transaction[] = [];
-    const recorrenciaId = `rec_${Date.now()}`;
-    const descFinal = formTipo === 'receita' ? (formDesc || formCat) : (formDesc || 'Despesa');
-    if (formTipo === 'despesa' && isParceladoMode === true && formParcelas > 1) {
-      const valorParcela = valorNum / formParcelas;
-      for (let i = 0; i < formParcelas; i++) {
-        const d = new Date(formData + 'T12:00:00');
-        d.setMonth(d.getMonth() + i);
-        newTrans.push({ id: Date.now() + i, tipo: 'despesa', descricao: `${descFinal} (${i + 1}/${formParcelas})`, valor: -valorParcela, data: d.toISOString().split('T')[0], categoria: formCat, tipoGasto: 'Fixo', metodoPagamento: formMetodo, qualCartao: formQualCartao, pago: i === 0 ? formPago : false, recorrenciaId });
-      }
-    } 
-    else if (formTipoGasto === 'Fixo') {
-        const dataInicio = new Date(formData + 'T12:00:00');
-        let mesesParaGerar = 12;
-        if (isFixaSemTermino) { mesesParaGerar = 60; } else { const dataFim = new Date(formDataTerminoFixa + 'T12:00:00'); const diffAnos = dataFim.getFullYear() - dataInicio.getFullYear(); const diffMeses = dataFim.getMonth() - dataInicio.getMonth(); mesesParaGerar = Math.max(1, (diffAnos * 12) + diffMeses + 1); }
-        for (let i = 0; i < mesesParaGerar; i++) { const d = new Date(dataInicio); d.setMonth(dataInicio.getMonth() + i); newTrans.push({ id: Date.now() + i, tipo: formTipo, descricao: descFinal, valor: formTipo === 'despesa' ? -valorNum : valorNum, data: d.toISOString().split('T')[0], categoria: formCat, tipoGasto: 'Fixo', metodoPagamento: formMetodo, qualCartao: formQualCartao, pago: i === 0 ? formPago : false, isRecorrente: true, recorrenciaId }); }
+
+    if (!isParceladoMode && !formTipoGasto) {
+      toast("Por favor, selecione o tipo de gasto (Fixo ou Variável).", "error");
+      return;
+    }
+  }
+
+  const newTrans: Transaction[] = [];
+  const recorrenciaId = `rec_${Date.now()}`;
+  const descFinal = formTipo === "receita" ? (formDesc || formCat) : (formDesc || "Despesa");
+
+  if (formTipo === "despesa" && isParceladoMode === true && formParcelas > 1) {
+    const valorParcela = valorNum / formParcelas;
+
+    for (let i = 0; i < formParcelas; i++) {
+      const d = new Date(formData + "T12:00:00");
+      d.setMonth(d.getMonth() + i);
+
+      newTrans.push({
+        id: Date.now() + i,
+        tipo: "despesa",
+        descricao: `${descFinal} (${i + 1}/${formParcelas})`,
+        valor: -valorParcela,
+        data: d.toISOString().split("T")[0],
+        categoria: formCat,
+        tipoGasto: "Fixo",
+        metodoPagamento: formMetodo,
+        qualCartao: formQualCartao,
+        pago: i === 0 ? formPago : false,
+        recorrenciaId
+      });
+    }
+  }
+  else if (formTipoGasto === "Fixo") {
+    const dataInicio = new Date(formData + "T12:00:00");
+    let mesesParaGerar = 12;
+
+    if (isFixaSemTermino) {
+      mesesParaGerar = 60;
     } else {
-      newTrans.push({ id: Date.now(), tipo: formTipo, descricao: descFinal, valor: formTipo === 'despesa' ? -valorNum : valorNum, data: formData, categoria: formCat, tipoGasto: formTipo === 'despesa' ? (formTipoGasto || 'Variável') : '', metodoPagamento: formMetodo, qualCartao: formQualCartao, pago: formPago });
+      const dataFim = new Date(formDataTerminoFixa + "T12:00:00");
+      const diffAnos = dataFim.getFullYear() - dataInicio.getFullYear();
+      const diffMeses = dataFim.getMonth() - dataInicio.getMonth();
+      mesesParaGerar = Math.max(1, (diffAnos * 12) + diffMeses + 1);
     }
-    setTransacoes(prev => [...prev, ...newTrans]);
-    setFormDesc(''); setFormValor(''); setFormMetodo(''); setFormQualCartao(''); setFormTipoGasto(''); setFormCat(''); setFormPago(formTipo === 'receita' ? false : true); setIsParceladoMode(null);
-    alert('Lançamento realizado com sucesso!');
-  };
+
+    for (let i = 0; i < mesesParaGerar; i++) {
+      const d = new Date(dataInicio);
+      d.setMonth(dataInicio.getMonth() + i);
+
+      newTrans.push({
+        id: Date.now() + i,
+        tipo: formTipo,
+        descricao: descFinal,
+        valor: formTipo === "despesa" ? -valorNum : valorNum,
+        data: d.toISOString().split("T")[0],
+        categoria: formCat,
+        tipoGasto: "Fixo",
+        metodoPagamento: formMetodo,
+        qualCartao: formQualCartao,
+        pago: i === 0 ? formPago : false,
+        isRecorrente: true,
+        recorrenciaId
+      });
+    }
+  } else {
+    newTrans.push({
+      id: Date.now(),
+      tipo: formTipo,
+      descricao: descFinal,
+      valor: formTipo === "despesa" ? -valorNum : valorNum,
+      data: formData,
+      categoria: formCat,
+      tipoGasto: formTipo === "despesa" ? (formTipoGasto || "Variável") : "",
+      metodoPagamento: formMetodo,
+      qualCartao: formQualCartao,
+      pago: formPago
+    });
+  }
+
+  setTransacoes(prev => [...prev, ...newTrans]);
+
+  setFormDesc("");
+  setFormValor("");
+  setFormMetodo("");
+  setFormQualCartao("");
+  setFormTipoGasto("");
+  setFormCat("");
+  setFormPago(formTipo === "receita" ? false : true);
+  setIsParceladoMode(null);
+
+  toast("Lançamento realizado com sucesso!", "success");
+};
+
 
   const togglePago = (id: number) => { setTransacoes(prev => prev.map(t => t.id === id ? { ...t, pago: !t.pago } : t)); };
-  const confirmarExclusao = (apagarTodas: boolean) => { if (!deletingTransaction) return; if (apagarTodas && deletingTransaction.recorrenciaId) { setTransacoes(prev => prev.filter(t => t.recorrenciaId !== deletingTransaction.recorrenciaId || t.data < deletingTransaction.data)); } else { setTransacoes(prev => prev.filter(t => t.id !== deletingTransaction.id)); } setDeletingTransaction(null); };
+  const confirmarExclusao = (apagarTodas: boolean) => {
+  if (!deletingTransaction) return;
+
+  const desc = deletingTransaction.descricao;
+
+  if (apagarTodas && deletingTransaction.recorrenciaId) {
+    setTransacoes((prev) =>
+      prev.filter((t) => t.recorrenciaId !== deletingTransaction.recorrenciaId || t.data < deletingTransaction.data)
+    );
+    toast(`Recorrência removida: "${desc}".`, "success");
+  } else {
+    setTransacoes((prev) => prev.filter((t) => t.id !== deletingTransaction.id));
+    toast(`Lançamento excluído: "${desc}".`, "success");
+  }
+
+  setDeletingTransaction(null);
+};
+
   const handleEditClick = (t: Transaction) => { setEditingTransaction(t); setEditValueInput(Math.abs(t.valor).toFixed(2).replace('.', ',')); setEditDescInput(t.descricao); setApplyToAllRelated(false); };
-  const salvarEdicao = () => { if (!editingTransaction) return; const novoValorAbs = extrairValorMoeda(editValueInput); const novaDesc = editDescInput.trim() || editingTransaction.descricao; setTransacoes(prev => prev.map(t => { if (applyToAllRelated && editingTransaction.recorrenciaId && t.recorrenciaId === editingTransaction.recorrenciaId) { const val = t.tipo === 'despesa' ? -novoValorAbs : novoValorAbs; return { ...t, valor: val, descricao: novaDesc }; } if (t.id === editingTransaction.id) { return { ...t, valor: editingTransaction.tipo === 'despesa' ? -novoValorAbs : novoValorAbs, descricao: novaDesc }; } return t; })); setEditingTransaction(null); };
-  const adicionarCategoria = () => { const nome = inputNovaCat.trim(); if (!nome) return; setCategorias(prev => ({ ...prev, [formTipo]: [...prev[formTipo], nome] })); setFormCat(nome); setInputNovaCat(''); setShowModalCategoria(false); };
-  const removerCategoria = (tipo: TransactionType, index: number) => { const nome = categorias[tipo][index]; if (window.confirm(`Excluir categoria "${nome}"?`)) { setCategorias(prev => { const newList = [...prev[tipo]]; newList.splice(index, 1); return { ...prev, [tipo]: newList }; }); if (formCat === nome) setFormCat(''); } };
-  const removerMetodo = (index: number) => { const nome = metodosPagamento.credito[index]; if(window.confirm(`Remover "${nome}"?`)) { setMetodosPagamento(prev => { const newList = [...prev.credito]; newList.splice(index, 1); return { credito: newList, debito: [...newList] }; }); if (formQualCartao === nome) setFormQualCartao(''); } };
-  const adicionarCartao = () => { if (!inputNovoCartao.trim()) return; const novo = inputNovoCartao.trim(); setMetodosPagamento(prev => ({ ...prev, credito: [...prev.credito, novo], debito: [...prev.debito, novo] })); setFormQualCartao(novo); setInputNovoCartao(''); setShowModalMetodo(false); };
+  const salvarEdicao = () => {
+  if (!editingTransaction) return;
+
+  const novoValorAbs = extrairValorMoeda(editValueInput);
+  const novaDesc = editDescInput.trim() || editingTransaction.descricao;
+
+  setTransacoes((prev) =>
+    prev.map((t) => {
+      if (applyToAllRelated && editingTransaction.recorrenciaId && t.recorrenciaId === editingTransaction.recorrenciaId) {
+        const val = t.tipo === "despesa" ? -novoValorAbs : novoValorAbs;
+        return { ...t, valor: val, descricao: novaDesc };
+      }
+      if (t.id === editingTransaction.id) {
+        return {
+          ...t,
+          valor: editingTransaction.tipo === "despesa" ? -novoValorAbs : novoValorAbs,
+          descricao: novaDesc,
+        };
+      }
+      return t;
+    })
+  );
+
+  setEditingTransaction(null);
+  toast("Alteração salva com sucesso.", "success");
+};
+
+  const adicionarCategoria = () => {
+  const nome = inputNovaCat.trim();
+
+  if (!nome) {
+    toast("Digite o nome da categoria.", "error");
+    return;
+  }
+
+  const listaAtual = categorias[formTipo];
+  const jaExiste = listaAtual.some((c) => c.toLowerCase() === nome.toLowerCase());
+
+  if (jaExiste) {
+    toast("Essa categoria já existe.", "info");
+    return;
+  }
+
+  setCategorias((prev) => ({ ...prev, [formTipo]: [...prev[formTipo], nome] }));
+  setFormCat(nome);
+  setInputNovaCat("");
+  setShowModalCategoria(false);
+
+  toast(`Categoria "${nome}" criada.`, "success");
+};
+
+  const removerCategoria = (tipo: TransactionType, index: number) => {
+  const nome = categorias[tipo][index];
+
+  confirm({
+    title: "Excluir categoria",
+    message: `Excluir categoria "${nome}"?`,
+    confirmText: "Excluir",
+    cancelText: "Cancelar",
+  }).then((ok) => {
+    if (!ok) return;
+
+    setCategorias((prev) => {
+      const newList = [...prev[tipo]];
+      newList.splice(index, 1);
+      return { ...prev, [tipo]: newList };
+    });
+
+    if (formCat === nome) setFormCat("");
+    toast(`Categoria "${nome}" excluída.`, "success");
+  });
+};
+
+  const removerMetodo = (index: number) => {
+  const nome = metodosPagamento.credito[index];
+
+  confirm({
+    title: "Remover banco/cartão",
+    message: `Remover "${nome}"?`,
+    confirmText: "Remover",
+    cancelText: "Cancelar",
+  }).then((ok) => {
+    if (!ok) return;
+
+    setMetodosPagamento((prev) => {
+      const newCredito = [...prev.credito];
+      newCredito.splice(index, 1);
+
+      const newDebito = [...prev.debito].filter((d) => d !== nome);
+
+      return { credito: newCredito, debito: newDebito };
+    });
+
+    if (formQualCartao === nome) setFormQualCartao("");
+    toast(`"${nome}" removido.`, "success");
+  });
+};
+
+  const adicionarCartao = () => {
+  const novo = inputNovoCartao.trim();
+
+  if (!novo) {
+    toast("Digite o nome do banco/cartão.", "error");
+    return;
+  }
+
+  const jaExiste = metodosPagamento.credito.some((c) => c.toLowerCase() === novo.toLowerCase());
+  if (jaExiste) {
+    toast("Esse banco/cartão já existe.", "info");
+    return;
+  }
+
+  setMetodosPagamento((prev) => ({
+    ...prev,
+    credito: [...prev.credito, novo],
+    debito: [...prev.debito, novo],
+  }));
+
+  setFormQualCartao(novo);
+  setInputNovoCartao("");
+  setShowModalMetodo(false);
+
+  toast(`"${novo}" adicionado.`, "success");
+};
+
   const todasCategorias = useMemo(() => [...new Set([...categorias.despesa, ...categorias.receita])].sort(), [categorias]);
   const limparFiltros = () => { setFiltroMes(getHojeLocal().substring(0, 7)); setFiltroCategoria(''); setFiltroMetodo(''); setFiltroTipoGasto(''); };
   

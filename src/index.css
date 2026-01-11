@@ -2,14 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
+body{
   font-family: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   font-weight: 400;
-
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
 }
+
 
 
 
@@ -124,21 +121,26 @@ body {
   outline: none !important;
 }
 
-/* Deixa títulos e CTAs mais refinados:
-   tudo que estava "bold/black" vira Medium (500) */
-h1, h2, h3,
-.font-black, .font-extrabold, .font-bold {
-  font-weight: 500 !important;
-  letter-spacing: -0.01em;
+/* =========================
+   Tipografia mais premium
+   (reduz o peso exagerado do Tailwind)
+========================= */
+
+body{
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
 }
 
-/* Botões: mesma sensação (CTA elegante) */
-button {
-  font-weight: 500;
-}
+/* O maior vilão do “craquelado” */
+.font-black { font-weight: 650 !important; }   /* se não aceitar 650, use 600 */
+.font-extrabold { font-weight: 650 !important; }
+.font-bold { font-weight: 550 !important; }    /* ou 500 */
+.font-semibold { font-weight: 500 !important; }
 
-/* Labels em caps ficam menos agressivos */
-label {
-  letter-spacing: 0.06em;
+/* Títulos ganham cara mais refinada */
+h1, h2, h3{
+  letter-spacing: -0.015em;
 }
 

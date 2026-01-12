@@ -112,7 +112,16 @@ interface CustomDropdownProps {
   className?: string;
 }
 
-const CustomDropdown: React.FC<CustomDropdownProps> = ({ label, value, options, onSelect, onDelete, onAddNew, placeholder = "Selecione", className = "" }) => {
+const CustomDropdown: React.FC<CustomDropdownProps> = ({
+  label,
+  value,
+  options,
+  onSelect,
+  onDelete,
+  onAddNew,
+  placeholder = "Selecione",
+  className = "",
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -122,30 +131,55 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ label, value, options, 
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const displayValue = useMemo(() => {
-    const found = (options as any[]).find(opt => 
-      typeof opt === 'string' ? opt === value : opt.value === value
+    const found = (options as any[]).find(
+      (opt) => (typeof opt === "string" ? opt === value : opt.value === value)
     );
-    if (found) {
-      return typeof found === 'string' ? found : found.label;
-    }
+    if (found) return typeof found === "string" ? found : found.label;
     return value || placeholder;
   }, [value, options, placeholder]);
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
-      {label && <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">{label}</label>}
+      {label && (
+        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+          {label}
+        </label>
+      )}
+
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 font-medium text-sm text-left flex justify-between items-center transition-all hover:bg-slate-100 dark:hover:bg-slate-750 shadow-sm"
+        className="
+          w-full h-10 px-4
+          text-[13px] font-semibold text-slate-800 dark:text-slate-100
+          bg-slate-50 dark:bg-slate-800
+          rounded-2xl border border-slate-200 dark:border-slate-700
+          flex justify-between items-center
+          transition-all hover:bg-white dark:hover:bg-slate-700
+          focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
+        "
       >
-        <span className="truncate">{displayValue}</span>
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-200 opacity-50 ${isOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
+        <span className="truncate text-left">{displayValue}</span>
+
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`opacity-60 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </button>
 
       {isOpen && (
@@ -154,35 +188,39 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ label, value, options, 
             {onAddNew && (
               <button
                 type="button"
-                onClick={() => { onAddNew(); setIsOpen(false); }}
-                className="w-full px-4 py-3 text-left text-sm font-black text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2 sticky top-0 bg-white dark:bg-slate-800 z-10"
+                onClick={() => {
+                  onAddNew();
+                  setIsOpen(false);
+                }}
+                className="w-full px-4 py-2 text-left text-[13px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 sticky top-0 bg-white dark:bg-slate-800 z-10"
               >
                 <PlusIcon /> Adicionar novo
               </button>
             )}
-            
-            {options.map((opt, idx) => {
-              const optLabel = typeof opt === 'string' ? opt : opt.label;
-              const optValue = typeof opt === 'string' ? opt : opt.value;
-              const isSelected = value === optValue;
-              
+
+            {(options as any[]).map((opt, idx) => {
+              const optLabel = typeof opt === "string" ? opt : opt.label;
+              const optValue = typeof opt === "string" ? opt : opt.value;
+
               return (
-                <div 
-                  key={`${optValue}-${idx}`}
-                  className={`group flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50/30 dark:bg-indigo-900/10' : ''}`}
-                  onClick={() => { onSelect(optValue); setIsOpen(false); }}
-                >
-                  <span className={`text-sm truncate ${isSelected ? 'font-bold text-indigo-600 dark:text-indigo-400' : 'font-medium text-slate-700 dark:text-slate-300'}`}>{optLabel}</span>
-                  {onDelete && (
+                <div key={idx} className="flex items-center justify-between px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                  <button
+                    type="button"
+                    className="text-left flex-1 text-[13px] font-medium text-slate-700 dark:text-slate-200"
+                    onClick={() => {
+                      onSelect(optValue);
+                      setIsOpen(false);
+                    }}
+                  >
+                    {optLabel}
+                  </button>
+
+                  {onDelete && optValue !== "Todas" && optValue !== "Selecione" && (
                     <button
                       type="button"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(idx);
-                      }}
-                      className="p-1.5 text-slate-300 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 opacity-0 group-hover:opacity-100"
-                      title="Excluir item"
+                      onClick={() => onDelete(optValue)}
+                      className="p-2 text-rose-500 hover:text-rose-700 dark:hover:text-rose-400"
+                      title="Excluir"
                     >
                       <TrashIcon />
                     </button>
@@ -190,10 +228,6 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ label, value, options, 
                 </div>
               );
             })}
-
-            {options.length === 0 && !onAddNew && (
-              <div className="px-4 py-6 text-xs text-slate-400 text-center italic">Nenhum item encontrado</div>
-            )}
           </div>
         </div>
       )}
@@ -201,7 +235,7 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ label, value, options, 
   );
 };
 
-// ===== CustomDateInput (cole no lugar do seu, inteiro) =====
+
 const CustomDateInput: React.FC<{
   label?: string;
   value: string;
@@ -212,41 +246,35 @@ const CustomDateInput: React.FC<{
   return (
     <div className={`relative ${className}`}>
       {label && (
-        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
           {label}
         </label>
       )}
 
-      <div className="relative">
-        {/* Ícone roxo à DIREITA */}
-        <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400">
-          <CalendarIcon />
-        </div>
-
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="
-            w-full h-10
-            px-4 pr-10
-            rounded-xl
-            bg-slate-50 dark:bg-slate-800
-            border border-slate-200 dark:border-slate-700
-            text-[13px] text-slate-800 dark:text-slate-100
-            outline-none
-            focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
-            shadow-sm
-            appearance-none
-            [&::-webkit-calendar-picker-indicator]:opacity-0
-            [&::-webkit-calendar-picker-indicator]:absolute
-            [&::-webkit-calendar-picker-indicator]:right-0
-            [&::-webkit-calendar-picker-indicator]:w-10
-            [&::-webkit-calendar-picker-indicator]:h-10
-            [&::-webkit-calendar-picker-indicator]:cursor-pointer
-          "
-        />
+      {/* Ícone roxo na direita */}
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none">
+        <CalendarIcon />
       </div>
+
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="
+          w-full h-10 px-4 pr-10
+          text-[13px] font-semibold text-slate-800 dark:text-slate-100
+          bg-slate-50 dark:bg-slate-800
+          rounded-2xl border border-slate-200 dark:border-slate-700
+          outline-none transition-all
+          focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
+          appearance-none
+          [&::-webkit-calendar-picker-indicator]:opacity-0
+          [&::-webkit-calendar-picker-indicator]:absolute
+          [&::-webkit-calendar-picker-indicator]:right-0
+          [&::-webkit-calendar-picker-indicator]:w-10
+          [&::-webkit-calendar-picker-indicator]:h-10
+        "
+      />
     </div>
   );
 };

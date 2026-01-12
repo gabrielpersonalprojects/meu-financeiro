@@ -242,14 +242,9 @@ const CustomDateInput: React.FC<{
   onChange: (val: string) => void;
   type?: "date" | "month";
   className?: string;
-  compact?: boolean;
-}> = ({ label, value, onChange, type = "date", className = "", compact = false }) => {
-  const inputClasses = compact
-    ? "w-full h-9 px-3 pr-10 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 font-semibold text-sm transition-all shadow-sm"
-    : "w-full h-11 px-3 pr-10 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 font-semibold text-sm transition-all shadow-sm";
-
+}> = ({ label, value, onChange, type = "date", className = "" }) => {
   return (
-    <div className={`relative ${className}`}>
+    <div className={`w-full ${className}`}>
       {label && (
         <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
           {label}
@@ -257,27 +252,40 @@ const CustomDateInput: React.FC<{
       )}
 
       <div className="relative">
+        {/* ÍCONE À DIREITA (não bloqueia clique) */}
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none">
+          <CalendarIcon />
+        </div>
+
         <input
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onClick={(e) => {
-            const el: any = e.currentTarget;
-            if (el?.showPicker) {
-              try { el.showPicker(); } catch {}
-            }
+            // força abrir o picker quando o browser suportar
+            const el = e.currentTarget as any;
+            try {
+              el.showPicker?.();
+            } catch {}
           }}
-          className={inputClasses}
-        />
+          className="
+  w-full h-10
+  pl-4 pr-10
+  bg-slate-50 dark:bg-slate-800
+  rounded-xl
+  border border-slate-200 dark:border-slate-700
+  text-slate-900 dark:text-slate-100
+  outline-none
+  focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
+  transition-all
+  text-sm
+"
 
-        <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-indigo-600">
-          <CalendarIcon />
-        </div>
+        />
       </div>
     </div>
   );
 };
-
 
 
 
@@ -924,45 +932,29 @@ const App: React.FC = () => {
                   <input type="text" value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Ex: Mercado, Aluguel..." className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-medium text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900" />
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-{/* VALOR + DATA */}
-<div className="flex gap-3">
-  <div className="flex-1">
-    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-      Valor (R$)
-    </label>
-    <input
-      type="text"
-      value={formValor}
-      onChange={(e) => { handleFormatCurrencyInput(e.target.value); setFormValor(e.target.value); }}
-      placeholder="0,00"
-      className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 transition-all"
-    />
-
-    <label className="mt-1.5 flex items-center gap-2 cursor-pointer select-none">
-      <input
-        type="checkbox"
-        checked={formPago}
-        onChange={() => setFormPago(!formPago)}
-        className="w-3.5 h-3.5 rounded text-indigo-600 border-slate-300 dark:border-slate-600"
-      />
-      <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tight">
-        Pago
-      </span>
-    </label>
-  </div>
-
-  <div className="flex-1">
-    <CustomDateInput
-      label="Data"
-      type="date"
-      value={formData}
-      onChange={setFormData}
-    />
-  </div>
-</div>
-
-
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">Valor (R$)</label>
+                  <input type="text" value={formValor} onChange={e => handleFormatCurrencyInput(e.target.value, setFormValor)} placeholder="0,00" className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 shadow-sm" />
+                  <div className="mt-1.5 pl-1">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox" checked={formPago} onChange={() => setFormPago(!formPago)} className="w-3.5 h-3.5 rounded text-indigo-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 focus:ring-0" />
+                      <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-tight">Pago</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <CustomDateInput label="Data" value={formData} onChange={setFormData} />
+                </div>
+              </div>
+              {formTipo === 'despesa' && (
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Forma de Pagamento</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setIsParceladoMode(false)} className={`py-2 rounded-xl text-sm font-bold border transition-all ${isParceladoMode === false ? 'bg-slate-800 dark:bg-slate-100 border-slate-800 dark:border-slate-100 text-white dark:text-slate-900 shadow-sm' : 'bg-white dark:bg-slate-800 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>À vista</button>
+                    <button type="button" onClick={() => setIsParceladoMode(true)} className={`py-2 rounded-xl text-sm font-bold border transition-all ${isParceladoMode === true ? 'bg-slate-800 dark:bg-slate-100 border-slate-800 dark:border-slate-100 text-white dark:text-slate-900 shadow-sm' : 'bg-white dark:bg-slate-800 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Parcelado</button>
+                  </div>
+                </div>
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex-1">
@@ -1108,61 +1100,61 @@ const App: React.FC = () => {
             {activeTab === 'transacoes' && (
               <div className="space-y-4 animate-in fade-in duration-500">
                 <div className="flex flex-col gap-4 pb-6 border-b border-slate-50 dark:border-slate-800">
-             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 items-end w-full">
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+  {/* MÊS */}
   <div className="lg:col-span-3">
     <CustomDateInput
       type="month"
       value={filtroMes}
       onChange={setFiltroMes}
-      compact
       className="w-full"
     />
   </div>
 
+  {/* CATEGORIAS */}
   <div className="lg:col-span-3">
     <CustomDropdown
       placeholder="Categorias"
       value={filtroCategoria}
       options={["Todas", ...todasCategorias]}
       onSelect={(val) => setFiltroCategoria(val === "Todas" ? "" : val)}
-      compact
       className="w-full"
     />
   </div>
 
+  {/* C/C & CARTÕES */}
   <div className="lg:col-span-3">
     <CustomDropdown
       placeholder="C/C & Cartões"
       value={filtroMetodo}
       options={["Todos", ...metodosPagamento.credito]}
       onSelect={(val) => setFiltroMetodo(val === "Todos" ? "" : val)}
-      compact
       className="w-full"
     />
   </div>
 
+  {/* TIPO GASTO */}
   <div className="lg:col-span-2">
     <CustomDropdown
       placeholder="Tipo Gasto"
       value={filtroTipoGasto}
       options={["Todos", "Fixo", "Variável"]}
       onSelect={(val) => setFiltroTipoGasto(val === "Todos" ? "" : val)}
-      compact
       className="w-full"
     />
   </div>
 
+  {/* LIMPAR */}
   <div className="lg:col-span-1">
     <button
       type="button"
       onClick={limparFiltros}
-      className="w-full lg:w-auto h-9 rounded-lg px-3 text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+      className="w-full h-10 rounded-xl px-4 text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
     >
       Limpar
     </button>
   </div>
 </div>
-
 
 
 

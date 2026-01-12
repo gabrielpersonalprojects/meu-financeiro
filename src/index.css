@@ -155,4 +155,17 @@ h1, h2, h3{
   letter-spacing: -0.01em;
 }
 
+/* Remove o ícone nativo do Chrome/Edge (evita ficar 2 ícones) */
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  display: none;
+}
+
+input[type="month"],
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 

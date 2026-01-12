@@ -734,18 +734,7 @@ const App: React.FC = () => {
     <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
      <header className="border-slate-100 dark:border-slate-800 border-b bg-white dark:bg-slate-900 py-8 transition-colors">
   <div className="container mx-auto px-4 relative flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-    {/* BOTÃO SETTINGS (mobile topo-direita / desktop normal) */}
-    <div className="absolute right-4 top-4 md:static md:ml-auto">
-      <button
-        type="button"
-        onClick={() => setSettingsOpen(true)}
-        className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/70 backdrop-blur hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-        title="Configurações"
-      >
-        <SettingsIcon />
-      </button>
-    </div>
-
+    
     {/* LOGO + TÍTULO (central no mobile / alinhado no desktop) */}
     <div className="flex flex-col items-center text-center md:flex-row md:items-center md:text-left gap-4 md:gap-5">
       <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 shadow-lg dark:shadow-[0_0_26px_rgba(255,255,255,0.28)]">
@@ -755,7 +744,7 @@ const App: React.FC = () => {
           <line x1="6" y1="20" x2="6" y2="16" />
         </svg>
       </div>
-
+      
       <div className="flex flex-col">
         <div className="flex items-baseline gap-1.5 justify-center md:justify-start">
           <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Meu</span>
@@ -765,6 +754,17 @@ const App: React.FC = () => {
           seu dinheiro, sua carteira, seu controle
         </p>
       </div>
+    </div>
+     {/* BOTÃO SETTINGS (mobile topo-direita / desktop normal) */}
+   <div className="absolute right-4 top-4 md:static">
+      <button
+        type="button"
+        onClick={() => setSettingsOpen(true)}
+        className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/70 backdrop-blur hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+        title="Configurações"
+      >
+        <SettingsIcon />
+      </button>
     </div>
   </div>
 </header>

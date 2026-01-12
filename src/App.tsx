@@ -244,40 +244,48 @@ const CustomDateInput: React.FC<{
   className?: string;
 }> = ({ label, value, onChange, type = "date", className = "" }) => {
   return (
-    <div className={`relative ${className}`}>
+    <div className={`w-full ${className}`}>
       {label && (
-        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
           {label}
         </label>
       )}
 
-      {/* Ícone roxo na direita */}
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none">
-        <CalendarIcon />
-      </div>
+      <div className="relative">
+        {/* ÍCONE À DIREITA (não bloqueia clique) */}
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none">
+          <CalendarIcon />
+        </div>
 
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="
-          w-full h-10 px-4 pr-10
-          text-[13px] font-semibold text-slate-800 dark:text-slate-100
-          bg-slate-50 dark:bg-slate-800
-          rounded-2xl border border-slate-200 dark:border-slate-700
-          outline-none transition-all
-          focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
-          appearance-none
-          [&::-webkit-calendar-picker-indicator]:opacity-0
-          [&::-webkit-calendar-picker-indicator]:absolute
-          [&::-webkit-calendar-picker-indicator]:right-0
-          [&::-webkit-calendar-picker-indicator]:w-10
-          [&::-webkit-calendar-picker-indicator]:h-10
-        "
-      />
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onClick={(e) => {
+            // força abrir o picker quando o browser suportar
+            const el = e.currentTarget as any;
+            try {
+              el.showPicker?.();
+            } catch {}
+          }}
+          className="
+            w-full
+            pl-4 pr-10 py-2
+            bg-slate-50 dark:bg-slate-800
+            rounded-xl
+            border border-slate-200 dark:border-slate-700
+            text-slate-900 dark:text-slate-100
+            outline-none
+            focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
+            transition-all
+            text-sm
+          "
+        />
+      </div>
     </div>
   );
 };
+
 
 
 

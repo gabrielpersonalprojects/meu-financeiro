@@ -756,7 +756,7 @@ const App: React.FC = () => {
       </div>
     </div>
      {/* BOTÃO SETTINGS (mobile topo-direita / desktop normal) */}
-   <div className="absolute right-4 top-4 md:static">
+   <div className="absolute right-4 top-1/2 -translate-y-1/2 md:static md:translate-y-0">
       <button
         type="button"
         onClick={() => setSettingsOpen(true)}

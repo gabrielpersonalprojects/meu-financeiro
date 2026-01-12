@@ -933,46 +933,43 @@ const App: React.FC = () => {
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
-  {/* VALOR + PAGO */}
-  <div>
+{/* VALOR + DATA */}
+<div className="flex gap-3">
+  <div className="flex-1">
     <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
       Valor (R$)
     </label>
-
     <input
       type="text"
       value={formValor}
-      onChange={(e) => handleFormatCurrencyInput(e.target.value, setFormValor)}
+      onChange={(e) => { handleFormatCurrencyInput(e.target.value); setFormValor(e.target.value); }}
       placeholder="0,00"
-      className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 transition"
+      className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 transition-all"
     />
 
-    <div className="mt-1.5 pl-1">
-      <label className="flex items-center gap-2 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={formPago}
-          onChange={(e) => setFormPago(e.target.checked)}
-          className="w-4 h-4 rounded text-indigo-600"
-        />
-        <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-          Pago
-        </span>
-      </label>
-    </div>
+    <label className="mt-1.5 flex items-center gap-2 cursor-pointer select-none">
+      <input
+        type="checkbox"
+        checked={formPago}
+        onChange={() => setFormPago(!formPago)}
+        className="w-3.5 h-3.5 rounded text-indigo-600 border-slate-300 dark:border-slate-600"
+      />
+      <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tight">
+        Pago
+      </span>
+    </label>
   </div>
 
-  {/* DATA */}
-  <div>
+  <div className="flex-1">
     <CustomDateInput
       label="Data"
       type="date"
       value={formData}
       onChange={setFormData}
-      className="w-full"
     />
   </div>
 </div>
+
 
               )}
               <div className="grid grid-cols-2 gap-3">

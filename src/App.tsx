@@ -269,17 +269,18 @@ const CustomDateInput: React.FC<{
             } catch {}
           }}
           className="
-            w-full
-            pl-4 pr-10 py-2
-            bg-slate-50 dark:bg-slate-800
-            rounded-xl
-            border border-slate-200 dark:border-slate-700
-            text-slate-900 dark:text-slate-100
-            outline-none
-            focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
-            transition-all
-            text-sm
-          "
+  w-full h-10
+  pl-4 pr-10
+  bg-slate-50 dark:bg-slate-800
+  rounded-xl
+  border border-slate-200 dark:border-slate-700
+  text-slate-900 dark:text-slate-100
+  outline-none
+  focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
+  transition-all
+  text-sm
+"
+
         />
       </div>
     </div>

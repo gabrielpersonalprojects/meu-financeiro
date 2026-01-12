@@ -110,18 +110,14 @@ interface CustomDropdownProps {
   onAddNew?: () => void;
   placeholder?: string;
   className?: string;
+  compact?: boolean;
 }
 
 const CustomDropdown: React.FC<CustomDropdownProps> = ({
-  label,
-  value,
-  options,
-  onSelect,
-  onDelete,
-  onAddNew,
-  placeholder = "Selecione",
-  className = "",
+  label, value, options, onSelect, onDelete, onAddNew, placeholder = "Selecione", className = "",
+  compact = false
 }) => {
+
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 

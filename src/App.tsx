@@ -1006,20 +1006,32 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex gap-2 overflow-x-auto no-scrollbar transition-colors">
-           {(["transacoes", "gastos", "projecao"] as TabType[]).map((tab) => (
-              <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${activeTab === tab ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                {tab === "transacoes"
-  ? "Transações"
-  : tab === "gastos"
-  ? "Análise de Gastos"
-  : tab === "projecao"
-  ? "Projeção"
-  : "Ajustes"}
+         {/* MENU DE ABAS (mobile-first, alinhado e sem bagunça) */}
+<div className="bg-white dark:bg-slate-900 p-2 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
+  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+    {(["transacoes", "gastos", "projecao", "ajustes"] as TabType[]).map((tab) => (
+      <button
+        key={tab}
+        type="button"
+        onClick={() => setActiveTab(tab)}
+        className={`h-11 rounded-2xl text-sm font-semibold transition-all
+          ${activeTab === tab
+            ? "bg-indigo-600 text-white shadow"
+            : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700"
+          }`}
+      >
+        {tab === "transacoes"
+          ? "Transações"
+          : tab === "gastos"
+          ? "Análise"
+          : tab === "projecao"
+          ? "Projeção"
+          : "Ajustes"}
+      </button>
+    ))}
+  </div>
+</div>
 
-              </button>
-            ))}
-          </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 min-h-[550px] transition-colors">
             {activeTab === 'transacoes' && (

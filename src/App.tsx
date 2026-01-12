@@ -225,46 +225,42 @@ const CustomDateInput: React.FC<{
   };
 
   return (
-    <div className={`relative ${className}`}>
-      {label && (
-        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-          {label}
-        </label>
-      )}
+  <div className={`relative ${className}`}>
+    {label && (
+      <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+        {label}
+      </label>
+    )}
 
-      <div className="relative">
-        <input
-          ref={inputRef}
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="
-            w-full h-11
-            rounded-2xl
-            border border-slate-200 dark:border-slate-700
-            bg-slate-50 dark:bg-slate-800
-            px-4 pr-12
-            text-left
-            text-slate-800 dark:text-slate-100
-            outline-none
-            focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
-            transition-all shadow-sm
-            appearance-none
-          "
-        />
-
-        {/* Ícone roxo na DIREITA (no lugar do arrow) */}
-        <button
-          type="button"
-          onClick={abrirPicker}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 [&_svg]:w-5 [&_svg]:h-5"
-          aria-label={type === "month" ? "Selecionar mês" : "Selecionar data"}
-        >
-          <CalendarIcon />
-        </button>
+    <div className="relative group">
+      {/* ÍCONE: mês fica à direita, date fica à esquerda */}
+      <div
+        className={`absolute top-1/2 -translate-y-1/2 pointer-events-none transition-colors
+          ${type === "month" ? "right-3 text-indigo-600" : "left-3 text-slate-400 group-focus-within:text-indigo-500"}
+        `}
+      >
+        <CalendarIcon />
       </div>
+
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`
+          w-full h-10 text-sm font-medium shadow-sm transition-all outline-none rounded-xl
+          bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700
+          text-slate-900 dark:text-slate-100
+          focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
+          appearance-none
+          ${type === "month"
+            ? "pl-4 pr-10 text-left"   // <<< ESSA LINHA resolve o desalinhamento no mobile
+            : "pl-10 pr-3"
+          }
+        `}
+      />
     </div>
-  );
+  </div>
+);
 };
 
 

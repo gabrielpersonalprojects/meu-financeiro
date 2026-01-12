@@ -1009,7 +1009,7 @@ const App: React.FC = () => {
          {/* MENU DE ABAS (mobile-first, alinhado e sem bagunça) */}
 <div className="bg-white dark:bg-slate-900 p-2 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-    {(["transacoes", "gastos", "projecao", "ajustes"] as TabType[]).map((tab) => (
+    {(["transacoes", "gastos", "projecao"] as TabType[]).map(...)
       <button
         key={tab}
         type="button"
@@ -1025,8 +1025,7 @@ const App: React.FC = () => {
           : tab === "gastos"
           ? "Análise"
           : tab === "projecao"
-          ? "Projeção"
-          : "Ajustes"}
+          ? "Projeção"}
       </button>
     ))}
   </div>

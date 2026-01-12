@@ -258,26 +258,25 @@ const CustomDateInput: React.FC<{
         </div>
 
         <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onClick={(e) => {
-            // força abrir o picker quando o browser suportar
-            const el = e.currentTarget as any;
-            try {
-              el.showPicker?.();
-            } catch {}
-          }}
-         className="
-w-full p-2.5 pl-4 pr-10
-bg-slate-50 dark:bg-slate-800
-rounded-xl border border-slate-200 dark:border-slate-700
-font-bold text-slate-800 dark:text-slate-100
-outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
-shadow-sm transition-all text-sm
-"
+  type={type}
+  value={value}
+  onChange={(e) => onChange(e.target.value)}
+  onClick={(e) => {
+    const el = e.currentTarget as any;
+    try { el.showPicker?.(); } catch {}
+  }}
+  className="
+    w-full h-10
+    pl-4 pr-10
+    bg-slate-50 dark:bg-slate-800
+    rounded-xl border border-slate-200 dark:border-slate-700
+    font-sans font-medium tabular-nums antialiased
+    text-slate-800 dark:text-slate-100
+    outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900
+    shadow-sm transition-all text-sm
+  "
+/>
 
-        />
       </div>
     </div>
   );

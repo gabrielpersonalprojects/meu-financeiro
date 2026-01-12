@@ -52,28 +52,10 @@ export const MoonIcon = () => (
   </svg>
 );
 
-export const SettingsIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M12 1v2" />
-    <path d="M12 21v2" />
-    <path d="M4.22 4.22l1.42 1.42" />
-    <path d="M18.36 18.36l1.42 1.42" />
-    <path d="M1 12h2" />
-    <path d="M21 12h2" />
-    <path d="M4.22 19.78l1.42-1.42" />
-    <path d="M18.36 5.64l1.42-1.42" />
-    <circle cx="12" cy="12" r="3" />
+export const SettingsIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+    <path d="M19.4 15a1.8 1.8 0 0 0 .35 1.98l.03.03a2.2 2.2 0 0 1-1.55 3.76 2.2 2.2 0 0 1-1.56-.64l-.03-.03a1.8 1.8 0 0 0-1.98-.35 1.8 1.8 0 0 0-1.07 1.65V22a2.2 2.2 0 0 1-4.4 0v-.04a1.8 1.8 0 0 0-1.07-1.65 1.8 1.8 0 0 0-1.98.35l-.03.03a2.2 2.2 0 0 1-3.11 0 2.2 2.2 0 0 1 0-3.11l.03-.03a1.8 1.8 0 0 0 .35-1.98 1.8 1.8 0 0 0-1.65-1.07H2a2.2 2.2 0 0 1 0-4.4h.04a1.8 1.8 0 0 0 1.65-1.07 1.8 1.8 0 0 0-.35-1.98l-.03-.03a2.2 2.2 0 0 1 0-3.11 2.2 2.2 0 0 1 3.11 0l.03.03a1.8 1.8 0 0 0 1.98.35 1.8 1.8 0 0 0 1.07-1.65V2a2.2 2.2 0 0 1 4.4 0v.04a1.8 1.8 0 0 0 1.07 1.65 1.8 1.8 0 0 0 1.98-.35l.03-.03a2.2 2.2 0 0 1 3.11 0 2.2 2.2 0 0 1 0 3.11l-.03.03a1.8 1.8 0 0 0-.35 1.98 1.8 1.8 0 0 0 1.65 1.07H22a2.2 2.2 0 0 1 0 4.4h-.04a1.8 1.8 0 0 0-1.65 1.07Z" />
   </svg>
 );
 

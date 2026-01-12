@@ -1009,27 +1009,29 @@ const App: React.FC = () => {
          {/* MENU DE ABAS (mobile-first, alinhado e sem bagunça) */}
 <div className="bg-white dark:bg-slate-900 p-2 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-    {(["transacoes", "gastos", "projecao"] as TabType[]).map(...)
+    {(["transacoes", "gastos", "projecao", "ajustes"] as TabType[]).map((tab) => (
       <button
         key={tab}
         type="button"
         onClick={() => setActiveTab(tab)}
-        className={`h-11 rounded-2xl text-sm font-semibold transition-all
-          ${activeTab === tab
+        className={`h-11 rounded-2xl text-sm font-semibold transition-all whitespace-nowrap ${
+          activeTab === tab
             ? "bg-indigo-600 text-white shadow"
             : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700"
-          }`}
+        }`}
       >
         {tab === "transacoes"
           ? "Transações"
           : tab === "gastos"
           ? "Análise"
           : tab === "projecao"
-          ? "Projeção"}
+          ? "Projeção"
+          : "Ajustes"}
       </button>
     ))}
   </div>
 </div>
+
 
 
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 min-h-[550px] transition-colors">

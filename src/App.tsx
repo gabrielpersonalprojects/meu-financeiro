@@ -732,34 +732,46 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 py-8 transition-colors">
-        <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-5">
-            <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 shadow-lg shadow-indigo-100/50">
-               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
-            </div>
-            <div className="flex items-center gap-3">
-  <button
-    type="button"
-    onClick={() => setSettingsOpen(true)}
-    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-    title="Configurações"
-  >
-    <SettingsIcon />
-  </button>
-</div>
-            <div className="flex flex-col">
-              <div className="flex items-center">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Meu</span>
-                  <span className="text-3xl font-bold text-slate-400 dark:text-slate-500 tracking-tight">Financeiro</span>
-                </div>
-              </div>
-              <p className="text-slate-400 dark:text-slate-500 font-medium text-base tracking-tight -mt-0.5">seu dinheiro, sua carteira, seu controle</p>
-            </div>
-          </div>
+     <header className="border-slate-100 dark:border-slate-800 border-b bg-white dark:bg-slate-900 py-8 transition-colors">
+  <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+
+    {/* ESQUERDA: LOGO + TÍTULO */}
+    <div className="flex items-center gap-5">
+      <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 shadow-lg shadow-indigo-100/50">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="20" x2="12" y2="10" />
+          <line x1="18" y1="20" x2="18" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="16" />
+        </svg>
+      </div>
+
+      <div className="flex flex-col">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Meu</span>
+          <span className="text-3xl font-bold text-slate-400 dark:text-slate-500 tracking-tight">Financeiro</span>
         </div>
-      </header>
+        <p className="text-slate-400 dark:text-slate-500 font-medium text-base tracking-tight -mt-0.5">
+          seu dinheiro, sua carteira, seu controle
+        </p>
+      </div>
+    </div>
+
+    {/* DIREITA: BOTÃO SETTINGS */}
+    <div className="w-full md:w-auto flex justify-end">
+      <button
+        type="button"
+        onClick={() => setSettingsOpen(true)}
+        className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+        title="Configurações"
+      >
+        <SettingsIcon />
+      </button>
+    </div>
+
+  </div>
+</header>
+
+        
 
       <main className="container mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-6">

@@ -16,7 +16,7 @@ import {
   getMesAnoExtenso, 
   extrairValorMoeda 
 } from './utils/formatters';
-import { PlusIcon, TrashIcon, EditIcon, GripVerticalIcon, CalendarIcon, SunIcon, MoonIcon } from './components/LucideIcons';
+import { PlusIcon, TrashIcon, EditIcon, GripVerticalIcon, CalendarIcon, SunIcon, MoonIcon, SettingsIcon } from "./components/LucideIcons";
 import { 
   PieChart, 
   Pie, 
@@ -248,7 +248,8 @@ const App: React.FC = () => {
   const [categorias, setCategorias] = useState<Categories>(CATEGORIAS_PADRAO);
   const [metodosPagamento, setMetodosPagamento] = useState<PaymentMethods>({ credito: [], debito: [] });
   const [activeTab, setActiveTab] = useState('transacoes');
-  
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const [isClearing, setIsClearing] = useState(false);
   const isClearingRef = useRef(false);
   const isDataLoadedRef = useRef(false);

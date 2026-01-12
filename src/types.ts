@@ -1,6 +1,6 @@
 export type TransactionType = "despesa" | "receita";
 export type SpendingType = "Fixo" | "Variável";
-export type TabType = "transacoes" | "gastos" | "projecao";
+export type TabType = 'transacoes' | 'gastos' | 'projecao' | 'ajustes';
 
 export type PaymentMethod = "" | "pix" | "credito_vista" | "debito" | "boleto";
 

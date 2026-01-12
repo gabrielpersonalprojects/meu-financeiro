@@ -16,7 +16,7 @@ import {
   getMesAnoExtenso, 
   extrairValorMoeda 
 } from './utils/formatters';
-import { PlusIcon, TrashIcon, EditIcon, GripVerticalIcon, CalendarIcon, SunIcon, MoonIcon } from './components/LucideIcons';
+import { PlusIcon, TrashIcon, EditIcon, GripVerticalIcon, CalendarIcon, SunIcon, MoonIcon, SettingsIcon } from "./components/LucideIcons";
 import { 
   PieChart, 
   Pie, 
@@ -248,7 +248,8 @@ const App: React.FC = () => {
   const [categorias, setCategorias] = useState<Categories>(CATEGORIAS_PADRAO);
   const [metodosPagamento, setMetodosPagamento] = useState<PaymentMethods>({ credito: [], debito: [] });
   const [activeTab, setActiveTab] = useState('transacoes');
-  
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const [isClearing, setIsClearing] = useState(false);
   const isClearingRef = useRef(false);
   const isDataLoadedRef = useRef(false);
@@ -731,28 +732,46 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 py-8 transition-colors">
-        <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-5">
-            <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 shadow-lg shadow-indigo-100/50">
-               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Meu</span>
-                  <span className="text-3xl font-bold text-slate-400 dark:text-slate-500 tracking-tight">Financeiro</span>
-                </div>
-              </div>
-              <p className="text-slate-400 dark:text-slate-500 font-medium text-base tracking-tight -mt-0.5">seu dinheiro, sua carteira, seu controle</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => setIsDarkMode(!isDarkMode)} className="p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95 shadow-sm border border-transparent dark:border-slate-700" title={isDarkMode ? "Modo Claro" : "Modo Escuro"}>{isDarkMode ? <SunIcon /> : <MoonIcon />}</button>
-            <button type="button" onClick={handleLimparDados} className="px-6 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold transition-all shadow-md active:scale-95">Limpar Dados</button>
-          </div>
+     <header className="border-slate-100 dark:border-slate-800 border-b bg-white dark:bg-slate-900 py-8 transition-colors">
+  <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+
+    {/* ESQUERDA: LOGO + TÍTULO */}
+    <div className="flex items-center gap-5">
+      <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 shadow-lg shadow-indigo-100/50">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="20" x2="12" y2="10" />
+          <line x1="18" y1="20" x2="18" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="16" />
+        </svg>
+      </div>
+
+      <div className="flex flex-col">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Meu</span>
+          <span className="text-3xl font-bold text-slate-400 dark:text-slate-500 tracking-tight">Financeiro</span>
         </div>
-      </header>
+        <p className="text-slate-400 dark:text-slate-500 font-medium text-base tracking-tight -mt-0.5">
+          seu dinheiro, sua carteira, seu controle
+        </p>
+      </div>
+    </div>
+
+    {/* DIREITA: BOTÃO SETTINGS */}
+    <div className="w-full md:w-auto flex justify-end">
+      <button
+        type="button"
+        onClick={() => setSettingsOpen(true)}
+        className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+        title="Configurações"
+      >
+        <SettingsIcon />
+      </button>
+    </div>
+
+  </div>
+</header>
+
+        
 
       <main className="container mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-6">
@@ -951,9 +970,16 @@ const App: React.FC = () => {
           </div>
           
           <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex gap-2 overflow-x-auto no-scrollbar transition-colors">
-            {(['transacoes', 'gastos', 'projecao'] as TabType[]).map(tab => (
+           {(["transacoes", "gastos", "projecao"] as TabType[]).map((tab) => (
               <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${activeTab === tab ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                {tab === 'transacoes' ? 'Transações' : tab === 'gastos' ? 'Análise de Gastos' : 'Projeção'}
+                {tab === "transacoes"
+  ? "Transações"
+  : tab === "gastos"
+  ? "Análise de Gastos"
+  : tab === "projecao"
+  ? "Projeção"
+  : "Ajustes"}
+
               </button>
             ))}
           </div>
@@ -1087,9 +1113,84 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
+           
           </div>
         </div>
       </main>
+{settingsOpen && (
+  <>
+    {/* FUNDO (clicar fora fecha) */}
+    <button
+      type="button"
+      className="fixed inset-0 z-[90] bg-slate-900/60 backdrop-blur-sm"
+      onClick={() => setSettingsOpen(false)}
+      aria-label="Fechar configurações"
+    />
+
+    {/* CAIXA DO MODAL */}
+    <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+      <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95">
+        
+        {/* TOPO */}
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-black text-slate-900 dark:text-white">Configurações</h3>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(false)}
+            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+            title="Fechar"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* CONTEÚDO */}
+        <div className="space-y-4">
+
+          {/* TEMA */}
+          <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Tema</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Alternar entre modo claro e escuro
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsDarkMode((prev) => !prev)}
+              className="px-4 py-2.5 rounded-2xl font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95"
+            >
+              {isDarkMode ? "Usar modo claro" : "Usar modo escuro"}
+            </button>
+          </div>
+
+          {/* LIMPAR DADOS */}
+          <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Dados do app</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Apaga os dados do perfil atual
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSettingsOpen(false);
+                handleLimparDados();
+              }}
+              className="px-4 py-2.5 rounded-2xl font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-all active:scale-95"
+            >
+              Limpar Dados
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </>
+)}
 
       {editingTransaction && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">

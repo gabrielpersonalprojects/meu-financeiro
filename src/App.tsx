@@ -951,9 +951,16 @@ const App: React.FC = () => {
           </div>
           
           <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex gap-2 overflow-x-auto no-scrollbar transition-colors">
-            {(['transacoes', 'gastos', 'projecao'] as TabType[]).map(tab => (
+           {(["transacoes", "gastos", "projecao", "ajustes"] as TabType[]).map((tab) => (
               <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${activeTab === tab ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                {tab === 'transacoes' ? 'Transações' : tab === 'gastos' ? 'Análise de Gastos' : 'Projeção'}
+                {tab === "transacoes"
+  ? "Transações"
+  : tab === "gastos"
+  ? "Análise de Gastos"
+  : tab === "projecao"
+  ? "Projeção"
+  : "Ajustes"}
+
               </button>
             ))}
           </div>
@@ -1087,6 +1094,56 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
+            {activeTab === "ajustes" && (
+  <div className="animate-in fade-in py-6 space-y-6">
+    <div className="flex flex-col items-center gap-2 mb-6">
+      <h3 className="text-3xl font-semibold text-slate-900 dark:text-white tracking-tight text-center">
+        Ajustes
+      </h3>
+      <p className="text-xs font-medium text-slate-400 dark:text-slate-500 text-center">
+        Preferências do app (visual e dados)
+      </p>
+    </div>
+
+    <div className="max-w-xl mx-auto space-y-4">
+      {/* Tema */}
+      <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Tema</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Alternar entre modo claro e escuro
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          className="px-4 py-2.5 rounded-2xl font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95"
+        >
+          {isDarkMode ? "Usar modo claro" : "Usar modo escuro"}
+        </button>
+      </div>
+
+      {/* Limpar dados */}
+      <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Dados do app</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Remove lançamentos e preferências salvas
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleLimparDados}
+          className="px-4 py-2.5 rounded-2xl font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-all active:scale-95"
+        >
+          Limpar Dados
+        </button>
+      </div>
+    </div>
+  </div>
+)}
           </div>
         </div>
       </main>

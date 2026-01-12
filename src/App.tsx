@@ -749,14 +749,8 @@ const App: React.FC = () => {
 
 {/* LOGO + TÍTULO (central no mobile / alinhado no desktop) */}
 <div className="flex flex-col items-center text-center md:flex-row md:items-center md:text-left gap-4 md:gap-5">
-  <div
-    className="
-      flex items-center justify-center w-11 h-11 rounded-xl
-      bg-gradient-to-br from-indigo-600 to-violet-700
-      shadow-lg
-      dark:shadow-[0_0_26px_rgba(255,255,255,0.28)]
-    "
-  >
+  <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 shadow-lg dark:shadow-[0_0_26px_rgba(255,255,255,0.28)]">
+
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="20" x2="12" y2="10" />
       <line x1="18" y1="20" x2="18" y2="4" />

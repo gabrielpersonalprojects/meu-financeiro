@@ -369,7 +369,18 @@ useEffect(() => {
   const [userName, setUserName] = useState<string>('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(() => (localStorage.getItem('theme') ?? 'dark') === 'dark');
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  try {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark") return true;
+    if (saved === "light") return false;
+    return true; // default = escuro
+  } catch {
+    return true;
+  }
+});
+
+
 
 
   const [showModalMetodo, setShowModalMetodo] = useState(false);

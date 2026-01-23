@@ -1,8 +1,16 @@
-export type TransactionType = "despesa" | "receita";
+export type TransactionType = "despesa" | "receita" | "transferencia" | "cartao_credito";
+  
 export type SpendingType = "Fixo" | "Variável";
 export type TabType = 'transacoes' | 'gastos' | 'projecao' | 'ajustes';
 
-export type PaymentMethod = "" | "pix" | "credito_vista" | "debito" | "boleto";
+export type PaymentMethod =
+  | "pix"
+  | "transferencia_bancaria"
+  | "debito_conta"
+  | "boleto"
+  | "dinheiro";
+
+
 
 export type Categories = {
   despesa: string[];
@@ -22,11 +30,32 @@ export interface Transaction {
   data: string; // YYYY-MM-DD
   categoria: string;
   tipoGasto: SpendingType | "";
-  metodoPagamento: PaymentMethod;
+  metodoPagamento?: PaymentMethod;
   qualCartao: string;
   pago: boolean;
+  contaId?: string; // id da conta (profile.id)
+
 
   // opcionais
   recorrenciaId?: string;
   isRecorrente?: boolean;
 }
+
+export type Profile = {
+  id: string;
+  name: string; // nome mostrado no menu (ex: "Nubank")
+  perfilConta: "PF" | "PJ";
+  tipoConta: string;
+
+  banco?: string;
+  numeroConta?: string;
+  numeroAgencia?: string;
+
+  possuiCartaoCredito?: boolean;
+  limiteCartao?: number;     // número
+  diaFechamento?: number;    // 1..31
+  diaVencimento?: number;    // 1..31
+};
+
+
+

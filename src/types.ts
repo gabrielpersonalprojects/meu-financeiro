@@ -43,19 +43,22 @@ export interface Transaction {
 
 export type Profile = {
   id: string;
-  name: string; // nome mostrado no menu (ex: "Nubank")
-  perfilConta: "PF" | "PJ";
-  tipoConta: string;
-
+  name: string; // ou banco, depende do seu
   banco?: string;
   numeroConta?: string;
   numeroAgencia?: string;
 
+  initialBalanceCents?: number;
+
+
+  perfilConta?: "PF" | "PJ";
+  tipoConta?: string;
   possuiCartaoCredito?: boolean;
-  limiteCartao?: number;     // número
-  diaFechamento?: number;    // 1..31
-  diaVencimento?: number;    // 1..31
+  limiteCartao?: number;
+  diaFechamento?: number;
+  diaVencimento?: number;
 };
+
 
 
 

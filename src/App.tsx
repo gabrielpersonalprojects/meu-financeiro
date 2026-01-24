@@ -8,6 +8,20 @@ import { supabase } from "./lib/supabase";
 import { useUI } from "./components/UIProvider";
 import type { ReactNode } from "react";
 
+// ===== dinheiro (BRL) =====
+const parseBRLToCents = (raw: string) => {
+  const digits = String(raw ?? "").replace(/\D/g, ""); // só números
+  return Number(digits || "0"); // já é centavos
+};
+
+const formatCentsToBRL = (cents: number) => {
+  return (Number(cents || 0) / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+};
+
+
 import { useEffect, useMemo, useRef, useState, type FC } from "react";
 import type { Session } from "@supabase/supabase-js";
 
@@ -514,6 +528,8 @@ const [accPossuiCC, setAccPossuiCC] = useState<boolean>(false);
 const [accLimiteCC, setAccLimiteCC] = useState("");
 const [accFechamentoCC, setAccFechamentoCC] = useState<number>(1);
 const [accVencimentoCC, setAccVencimentoCC] = useState<number>(10);
+const [accSaldoInicial, setAccSaldoInicial] = useState("");
+
 
 const resetAddAccountForm = () => {
   setAccPerfilConta("PF");
@@ -542,6 +558,15 @@ if (profiles.length >= 50) {
   setShowProfileMenu(false); // fecha o menu de contas
 };
 
+  const formatBRLFromAnyInput = (raw: string) => {
+  const digits = String(raw || "").replace(/\D/g, ""); // só números
+  const cents = Number(digits || "0");
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+};
+
   const openEditAccountModal = (profileId: string) => {
   const p = profiles.find((x) => x.id === profileId);
   if (!p) return;
@@ -556,6 +581,9 @@ if (profiles.length >= 50) {
   setAccBanco(p.banco ?? p.name ?? "");
   setAccNumeroConta(p.numeroConta ?? "");
   setAccNumeroAgencia(p.numeroAgencia ?? "");
+  
+  setAccSaldoInicial(formatarMoeda(p.initialBalanceCents ?? 0));
+
 
   const possuiCC = !!p.possuiCartaoCredito;
   setAccPossuiCC(possuiCC);
@@ -580,6 +608,9 @@ const handleOpenEditAccount = (id: string) => {
   setAccBanco(conta.banco ?? conta.name ?? "");
   setAccNumeroConta(conta.numeroConta ?? "");
   setAccNumeroAgencia(conta.numeroAgencia ?? "");
+  
+  setAccSaldoInicial(formatarMoeda(conta.initialBalanceCents ?? 0));
+
   setAccPerfilConta(conta.perfilConta ?? "PF");
   setAccTipoConta(conta.tipoConta ?? "");
 
@@ -602,6 +633,9 @@ const handleConfirmAddAccount = () => {
  const banco = accBanco.trim();
   const numeroConta = accNumeroConta.trim();
   const numeroAgencia = accNumeroAgencia.trim();
+
+  const initialBalanceCents =
+  Number(String(accSaldoInicial || "").replace(/\D/g, "")) || 0;
 
 // obrigatório só o banco
 if (!banco) {
@@ -643,7 +677,7 @@ if (existe) {
 
 
   const limiteCartaoNum = Math.max(0, Number(extrairValorMoeda(accLimiteCC || "")) || 0);
-
+  
   // ====== EDITANDO ======
   if (editingProfileId) {
     const updated: Profile = {
@@ -652,6 +686,10 @@ if (existe) {
       banco,
       numeroConta,
       numeroAgencia,
+
+      initialBalanceCents,
+
+
       perfilConta: accPerfilConta,
       tipoConta: accTipoConta,
       possuiCartaoCredito: accPossuiCC,
@@ -679,6 +717,9 @@ if (existe) {
     banco,
     numeroConta,
     numeroAgencia,
+
+    initialBalanceCents,
+
     perfilConta: accPerfilConta,
     tipoConta: accTipoConta,
     possuiCartaoCredito: accPossuiCC,
@@ -1201,39 +1242,74 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
   };
 
 function passarFiltroConta(t: Transaction) {
+  const anyT: any = t as any;
+
   // 1) "todas"
   if (String(filtroConta) === "todas") return true;
 
-  // 2) "sem conta"
-  if (String(filtroConta) === "sem_conta") {
-    const temAlgumaConta =
-      Boolean((t as any).qualCartao) ||
-      Boolean((t as any).profileId) ||
-      Boolean((t as any).contaOrigemId) ||
-      Boolean((t as any).contaDestinoId);
-
-    return !temAlgumaConta;
-  }
+  // helpers
+  const getTxContaId = () =>
+    String(
+      anyT.profileId ??
+        anyT.contaId ??
+        anyT.accountId ??
+        anyT.perfilId ??
+        anyT.idConta ??
+        anyT.contaVinculadaId ??
+        ""
+    );
 
   const alvo = String(filtroConta);
 
-  // 3) Transferência: passa se a conta filtrada for ORIGEM ou DESTINO
   const isTransfer =
-    (t as any).tipo === "transferencia" ||
-    Boolean((t as any).transferId) ||
-    String((t as any).categoria || "").toLowerCase().includes("transfer");
+    anyT.tipo === "transferencia" ||
+    Boolean(anyT.transferId) ||
+    String(anyT.categoria || "").toLowerCase().includes("transfer");
 
-  if (isTransfer) {
-    const origem = String((t as any).contaOrigemId || "");
-    const destino = String((t as any).contaDestinoId || "");
-    const profile = String((t as any).profileId || "");
-    const qual = String((t as any).qualCartao || "");
-
-    return origem === alvo || destino === alvo || profile === alvo || qual === alvo;
+  // 2) "sem_conta" = não tem vínculo com conta nem cartão nem transferência
+  if (alvo === "sem_conta") {
+    const temConta = Boolean(getTxContaId());
+    const temCartao = Boolean(anyT.qualCartao);
+    const temTransfer = Boolean(anyT.contaOrigemId || anyT.contaDestinoId || anyT.transferId);
+    return !temConta && !temCartao && !temTransfer;
   }
 
-  // 4) Regra normal (despesa/receita/cartão): usa qualCartao/profileId
-  return String((t as any).qualCartao || (t as any).profileId || "") === alvo;
+  // 3) Transferência: bate ORIGEM ou DESTINO
+  if (isTransfer) {
+    const origem = String(anyT.contaOrigemId || "");
+    const destino = String(anyT.contaDestinoId || "");
+    const conta = getTxContaId();
+    const qual = String(anyT.qualCartao || "");
+    return origem === alvo || destino === alvo || conta === alvo || qual === alvo;
+  }
+
+  // 4) Regra normal (despesa/receita/cartão)
+  // aceita vários possíveis campos + fallback seguro
+  const conta = getTxContaId();
+  const qual = String(anyT.qualCartao || "");
+
+  if (conta === alvo || qual === alvo) return true;
+
+  // fallback (pra transações antigas que ainda gravaram "banco/nome" ao invés de id)
+  const p: any = (profiles as any[]).find((x) => String(x.id) === alvo);
+  if (p) {
+    const txNome = String(anyT.contaNome || anyT.conta || anyT.profileName || "").toLowerCase();
+    const pNome = String(p.name || "").toLowerCase();
+
+    if (txNome && pNome && txNome === pNome) return true;
+
+    // se só tiver "banco", só usa quando não há ambiguidade (apenas 1 perfil com esse banco)
+    const txBanco = String(anyT.banco || anyT.bank || "").toLowerCase();
+    const pBanco = String(p.banco || "").toLowerCase();
+    if (txBanco && pBanco && txBanco === pBanco) {
+      const sameBank = (profiles as any[]).filter(
+        (x) => String(x.banco || "").toLowerCase() === pBanco
+      );
+      if (sameBank.length === 1) return true;
+    }
+  }
+
+  return false;
 }
 
 
@@ -1444,72 +1520,148 @@ const txCards = useMemo(() => {
   };
 
 const passaFiltroConta = (t: Transaction) => {
-  // "todas"
-  if (filtroConta === "todas") return true;
+  const fc = String(filtroConta ?? "").trim();
+  const fcNorm = fc.toLowerCase();
 
-  // "sem conta"
-  if (filtroConta === "sem_conta") {
-    return !t.qualCartao || t.tipo === "cartao_credito";
-  }
+  // ✅ "Todas as contas" (aceita variações e vazio)
+  const isTodas =
+    fcNorm === "" ||
+    fcNorm === "todas" ||
+    fcNorm === "todas as contas" ||
+    fcNorm === "todas_as_contas";
 
-  // tentar achar o perfil selecionado (pode ser id ou nome)
-  const perfilSel =
-    profiles.find((p) => String(p.id) === String(filtroConta)) ||
-    profiles.find((p) => p.name === String(filtroConta));
+  if (isTodas) return true;
 
-  const alvoId = perfilSel ? String(perfilSel.id) : String(filtroConta);
-  const alvoNome = perfilSel ? perfilSel.name : String(filtroConta);
+// "sem conta"
+const isSemConta = fc === "sem conta" || fc === "sem_conta";
+const anyT: any = t as any;
 
-  const val = String(t.qualCartao || "");
+// id real da conta (o que o dropdown usa)
+const tId = String(anyT.accountId ?? anyT.profileId ?? "").trim();
 
-  // bate se for igual ao ID OU ao nome
-  return val === alvoId || val === alvoNome;
+// fallback textual (muita transação sua está vindo só com isso)
+const tBancoTxt = String(anyT.bankId ?? anyT.banco ?? "").trim();
+
+// "Sem conta" agora significa: sem id E sem banco/nome
+const hasAlgumaConta = !!tId || !!tBancoTxt;
+if (isSemConta) return !hasAlgumaConta;
+
+// se não tem id, mas tem bancoTxt, tenta casar com o profile selecionado
+if (!tId) {
+  const pSel: any = (profiles || []).find((p: any) => String(p.id) === String(filtroConta));
+  const pBanco = String(pSel?.banco ?? "").trim();
+  const pNome = String(pSel?.name ?? "").trim();
+
+  if (pSel && tBancoTxt && (tBancoTxt === pBanco || tBancoTxt === pNome)) return true;
+}
+
+// conta específica (por id)
+return tId === String(filtroConta);
 };
 
+const transacoesFiltradasUI = useMemo(() => {
+  return (transactions || [])
+    // mês atual
+    .filter((t) => t.data?.startsWith(filtroMes || ""))
+    // Entradas + Saídas / Entradas / Saídas
+    .filter((t) => {
+  if (filtroLancamento === "todos") return true;
+  if (filtroLancamento === "receita") return t.tipo === "receita";
+  if (filtroLancamento === "despesa") return t.tipo === "despesa";
+  return true;
+})
 
-  // --- Stats (não contam transferencia/cartao_credito por enquanto) ---
-  const stats = useMemo(() => {
-    const saldoAnterior = transacoes
-      .filter((t) => t.pago && t.data < filtroMes + "-01")
-      .reduce((s, t) => s + (Number(t.valor) || 0), 0);
+    // Conta (todas / uma conta / sem_conta)
+    .filter(passarFiltroConta);
+}, [transactions, filtroMes, filtroLancamento, filtroConta]);
 
-  const transMes = transacoes
-  .filter((t) => (t.data || "").startsWith(filtroMes))
-  .filter(passaFiltroConta);
 
-    const transMesSemTransfer = (filtroConta === "todas")
-  ? transMes.filter((t) => {
-      const cat = String((t as any).categoria || "").toLowerCase();
-      return !(Boolean((t as any).transferId) || cat.includes("transfer"));
-    })
-  : transMes;
 
-    const receitasMes = transMesSemTransfer
-      .filter((t) => t.tipo === "receita" && t.pago)
-      .reduce((s, t) => s + (Number(t.valor) || 0), 0);
+// --- Stats (não contar transferência/cartão de crédito por enquanto) ---
+const stats = useMemo(() => {
+  // Transações do mês (respeita filtro de conta)
+ const transMes = transacoesFiltradasUI;
 
-    const despesasMes = transMesSemTransfer
-      .filter((t) => t.tipo === "despesa" && t.pago)
-      .reduce((s, t) => s + Math.abs(Number(t.valor) || 0), 0);
 
-    const pendenteR = transMesSemTransfer
-      .filter((t) => t.tipo === "receita" && !t.pago)
-      .reduce((s, t) => s + (Number(t.valor) || 0), 0);
+  // remove "transfer" do mês (se você estiver marcando categoria/flag de transfer)
+  const transMesSemTransfer = transMes.filter((t) => {
+    const cat = String((t as any).categoria || "").toLowerCase();
+    const isTransfer = cat.includes("transfer") || Boolean((t as any).transferId);
+    return !isTransfer;
+  });
 
-    const pendenteD = transMesSemTransfer
-      .filter((t) => t.tipo === "despesa" && !t.pago)
-      .reduce((s, t) => s + Math.abs(Number(t.valor) || 0), 0);
+  // Helper: soma só o que foi PAGO (saldo real)
+  const signedPago = (t: any) => {
+    if (!t?.pago) return 0;
+    const v = Number(t.valor || 0);
+    if (t.tipo === "receita") return v;
+    if (t.tipo === "despesa") return -Math.abs(v);
+    return 0;
+  };
 
- return {
-  receitasMes,
-  despesasMes,
-  saldoMes: receitasMes - despesasMes,
-  saldoTotal: saldoAnterior + (receitasMes - despesasMes),
-  pendenteReceita: pendenteR,
-  pendenteDespesa: pendenteD,
-};
+  const receitasMes = transMesSemTransfer
+    .filter((t) => t.tipo === "receita" && t.pago)
+    .reduce((s, t) => s + Number(t.valor || 0), 0);
 
-  }, [transactions, filtroMes, filtroConta]);
+  const despesasMes = transMesSemTransfer
+    .filter((t) => t.tipo === "despesa" && t.pago)
+    .reduce((s, t) => s + Math.abs(Number(t.valor || 0)), 0);
+
+  const pendenteReceita = transMesSemTransfer
+    .filter((t) => t.tipo === "receita" && !t.pago)
+    .reduce((s, t) => s + Number(t.valor || 0), 0);
+
+  const pendenteDespesa = transMesSemTransfer
+    .filter((t) => t.tipo === "despesa" && !t.pago)
+    .reduce((s, t) => s + Math.abs(Number(t.valor || 0)), 0);
+
+  // Saldo inicial do filtro atual (todas ou conta específica)
+  const initialForFilter = () => {
+    const fcRaw = String(filtroConta ?? "").trim().toLowerCase();
+
+    const isTodas =
+      fcRaw === "" ||
+      fcRaw === "todas" ||
+      fcRaw === "todas as contas" ||
+      fcRaw === "todas_as_contas" ||
+      fcRaw === "todas_contas";
+
+    const initialReais = (p: any) => {
+      if (p?.initialBalanceCents != null) return Number(p.initialBalanceCents) / 100;
+      return Number(p?.initialBalance ?? 0);
+    };
+
+    if (isTodas) return (profiles || []).reduce((s, p: any) => s + initialReais(p), 0);
+
+    // conta específica (filtroConta guarda o id)
+    const p = (profiles || []).find((x: any) => String(x.id) === String(filtroConta));
+    return p ? initialReais(p) : 0;
+  };
+
+  // saldo anterior = tudo pago antes do mês atual (respeita filtroConta)
+  const primeiroDiaMes = `${filtroMes}-01`;
+  const saldoAnterior = (transactions || [])
+    .filter((t) => String(t.data || "") < primeiroDiaMes)
+    .filter(passaFiltroConta)
+    .reduce((s, t) => s + signedPago(t), 0);
+
+  // saldo do mês (pago)
+  const saldoMes = receitasMes - despesasMes;
+
+  // saldo total = saldo inicial + saldo anterior + saldo do mês
+  const saldoTotal = initialForFilter() + saldoAnterior + saldoMes;
+
+  return {
+    receitasMes,
+    despesasMes,
+    saldoMes,
+    saldoTotal,
+    pendenteReceita,
+    pendenteDespesa,
+  };
+}, [transactions, filtroMes, filtroConta, profiles]);
+
+const { saldoTotal, receitasMes, despesasMes, pendenteReceita, pendenteDespesa } = stats;
 
     // --- Gastos por categoria (somente despesa) ---
   const spendingByCategoryData = useMemo(() => {
@@ -2693,6 +2845,8 @@ if (sessionLoading) {
   setAccNumeroAgencia("");
   setAccPerfilConta("PF");
   setAccTipoConta(TIPOS_CONTA[0]);
+  setAccSaldoInicial("");
+
 
   // limpa dados de cartão (se tiver)
   setAccPossuiCC(false);
@@ -2790,8 +2944,8 @@ if (sessionLoading) {
                   Saldo Disponível
                 </p>
                 <p className="text-4xl font-black text-white tracking-tight">
-                  {stats.saldoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                </p>
+  {formatarMoeda(stats.saldoTotal)}
+</p>
               </div>
             </div>
 
@@ -2801,9 +2955,9 @@ if (sessionLoading) {
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
                 Entradas (Mês)
               </p>
-              <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                {formatarMoeda(stats.receitasMes)}
-              </p>
+             <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+  {formatarMoeda(stats.receitasMes)}
+</p>
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
                 Pendente:{" "}
                 <span className="text-emerald-600 dark:text-emerald-400">
@@ -2818,9 +2972,9 @@ if (sessionLoading) {
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
                 Saídas (Mês)
               </p>
-              <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                {formatarMoeda(stats.despesasMes)}
-              </p>
+             <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+  {formatarMoeda(stats.despesasMes)}
+</p>
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
                 Pendente:{" "}
                 <span className="text-rose-600 dark:text-rose-400">
@@ -4061,6 +4215,26 @@ if (isTransfer) {
                 className="w-full p-2.5 bg-slate-800/60 rounded-xl border border-slate-700 text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
+          
+                     {/* Saldo inicial */}
+                    <div className="mt-3">
+                      <label className="block text-xs font-bold text-slate-400 uppercase mb-2">
+                        Saldo inicial
+                      </label>
+
+                    <input
+                      value={accSaldoInicial}
+                      onChange={(e) => setAccSaldoInicial(formatBRLFromAnyInput(e.target.value))}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
+                      placeholder="R$ 0,00"
+                      inputMode="numeric"
+                      className="w-full p-2.5 bg-slate-900/40 border border-slate-700 rounded-xl text-slate-100"
+                    />
+
+                    </div>
+
+                   
           </div>
 
           </div>

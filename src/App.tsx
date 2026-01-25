@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FC, ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { parseBRLToCents, formatCentsToBRL } from "./app/money";
+import { passarFiltroConta as passarFiltroContaLogic } from "./app/transactions/logic";
 
 
 
@@ -1231,74 +1232,7 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
   };
 
 function passarFiltroConta(t: Transaction) {
-  const anyT: any = t as any;
-
-  // 1) "todas"
-  if (String(filtroConta) === "todas") return true;
-
-  // helpers
-  const getTxContaId = () =>
-    String(
-      anyT.profileId ??
-        anyT.contaId ??
-        anyT.accountId ??
-        anyT.perfilId ??
-        anyT.idConta ??
-        anyT.contaVinculadaId ??
-        ""
-    );
-
-  const alvo = String(filtroConta);
-
-  const isTransfer =
-    anyT.tipo === "transferencia" ||
-    Boolean(anyT.transferId) ||
-    String(anyT.categoria || "").toLowerCase().includes("transfer");
-
-  // 2) "sem_conta" = não tem vínculo com conta nem cartão nem transferência
-  if (alvo === "sem_conta") {
-    const temConta = Boolean(getTxContaId());
-    const temCartao = Boolean(anyT.qualCartao);
-    const temTransfer = Boolean(anyT.contaOrigemId || anyT.contaDestinoId || anyT.transferId);
-    return !temConta && !temCartao && !temTransfer;
-  }
-
-  // 3) Transferência: bate ORIGEM ou DESTINO
-  if (isTransfer) {
-    const origem = String(anyT.contaOrigemId || "");
-    const destino = String(anyT.contaDestinoId || "");
-    const conta = getTxContaId();
-    const qual = String(anyT.qualCartao || "");
-    return origem === alvo || destino === alvo || conta === alvo || qual === alvo;
-  }
-
-  // 4) Regra normal (despesa/receita/cartão)
-  // aceita vários possíveis campos + fallback seguro
-  const conta = getTxContaId();
-  const qual = String(anyT.qualCartao || "");
-
-  if (conta === alvo || qual === alvo) return true;
-
-  // fallback (pra transações antigas que ainda gravaram "banco/nome" ao invés de id)
-  const p: any = (profiles as any[]).find((x) => String(x.id) === alvo);
-  if (p) {
-    const txNome = String(anyT.contaNome || anyT.conta || anyT.profileName || "").toLowerCase();
-    const pNome = String(p.name || "").toLowerCase();
-
-    if (txNome && pNome && txNome === pNome) return true;
-
-    // se só tiver "banco", só usa quando não há ambiguidade (apenas 1 perfil com esse banco)
-    const txBanco = String(anyT.banco || anyT.bank || "").toLowerCase();
-    const pBanco = String(p.banco || "").toLowerCase();
-    if (txBanco && pBanco && txBanco === pBanco) {
-      const sameBank = (profiles as any[]).filter(
-        (x) => String(x.banco || "").toLowerCase() === pBanco
-      );
-      if (sameBank.length === 1) return true;
-    }
-  }
-
-  return false;
+  return passarFiltroContaLogic(t, filtroConta, activeProfileId);
 }
 
 

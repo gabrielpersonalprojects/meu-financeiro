@@ -10,7 +10,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FC, ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { parseBRLToCents, formatCentsToBRL } from "./app/money";
-import { passarFiltroConta as passarFiltroContaLogic } from "./app/transactions/logic";
+import {
+  passarFiltroConta as passarFiltroContaLogic,
+  maskLast4,
+} from "./app/transactions/logic";
+
 
 
 

@@ -43,3 +43,10 @@ export const passarFiltroConta = (
 
   return false;
 };
+
+export const maskLast4 = (v: string) => {
+  if (!v) return "";
+  const digits = String(v).replace(/\D/g, "");
+  if (digits.length <= 4) return digits;
+  return "****" + digits.slice(-4);
+};

@@ -28,6 +28,7 @@ import {
 import { sortByValueDesc, sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
 import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
+import { computeStatsMes } from "./app/transactions/stats";
 
 
 import type {
@@ -1449,87 +1450,15 @@ const transacoesFiltradasUI = useMemo(() => {
 
 // --- Stats (não contar transferência/cartão de crédito por enquanto) ---
 const stats = useMemo(() => {
-  // Transações do mês (respeita filtro de conta)
- const transMes = transacoesFiltradasUI;
-
-
-  // remove "transfer" do mês (se você estiver marcando categoria/flag de transfer)
-  const transMesSemTransfer = transMes.filter((t) => {
-    const cat = String((t as any).categoria || "").toLowerCase();
-    const isTransfer = cat.includes("transfer") || Boolean((t as any).transferId);
-    return !isTransfer;
+  return computeStatsMes({
+    transactions: transactions || [],
+    filtroMes,
+    filtroConta,
+    profiles: profiles || [],
+    passaFiltroConta,
   });
+}, [transactions, filtroMes, filtroConta, profiles, passaFiltroConta]);
 
-  // Helper: soma só o que foi PAGO (saldo real)
-  const signedPago = (t: any) => {
-    if (!t?.pago) return 0;
-    const v = Number(t.valor || 0);
-    if (t.tipo === "receita") return v;
-    if (t.tipo === "despesa") return -Math.abs(v);
-    return 0;
-  };
-
-  const receitasMes = transMesSemTransfer
-    .filter((t) => t.tipo === "receita" && t.pago)
-    .reduce((s, t) => s + Number(t.valor || 0), 0);
-
-  const despesasMes = transMesSemTransfer
-    .filter((t) => t.tipo === "despesa" && t.pago)
-    .reduce((s, t) => s + Math.abs(Number(t.valor || 0)), 0);
-
-  const pendenteReceita = transMesSemTransfer
-    .filter((t) => t.tipo === "receita" && !t.pago)
-    .reduce((s, t) => s + Number(t.valor || 0), 0);
-
-  const pendenteDespesa = transMesSemTransfer
-    .filter((t) => t.tipo === "despesa" && !t.pago)
-    .reduce((s, t) => s + Math.abs(Number(t.valor || 0)), 0);
-
-  // Saldo inicial do filtro atual (todas ou conta específica)
-  const initialForFilter = () => {
-    const fcRaw = String(filtroConta ?? "").trim().toLowerCase();
-
-    const isTodas =
-      fcRaw === "" ||
-      fcRaw === "todas" ||
-      fcRaw === "todas as contas" ||
-      fcRaw === "todas_as_contas" ||
-      fcRaw === "todas_contas";
-
-    const initialReais = (p: any) => {
-      if (p?.initialBalanceCents != null) return Number(p.initialBalanceCents) / 100;
-      return Number(p?.initialBalance ?? 0);
-    };
-
-    if (isTodas) return (profiles || []).reduce((s, p: any) => s + initialReais(p), 0);
-
-    // conta específica (filtroConta guarda o id)
-    const p = (profiles || []).find((x: any) => String(x.id) === String(filtroConta));
-    return p ? initialReais(p) : 0;
-  };
-
-  // saldo anterior = tudo pago antes do mês atual (respeita filtroConta)
-  const primeiroDiaMes = `${filtroMes}-01`;
-  const saldoAnterior = (transactions || [])
-    .filter((t) => String(t.data || "") < primeiroDiaMes)
-    .filter(passaFiltroConta)
-    .reduce((s, t) => s + signedPago(t), 0);
-
-  // saldo do mês (pago)
-  const saldoMes = receitasMes - despesasMes;
-
-  // saldo total = saldo inicial + saldo anterior + saldo do mês
-  const saldoTotal = initialForFilter() + saldoAnterior + saldoMes;
-
-  return {
-    receitasMes,
-    despesasMes,
-    saldoMes,
-    saldoTotal,
-    pendenteReceita,
-    pendenteDespesa,
-  };
-}, [transactions, filtroMes, filtroConta, profiles]);
 
 const { saldoTotal, receitasMes, despesasMes, pendenteReceita, pendenteDespesa } = stats;
 

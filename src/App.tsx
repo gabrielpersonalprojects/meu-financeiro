@@ -29,6 +29,7 @@ import { sortByValueDesc, sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
 import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
 import { computeStatsMes } from "./app/transactions/stats";
+import { computeProjection12Months } from "./app/transactions/projection";
 
 
 import type {
@@ -1469,38 +1470,12 @@ const spendingByCategoryData = useMemo(() => {
 
 
   // --- Projeção ---
-  const projection12Months = useMemo(() => {
-    const results: any[] = [];
-    const now = new Date();
-
-    for (let i = 0; i < 12; i++) {
-      const targetDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      const targetMonthStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}`;
-      const monthTransactions = transacoes.filter((t) => t.data?.startsWith(targetMonthStr));
-
-      const fixas = monthTransactions
-        .filter((t) => t.tipo === "despesa" && t.tipoGasto === "Fixo")
-        .reduce((s, t) => s + Math.abs(Number(t.valor) || 0), 0);
-
-      const variaveis = monthTransactions
-        .filter((t) => t.tipo === "despesa" && t.tipoGasto === "Variável")
-        .reduce((s, t) => s + Math.abs(Number(t.valor) || 0), 0);
-
-      const receitas = monthTransactions
-        .filter((t) => t.tipo === "receita")
-        .reduce((s, t) => s + (Number(t.valor) || 0), 0);
-
-      results.push({
-        mesAno: getMesAnoExtenso(targetMonthStr),
-        fixas,
-        variaveis,
-        receitas,
-        saldo: receitas - (fixas + variaveis),
-      });
-    }
-
-    return results;
-  }, [transacoes]);
+const projection12Months = useMemo(() => {
+  return computeProjection12Months({
+    transacoes,
+    getMesAnoExtenso,
+  });
+}, [transacoes, getMesAnoExtenso]);
 
   // --- Categorias filtradas para dropdown (transações) ---
   const categoriasFiltradasTransacoes = useMemo(() => {

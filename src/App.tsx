@@ -27,6 +27,7 @@ import {
 
 import { sortByValueDesc, sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
+import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
 
 
 import type {
@@ -1358,21 +1359,22 @@ const getFilteredTransactionsAno = useMemo<Transaction[]>(() => {
 ]);
 
 
-  const totalFiltradoReceitas = useMemo(() => {
-    return getFilteredTransactions.filter((t) => t.tipo === "receita").reduce((s, t) => s + (Number(t.valor) || 0), 0);
-  }, [getFilteredTransactions]);
+ const totalFiltradoReceitas = useMemo(() => {
+  return sumReceitas(getFilteredTransactions);
+}, [getFilteredTransactions]);
 
-  const totalFiltradoDespesas = useMemo(() => {
-    return getFilteredTransactions.filter((t) => t.tipo === "despesa").reduce((s, t) => s + Math.abs(Number(t.valor) || 0), 0);
-  }, [getFilteredTransactions]);
+const totalFiltradoDespesas = useMemo(() => {
+  return sumDespesasAbs(getFilteredTransactions);
+}, [getFilteredTransactions]);
 
-  const totalAnualReceitas = useMemo(() => {
-    return getFilteredTransactionsAno.filter((t) => t.tipo === "receita").reduce((s, t) => s + (Number(t.valor) || 0), 0);
-  }, [getFilteredTransactionsAno]);
+const totalAnualReceitas = useMemo(() => {
+  return sumReceitas(getFilteredTransactionsAno);
+}, [getFilteredTransactionsAno]);
 
-  const totalAnualDespesas = useMemo(() => {
-    return getFilteredTransactionsAno.filter((t) => t.tipo === "despesa").reduce((s, t) => s + Math.abs(Number(t.valor) || 0), 0);
-  }, [getFilteredTransactionsAno]);
+const totalAnualDespesas = useMemo(() => {
+  return sumDespesasAbs(getFilteredTransactionsAno);
+}, [getFilteredTransactionsAno]);
+
 
   const mostrarReceitasResumo = filtroLancamento !== "despesa";
   const mostrarDespesasResumo = filtroLancamento !== "receita";

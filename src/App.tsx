@@ -15,7 +15,9 @@ import {
   maskLast4,
   getContaPartsById,
   formatContaLabelById,
+  mergeTransfers,
 } from "./app/transactions/logic";
+
 
 import {
   buildFilteredTransactions,
@@ -1145,53 +1147,7 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
   // --- Helpers ---
 
 
-  function mergeTransfers(list: Transaction[]) {
-  const out: Transaction[] = [];
-  const seen = new Set<string>();
-
-  for (const t of list) {
-    const tid = String((t as any).transferId || "");
-    if (!tid) {
-      out.push(t);
-      continue;
-    }
-    if (seen.has(tid)) continue;
-    seen.add(tid);
-
-    const group = list.filter((x) => String((x as any).transferId || "") === tid);
-
-    const saida = group.find((x) => x.tipo === "despesa") ?? group[0];
-    const entrada = group.find((x) => x.tipo === "receita") ?? group[1] ?? group[0];
-
-    const merged: any = {
-      ...saida,
-      id: `tr_${tid}`,
-      tipo: "transferencia" as any,
-      categoria: "Transferência",
-      transferId: tid,
-
-      contaOrigemId: String((saida as any).contaOrigemId ?? (saida as any).qualCartao ?? ""),
-      contaDestinoId: String((entrada as any).contaDestinoId ?? (entrada as any).qualCartao ?? ""),
-
-      // valores “duplos” só pra render premium
-      valor: Math.abs(Number((saida as any).valor ?? (entrada as any).valor ?? 0)),
-      valorSaida: -Math.abs(Number((saida as any).valor ?? 0)),
-      valorEntrada: Math.abs(Number((entrada as any).valor ?? 0)),
-
-      // pago da transferência (você pode decidir a regra)
-      pago: Boolean(saida.pago && entrada.pago),
-
-      data: saida.data ?? entrada.data,
-    };
-
-    out.push(merged as Transaction);
-  }
-
-  return out;
-}
-
-
-  const handleSwitchProfile = (id: string) => {
+   const handleSwitchProfile = (id: string) => {
     setActiveProfileId(id);
     setShowProfileMenu(false);
   };

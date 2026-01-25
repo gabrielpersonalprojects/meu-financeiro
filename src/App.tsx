@@ -37,7 +37,7 @@ import type {
 
 
 
-import { CATEGORIAS_PADRAO } from "./constants";
+import { CATEGORIAS_PADRAO } from "./app/constants";
 import {
   formatarMoeda,
   formatarData,

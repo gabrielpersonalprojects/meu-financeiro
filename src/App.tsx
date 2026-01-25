@@ -30,6 +30,7 @@ import { computeSpendingByCategoryData } from "./app/transactions/summary";
 import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
 import { computeStatsMes } from "./app/transactions/stats";
 import { computeProjection12Months } from "./app/transactions/projection";
+import { getCartoesDisponiveis, labelCartao } from "./app/profiles/selectors";
 
 
 import type {
@@ -492,18 +493,8 @@ const bancosOptions = useMemo(() => {
 
 
 const cartoesDisponiveis = useMemo(() => {
-  const labels = profiles
-    .filter((p) => p.possuiCartaoCredito)
-    .map((p) => `${p.banco || p.name}${p.numeroConta ? ` • ${p.numeroConta}` : ""}`.trim())
-    .filter(Boolean);
-
-  return Array.from(new Set(labels)); // evita duplicados
+  return getCartoesDisponiveis(profiles);
 }, [profiles]);
-
-
-const labelCartao = (p: Profile) =>
-  `${p.perfilConta}: ${p.banco}${p.numeroConta ? ` • ${p.numeroConta}` : ""}`;
-
 
 // persiste lista de contas
 useEffect(() => {

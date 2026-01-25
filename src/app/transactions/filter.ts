@@ -54,3 +54,30 @@ export const buildFilteredTransactions = (
     return new Date(b.data).getTime() - new Date(a.data).getTime();
   });
 };
+
+export const buildFilteredTransactionsByYear = (
+  transacoes: Transaction[],
+  params: {
+    anoRef: string;
+    filtroLancamento: any;
+    filtroCategoria?: string;
+    filtroMetodo?: string;
+    filtroTipoGasto?: string;
+    _filtroConta?: unknown;
+  },
+  passarFiltroConta: (t: Transaction) => boolean
+): Transaction[] => {
+  const { anoRef, filtroLancamento, filtroCategoria, filtroMetodo, filtroTipoGasto } = params;
+
+  let list = [...transacoes];
+
+  if (filtroLancamento !== "todos") list = list.filter((t) => t.tipo === filtroLancamento);
+  if (filtroCategoria) list = list.filter((t) => t.categoria === filtroCategoria);
+  if (filtroMetodo) list = list.filter((t) => t.metodoPagamento === filtroMetodo);
+  if (filtroTipoGasto) list = list.filter((t) => t.tipoGasto === filtroTipoGasto);
+
+  list = list.filter(passarFiltroConta);
+
+  list = list.filter((t) => t.data?.startsWith(anoRef));
+  return list.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+};

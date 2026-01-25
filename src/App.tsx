@@ -17,10 +17,10 @@ import {
   formatContaLabelById,
 } from "./app/transactions/logic";
 
-import { buildFilteredTransactions } from "./app/transactions/filter";
-
-
-
+import {
+  buildFilteredTransactions,
+  buildFilteredTransactionsByYear,
+} from "./app/transactions/filter";
 
 
 import type {
@@ -1373,19 +1373,30 @@ const getFilteredTransactions = useMemo<Transaction[]>(() => {
 
     const anoRef = (filtroMes || getHojeLocal().substring(0, 7)).slice(0, 4);
 
-    const getFilteredTransactionsAno = useMemo<Transaction[]>(() => {
-    let list = [...transacoes];
+const getFilteredTransactionsAno = useMemo<Transaction[]>(() => {
+  return buildFilteredTransactionsByYear(
+    transacoes,
+    {
+      anoRef,
+      filtroLancamento,
+      filtroCategoria,
+      filtroMetodo,
+      filtroTipoGasto,
+      _filtroConta: filtroConta,
+    },
+    passarFiltroConta
+  );
+}, [
+  transacoes,
+  anoRef,
+  filtroLancamento,
+  filtroCategoria,
+  filtroMetodo,
+  filtroTipoGasto,
+  filtroConta,
+  passarFiltroConta,
+]);
 
-    if (filtroLancamento !== "todos") list = list.filter((t) => t.tipo === filtroLancamento);
-    if (filtroCategoria) list = list.filter((t) => t.categoria === filtroCategoria);
-    if (filtroMetodo) list = list.filter((t) => t.metodoPagamento === filtroMetodo);
-    if (filtroTipoGasto) list = list.filter((t) => t.tipoGasto === filtroTipoGasto);
-
-    list = list.filter(passarFiltroConta);
-
-    list = list.filter((t) => t.data?.startsWith(anoRef));
-    return list.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-  }, [transacoes, anoRef, filtroLancamento, filtroCategoria, filtroMetodo, filtroTipoGasto, filtroConta]);
 
   const totalFiltradoReceitas = useMemo(() => {
     return getFilteredTransactions.filter((t) => t.tipo === "receita").reduce((s, t) => s + (Number(t.valor) || 0), 0);

@@ -25,6 +25,9 @@ import {
 } from "./app/transactions/filter";
 
 
+import { sortByValueDesc } from "./app/utils/sort";
+
+
 import type {
   Transaction,
   TransactionType,
@@ -1537,13 +1540,14 @@ const { saldoTotal, receitasMes, despesasMes, pendenteReceita, pendenteDespesa }
       categoriesMap[t.categoria] = (categoriesMap[t.categoria] || 0) + Math.abs(Number(t.valor) || 0);
     });
 
-    return Object.entries(categoriesMap)
-      .map(([name, value]) => ({
-        name,
-        value,
-        percentage: totalExpense > 0 ? ((value / totalExpense) * 100).toFixed(1) : "0",
-      }))
-      .sort((a, b) => b.value - a.value);
+return sortByValueDesc(
+  Object.entries(categoriesMap).map(([name, value]) => ({
+    name,
+    value,
+    percentage: totalExpense > 0 ? ((value / totalExpense) * 100).toFixed(1) : "0",
+  }))
+);
+
   }, [transacoes, filtroMes]);
 
   // --- Projeção ---

@@ -6,22 +6,11 @@ import toast, { Toaster } from "react-hot-toast";
 import AuthPage from "./components/AuthPage";
 import { supabase } from "./lib/supabase";
 import { useUI } from "./components/UIProvider";
-import { useEffect, useMemo, useRef, useState, type FC } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FC, ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { parseBRLToCents, formatCentsToBRL } from "./app/money";
 
-// ===== dinheiro (BRL) =====
-const parseBRLToCents = (raw: string) => {
-  const digits = String(raw ?? "").replace(/\D/g, ""); // só números
-  return Number(digits || "0"); // já é centavos
-};
-
-const formatCentsToBRL = (cents: number) => {
-  return (Number(cents || 0) / 100).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-};
 
 
 import type {

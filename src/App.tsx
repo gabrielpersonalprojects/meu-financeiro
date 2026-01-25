@@ -26,6 +26,7 @@ import {
 
 
 import { sortByValueDesc, sortStringsAsc } from "./app/utils/sort";
+import { computeSpendingByCategoryData } from "./app/transactions/summary";
 
 
 import type {
@@ -1530,25 +1531,11 @@ const stats = useMemo(() => {
 
 const { saldoTotal, receitasMes, despesasMes, pendenteReceita, pendenteDespesa } = stats;
 
-    // --- Gastos por categoria (somente despesa) ---
-  const spendingByCategoryData = useMemo(() => {
-    const currentExpenses = transacoes.filter((t) => t.data?.startsWith(filtroMes || "") && t.tipo === "despesa");
-    const totalExpense = currentExpenses.reduce((s, t) => s + Math.abs(Number(t.valor) || 0), 0);
-    const categoriesMap: Record<string, number> = {};
+// --- Gastos por categoria (somente despesa) ---
+const spendingByCategoryData = useMemo(() => {
+  return computeSpendingByCategoryData(transacoes, filtroMes);
+}, [transacoes, filtroMes]);
 
-    currentExpenses.forEach((t) => {
-      categoriesMap[t.categoria] = (categoriesMap[t.categoria] || 0) + Math.abs(Number(t.valor) || 0);
-    });
-
-return sortByValueDesc(
-  Object.entries(categoriesMap).map(([name, value]) => ({
-    name,
-    value,
-    percentage: totalExpense > 0 ? ((value / totalExpense) * 100).toFixed(1) : "0",
-  }))
-);
-
-  }, [transacoes, filtroMes]);
 
   // --- Projeção ---
   const projection12Months = useMemo(() => {

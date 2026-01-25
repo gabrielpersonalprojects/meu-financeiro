@@ -17,6 +17,8 @@ import {
   formatContaLabelById,
 } from "./app/transactions/logic";
 
+import { buildFilteredTransactions } from "./app/transactions/filter";
+
 
 
 
@@ -1341,33 +1343,33 @@ const txCards = useMemo(() => {
 }, [transactions, filtroMes, filtroConta]);
 
 
-  // --- Filtros (memo limpo, SEM duplicações) ---
-  const getFilteredTransactions = useMemo<Transaction[]>(() => {
-    let list = [...transacoes];
+// --- Filtros (memo limpo, SEM duplicações) ---
+const getFilteredTransactions = useMemo<Transaction[]>(() => {
+  return buildFilteredTransactions(
+    transacoes,
+    {
+      filtroMes,
+      filtroLancamento,
+      filtroCategoria,
+      filtroMetodo,
+      filtroTipoGasto,
+      _filtroConta: filtroConta,
+    },
+    mergeTransfers,
+    passarFiltroConta
+  );
+}, [
+  transacoes,
+  filtroMes,
+  filtroLancamento,
+  filtroCategoria,
+  filtroMetodo,
+  filtroTipoGasto,
+  filtroConta,
+  mergeTransfers,
+  passarFiltroConta,
+]);
 
-    if (filtroMes) list = list.filter((t) => t.data?.startsWith(filtroMes));
-    if (filtroLancamento !== "todos") list = list.filter((t) => t.tipo === filtroLancamento);
-    if (filtroCategoria) list = list.filter((t) => t.categoria === filtroCategoria);
-    if (filtroMetodo) list = list.filter((t) => t.metodoPagamento === filtroMetodo);
-    if (filtroTipoGasto) list = list.filter((t) => t.tipoGasto === filtroTipoGasto);
-
-    list = mergeTransfers(list);  
-    list = list.filter(passarFiltroConta);
-
-    const order = (tipo: TransactionType) => {
-      if (tipo === "receita") return 0;
-      if (tipo === "despesa") return 1;
-      if (tipo === "cartao_credito") return 2;
-      return 3; // transferencia
-    };
-
-    return list.sort((a, b) => {
-      const oa = order(a.tipo);
-      const ob = order(b.tipo);
-      if (oa !== ob) return oa - ob;
-      return new Date(b.data).getTime() - new Date(a.data).getTime();
-    });
-  }, [transacoes, filtroMes, filtroLancamento, filtroCategoria, filtroMetodo, filtroTipoGasto, filtroConta]);
 
     const anoRef = (filtroMes || getHojeLocal().substring(0, 7)).slice(0, 4);
 

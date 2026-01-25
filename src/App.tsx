@@ -6,7 +6,9 @@ import toast, { Toaster } from "react-hot-toast";
 import AuthPage from "./components/AuthPage";
 import { supabase } from "./lib/supabase";
 import { useUI } from "./components/UIProvider";
+import { useEffect, useMemo, useRef, useState, type FC } from "react";
 import type { ReactNode } from "react";
+import type { Session } from "@supabase/supabase-js";
 
 // ===== dinheiro (BRL) =====
 const parseBRLToCents = (raw: string) => {
@@ -22,19 +24,17 @@ const formatCentsToBRL = (cents: number) => {
 };
 
 
-import { useEffect, useMemo, useRef, useState, type FC } from "react";
-import type { Session } from "@supabase/supabase-js";
-
-import type { Profile } from "./types";
-import {
+import type {
   Transaction,
   TransactionType,
   Categories,
   PaymentMethods,
   TabType,
   SpendingType,
-  PaymentMethod
-} from "./types";
+  PaymentMethod,
+  Profile,
+} from "./app/types";
+
 
 
 import { CATEGORIAS_PADRAO } from "./constants";

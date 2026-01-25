@@ -25,7 +25,7 @@ import {
 } from "./app/transactions/filter";
 
 
-import { sortByValueDesc } from "./app/utils/sort";
+import { sortByValueDesc, sortStringsAsc } from "./app/utils/sort";
 
 
 import type {
@@ -1586,10 +1586,11 @@ return sortByValueDesc(
 
   // --- Categorias filtradas para dropdown (transações) ---
   const categoriasFiltradasTransacoes = useMemo(() => {
-    if (filtroLancamento === "receita") return [...categorias.receita].sort();
-    if (filtroLancamento === "despesa") return [...categorias.despesa].sort();
-    return [...new Set([...categorias.despesa, ...categorias.receita])].sort();
-  }, [categorias, filtroLancamento]);
+  if (filtroLancamento === "receita") return sortStringsAsc(categorias.receita);
+  if (filtroLancamento === "despesa") return sortStringsAsc(categorias.despesa);
+  return sortStringsAsc([...new Set([...categorias.despesa, ...categorias.receita])]);
+}, [categorias, filtroLancamento]);
+
 
   // --- Saudação ---
   const greetingInfo = useMemo(() => {

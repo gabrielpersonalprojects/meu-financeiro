@@ -13,7 +13,10 @@ import { parseBRLToCents, formatCentsToBRL } from "./app/money";
 import {
   passarFiltroConta as passarFiltroContaLogic,
   maskLast4,
+  getContaPartsById,
+  formatContaLabelById,
 } from "./app/transactions/logic";
+
 
 
 
@@ -1245,41 +1248,6 @@ function maskLast4(v?: string) {
   const digits = String(v).replace(/\D/g, "");
   if (digits.length <= 4) return digits;
   return "****" + digits.slice(-4);
-}
-
-function getContaPartsById(accountId: string, contas: any[]) {
-  const c = contas.find((x) => x.id === accountId);
-  if (!c) return null;
-
-  const banco = c.banco || "Conta";
-
-  // PF / PJ (perfil)
-  const perfil = (c.tipoConta || "").toUpperCase(); // PF ou PJ
-
-  // Tipo da conta (C/C etc)
-  const tipo = (c.perfilConta || "").toUpperCase(); // CONTA CORRENTE, POUPANÇA...
-
-  const numero = c.numeroConta ? `Nº da conta: ${maskLast4(c.numeroConta)}` : "";
-  const agencia = c.numeroAgencia ? `Ag: ${c.numeroAgencia}` : "";
-
-  return { banco, perfil, tipo, numero, agencia };
-}
-
-function formatContaLabelById(accountId: string, contas: any[]) {
-  const c = contas?.find((x) => x.id === accountId);
-  if (!c) return "Conta";
-
-  // Ajuste os nomes dos campos abaixo conforme seu modelo:
-  const nome = c.banco || "Conta";
-  const numero = c.numeroConta;
-  const agencia = c.numeroAgencia;
-
-  const parts: string[] = [nome];
-
-  if (numero) parts.push(`Nº da conta: ${maskLast4(numero)}`);
-  if (agencia) parts.push(`Ag: ${agencia}`);
-
-  return parts.join(" - ");
 }
 
 function titleCase(s: string) {

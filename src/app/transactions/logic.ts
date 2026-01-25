@@ -50,3 +50,33 @@ export const maskLast4 = (v: string) => {
   if (digits.length <= 4) return digits;
   return "****" + digits.slice(-4);
 };
+
+export const getContaPartsById = (accountId: string, contas: any[]) => {
+  const c = contas.find((x: any) => x.id === accountId);
+  if (!c) return null;
+
+  const banco = c.banco || "Conta";
+  const perfil = (c.tipoConta || "").toUpperCase(); // PF ou PJ
+  const tipo = (c.perfilConta || "").toUpperCase(); // CONTA CORRENTE, POUPANÇA...
+
+  const numero = c.numeroConta ? `Nº da conta: ${maskLast4(c.numeroConta)}` : "";
+  const agencia = c.numeroAgencia ? `Ag: ${c.numeroAgencia}` : "";
+
+  return { banco, perfil, tipo, numero, agencia };
+};
+
+export const formatContaLabelById = (accountId: string, contas: any[]) => {
+  const c = contas.find((x: any) => x.id === accountId);
+  if (!c) return "Conta";
+
+  // Ajuste os nomes dos campos conforme seu modelo:
+  const nome = c.banco || "Conta";
+  const numero = c.numeroConta;
+  const agencia = c.numeroAgencia;
+
+  const parts: string[] = [nome];
+  if (numero) parts.push(`Nº da conta: ${maskLast4(numero)}`);
+  if (agencia) parts.push(`Ag: ${agencia}`);
+
+  return parts.join(" - ");
+};

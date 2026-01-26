@@ -31,6 +31,11 @@ import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
 import { computeStatsMes } from "./app/transactions/stats";
 import { computeProjection12Months } from "./app/transactions/projection";
 import { getCartoesDisponiveis, labelCartao } from "./app/profiles/selectors";
+import { newId } from "./app/utils/ids";
+import { loadOrMigrateTransacoes, persistTransacoes } from "./app/utils/storage";
+
+
+// ...
 
 
 import type {
@@ -409,12 +414,20 @@ const CustomDateInput: FC<{
 
 
 const App: FC = () => {
+  const [transacoes, setTransacoes] = useState<Transaction[]>(() => loadOrMigrateTransacoes());
+  useEffect(() => {
+  try {
+    persistTransacoes(transacoes);
+  } catch {}
+}, [transacoes]);
+
   const ui = useUI();
   type ConfirmOpts = {
   title?: string;
   message: string;
   confirmText?: string;
   cancelText?: string;
+  
 };
 
 // compatível com confirm({...}).then(...)
@@ -788,7 +801,17 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
 
 
   // --- Dados ---
-  const [transacoes, setTransacoes] = useState<Transaction[]>([]);
+
+
+
+
+useEffect(() => {
+  try {
+    persistTransacoes(transacoes);
+  } catch {}
+}, [transacoes]);
+
+
   const [categorias, setCategorias] = useState<Categories>(CATEGORIAS_PADRAO);
   const [metodosPagamento, setMetodosPagamento] = useState<PaymentMethods>({ credito: [], debito: [] });
   const transactions = transacoes;
@@ -864,18 +887,41 @@ const getPrefixByProfileId = (pid: string) => (pid === "default" ? "" : `${pid}_
 const loadTransacoesByProfile = (pid: string): Transaction[] => {
   try {
     const prefix = getPrefixByProfileId(pid);
-    const raw = localStorage.getItem(`${prefix}transacoes`);
-    return raw ? (JSON.parse(raw) as Transaction[]) : [];
+    const keyNew = `${prefix}transacoes`;
+
+    const candidates = [
+      keyNew,
+      `${prefix}transactions`,
+      "transactions",
+      "transacoes",
+    ];
+
+    for (const k of candidates) {
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw);
+      const list = Array.isArray(parsed) ? (parsed as Transaction[]) : [];
+
+      // migra para a chave nova, se veio de outra
+      if (k !== keyNew) {
+        localStorage.setItem(keyNew, JSON.stringify(list));
+      }
+
+      return list;
+    }
+
+    return [];
   } catch {
     return [];
   }
 };
 
+
 const saveTransacoesByProfile = (pid: string, list: Transaction[]) => {
   try {
     const prefix = getPrefixByProfileId(pid);
-    localStorage.setItem(`${prefix}transacoes`, JSON.stringify(list));
-  } catch {}
+    } catch {}
 };
 
   // --- Form ---
@@ -1136,7 +1182,6 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
 
     const prefix = activeProfileId === "default" ? "" : `${activeProfileId}_`;
 
-    localStorage.setItem(`${prefix}transacoes`, JSON.stringify(transacoes));
     localStorage.setItem(`${prefix}categorias`, JSON.stringify(categorias));
     localStorage.setItem(`${prefix}metodosPagamento`, JSON.stringify(metodosPagamento));
     localStorage.setItem(`${prefix}userName`, userName);
@@ -1537,7 +1582,6 @@ const projection12Months = useMemo(() => {
 if (isTransfer) {
   setTransacoes((prev: any[]) => {
     const next = prev.filter((tx: any) => (tx as any).transferId !== groupId);
-    localStorage.setItem("transactions", JSON.stringify(next));
     return next;
   });
 
@@ -1716,14 +1760,11 @@ if (isSameAccount(formContaOrigem, formContaDestino)) {
   return;
 }
 
-  const transferId =
-    (globalThis.crypto && "randomUUID" in globalThis.crypto)
-      ? globalThis.crypto.randomUUID()
-      : `tr_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const transferId = newId("tr");
 
   // saída (negativa) na origem
   const saida: Transaction = {
-    id: Date.now(),
+    id: newId("tx"),
     tipo: "despesa" as any,
     descricao: `Transferência para ${destinoNome}`,
     valor: -Math.abs(valorNum),
@@ -1741,7 +1782,7 @@ if (isSameAccount(formContaOrigem, formContaDestino)) {
 
   // entrada (positiva) no destino
   const entrada: Transaction = {
-    id: Date.now() + 1,
+    id: newId("tx"),
     tipo: "receita" as any,
     descricao: `Transferência de ${origemNome}`,
     valor: Math.abs(valorNum),
@@ -1781,7 +1822,6 @@ if (isSameAccount(formContaOrigem, formContaDestino)) {
   // joga os dois na lista principal (e persiste)
   setTransacoes((prev: any[]) => {
     const next = [saida, entrada, ...prev];
-    localStorage.setItem("transactions", JSON.stringify(next));
     return next;
   });
 

@@ -32,7 +32,6 @@ export const buildFilteredTransactions = (
   let list = [...transacoes];
 
   if (filtroMes) list = list.filter((t) => t.data?.startsWith(filtroMes));
-  if (filtroLancamento !== "todos") list = list.filter((t) => t.tipo === filtroLancamento);
   if (filtroCategoria) list = list.filter((t) => t.categoria === filtroCategoria);
   if (filtroMetodo) list = list.filter((t) => t.metodoPagamento === filtroMetodo);
   if (filtroTipoGasto) list = list.filter((t) => t.tipoGasto === filtroTipoGasto);
@@ -40,6 +39,8 @@ export const buildFilteredTransactions = (
   list = mergeTransfers(list);
   list = list.filter(passarFiltroConta);
 
+  if (filtroLancamento !== "todos") list = list.filter((t) => t.tipo === filtroLancamento);
+  
   const order = (tipo: TransactionType) => {
     if (tipo === "receita") return 0;
     if (tipo === "despesa") return 1;

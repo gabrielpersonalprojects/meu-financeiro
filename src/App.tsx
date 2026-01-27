@@ -37,6 +37,9 @@ import { AppTopBar } from "./components/AppTopBar";
 import { confirm, type ConfirmOpts } from "./services/confirm";
 import { getContaLabel } from "./domain/getContaLabel";
 import { toastCompact, type ToastKind } from "./services/toast";
+import { getHojeLocal } from "./domain/date";
+const hojeStr = getHojeLocal();
+
 
 
 
@@ -412,22 +415,6 @@ const toastCompact = (message: string, kind: ToastKind = "info") => {
 };
 
 
-  const hoje = (() => {
-    const d = new Date();
-    const ano = d.getFullYear();
-    const mes = String(d.getMonth() + 1).padStart(2, "0");
-    const dia = String(d.getDate()).padStart(2, "0");
-    return `${ano}-${mes}-${dia}`; // YYYY-MM-DD
-  })();
-
-  const getHojeLocal = () => {
-    const d = new Date();
-    const ano = d.getFullYear();
-    const mes = String(d.getMonth() + 1).padStart(2, "0");
-    const dia = String(d.getDate()).padStart(2, "0");
-    return `${ano}-${mes}-${dia}`;
-  };
-
   // --- Auth Session ---
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -508,6 +495,7 @@ const [accLimiteCC, setAccLimiteCC] = useState("");
 const [accFechamentoCC, setAccFechamentoCC] = useState<number>(1);
 const [accVencimentoCC, setAccVencimentoCC] = useState<number>(10);
 const [accSaldoInicial, setAccSaldoInicial] = useState("");
+const hojeStr = getHojeLocal();
 
 
 const resetAddAccountForm = () => {
@@ -2930,7 +2918,8 @@ if (sessionLoading) {
                   {getFilteredTransactions.length > 0 ? (
                     <div className="space-y-3">
                       {getFilteredTransactions.map((t) => {
-                        const atrasada = !t.pago && t.data < hoje;
+                        const atrasada = !t.pago && t.data < hojeStr;
+
 
                         const isReceita = t.tipo === "receita";
                         const baseBg = isReceita

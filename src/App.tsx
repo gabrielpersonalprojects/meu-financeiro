@@ -40,6 +40,8 @@ import { toastCompact, type ToastKind } from "./services/toast";
 import { getHojeLocal } from "./domain/date";
 const hojeStr = getHojeLocal();
 
+import { getContabodge } from "./domain/getContabodge";
+import { getContabodge as getContaBadge } from "./domain/getContabodge";
 
 
 
@@ -388,12 +390,6 @@ const CustomDateInput: FC<{
    Cole esta parte logo abaixo da PARTE 1/3.
 ========================= */
 
-  // ===== helpers do Account Picker (modal transferência) =====
-  const getContaBadge = (p: any) => {
-    return (p?.tipo ?? p?.perfil ?? p?.scope ?? "PF") as string;
-  };
-
-  // ==========================================================
 
 
 const App: FC = () => {

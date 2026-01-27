@@ -41,6 +41,7 @@ import { getHojeLocal } from "./domain/date";
 const hojeStr = getHojeLocal();
 
 import { getContaBadge } from "./domain/getContaBadge";
+import { asId } from "./utils/asId";
 
 
 
@@ -2961,22 +2962,25 @@ if (isTransfer) {
   }
 
   // IDs reais da origem/destino (pega do objeto "saída", que tem os dois)
-  const fromId = String(
-    (saida as any).contaOrigemId ??
-      (saida as any).transferFromId ??
-      (saida as any).profileId ??
-      ""
-  );
+const fromId = asId(
+  (saida as any).contaOrigemId ??
+  (saida as any).transferFromId ??
+  (saida as any).profileId ??
+  ""
+);
 
-  const toId = String(
-    (saida as any).contaDestinoId ??
-      (saida as any).transferToId ??
-      (entrada as any)?.profileId ??
-      ""
-  );
 
-  const contaOrigem = profiles.find((p: any) => String(p.id) === fromId);
-  const contaDestino = profiles.find((p: any) => String(p.id) === toId);
+const toId = asId(
+  (saida as any).contaDestinoId ??
+  (saida as any).transferToId ??
+  (entrada as any)?.profileId ??
+  ""
+);
+
+
+  const contaOrigem = profiles.find((p: any) => asId(p.id) === fromId);
+  const contaDestino = profiles.find((p: any) => asId(p.id) === toId);
+
 
   origemLabel = contaOrigem ? getContaLabel(contaOrigem) : "Origem";
   destinoLabel = contaDestino ? getContaLabel(contaDestino) : "Destino";

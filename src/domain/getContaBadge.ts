@@ -1,3 +1,3 @@
-export function getContabodge(p: any) {
+export function getContaBadge(p: any) {
   return (p?.tipo ?? p?.perfil ?? p?.scope ?? "PF") as string;
 }

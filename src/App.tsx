@@ -40,8 +40,7 @@ import { toastCompact, type ToastKind } from "./services/toast";
 import { getHojeLocal } from "./domain/date";
 const hojeStr = getHojeLocal();
 
-import { getContabodge } from "./domain/getContabodge";
-import { getContabodge as getContaBadge } from "./domain/getContabodge";
+import { getContaBadge } from "./domain/getContaBadge";
 
 
 

@@ -33,6 +33,9 @@ import { computeProjection12Months } from "./app/transactions/projection";
 import { getCartoesDisponiveis, labelCartao } from "./app/profiles/selectors";
 import { newId } from "./app/utils/ids";
 import { loadOrMigrateTransacoes, persistTransacoes } from "./app/utils/storage";
+import { AppTopBar } from "./components/AppTopBar";
+import { confirm, type ConfirmOpts } from "./services/confirm";
+
 
 
 // ...
@@ -422,20 +425,7 @@ const App: FC = () => {
 }, [transacoes]);
 
   const ui = useUI();
-  type ConfirmOpts = {
-  title?: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
   
-};
-
-// compatível com confirm({...}).then(...)
-const confirm = (opts: ConfirmOpts) => {
-  // por enquanto a gente usa o confirm nativo (simples e funcional)
-  return Promise.resolve(window.confirm(opts.message));
-};
-
 type ToastKind = "success" | "error" | "info";
 
 const toastCompact = (message: string, kind: ToastKind = "info") => {

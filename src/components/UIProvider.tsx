@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+
+
 
 type ToastType = "success" | "error" | "info";
 
@@ -51,6 +53,8 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     }, duration + 250);
   };
 
+  const resolverRef = useRef<((value: boolean) => void) | null>(null);
+
   // Confirm modal
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmOpts, setConfirmOpts] = useState<ConfirmOptions>({
@@ -60,7 +64,6 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     cancelText: "Cancelar",
   });
 
-  const resolverRef = useRef<(value: boolean) => void>();
 
   const confirm = (options: ConfirmOptions) => {
     setConfirmOpts({
@@ -80,7 +83,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
   const closeConfirm = (value: boolean) => {
     setConfirmOpen(false);
     resolverRef.current?.(value);
-    resolverRef.current = undefined;
+    resolverRef.current = null;
   };
 
   // ESC fecha

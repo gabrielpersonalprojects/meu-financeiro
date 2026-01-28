@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { UIOverlays } from "./UIOverlays";
+
 
 
 
@@ -99,45 +101,21 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [confirmOpen]);
 
-  const value = useMemo<UIContextValue>(() => ({ toast, confirm }), []);
+  const value = useMemo<UIContextValue>(() => ({ toast, confirm }), [toast, confirm]);
 
-  return (
-    <UIContext.Provider value={value}>
-      {children}
+return (
+  <UIContext.Provider value={value}>
+    {children}
 
-      {/* Confirm Modal */}
-      <div id="ui-modal" className={confirmOpen ? "" : "ui-hidden"} aria-hidden={!confirmOpen}>
-        <div className="ui-backdrop" onClick={() => closeConfirm(false)} />
+    <UIOverlays
+      confirmOpen={confirmOpen}
+      confirmOpts={confirmOpts}
+      onCloseConfirm={closeConfirm}
+      toasts={toasts}
+    />
+  </UIContext.Provider>
+);
 
-        <div className="ui-modal-card" role="dialog" aria-modal="true">
-          <h3 id="ui-modal-title" className="ui-modal-title">
-            {confirmOpts.title}
-          </h3>
-
-          <p id="ui-modal-message" className="ui-modal-message">
-            {confirmOpts.message}
-          </p>
-
-          <div className="ui-modal-actions">
-            <button className="ui-btn ui-btn-ghost" onClick={() => closeConfirm(false)}>
-              {confirmOpts.cancelText}
-            </button>
-
-            <button className="ui-btn ui-btn-primary" onClick={() => closeConfirm(true)}>
-              {confirmOpts.confirmText}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Toasts */}
-      <div id="ui-toasts" className="ui-toasts">
-        {toasts.map((t) => (
-          <ToastItem key={t.id} message={t.message} type={t.type} />
-        ))}
-      </div>
-    </UIContext.Provider>
-  );
 }
 
 export function useUI() {

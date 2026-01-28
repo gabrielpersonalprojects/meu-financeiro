@@ -44,6 +44,7 @@ import { TransactionsList } from "./components/TransactionsList";
 import TransactionItem from "./components/TransactionItem";
 import { useFilteredTransactions } from "./app/transactions/useFilteredTransactions";
 import { useTransactionTotals } from "./app/transactions/useTransactionTotals";
+import { getResumoFlags } from "./app/transactions/resumoFlags";
 
 
 
@@ -1398,10 +1399,7 @@ const {
 });
 
 
-
-
-  const mostrarReceitasResumo = filtroLancamento !== "despesa";
-  const mostrarDespesasResumo = filtroLancamento !== "receita";
+const { mostrarReceitasResumo, mostrarDespesasResumo } = getResumoFlags(filtroLancamento);
 
 
 

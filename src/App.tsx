@@ -42,6 +42,7 @@ const hojeStr = getHojeLocal();
 import { AppHeader } from "./components/AppHeader";
 import { TransactionsList } from "./components/TransactionsList";
 import TransactionItem from "./components/TransactionItem";
+import { useFilteredTransactions } from "./app/transactions/useFilteredTransactions";
 
 
 
@@ -1368,58 +1369,19 @@ return matchConta(t) || (pair ? matchConta(pair) : false);
 
 
 // --- Filtros (memo limpo, SEM duplicações) ---
-const getFilteredTransactions = useMemo<Transaction[]>(() => {
-  return buildFilteredTransactions(
+const { getFilteredTransactions, getFilteredTransactionsAno, anoRef } =
+  useFilteredTransactions({
     transacoes,
-    {
-      filtroMes,
-      filtroLancamento,
-      filtroCategoria,
-      filtroMetodo,
-      filtroTipoGasto,
-      _filtroConta: filtroConta,
-    },
-    (filtroConta === "todas" ? mergeTransfers : ((list: any) => list)),
-    passarFiltroConta
-  );
-}, [
-  transacoes,
-  filtroMes,
-  filtroLancamento,
-  filtroCategoria,
-  filtroMetodo,
-  filtroTipoGasto,
-  filtroConta,
-  mergeTransfers,
-  passarFiltroConta,
-]);
+    filtroMes,
+    filtroLancamento,
+    filtroCategoria,
+    filtroMetodo,
+    filtroTipoGasto,
+    filtroConta,
+    mergeTransfers,
+    passarFiltroConta,
+  });
 
-
-    const anoRef = (filtroMes || getHojeLocal().substring(0, 7)).slice(0, 4);
-
-const getFilteredTransactionsAno = useMemo<Transaction[]>(() => {
-  return buildFilteredTransactionsByYear(
-    transacoes,
-    {
-      anoRef,
-      filtroLancamento,
-      filtroCategoria,
-      filtroMetodo,
-      filtroTipoGasto,
-      _filtroConta: filtroConta,
-    },
-    passarFiltroConta
-  );
-}, [
-  transacoes,
-  anoRef,
-  filtroLancamento,
-  filtroCategoria,
-  filtroMetodo,
-  filtroTipoGasto,
-  filtroConta,
-  passarFiltroConta,
-]);
 
 
  const totalFiltradoReceitas = useMemo(() => {

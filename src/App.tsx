@@ -41,6 +41,9 @@ import { getHojeLocal } from "./domain/date";
 const hojeStr = getHojeLocal();
 import { AppHeader } from "./components/AppHeader";
 import { TransactionsList } from "./components/TransactionsList";
+import TransactionItem from "./components/TransactionItem";
+
+
 
 
 import { asId } from "./utils/asId";
@@ -1291,7 +1294,76 @@ const txCards = useMemo(() => {
   }
 
   // c) se uma conta específica, conta TUDO daquela conta (inclusive transferência)
-  return byMonth.filter((t: any) => String(t.profileId) === String(filtroConta));
+  return byMonth.filter((t: any) => {
+const id = asId(String(filtroConta));
+
+const isTransfer =
+  Boolean((t as any).transferId) ||
+  String((t as any).categoria || "").toLowerCase().includes("transfer");
+
+const matchConta = (tx: any) => {
+  const profileId = asId(tx?.profileId ?? "");
+
+  const fromId = asId(
+    tx?.contaOrigemId ??
+      tx?.transferFromId ??
+      tx?.contaOrigem ??
+      ""
+  );
+
+  const toId = asId(
+    tx?.contaDestinoId ??
+      tx?.transferToId ??
+      tx?.contaDestino ??
+      ""
+  );
+
+  return profileId === id || fromId === id || toId === id;
+};
+
+// não é transferência: regra normal
+if (!isTransfer) return matchConta(t);
+
+// transferência: valida pelo item OU pelo par
+const getTransferKey = (tx: any) =>
+  String(
+    tx?.transferId ??
+      tx?.transferID ??
+      tx?.transfer_id ??
+      ""
+  ).trim();
+
+const tKey = getTransferKey(t);
+
+// tenta achar par por ID primeiro; se não der, usa heurística
+const pair = (transactions || []).find((x: any) => {
+  if (!x || x.id === t.id) return false;
+
+  const xKey = getTransferKey(x);
+
+  // 1) match por transferId (quando existe)
+  if (tKey && xKey) return xKey === tKey;
+
+  // 2) fallback heurístico (quando transferId falha)
+  const catT = String((t as any).categoria || "").toLowerCase();
+  const catX = String((x as any).categoria || "").toLowerCase();
+  const isTransfT = catT.includes("transfer");
+  const isTransfX = catX.includes("transfer");
+  if (!isTransfT || !isTransfX) return false;
+
+  const sameDate = String(x.data) === String(t.data);
+  const vT = Number((t as any).valor ?? 0);
+  const vX = Number((x as any).valor ?? 0);
+  const sameAbs = Math.abs(vT) === Math.abs(vX);
+  const oppositeSigns = vT * vX < 0;
+
+  return sameDate && sameAbs && oppositeSigns;
+});
+
+return matchConta(t) || (pair ? matchConta(pair) : false);
+
+});
+
 }, [transactions, filtroMes, filtroConta]);
 
 
@@ -1307,7 +1379,7 @@ const getFilteredTransactions = useMemo<Transaction[]>(() => {
       filtroTipoGasto,
       _filtroConta: filtroConta,
     },
-    mergeTransfers,
+    (filtroConta === "todas" ? mergeTransfers : ((list: any) => list)),
     passarFiltroConta
   );
 }, [
@@ -2752,7 +2824,7 @@ if (sessionLoading) {
                                                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600/25 text-indigo-300 border border-indigo-500/20">
                                                         TODAS
                                                       </span>
-                                                      <span className="text-slate-100">Todas as contas</span>
+                                                      <span className="text-slate-100">as contas</span>
                                                     </span>
                                                   ),
                                                   value: "todas",
@@ -3011,126 +3083,18 @@ const toId = asId(
 // ====== fim fusão ======
 
 
-                        return (
-                          <div
-                            key={t.id}
-                            className={`group flex items-center justify-between p-4 rounded-2xl border transition-all ${baseBg} ${
-                              t.pago ? "opacity-80" : ""
-                            } ${glowAtraso}`}
-                          >
-                            <div className="flex items-center gap-4">
-                              <button
-                                type="button"
-                                onClick={() => togglePago(t.id)}
-                                className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold transition-all ${
-                                  t.pago
-                                    ? "bg-indigo-600 border-indigo-600 text-white"
-                                    : "border-slate-300 dark:border-slate-700 text-slate-400"
-                                }`}
-                                title={t.pago ? "Marcar como não pago" : "Marcar como pago"}
-                              >
-                                {t.pago ? "✓" : ""}
-                              </button>
+return (
+  <TransactionItem
+    t={t}
+    profiles={profiles}
+    hojeStr={hojeStr}
+    togglePago={togglePago}
+    formatarData={formatarData}
+    formatarMoeda={formatarMoeda}
+    getContaPartsById={getContaPartsById}
+  />
+);
 
-                              <div>
-                                <p className="font-bold text-slate-800 dark:text-slate-100 leading-none mb-1.5">
-                                  {t.descricao}
-                                </p>
-
-                                <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide">
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full font-black ${
-                                      t.pago
-                                        ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
-                                        : atrasada
-                                        ? "bg-rose-100/80 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300"
-                                        : "bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                                    }`}
-                                  >
-                                    {t.pago ? "Pago" : atrasada ? "Atrasada" : "Pendente"}
-                                  </span>
-
-                                                                <span className="text-slate-500 dark:text-slate-400 uppercase font-bold">
-                                              {formatarData(t.data)} <span className="mx-1">•</span> {t.categoria}
-
-                                              {t.qualCartao && (
-                                                <>
-                                                  <span className="mx-1">•</span>
-                                                  {(() => {
-                                                    const info = getContaPartsById(String(t.qualCartao), profiles);
-                                                    if (!info) return <span className="normal-case">Conta</span>;
-
-                                                                                                  return (
-                                                          <span className="inline-flex items-center gap-2 normal-case">
-                                                            {/* BANCO com tagzinha */}
-                                                            <span
-                                                              className="text-[10px] px-2 py-0.5 rounded-full font-bold tracking-wider uppercase
-                                                                        bg-indigo-600/15 text-indigo-600
-                                                                        dark:bg-indigo-400/15 dark:text-indigo-300"
-                                                            >
-                                                              {info.banco}
-                                                            </span>
-
-                                                            {/* PF/PJ roxinho normal (sem tag) */}
-                                                            {!!info.perfil && (
-                                                              <span className="text-indigo-600 dark:text-indigo-300 font-semibold uppercase">
-                                                                {info.perfil}
-                                                              </span>
-                                                            )}
-
-                                                            {/* Tipo da conta (C/C etc) texto normal */}
-                                                            {!!info.tipo && (
-                                                              <span className="text-slate-500 dark:text-slate-400 uppercase">
-                                                                {info.tipo}
-                                                              </span>
-                                                            )}
-
-                                                            {/* Detalhes apagadinhos */}
-                                                            {info.numero && <span className="text-slate-500 dark:text-slate-400">- {info.numero}</span>}
-                                                            {info.agencia && <span className="text-slate-500 dark:text-slate-400">- {info.agencia}</span>}
-                                                          </span>
-                                                        );
-
-                                                  })()}
-                                                </>
-                                              )}
-                                            </span>
-
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <p
-                                className={`font-black text-lg ${
-                                  isReceita
-                                    ? "text-emerald-600 dark:text-emerald-400"
-                                    : "text-rose-600 dark:text-rose-400"
-                                }`}
-                              >
-                                {formatarMoeda(Math.abs(Number(t.valor) || 0))}
-                              </p>
-
-                              <button
-                                type="button"
-                                onClick={() => handleEditClick(t)}
-                                className="p-2 text-indigo-300 dark:text-slate-600 hover:text-indigo-600 dark:hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Editar"
-                              >
-                                <EditIcon />
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => setDeletingTransaction(t)}
-                                className="p-2 text-rose-300 dark:text-slate-600 hover:text-rose-600 dark:hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Excluir"
-                              >
-                                <TrashIcon />
-                              </button>
-                            </div>
-                          </div>
-                        );
                         }}
 />
 

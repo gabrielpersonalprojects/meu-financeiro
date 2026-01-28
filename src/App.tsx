@@ -43,6 +43,7 @@ import { AppHeader } from "./components/AppHeader";
 import { TransactionsList } from "./components/TransactionsList";
 import TransactionItem from "./components/TransactionItem";
 import { useFilteredTransactions } from "./app/transactions/useFilteredTransactions";
+import { useTransactionTotals } from "./app/transactions/useTransactionTotals";
 
 
 
@@ -1384,21 +1385,19 @@ const { getFilteredTransactions, getFilteredTransactionsAno, anoRef } =
 
 
 
- const totalFiltradoReceitas = useMemo(() => {
-  return sumReceitas(getFilteredTransactions);
-}, [getFilteredTransactions]);
+const {
+  totalFiltradoReceitas,
+  totalFiltradoDespesas,
+  totalAnualReceitas,
+  totalAnualDespesas,
+} = useTransactionTotals({
+  getFilteredTransactions,
+  getFilteredTransactionsAno,
+  sumReceitas,
+  sumDespesasAbs,
+});
 
-const totalFiltradoDespesas = useMemo(() => {
-  return sumDespesasAbs(getFilteredTransactions);
-}, [getFilteredTransactions]);
 
-const totalAnualReceitas = useMemo(() => {
-  return sumReceitas(getFilteredTransactionsAno);
-}, [getFilteredTransactionsAno]);
-
-const totalAnualDespesas = useMemo(() => {
-  return sumDespesasAbs(getFilteredTransactionsAno);
-}, [getFilteredTransactionsAno]);
 
 
   const mostrarReceitasResumo = filtroLancamento !== "despesa";

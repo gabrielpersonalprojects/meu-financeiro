@@ -40,6 +40,7 @@ import { toastCompact, type ToastKind } from "./services/toast";
 import { getHojeLocal } from "./domain/date";
 const hojeStr = getHojeLocal();
 import { AppHeader } from "./components/AppHeader";
+import { TransactionsList } from "./components/TransactionsList";
 
 
 import { asId } from "./utils/asId";
@@ -2872,7 +2873,11 @@ if (sessionLoading) {
                 <div className="space-y-3">
                   {getFilteredTransactions.length > 0 ? (
                     <div className="space-y-3">
-                      {getFilteredTransactions.map((t) => {
+                      <TransactionsList
+                        items={getFilteredTransactions}
+                        renderItem={(t) => {
+
+
                         const atrasada = !t.pago && t.data < hojeStr;
 
 
@@ -3126,7 +3131,9 @@ const toId = asId(
                             </div>
                           </div>
                         );
-                      })}
+                        }}
+/>
+
                     </div>
                   ) : (
                     <div className="py-20 text-center space-y-2">

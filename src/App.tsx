@@ -35,12 +35,12 @@ import { newId } from "./app/utils/ids";
 import { loadOrMigrateTransacoes, persistTransacoes } from "./app/utils/storage";
 import { AppTopBar } from "./components/AppTopBar";
 import { confirm, type ConfirmOpts } from "./services/confirm";
-import { getContaLabel } from "./domain/getContaLabel";
+import { getContaBadge, getContaLabel } from "./domain";
 import { toastCompact, type ToastKind } from "./services/toast";
 import { getHojeLocal } from "./domain/date";
 const hojeStr = getHojeLocal();
 
-import { getContaBadge } from "./domain/getContaBadge";
+
 import { asId } from "./utils/asId";
 
 

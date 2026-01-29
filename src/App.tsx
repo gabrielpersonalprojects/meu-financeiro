@@ -19,11 +19,6 @@ import {
 } from "./app/transactions/logic";
 
 
-import {
-  buildFilteredTransactions,
-  buildFilteredTransactionsByYear,
-} from "./app/transactions/filter";
-
 
 import { sortByValueDesc, sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
@@ -45,6 +40,9 @@ import TransactionItem from "./components/TransactionItem";
 import { useFilteredTransactions } from "./app/transactions/useFilteredTransactions";
 import { useTransactionTotals } from "./app/transactions/useTransactionTotals";
 import { getResumoFlags } from "./app/transactions/resumoFlags";
+import { limparFiltros } from "./app/transactions/filter";
+
+
 
 
 
@@ -1401,15 +1399,18 @@ const {
 
 const { mostrarReceitasResumo, mostrarDespesasResumo } = getResumoFlags(filtroLancamento);
 
+const handleLimparFiltros = () => {
+  limparFiltros({
+    setFiltroMes,
+    setFiltroLancamento,
+    setFiltroCategoria,
+    setFiltroMetodo,
+    setFiltroTipoGasto,
+  });
+};
 
 
-  const limparFiltros = () => {
-    setFiltroMes(getHojeLocal().substring(0, 7));
-    setFiltroLancamento("todos");
-    setFiltroCategoria("");
-    setFiltroMetodo("");
-    setFiltroTipoGasto("");
-  };
+
 
 const passaFiltroConta = (t: Transaction) => {
   const fc = String(filtroConta ?? "").trim();
@@ -2847,7 +2848,7 @@ if (sessionLoading) {
                     <div className="w-full lg:col-span-2 lg:justify-self-end">
                       <button
                         type="button"
-                        onClick={limparFiltros}
+                        onClick={handleLimparFiltros}
                         className="h-10 w-full sm:w-auto px-4 rounded-xl
                           border border-slate-200 dark:border-slate-700
                           bg-white dark:bg-slate-900

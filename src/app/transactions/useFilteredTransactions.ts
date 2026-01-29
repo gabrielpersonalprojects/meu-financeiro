@@ -17,6 +17,14 @@ export function useFilteredTransactions(params: any) {
     passarFiltroConta,
   } = params;
 
+  const fcNorm = String(filtroConta ?? "").trim().toLowerCase();
+const isTodas =
+  fcNorm === "" ||
+  fcNorm === "todas" ||
+  fcNorm === "todas as contas" ||
+  fcNorm === "todas_as_contas";
+
+
   const getFilteredTransactions = useMemo(() => {
     return buildFilteredTransactions(
       transacoes,
@@ -28,7 +36,7 @@ export function useFilteredTransactions(params: any) {
         filtroTipoGasto,
         _filtroConta: filtroConta,
       },
-      filtroConta === "todas" ? mergeTransfers : (list: any[]) => list,
+      isTodas ? mergeTransfers : (list: any[]) => list,
       passarFiltroConta
     );
   }, [
@@ -45,29 +53,31 @@ export function useFilteredTransactions(params: any) {
 
   const anoRef = (filtroMes || new Date().toISOString().substring(0, 7)).slice(0, 4);
 
-  const getFilteredTransactionsAno = useMemo(() => {
-return buildFilteredTransactionsByYear(
-  transacoes,
-  {
-    anoRef,
-    filtroLancamento,
-    filtroCategoria,
-    filtroMetodo,
-    _filtroConta: filtroConta,
-  },
-  mergeTransfers
-);
 
-  }, [
+const getFilteredTransactionsAno = useMemo(() => {
+  return buildFilteredTransactionsByYear(
     transacoes,
     anoRef,
-    filtroLancamento,
-    filtroCategoria,
-    filtroMetodo,
-    filtroConta,
-    mergeTransfers,
-    passarFiltroConta,
-  ]);
+    {
+      filtroLancamento,
+      filtroCategoria,
+      filtroMetodo,
+      _filtroConta: filtroConta,
+    },
+    isTodas ? mergeTransfers : (list: any[]) => list,
+    passarFiltroConta
+  );
+}, [
+  transacoes,
+  anoRef,
+  filtroLancamento,
+  filtroCategoria,
+  filtroMetodo,
+  filtroConta,
+  mergeTransfers,
+  passarFiltroConta,
+]);
+
 
   return { getFilteredTransactions, getFilteredTransactionsAno, anoRef };
 }

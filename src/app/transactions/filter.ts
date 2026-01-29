@@ -1,5 +1,9 @@
 // src/app/transactions/filter.ts
 import type { PaymentMethod, SpendingType, Transaction, TransactionType } from "../types";
+import { getHojeLocal } from "../../domain/date";
+import type { Dispatch, SetStateAction } from "react";
+
+
 
 export type LancamentoFiltro = TransactionType | "todos";
 
@@ -58,27 +62,63 @@ export const buildFilteredTransactions = (
 
 export const buildFilteredTransactionsByYear = (
   transacoes: Transaction[],
+  anoRef: string,
   params: {
-    anoRef: string;
     filtroLancamento: any;
     filtroCategoria?: string;
     filtroMetodo?: string;
     filtroTipoGasto?: string;
     _filtroConta?: unknown;
   },
-  passarFiltroConta: (t: Transaction) => boolean
+  mergeTransfers: MergeTransfersFn,
+  passarFiltroConta: PassarFiltroContaFn
 ): Transaction[] => {
-  const { anoRef, filtroLancamento, filtroCategoria, filtroMetodo, filtroTipoGasto } = params;
+  const { filtroLancamento, filtroCategoria, filtroMetodo, filtroTipoGasto } = params;
 
   let list = [...transacoes];
 
-  if (filtroLancamento !== "todos") list = list.filter((t) => t.tipo === filtroLancamento);
+  // filtros do ano
+  if (filtroLancamento && filtroLancamento !== "todos") {
+    list = list.filter((t) => t.tipo === filtroLancamento);
+  }
   if (filtroCategoria) list = list.filter((t) => t.categoria === filtroCategoria);
-  if (filtroMetodo) list = list.filter((t) => t.metodoPagamento === filtroMetodo);
-  if (filtroTipoGasto) list = list.filter((t) => t.tipoGasto === filtroTipoGasto);
+  if (filtroMetodo) list = list.filter((t: any) => t.metodoPagamento === filtroMetodo);
+  if (filtroTipoGasto) list = list.filter((t: any) => t.tipoGasto === filtroTipoGasto);
 
+  // 1) merge (se quiser)
+  list = mergeTransfers(list);
+
+  // 2) filtro por conta (origem OU destino – sua regra)
   list = list.filter(passarFiltroConta);
 
-  list = list.filter((t) => t.data?.startsWith(anoRef));
-  return list.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+  // 3) mantém só o ano e ordena
+  list = list.filter((t) => String(t.data ?? "").startsWith(anoRef));
+  return list.sort(
+    (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()
+  );
 };
+
+
+export function limparFiltros(setters: {
+  setFiltroMes: Dispatch<SetStateAction<string>>;
+  setFiltroLancamento: Dispatch<SetStateAction<"despesa" | "receita" | "todos">>;
+  setFiltroCategoria: Dispatch<SetStateAction<string>>;
+  setFiltroMetodo: Dispatch<SetStateAction<string>>;
+  setFiltroTipoGasto: Dispatch<SetStateAction<string>>;
+}) {
+  const {
+    setFiltroMes,
+    setFiltroLancamento,
+    setFiltroCategoria,
+    setFiltroMetodo,
+    setFiltroTipoGasto,
+  } = setters;
+
+  setFiltroMes(getHojeLocal().substring(0, 7));
+  setFiltroLancamento("todos");
+  setFiltroCategoria("");
+  setFiltroMetodo("");
+  setFiltroTipoGasto("");
+}
+
+

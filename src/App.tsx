@@ -40,11 +40,7 @@ import TransactionItem from "./components/TransactionItem";
 import { useFilteredTransactions } from "./app/transactions/useFilteredTransactions";
 import { useTransactionTotals } from "./app/transactions/useTransactionTotals";
 import { getResumoFlags } from "./app/transactions/resumoFlags";
-import { limparFiltros } from "./app/transactions/filter";
-
-
-
-
+import { limparFiltros, passaFiltroContaFactory } from "./app/transactions/filter";
 
 
 import { asId } from "./utils/asId";
@@ -1410,47 +1406,11 @@ const handleLimparFiltros = () => {
 };
 
 
+const passaFiltroConta = useMemo(
+  () => passaFiltroContaFactory(filtroConta, profiles),
+  [filtroConta, profiles]
+);
 
-
-const passaFiltroConta = (t: Transaction) => {
-  const fc = String(filtroConta ?? "").trim();
-  const fcNorm = fc.toLowerCase();
-
-  // ✅ "Todas as contas" (aceita variações e vazio)
-  const isTodas =
-    fcNorm === "" ||
-    fcNorm === "todas" ||
-    fcNorm === "todas as contas" ||
-    fcNorm === "todas_as_contas";
-
-  if (isTodas) return true;
-
-// "sem conta"
-const isSemConta = fc === "sem conta" || fc === "sem_conta";
-const anyT: any = t as any;
-
-// id real da conta (o que o dropdown usa)
-const tId = String(anyT.accountId ?? anyT.profileId ?? "").trim();
-
-// fallback textual (muita transação sua está vindo só com isso)
-const tBancoTxt = String(anyT.bankId ?? anyT.banco ?? "").trim();
-
-// "Sem conta" agora significa: sem id E sem banco/nome
-const hasAlgumaConta = !!tId || !!tBancoTxt;
-if (isSemConta) return !hasAlgumaConta;
-
-// se não tem id, mas tem bancoTxt, tenta casar com o profile selecionado
-if (!tId) {
-  const pSel: any = (profiles || []).find((p: any) => String(p.id) === String(filtroConta));
-  const pBanco = String(pSel?.banco ?? "").trim();
-  const pNome = String(pSel?.name ?? "").trim();
-
-  if (pSel && tBancoTxt && (tBancoTxt === pBanco || tBancoTxt === pNome)) return true;
-}
-
-// conta específica (por id)
-return tId === String(filtroConta);
-};
 
 const transacoesFiltradasUI = useMemo(() => {
   return (transactions || [])

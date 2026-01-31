@@ -122,3 +122,40 @@ export function limparFiltros(setters: {
 }
 
 
+export function passaFiltroContaFactory(
+  filtroConta: unknown,
+  profiles: any[] // depois tipamos, agora é velocidade
+) {
+  return (t: Transaction) => {
+    const fc = String(filtroConta ?? "").trim();
+    const fcNorm = fc.toLowerCase();
+
+    const isTodas =
+      fcNorm === "" ||
+      fcNorm === "todas" ||
+      fcNorm === "todas as contas" ||
+      fcNorm === "todas_as_contas";
+
+    if (isTodas) return true;
+
+    const isSemConta = fcNorm === "sem conta" || fcNorm === "sem_conta";
+
+    const anyT: any = t as any;
+    const tid = String(anyT.accountId ?? anyT.profileId ?? "").trim();
+    const bancoTxt = String(anyT.bankId ?? anyT.banco ?? "").trim(); // igual seu App
+
+    if (isSemConta) return !tid && !bancoTxt;
+
+    // se não tem id, tenta casar com profile (mesma lógica do seu App)
+    if (!tid) {
+      const pSel = (profiles || []).find(
+        (p: any) => String(p.id) === String(filtroConta)
+      );
+      const pBanco = String(pSel?.banco ?? "").trim();
+      const pNome = String(pSel?.name ?? "").trim();
+      if (pSel && bancoTxt && (bancoTxt === pBanco || bancoTxt === pNome)) return true;
+    }
+
+    return tid === String(filtroConta);
+  };
+}

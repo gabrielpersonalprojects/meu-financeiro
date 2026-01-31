@@ -23,7 +23,6 @@ import {
 import { sortByValueDesc, sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
 import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
-import { computeStatsMes } from "./app/transactions/stats";
 import { computeProjection12Months } from "./app/transactions/projection";
 import { getCartoesDisponiveis, labelCartao } from "./app/profiles/selectors";
 import { newId } from "./app/utils/ids";
@@ -41,6 +40,8 @@ import { useFilteredTransactions } from "./app/transactions/useFilteredTransacti
 import { useTransactionTotals } from "./app/transactions/useTransactionTotals";
 import { getResumoFlags } from "./app/transactions/resumoFlags";
 import { limparFiltros, passaFiltroContaFactory } from "./app/transactions/filter";
+import { useTransacoesFiltradasMes } from "./app/transactions/useTransacoesFiltradasMes";
+import { useStatsMes } from "./app/transactions/useStatsMes";
 
 
 import { asId } from "./utils/asId";
@@ -1412,34 +1413,23 @@ const passaFiltroConta = useMemo(
 );
 
 
-const transacoesFiltradasUI = useMemo(() => {
-  return (transactions || [])
-    // mês atual
-    .filter((t) => t.data?.startsWith(filtroMes || ""))
-    // Entradas + Saídas / Entradas / Saídas
-    .filter((t) => {
-  if (filtroLancamento === "todos") return true;
-  if (filtroLancamento === "receita") return t.tipo === "receita";
-  if (filtroLancamento === "despesa") return t.tipo === "despesa";
-  return true;
-})
-
-    // Conta (todas / uma conta / sem_conta)
-    .filter(passarFiltroConta);
-}, [transactions, filtroMes, filtroLancamento, filtroConta]);
-
+const transacoesFiltradasUI = useTransacoesFiltradasMes({
+  transactions,
+  filtroMes,
+  filtroLancamento,
+  passaFiltroConta,
+});
 
 
 // --- Stats (não contar transferência/cartão de crédito por enquanto) ---
-const stats = useMemo(() => {
-  return computeStatsMes({
-    transactions: transactions || [],
-    filtroMes,
-    filtroConta,
-    profiles: profiles || [],
-    passaFiltroConta,
-  });
-}, [transactions, filtroMes, filtroConta, profiles, passaFiltroConta]);
+const stats = useStatsMes({
+  transactions,
+  filtroMes,
+  filtroConta,
+  profiles,
+  passaFiltroConta,
+});
+
 
 
 const { saldoTotal, receitasMes, despesasMes, pendenteReceita, pendenteDespesa } = stats;

@@ -42,6 +42,7 @@ import { limparFiltros, passaFiltroContaFactory } from "./app/transactions/filte
 import { useTransacoesFiltradasMes } from "./app/transactions/useTransacoesFiltradasMes";
 import { useStatsMes } from "./app/transactions/useStatsMes";
 import { useProjection12Months } from "./app/transactions/useProjection12Months";
+import { togglePagoById, applyEditToTransactions } from "./app/transactions/useTransactionActions";
 
 
 import { asId } from "./utils/asId";
@@ -1463,9 +1464,10 @@ const projection12Months = useProjection12Months({
   }, []);
 
   // --- CRUD helpers ---
-  const togglePago = (id: number) => {
-    setTransacoes((prev) => prev.map((t) => (t.id === id ? { ...t, pago: !t.pago } : t)));
-  };
+ const togglePago = (id: number) => {
+  setTransacoes((prev) => togglePagoById(prev, id));
+};
+
 
   const handleEditClick = (t: Transaction) => {
     setEditingTransaction(t);
@@ -1482,17 +1484,9 @@ const projection12Months = useProjection12Months({
 
     const sign = editingTransaction.tipo === "receita" ? 1 : -1;
 
-    setTransacoes((prev) =>
-      prev.map((t) => {
-        if (applyToAllRelated && editingTransaction.recorrenciaId && t.recorrenciaId === editingTransaction.recorrenciaId) {
-          return { ...t, valor: sign * novoValorAbs, descricao: novaDesc };
-        }
-        if (t.id === editingTransaction.id) {
-          return { ...t, valor: sign * novoValorAbs, descricao: novaDesc };
-        }
-        return t;
-      })
-    );
+   setTransacoes((prev) =>
+  applyEditToTransactions(prev, editingTransaction, novoValorAbs, novaDesc, applyToAllRelated)
+);
 
     setEditingTransaction(null);
     toastCompact("Alteração salva com sucesso.", "success");

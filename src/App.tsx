@@ -1491,36 +1491,32 @@ const projection12Months = useProjection12Months({
     setEditingTransaction(null);
     toastCompact("Alteração salva com sucesso.", "success");
   };
+  const confirmDelete = (t: Transaction) => {
+  // guarda a transação que o usuário clicou em excluir
+  setDeletingTransaction(t);
 
- const confirmDelete = () => {
-  if (!deletingTransaction) return;
-
-  const t: any = deletingTransaction;
-  const groupId = typeof t.recorrenciaId === "string" ? t.recorrenciaId : "";
+  const groupId = typeof (t as any).recorrenciaId === "string" ? (t as any).recorrenciaId : "";
 
   // Detecta "Transferência" mesmo com/sem acento
-  const catNorm = String(t.categoria ?? "")
+  const catNorm = String((t as any).categoria ?? "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-  const isTransfer = (catNorm === "transferencia" || catNorm.includes("transfer")) && !!groupId;
+  const isTransfer = catNorm === "transferencia" || catNorm.includes("transfer");
 
-if (isTransfer) {
-  setTransacoes((prev: any[]) => {
-    const next = prev.filter((tx: any) => (tx as any).transferId !== groupId);
-    return next;
-  });
+  if (isTransfer) {
+    setTransacoes((prev: any[]) => prev.filter((tx: any) => (tx as any).transferId !== groupId));
 
-  setDeletingTransaction(null);
-  toastCompact("Transferência excluída (entrada e saída).", "success");
-  return;
-}
+    setDeletingTransaction(null);
+    toastCompact("Transferência excluída (entrada e saída).", "success");
+    return;
+  }
 
-
-  // Se não for transferência, mantém o fluxo atual do seu app
+  // Se não for transferência, mantém o fluxo atual do seu app (modal etc.)
   confirmarExclusao(false);
 };
+
 
 
   const confirmarExclusao = (apagarTodas: boolean) => {
@@ -2994,6 +2990,9 @@ return (
     formatarData={formatarData}
     formatarMoeda={formatarMoeda}
     getContaPartsById={getContaPartsById}
+    onEdit={handleEditClick}
+    onDelete={confirmDelete}
+
   />
 );
 
@@ -3477,7 +3476,7 @@ return (
 
             <div className="space-y-3">
               <button
-                onClick={confirmDelete}
+                onClick={() => confirmarExclusao(false)}
                 className={`w-full py-4 rounded-2xl font-black transition-colors ${
                   deletingTransaction.recorrenciaId
                     ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"

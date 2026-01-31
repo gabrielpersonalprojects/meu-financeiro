@@ -1,3 +1,5 @@
+import { EditIcon, TrashIcon } from "./LucideIcons";
+
 type ContaParts = {
   banco?: string;
   perfil?: string;
@@ -14,6 +16,9 @@ type Props = {
   formatarData: (data: string) => string;
   formatarMoeda: (valor: number) => string;
   getContaPartsById: (id: string, profiles: any[]) => ContaParts | null;
+  onEdit?: (t: any) => void;
+  onDelete?: (t: any) => void;
+
 };
 
 export default function TransactionItem({
@@ -24,6 +29,9 @@ export default function TransactionItem({
   formatarData,
   formatarMoeda,
   getContaPartsById,
+  onEdit,
+  onDelete,
+
 }: Props) {
   const atrasada = !t.pago && t.data < hojeStr;
 
@@ -122,15 +130,44 @@ export default function TransactionItem({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <p
-          className={`font-black text-lg ${
-            isReceita ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-          }`}
-        >
-          {formatarMoeda(t.valor)}
-        </p>
-      </div>
+<div className="flex items-center gap-2">
+{(onEdit || onDelete) && (
+  <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+    {onEdit && (
+      <button
+        type="button"
+        onClick={() => onEdit(t)}
+        className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+        title="Editar"
+      >
+        <EditIcon className="w-4 h-4" />
+      </button>
+    )}
+
+    {onDelete && (
+      <button
+        type="button"
+        onClick={() => onDelete(t)}
+        className="p-1.5 rounded-lg text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+        title="Excluir"
+      >
+        <TrashIcon className="w-4 h-4" />
+      </button>
+    )}
+  </div>
+)}
+
+
+  <p
+    className={`font-black text-lg ${
+      isReceita ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+    }`}
+  >
+    {formatarMoeda(t.valor)}
+  </p>
+</div>
+
     </div>
   );
 }
+

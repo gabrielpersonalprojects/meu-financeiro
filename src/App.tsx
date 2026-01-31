@@ -23,7 +23,6 @@ import {
 import { sortByValueDesc, sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
 import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
-import { computeProjection12Months } from "./app/transactions/projection";
 import { getCartoesDisponiveis, labelCartao } from "./app/profiles/selectors";
 import { newId } from "./app/utils/ids";
 import { loadOrMigrateTransacoes, persistTransacoes } from "./app/utils/storage";
@@ -42,6 +41,7 @@ import { getResumoFlags } from "./app/transactions/resumoFlags";
 import { limparFiltros, passaFiltroContaFactory } from "./app/transactions/filter";
 import { useTransacoesFiltradasMes } from "./app/transactions/useTransacoesFiltradasMes";
 import { useStatsMes } from "./app/transactions/useStatsMes";
+import { useProjection12Months } from "./app/transactions/useProjection12Months";
 
 
 import { asId } from "./utils/asId";
@@ -1441,12 +1441,10 @@ const spendingByCategoryData = useMemo(() => {
 
 
   // --- Projeção ---
-const projection12Months = useMemo(() => {
-  return computeProjection12Months({
-    transacoes,
-    getMesAnoExtenso,
-  });
-}, [transacoes, getMesAnoExtenso]);
+const projection12Months = useProjection12Months({
+  transactions: transacoesFiltradasUI,
+});
+
 
   // --- Categorias filtradas para dropdown (transações) ---
   const categoriasFiltradasTransacoes = useMemo(() => {

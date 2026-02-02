@@ -2,7 +2,7 @@
    PARTE 1/3 — IMPORTS + COMPONENTES (Dropdown / Date / Ícones)
    Cole do topo do arquivo até o final desta parte.
 ========================= */
-import toast, { Toaster } from "react-hot-toast";
+import { Toaster } from "react-hot-toast";
 import AuthPage from "./components/AuthPage";
 import { supabase } from "./lib/supabase";
 import { useUI } from "./components/UIProvider";
@@ -221,15 +221,6 @@ const App: FC = () => {
 
   const ui = useUI();
   
-type ToastKind = "success" | "error" | "info";
-
-const toastCompact = (message: string, kind: ToastKind = "info") => {
-  if (kind === "success") return toast.success(message);
-  if (kind === "error") return toast.error(message);
-  return toast(message); // info/neutro
-};
-
-
   // --- Auth Session ---
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);

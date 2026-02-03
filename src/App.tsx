@@ -30,7 +30,6 @@ import { confirm, type ConfirmOpts } from "./services/confirm";
 import { getContaBadge, getContaLabel } from "./domain";
 import { toastCompact, type ToastKind } from "./services/toast";
 import { getHojeLocal } from "./domain/date";
-const hojeStr = getHojeLocal();
 import { AppHeader } from "./components/AppHeader";
 import NewTransactionCard from "./components/NewTransactionCard";
 import GastosTab from "./components/tabs/GastosTab";
@@ -85,7 +84,7 @@ import {
 
 
 const SEM_PRAZO_MESES = 60;
-
+const hojeStr = getHojeLocal();
 
 
 // --- ÍCONES DE SAUDAÇÃO ---
@@ -541,16 +540,6 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
 
 
   // --- Dados ---
-
-
-
-
-useEffect(() => {
-  try {
-    persistTransacoes(transacoes);
-  } catch {}
-}, [transacoes]);
-
 
   const [categorias, setCategorias] = useState<Categories>(CATEGORIAS_PADRAO);
   const [metodosPagamento, setMetodosPagamento] = useState<PaymentMethods>({ credito: [], debito: [] });

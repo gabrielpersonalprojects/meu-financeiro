@@ -1,5 +1,3 @@
-// src/app/constants.ts
-
 export const CATEGORIAS_PADRAO = {
   despesa: [
     "Alimentação",
@@ -15,4 +13,3 @@ export const CATEGORIAS_PADRAO = {
   ],
   receita: ["Salário", "Freelance", "Vendas", "Investimentos", "Outros"],
 };
-

@@ -1,5 +1,3 @@
-// src/app/types.ts
-
 export type TransactionType =
   | "despesa"
   | "receita"

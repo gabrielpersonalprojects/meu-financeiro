@@ -7,7 +7,7 @@ import AuthPage from "./components/AuthPage";
 import { supabase } from "./lib/supabase";
 import { useUI } from "./components/UIProvider";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { parseBRLToCents, formatCentsToBRL } from "./app/money";
 import {
@@ -85,101 +85,6 @@ import {
 
 const SEM_PRAZO_MESES = 60;
 const hojeStr = getHojeLocal();
-
-
-// --- ÍCONES DE SAUDAÇÃO ---
-const RealisticSun = () => (
-  <svg
-    viewBox="0 0 24 24"
-    className="w-full h-full drop-shadow-[0_0_8px_rgba(251,191,36,0.5)] animate-[spin_20s_linear_infinite]"
-  >
-    <defs>
-      <radialGradient id="sunGradient" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#fff7ed" />
-        <stop offset="40%" stopColor="#fbbf24" />
-        <stop offset="100%" stopColor="#ea580c" />
-      </radialGradient>
-    </defs>
-    <circle cx="12" cy="12" r="5" fill="url(#sunGradient)" />
-    {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => (
-      <rect
-        key={i}
-        x="11"
-        y="2"
-        width="2"
-        height="4"
-        rx="1"
-        fill="#f59e0b"
-        transform={`rotate(${angle} 12 12)`}
-        className="animate-pulse"
-        style={{ animationDelay: `${i * 0.2}s` }}
-      />
-    ))}
-  </svg>
-);
-
-const RealisticCloudSun = () => (
-  <svg viewBox="0 0 24 24" className="w-full h-full">
-    <defs>
-      <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#f8fafc" />
-        <stop offset="100%" stopColor="#cbd5e1" />
-      </linearGradient>
-    </defs>
-    <g transform="translate(-2, -2) scale(0.8)">
-      <RealisticSun />
-    </g>
-    <path
-      d="M17.5 19c-3.037 0-5.5-2.463-5.5-5.5 0-2.04 1.112-3.82 2.766-4.772C14.157 5.176 17.153 3 20.5 3c4.142 0 7.5 3.358 7.5 7.5 0 .343-.023.68-.068 1.011C29.833 12.333 31 14.027 31 16c0 3.314-2.686 6-6 6h-7.5z"
-      fill="url(#cloudGrad)"
-      transform="translate(-10, 2) scale(0.7)"
-      className="drop-shadow-sm"
-    />
-  </svg>
-);
-
-const RealisticMoon = () => (
-  <svg
-    viewBox="0 0 24 24"
-    className="w-full h-full drop-shadow-[0_0_10px_rgba(148,163,184,0.3)]"
-  >
-    <defs>
-      <radialGradient id="moonGrad" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#f1f5f9" />
-        <stop offset="70%" stopColor="#94a3b8" />
-        <stop offset="100%" stopColor="#475569" />
-      </radialGradient>
-    </defs>
-    <path d="M12 3a9 9 0 1 0 9 9 9.75 9.75 0 0 1-9-9Z" fill="url(#moonGrad)" />
-    <circle cx="8" cy="11" r="1.2" fill="#64748b" opacity="0.4" />
-    <circle cx="11" cy="15" r="0.8" fill="#64748b" opacity="0.3" />
-    <circle cx="14" cy="10" r="0.6" fill="#64748b" opacity="0.3" />
-    <g className="animate-pulse">
-      <circle cx="18" cy="5" r="0.2" fill="white" />
-      <circle cx="5" cy="18" r="0.15" fill="white" />
-      <circle cx="20" cy="15" r="0.2" fill="white" />
-    </g>
-  </svg>
-);
-
-// --- DROPDOWN PRO (aceita label JSX e também string) ---
-type DropdownOption = { label: React.ReactNode; value: string };
-type DropdownOptionLike = string | DropdownOption;
-
-type CustomDropdownProps = {
-  label?: string;
-  value: string;
-  options: DropdownOptionLike[];
-  onSelect: (val: string) => void;
-
-  // opcionais (se você usar botões editar/excluir/adicionar)
-  onDelete?: (valueOrIndex: string | number) => void;
-  onEdit?: (value: string) => void;
-  onAddNew?: () => void;
-
-  placeholder?: string;
-  className?: string;
-};
 
 
 /* =========================
@@ -1228,15 +1133,6 @@ const projection12Months = useProjection12Months({
   return sortStringsAsc([...new Set([...categorias.despesa, ...categorias.receita])]);
 }, [categorias, filtroLancamento]);
 
-
-  // --- Saudação ---
-  const greetingInfo = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return { text: "Bom dia", icon: <RealisticSun /> };
-    if (hour >= 12 && hour < 18) return { text: "Boa tarde", icon: <RealisticCloudSun /> };
-    return { text: "Boa noite", icon: <RealisticMoon /> };
-  }, []);
-
   // --- CRUD helpers ---
  const togglePago = (id: number) => {
   setTransacoes((prev) => togglePagoById(prev, id));
@@ -1322,7 +1218,7 @@ const projection12Months = useProjection12Months({
 
     const key = formTipo as CategoriaKey;
 
-    setCategorias((prev) => {
+    setCategorias((prev: Categories) => {
       const lista = prev[key] ?? [];
       if (lista.includes(nome)) return prev;
       return { ...prev, [key]: [...lista, nome] };
@@ -1333,7 +1229,7 @@ const projection12Months = useProjection12Months({
   };
 
 const removerCategoria = (tipo: "despesa" | "receita", valueOrIndex: string | number) => {
-  setCategorias((prev) => {
+  setCategorias((prev: Categories) => {
     const lista = [...prev[tipo]];
 
     if (typeof valueOrIndex === "number") {
@@ -1350,59 +1246,69 @@ const removerCategoria = (tipo: "despesa" | "receita", valueOrIndex: string | nu
   });
 };
 
-  // --- Métodos / Cartões ---
-  const removerMetodo = (index: number) => {
-    const nome = metodosPagamento.credito[index];
-    if (!nome) return;
+// --- Métodos / Cartões ---
+const removerMetodo = (index: number) => {
+  const nome = metodosPagamento.credito[index];
+  if (!nome) return;
 
-    confirm({
-      title: "Remover banco/cartão",
-      message: `Remover "${nome}"?`,
-      confirmText: "Remover",
-      cancelText: "Cancelar",
-    }).then((ok) => {
-      if (!ok) return;
+  confirm({
+    title: "Remover banco/cartão",
+    message: `Remover "${nome}"?`,
+    confirmText: "Remover",
+    cancelText: "Cancelar",
+  }).then((ok) => {
+    if (!ok) return;
 
-      setMetodosPagamento((prev) => {
-        const newCredito = [...prev.credito];
-        newCredito.splice(index, 1);
-        const newDebito = [...prev.debito].filter((d) => d !== nome);
-        return { credito: newCredito, debito: newDebito };
-      });
+    const nomeLower = nome.toLowerCase();
 
-      if (formQualCartao === nome) setFormQualCartao("");
-      toastCompact(`"${nome}" removido.`, "success");
+    setMetodosPagamento((prev: PaymentMethods) => {
+      const newCredito = [...prev.credito];
+      newCredito.splice(index, 1);
+
+      const newDebito = prev.debito.filter((d: string) => d.toLowerCase() !== nomeLower);
+
+
+      return {
+        credito: newCredito,
+        debito: newDebito,
+      };
     });
-  };
 
-  const adicionarCartao = () => {
-    const novo = inputNovoCartao.trim();
+    if (formQualCartao === nome) setFormQualCartao("");
+    toastCompact(`"${nome}" removido.`, "success");
+  });
+};
 
-    if (!novo) {
-      toastCompact("Digite o nome do banco/cartão.", "error");
-      return;
-    }
+const adicionarCartao = () => {
+  const novo = inputNovoCartao.trim();
 
-    const jaExiste = metodosPagamento.credito.some((c) => c.toLowerCase() === novo.toLowerCase());
-    if (jaExiste) {
-      toastCompact("Esse banco/cartão já existe.", "info");
-      return;
-    }
+  if (!novo) {
+    toastCompact("Digite o nome do banco/cartão.", "error");
+    return;
+  }
 
-    setMetodosPagamento((prev) => ({
-      ...prev,
-      credito: [...prev.credito, novo],
-      debito: [...prev.debito, novo],
-    }));
+  const novoLower = novo.toLowerCase();
 
-    setFormQualCartao(novo);
-    setInputNovoCartao("");
-    setShowModalMetodo(false);
+ const jaExiste = metodosPagamento.credito.some((c: string) => c.toLowerCase() === novoLower);
 
-    toastCompact(`"${novo}" adicionado.`, "success");
-  };
+  if (jaExiste) {
+    toastCompact("Esse banco/cartão já existe.", "info");
+    return;
+  }
 
-  const resolveProfileId = (val: any) => {
+  setMetodosPagamento((prev: PaymentMethods) => ({
+    credito: [...prev.credito, novo],
+    debito: [...prev.debito, novo],
+  }));
+
+  setFormQualCartao(novo);
+  setInputNovoCartao("");
+  setShowModalMetodo(false);
+
+  toastCompact(`"${novo}" adicionado.`, "success");
+};
+
+const resolveProfileId = (val: any) => {
   const s = String(val || "");
   const p = profiles.find((x) => String(x.id) === s || String(x.name) === s);
   return p ? String(p.id) : s; // fallback: usa o próprio valor
@@ -1411,6 +1317,7 @@ const removerCategoria = (tipo: "despesa" | "receita", valueOrIndex: string | nu
 const isSameAccount = (a: any, b: any) => {
   return resolveProfileId(a) === resolveProfileId(b);
 };
+
 
   // --- Add Transaction (com suporte simples a transferencia/cartao_credito) ---
   const handleAddTransaction = () => {

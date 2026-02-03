@@ -35,6 +35,8 @@ const hojeStr = getHojeLocal();
 import { AppHeader } from "./components/AppHeader";
 import { TransactionsList } from "./components/TransactionsList";
 import TransactionItem from "./components/TransactionItem";
+import NewTransactionCard from "./components/NewTransactionCard";
+import GastosTab from "./components/tabs/GastosTab";
 import { useFilteredTransactions } from "./app/transactions/useFilteredTransactions";
 import { useTransactionTotals } from "./app/transactions/useTransactionTotals";
 import { getResumoFlags } from "./app/transactions/resumoFlags";
@@ -68,7 +70,6 @@ import { CATEGORIAS_PADRAO } from "./app/constants";
 import {
   formatarMoeda,
   formatarData,
-  getMesAnoExtenso,
   extrairValorMoeda,
 } from "./utils/formatters";
 
@@ -84,29 +85,10 @@ import CustomDropdown from "./components/CustomDropdown";
 import CustomDateInput from "./components/CustomDateInput";
 
 
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
+
 
 const SEM_PRAZO_MESES = 60;
 
-const COLORS = [
-  "#6366f1",
-  "#a855f7",
-  "#ec4899",
-  "#f43f5e",
-  "#f97316",
-  "#eab308",
-  "#22c55e",
-  "#06b6d4",
-  "#3b82f6",
-  "#64748b",
-  "#94a3b8",
-];
 
 
 // --- ÍCONES DE SAUDAÇÃO ---
@@ -1781,633 +1763,66 @@ if (sessionLoading) {
 
 
           {/* Card Novo lançamento */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 space-y-5 transition-colors">
-            <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-              <PlusIcon /> Novo Lançamento
-            </h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                  O que é?
-                </label>
-
-                <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
-                  <button
-                    type="button"
-                    onClick={() => setFormTipo("despesa")}
-                    className={`w-full h-11 rounded-2xl text-sm font-semibold transition-all border backdrop-blur-xl
-                      ${formTipo === "despesa"
-                        ? "bg-rose-600/90 border-rose-500/40 text-white shadow-[0_14px_40px_-25px_rgba(225,29,72,0.85)]"
-                        : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
-                      }`}
-                  >
-                    Despesa
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFormTipo("receita")}
-                    className={`w-full h-11 rounded-2xl text-sm font-semibold transition-all border backdrop-blur-xl
-                      ${formTipo === "receita"
-                        ? "bg-emerald-600/90 border-emerald-500/40 text-white shadow-[0_14px_40px_-25px_rgba(5,150,105,0.85)]"
-                        : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
-                      }`}
-                  >
-                    Receita
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFormTipo("transferencia")}
-                    className={`w-full h-11 rounded-2xl text-sm font-semibold transition-all border backdrop-blur-xl
-                      ${formTipo === "transferencia"
-                        ? "bg-indigo-600/90 border-indigo-500/40 text-white shadow-[0_14px_40px_-25px_rgba(79,70,229,0.85)]"
-                        : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
-                      }`}
-                  >
-                    Transferência
-                  </button>
-                      
-                      
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormTipo("cartao_credito");
-                          setCcIsParceladoMode(null); // deixa sem escolher ainda
-                          setFormParcelas(1);
-                          setFormTipoGasto("");
-                        }}
-  className={`w-full h-11 rounded-2xl text-sm font-semibold transition-all border backdrop-blur-xl
-    ${formTipo === "cartao_credito"
-      ? "bg-violet-600/90 border-violet-500/40 text-white shadow-[0_14px_40px_-25px_rgba(124,58,237,0.90)]"
-      : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
-    }`}
->
-  Cartão de Crédito
-</button>
-
- </div>
- </div>
-
-{formTipo === "transferencia" && (
-  <div className="mt-2 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 flex justify-center">
-    <div className="flex items-start gap-2">            
-        <p className="text-[12px] leading-snug text-slate-500 dark:text-slate-400 text-center">
-        Transfira valores <span className="font-semibold text-slate-600 dark:text-slate-300">entre suas contas cadastradas</span>:
-      </p>
-    </div>
-  </div>
-)}
-
-
-{formTipo === "cartao_credito" && (
-  <div className="mt-3 space-y-2">
-    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-      Cartão
-    </label>
-
-    <select
-  value={selectedCreditCardId}
-  onChange={(e) => setSelectedCreditCardId(e.target.value)}
-  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
->
-  {creditCards.length === 0 ? (
-    <option value="" disabled>
-      Nenhum cartão cadastrado
-    </option>
-  ) : (
-    <option value="" disabled>
-      Selecione um cartão
-    </option>
-  )}
-
-  {creditCards.map((c) => (
-    <option key={c.id} value={c.id}>
-      {c.name}
-    </option>
-  ))}
-</select>
-
-<button
-  type="button"
-  onClick={openAddCardModal}
-  className="w-full mt-2 h-10 rounded-xl border border-slate-200 dark:border-slate-700
-             bg-white/60 dark:bg-slate-900/40 text-[13px] font-bold
-             text-indigo-600 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-800"
->
-  + Adicionar novo cartão
-</button>
-
-  </div>
-)}
-
-
-              {/* Descrição (agora para todos os tipos) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                  Descrição
-                </label>
-                <input
-                  type="text"
-                  value={formDesc}
-                  onChange={(e) => setFormDesc(e.target.value)}
-                  placeholder={
-                  formTipo === "transferencia"
-                  ? "Ex: Valor poupança, Reembolso..."
-                  : "Ex: Mercado, Aluguel..."
-}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-medium text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                    Valor (R$)
-                  </label>
-                  <input
-                    type="text"
-                    value={formValor}
-                    onChange={(e) => handleFormatCurrencyInput(e.target.value, setFormValor)}
-                    placeholder="0,00"
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 shadow-sm"
-                  />
-                  <div className="mt-1.5 pl-1">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={formPago}
-                        onChange={() => setFormPago(!formPago)}
-                        className="w-3.5 h-3.5 rounded text-indigo-600 border-slate-300 dark:border-slate-600 dark:bg-slate-800 focus:ring-0"
-                      />
-                      <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-tight">
-                        Pago
-                      </span>
-                    </label>
-                  </div>
-                </div>
-
-
-                <div className="flex-1">
-                  <CustomDateInput label="Data" value={formData} onChange={setFormData} />
-                </div>
-              </div>
-
-              {/* Pagamento (só no Cartão de Crédito) */}
-{formTipo === "cartao_credito" && (
-  <div className="mt-3">
-    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-      Pagamento
-    </label>
-
-    <div className="grid grid-cols-2 gap-2">
-      <button
-        type="button"
-        onClick={() => {
-          // clique de novo volta pra null (some tudo)
-          setCcIsParceladoMode((prev) => (prev === false ? null : false));
-          setFormParcelas(1);
-        }}
-        className={`py-2.5 rounded-xl text-xs font-bold border transition-all
-          ${
-            ccIsParceladoMode === false
-              ? "bg-slate-200/90 border-slate-300 text-slate-900 shadow-sm dark:bg-slate-700/70 dark:border-slate-600 dark:text-slate-100"
-              : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200/70 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-300"
-          }`}
-      >
-        À vista
-      </button>
-
-      <button
-        type="button"
-        onClick={() => {
-          setCcIsParceladoMode((prev) => {
-            const next = prev === true ? null : true;
-            if (next === true) setFormParcelas((p) => (p && p > 1 ? p : 2));
-            else setFormParcelas(1);
-            return next;
-          });
-        }}
-        className={`py-2.5 rounded-xl text-xs font-bold border transition-all
-          ${
-            ccIsParceladoMode === true
-              ? "bg-slate-200/90 border-slate-300 text-slate-900 shadow-sm dark:bg-slate-700/70 dark:border-slate-600 dark:text-slate-100"
-              : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200/70 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-300"
-          }`}
-      >
-        Parcelado
-      </button>
-    </div>
-
-    {/* Só mostra depois de escolher À vista ou Parcelado */}
-    {ccIsParceladoMode !== null && (
-      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* À vista = Tipo de Gasto */}
-        {ccIsParceladoMode === false ? (
-          <CustomDropdown
-            label="Tipo de Gasto"
-            value={formTipoGasto}
-            options={["Variável", "Fixo"]}
-            onSelect={(val) => setFormTipoGasto(val as SpendingType)}
-          />
-        ) : (
-          /* Parcelado = Parcelas */
-          <div>
-            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-              Número de parcelas
-            </label>
-            <input
-              type="number"
-              min={2}
-              value={formParcelas}
-              onChange={(e) => {
-                const n = parseInt(e.target.value || "2", 10);
-                setFormParcelas(Number.isFinite(n) ? Math.max(2, n) : 2);
-              }}
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none"
-            />
-          </div>
-        )}
-
-        {/* Categoria (nos dois modos) */}
-        <CustomDropdown
-          label="Categoria"
-          value={formCat}
-          options={categorias.despesa}
-          onSelect={(val) => setFormCat(val)}
-          onDelete={(idx) => removerCategoria("despesa", idx)}
-          onAddNew={() => setShowModalCategoria(true)}
-        />
-      </div>
-    )}
-  </div>
-)}
-
-
-{formTipo === "transferencia" && (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-    {/* Contas: ocupar a largura toda (as 2 colunas do grid) */}
-    <div className="md:col-span-2 w-full min-w-0">
-      <div className="w-full min-w-0 grid grid-cols-[minmax(0,1fr)_44px_minmax(0,1fr)] gap-3 items-center">
-        {/* Conta origem */}
-        <div className="w-full min-w-0 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 p-3">
-          <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap">
-            Conta origem
-          </p>
-
-          <button
-            type="button"
-            onClick={() => setAccountPickerOpen("origem")}
-            className="mt-2 w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700
-                       bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800
-                       transition text-left flex items-center min-w-0"
-            title="Selecionar conta origem"
-          >
-            <span className="block min-w-0 truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">
-              {profiles.find((p) => p.id === formContaOrigem)?.name || "Selecione"}
-            </span>
-          </button>
-        </div>
-
-        {/* Inverter */}
-        <button
-          type="button"
-          onClick={inverterContas}
-          className="h-10 w-11 rounded-xl border border-violet-200/50 dark:border-violet-500/25
-                     bg-white/70 dark:bg-slate-900/40 backdrop-blur
-                     hover:bg-violet-50/70 dark:hover:bg-violet-500/10
-                     transition flex items-center justify-center"
-          title="Inverter contas"
-          aria-label="Inverter contas"
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-violet-600 dark:text-violet-300">
-            <path d="M4 8h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            <path d="M12 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M20 16H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            <path d="M12 20l-4-4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-
-        {/* Conta destino */}
-        <div className="w-full min-w-0 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 p-3">
-          <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap">
-            Conta destino
-          </p>
-
-          <button
-            type="button"
-            onClick={() => setAccountPickerOpen("destino")}
-            className="mt-2 w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700
-                       bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800
-                       transition text-left flex items-center min-w-0"
-            title="Selecionar conta destino"
-          >
-            <span className="block min-w-0 truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">
-              {profiles.find((p) => p.id === formContaDestino)?.name || "Selecione"}
-            </span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
-
-     {/* Categoria + Método (não aparece em Transferência) */}
-{formTipo !== "transferencia" && formTipo !== "cartao_credito" && (
-  <div className="grid grid-cols-2 gap-3">
-    <div className="flex-1">
-      {isReceitaOuDespesa ? (
-        <CustomDropdown
-          label="Categoria"
-          value={formCat}
-          options={formTipo === "receita" ? categorias.receita : categorias.despesa}
-          onSelect={(val) => setFormCat(val)}
-          onDelete={(idx) => removerCategoria(formTipo === "receita" ? "receita" : "despesa", idx)}
-          onAddNew={() => setShowModalCategoria(true)}
-        />
-      ) : (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
-          <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase">Categoria</p>
-          <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-200 mt-1">
-            {formTipo === "cartao_credito" ? "Cartão de Crédito" : ""}
-          </p>
-        </div>
-      )}
-    </div>
-
-<div className="flex-1">
-  {formTipo === "despesa" ? (
-<CustomDropdown
-  label="Método de Pagamento"
-  value={formMetodo}
-  options={[
-    { label: "Pix", value: "pix" },
-    { label: "Transferência bancária", value: "transferencia_bancaria" },
-    { label: "Débito/Conta", value: "debito_conta" },
-    { label: "Boleto", value: "boleto" },
-    { label: "Dinheiro", value: "dinheiro" },
-  ]}
-  onSelect={(val) => setFormMetodo(val as PaymentMethod)}
+          <NewTransactionCard
+  formTipo={formTipo}
+  setFormTipo={setFormTipo}
+  creditCards={creditCards}
+  selectedCreditCardId={selectedCreditCardId}
+  setSelectedCreditCardId={setSelectedCreditCardId}
+  openAddCardModal={openAddCardModal}
+  ccIsParceladoMode={ccIsParceladoMode}
+  setCcIsParceladoMode={setCcIsParceladoMode}
+  isParceladoMode={isParceladoMode}
+  setIsParceladoMode={setIsParceladoMode}
+  formParcelas={formParcelas}
+  setFormParcelas={setFormParcelas}
+  formTipoGasto={formTipoGasto}
+  setFormTipoGasto={setFormTipoGasto}
+  formDesc={formDesc}
+  setFormDesc={setFormDesc}
+  formValor={formValor}
+  setFormValor={setFormValor}
+  formData={formData}
+  setFormData={setFormData}
+  formPago={formPago}
+  setFormPago={setFormPago}
+  handleFormatCurrencyInput={handleFormatCurrencyInput}
+  categorias={categorias}
+  formCat={formCat}
+  setFormCat={setFormCat}
+  removerCategoria={removerCategoria}
+  onOpenCategoriaModal={() => setShowModalCategoria(true)}
+  formMetodo={formMetodo}
+  setFormMetodo={setFormMetodo}
+  profiles={profiles}
+  formQualCartao={formQualCartao}
+  setFormQualCartao={setFormQualCartao}
+  handleDeleteAccount={handleDeleteAccount}
+  tiposConta={TIPOS_CONTA}
+  setEditingProfileId={setEditingProfileId}
+  setAccBanco={setAccBanco}
+  setAccNumeroConta={setAccNumeroConta}
+  setAccNumeroAgencia={setAccNumeroAgencia}
+  setAccPerfilConta={setAccPerfilConta}
+  setAccTipoConta={setAccTipoConta}
+  setAccSaldoInicial={setAccSaldoInicial}
+  setAccPossuiCC={setAccPossuiCC}
+  setAccLimiteCC={setAccLimiteCC}
+  setAccFechamentoCC={setAccFechamentoCC}
+  setAccVencimentoCC={setAccVencimentoCC}
+  setIsAddAccountOpen={setIsAddAccountOpen}
+  formContaOrigem={formContaOrigem}
+  formContaDestino={formContaDestino}
+  inverterContas={inverterContas}
+  setAccountPickerOpen={setAccountPickerOpen}
+  prazoMode={prazoMode}
+  setPrazoMode={setPrazoMode}
+  formDataTerminoFixa={formDataTerminoFixa}
+  setFormDataTerminoFixa={setFormDataTerminoFixa}
+  SEM_PRAZO_MESES={SEM_PRAZO_MESES}
+  handleAddTransaction={handleAddTransaction}
 />
 
-
-  ) : (
-  <CustomDropdown
-  label="Conta"
-  value={formQualCartao}
-  options={profiles.map((p) => ({ label: p.name, value: p.id }))}
-  onSelect={(val) => setFormQualCartao(String(val))}
-  onDelete={(id) => handleDeleteAccount(String(id))}
-  onAddNew={() => {
-  // modo "novo cadastro" (não edição)
-  setEditingProfileId(null);
-
-  // limpa os campos do modal
-  setAccBanco("");
-  setAccNumeroConta("");
-  setAccNumeroAgencia("");
-  setAccPerfilConta("PF");
-  setAccTipoConta(TIPOS_CONTA[0]);
-
-  // limpa dados de cartão (se tiver)
-  setAccPossuiCC(false);
-  setAccLimiteCC("");
-  setAccFechamentoCC(1);
-  setAccVencimentoCC(10);
-
-  // abre o modal
-  setIsAddAccountOpen(true);
-}}
-
-/>
-  )}
-</div>
-
-  </div>
-)}
-
-              {/* Receita recorrente */}
-              {formTipo === "receita" && (
-                <div className="animate-in fade-in slide-in-from-top-1">
-                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                    Esse lançamento se repete?
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setFormTipoGasto("")}
-                      className={`py-2.5 rounded-xl text-xs font-bold border transition-all
-                        ${formTipoGasto
-                          ? "bg-white/80 dark:bg-slate-900/70 border-slate-200/70 dark:border-slate-800/60 text-slate-500 dark:text-slate-300"
-                          : "bg-slate-200/90 dark:bg-slate-700/70 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
-                        }`}
-                    >
-                      NÃO
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormTipoGasto("Fixo")}
-                      className={`py-2.5 rounded-xl text-xs font-bold border transition-all
-                        ${formTipoGasto
-                          ? "bg-slate-200/90 dark:bg-slate-700/70 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
-                          : "bg-white/80 dark:bg-slate-900/70 border-slate-200/70 dark:border-slate-800/60 text-slate-500 dark:text-slate-300"
-                        }`}
-                    >
-                      SIM
-                    </button>
-                  </div>
-                </div>
-              )}
-
-{/* Despesa: pagamento à vista/parcelado + (tipo/parcelas) + banco/cartão */}
-{formTipo === "despesa" && (
-  <div className="animate-in fade-in">
-    {/* À vista / Parcelado */}
-    <div className="mt-3">
-      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-        Pagamento
-      </label>
-
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            // clique de novo no "À vista" => volta pra null (some tudo)
-            setIsParceladoMode((prev) => (prev === false ? null : false));
-            setFormParcelas(1);
-          }}
-          className={`py-2.5 rounded-xl text-xs font-bold border transition-all
-            ${
-              isParceladoMode === false
-                ? "bg-slate-200/90 border-slate-300 text-slate-900 shadow-sm dark:bg-slate-700/70 dark:border-slate-600 dark:text-slate-100"
-                : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200/70 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-300 hover:dark:bg-slate-700/60"
-            }`}
-        >
-          À vista
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            // clique de novo no "Parcelado" => volta pra null (some tudo)
-            setIsParceladoMode((prev) => {
-              const next = prev === true ? null : true;
-
-              if (next === true) {
-                setFormParcelas((p: number) => (p && p > 1 ? p : 2));
-              } else {
-                setFormParcelas(1);
-              }
-
-              return next;
-            });
-          }}
-          className={`py-2.5 rounded-xl text-xs font-bold border transition-all
-            ${
-              isParceladoMode === true
-                ? "bg-slate-200/90 border-slate-300 text-slate-900 shadow-sm dark:bg-slate-700/70 dark:border-slate-600 dark:text-slate-100"
-                : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200/70 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-300 hover:dark:bg-slate-700/60"
-            }`}
-        >
-          Parcelado
-        </button>
-      </div>
-
-      {/* REMOVIDO: frase "Selecione À vista ou Parcelado..." */}
-    </div>
-
-    {/* Só mostra os campos depois de escolher À vista ou Parcelado */}
-    {isParceladoMode !== null && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-        {/* Coluna esquerda: Parcelas OU Tipo de Gasto */}
-        {isParceladoMode === true ? (
-          <div>
-            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-              Número de parcelas
-            </label>
-            <input
-              type="number"
-              min={2}
-              value={formParcelas}
-              onChange={(e) => {
-                const n = parseInt(e.target.value || "2", 10);
-                setFormParcelas(Number.isFinite(n) ? Math.max(2, n) : 2);
-              }}
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 text-sm shadow-sm"
-            />
-          </div>
-        ) : (
-          <CustomDropdown
-            label="Tipo de Gasto"
-            value={formTipoGasto}
-            options={["Variável", "Fixo"]}
-            onSelect={(val) => setFormTipoGasto(val as SpendingType)}
-          />
-        )}
-
-        {/* Coluna direita: Banco / Cartão (sempre) */}
-         <CustomDropdown
-          label="Conta"
-          value={formQualCartao}
-          options={profiles.map((p) => ({ label: p.name, value: p.id }))}
-          onSelect={(val) => setFormQualCartao(String(val))}
-          onDelete={(id) => handleDeleteAccount(String(id))}
-          onEdit={(id) => handleEditAccount(String(id))}
-          onAddNew={() => {
-  // modo "novo cadastro" (não edição)
-  setEditingProfileId(null);
-
-  // limpa os campos do modal
-  setAccBanco("");
-  setAccNumeroConta("");
-  setAccNumeroAgencia("");
-  setAccPerfilConta("PF");
-  setAccTipoConta(TIPOS_CONTA[0]);
-  setAccSaldoInicial("");
-
-
-  // limpa dados de cartão (se tiver)
-  setAccPossuiCC(false);
-  setAccLimiteCC("");
-  setAccFechamentoCC(1);
-  setAccVencimentoCC(10);
-
-  // abre o modal
-  setIsAddAccountOpen(true);
-}}
-
-        />
-              </div>
-            )}
-          </div>
-        )}
-
-              {/* Prazo (fixos) */}
-              {((formTipo === "despesa" && isParceladoMode === false && formTipoGasto === "Fixo") ||
-                (formTipo === "receita" && formTipoGasto === "Fixo")) && (
-                <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-2">
-                      Este lançamento tem data final?
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPrazoMode("com_prazo")}
-                        className={`py-2.5 rounded-xl text-xs font-bold border transition-all
-                          ${prazoMode === "com_prazo"
-                            ? "bg-slate-200/90 border-slate-300 text-slate-900 shadow-sm dark:bg-slate-700/70 dark:border-slate-600 dark:text-slate-100"
-                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-900/70 dark:border-slate-800/60 dark:text-slate-300 hover:dark:bg-slate-800/60"
-                          }`}
-                      >
-                        Com prazo
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPrazoMode("sem_prazo")}
-                        className={`py-2.5 rounded-xl text-xs font-bold border transition-all
-                          ${prazoMode === "sem_prazo"
-                            ? "bg-slate-200/90 border-slate-300 text-slate-900 shadow-sm dark:bg-slate-700/70 dark:border-slate-600 dark:text-slate-100"
-                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-900/70 dark:border-slate-800/60 dark:text-slate-300 hover:dark:bg-slate-800/60"
-                          }`}
-                      >
-                        Sem prazo
-                      </button>
-                    </div>
-                  </div>
-
-                  {prazoMode === "com_prazo" && (
-                    <CustomDateInput
-                      label="Último lançamento em:"
-                      value={formDataTerminoFixa}
-                      onChange={setFormDataTerminoFixa}
-                    />
-                  )}
-
-                  {prazoMode === "sem_prazo" && (
-                    <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      Sem prazo: vamos considerar {SEM_PRAZO_MESES} meses (5 anos) ou até você excluir este lançamento.
-                    </div>
-                  )}
-                </div>
-              )}
-
-   <button
-  type="button"
-  onClick={handleAddTransaction}
-  className="mt-4 w-full h-12 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac]
-             text-white font-black tracking-wide shadow-lg shadow-violet-900/20
-             hover:brightness-110 active:scale-[0.99] transition"
->
-  Efetuar Lançamento
-</button>
-              
-
-            </div>
-          </div>
         </div>
 
         {/* COLUNA DIREITA */}
@@ -2819,85 +2234,14 @@ return (
 
             {/* GASTOS */}
             {activeTab === "gastos" && (
-              <div className="animate-in fade-in py-4 space-y-6">
-                <div className="flex flex-col items-center gap-4 mb-10">
-                  <div className="flex items-center gap-3">
-                    <div className="w-1.5 h-8 bg-indigo-600 rounded-full" />
-                    <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
-                      Análise de <span className="text-indigo-600 dark:text-indigo-400">Gastos</span>
-                    </h3>
-                  </div>
-                  <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] ml-4">
-                    Visão detalhada por categoria de consumo
-                  </p>
-                  <div className="flex justify-center mt-4">
-                    <CustomDateInput type="month" value={filtroMes} onChange={setFiltroMes} className="w-full sm:w-[220px] lg:w-[220px]" />
-                  </div>
-                </div>
-
-                {spendingByCategoryData.length > 0 ? (
-                  <div className="flex flex-col lg:flex-row items-center gap-12 mt-8">
-                    <div className="h-[350px] w-full lg:w-1/2">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={spendingByCategoryData} cx="50%" cy="50%" innerRadius={80} outerRadius={125} paddingAngle={8} dataKey="value" stroke="none">
-                            {spendingByCategoryData.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{
-                              borderRadius: "16px",
-                              border: "none",
-                              backgroundColor: isDarkMode ? "#1e293b" : "#fff",
-                              color: isDarkMode ? "#f1f5f9" : "#1e293b",
-                            }}
-                            itemStyle={{ color: isDarkMode ? "#f1f5f9" : "#1e293b" }}
-                            formatter={(v: any) => formatarMoeda(Number(v) || 0)}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    <div className="flex-1 space-y-3 w-full">
-                      {spendingByCategoryData.map((entry, index) => (
-                        <div
-                          key={entry.name}
-                          className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                              {entry.name}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-black text-slate-800 dark:text-white">
-                              {formatarMoeda(entry.value)}
-                            </p>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
-                              {entry.percentage}%
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-20 text-center space-y-4">
-                    <p className="text-slate-400 dark:text-slate-500 font-medium">
-                      Sem despesas registradas em {getMesAnoExtenso(filtroMes)}.
-                    </p>
-                    <button
-                      onClick={() => setFiltroMes(getHojeLocal().substring(0, 7))}
-                      className="text-indigo-600 dark:text-indigo-400 font-bold text-sm transition-colors"
-                    >
-                      Voltar para o mês atual
-                    </button>
-                  </div>
-                )}
-              </div>
+              <GastosTab
+                spendingByCategoryData={spendingByCategoryData}
+                filtroMes={filtroMes}
+                setFiltroMes={setFiltroMes}
+                isDarkMode={isDarkMode}
+              />
             )}
+
 
             {/* PROJECAO */}
             {activeTab === "projecao" && (

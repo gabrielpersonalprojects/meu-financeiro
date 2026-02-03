@@ -13,7 +13,6 @@ import { parseBRLToCents, formatCentsToBRL } from "./app/money";
 import {
   passarFiltroConta as passarFiltroContaLogic,
   maskLast4,
-  getContaPartsById,
   formatContaLabelById,
   mergeTransfers,
 } from "./app/transactions/logic";
@@ -33,11 +32,10 @@ import { toastCompact, type ToastKind } from "./services/toast";
 import { getHojeLocal } from "./domain/date";
 const hojeStr = getHojeLocal();
 import { AppHeader } from "./components/AppHeader";
-import { TransactionsList } from "./components/TransactionsList";
-import TransactionItem from "./components/TransactionItem";
 import NewTransactionCard from "./components/NewTransactionCard";
 import GastosTab from "./components/tabs/GastosTab";
 import ProjecaoTab from "./components/tabs/ProjecaoTab";
+import TransacoesTab from "./components/tabs/TransacoesTab";
 import { useFilteredTransactions } from "./app/transactions/useFilteredTransactions";
 import { useTransactionTotals } from "./app/transactions/useTransactionTotals";
 import { getResumoFlags } from "./app/transactions/resumoFlags";
@@ -70,7 +68,6 @@ import type {
 import { CATEGORIAS_PADRAO } from "./app/constants";
 import {
   formatarMoeda,
-  formatarData,
   extrairValorMoeda,
 } from "./utils/formatters";
 
@@ -82,8 +79,7 @@ import {
   SettingsIcon,
 } from "./components/LucideIcons";
 
-import CustomDropdown from "./components/CustomDropdown";
-import CustomDateInput from "./components/CustomDateInput";
+
 
 
 
@@ -1904,334 +1900,40 @@ if (sessionLoading) {
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 min-h-[550px] transition-colors">
             {/* TRANSACOES */}
             {activeTab === "transacoes" && (
-              <div className="space-y-4 animate-in fade-in duration-500">
-                <div className="flex flex-col gap-4 pb-6 border-b border-slate-50 dark:border-slate-800">
-                  <div className="w-full overflow-visible grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
-                                                    
-                                    {/* Filtro: Banco */}
-                                     <div className="w-full lg:col-span-3">
-                      <CustomDateInput type="month" value={filtroMes} onChange={setFiltroMes} className="w-full" />
-                    </div>
-
-                    <div className="w-full lg:col-span-3">
-                      <CustomDropdown
-                        placeholder="Lançamento"
-                        value={
-                          filtroLancamento === "todos"
-                            ? "Entradas + Saídas"
-                            : filtroLancamento === "receita"
-                            ? "Entradas"
-                            : "Saídas"
-                        }
-                        options={["Entradas + Saídas", "Entradas", "Saídas"]}
-                        onSelect={(val) => {
-                          if (val === "Entradas") setFiltroLancamento("receita");
-                          else if (val === "Saídas") setFiltroLancamento("despesa");
-                          else setFiltroLancamento("todos");
-                        }}
-                        className="w-full"
-                      />
-                    </div>
-
-                          <div className="w-full lg:col-span-3">
-                                <CustomDropdown
-                                  placeholder="Conta"
-                                  value={filtroConta}
-                                          options={[
-                                                {
-                                                  label: (
-                                                    <span className="inline-flex items-center gap-2">
-                                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600/25 text-indigo-300 border border-indigo-500/20">
-                                                        TODAS
-                                                      </span>
-                                                      <span className="text-slate-100">as contas</span>
-                                                    </span>
-                                                  ),
-                                                  value: "todas",
-                                                },
-                                            {
-                                              label: (
-                                                <span className="inline-flex items-center gap-2">
-                                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/25 text-slate-200 border border-slate-400/20">
-                                                    —
-                                                  </span>
-                                                  <span className="text-slate-100">Sem conta</span>
-                                                </span>
-                                              ),
-                                              value: "sem_conta",
-                                            },
-                                            ...profiles.map((p) => ({ label: renderContaOptionLabel(p), value: p.id })),
-                                          ]}
-
-                                  onSelect={(val) => setFiltroConta(String(val))}
-                                  className="w-full"
-                                />
-                              </div>
-
-
-                    {filtroLancamento !== "todos" && (
-                      <div className="w-full lg:col-span-3">
-                        <CustomDropdown
-                          placeholder="Categorias"
-                          value={filtroCategoria}
-                          options={["Todas", ...categoriasFiltradasTransacoes]}
-                          onSelect={(val) => setFiltroCategoria(val === "Todas" ? "" : val)}
-                          className="w-full"
-                        />
-                      </div>
-                    )}
-
-                    {filtroLancamento !== "todos" && (
-                      <div className="w-full lg:col-span-3">
-                        <CustomDropdown
-                          placeholder="Banco / Cartão"
-                          value={filtroMetodo}
-                          options={["Todos", ...metodosPagamento.credito]}
-                          onSelect={(val) => setFiltroMetodo(val === "Todos" ? "" : val)}
-                          className="w-full"
-                        />
-                      </div>
-                    )}
-
-                    {filtroLancamento === "despesa" && (
-                      <div className="w-full lg:col-span-2">
-                        <CustomDropdown
-                          placeholder="Tipo Gasto"
-                          value={filtroTipoGasto}
-                          options={["Todos", "Fixo", "Variável"]}
-                          onSelect={(val) => setFiltroTipoGasto(val === "Todos" ? "" : val)}
-                          className="w-full"
-                        />
-                      </div>
-                    )}
-
-                    <div className="w-full lg:col-span-2 lg:justify-self-end">
-                      <button
-                        type="button"
-                        onClick={handleLimparFiltros}
-                        className="h-10 w-full sm:w-auto px-4 rounded-xl
-                          border border-slate-200 dark:border-slate-700
-                          bg-white dark:bg-slate-900
-                          text-slate-700 dark:text-slate-200 text-sm font-semibold
-                          hover:bg-slate-50 dark:hover:bg-slate-800
-                          transition"
-                      >
-                        Limpar
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <div className="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-wider">
-                      <span className="text-slate-400/80 dark:text-slate-500/80">Mensal</span>
-
-                      {mostrarReceitasResumo && (
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                          +{formatarMoeda(totalFiltradoReceitas)}
-                        </span>
-                      )}
-
-                      {mostrarDespesasResumo && (
-                        <span className="font-semibold text-rose-600 dark:text-rose-400">
-                          -{formatarMoeda(totalFiltradoDespesas)}
-                        </span>
-                      )}
-
-                      <span className="mx-1 text-slate-400/50 dark:text-slate-600/50">•</span>
-
-                      <span className="text-slate-400/80 dark:text-slate-500/80">
-                        Anual ({anoRef})
-                      </span>
-
-                      {mostrarReceitasResumo && (
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                          +{formatarMoeda(totalAnualReceitas)}
-                        </span>
-                      )}
-
-                      {mostrarDespesasResumo && (
-                        <span className="font-semibold text-rose-600 dark:text-rose-400">
-                          -{formatarMoeda(totalAnualDespesas)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
-                    {getFilteredTransactions.length} Lançamentos Encontrados
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {getFilteredTransactions.length > 0 ? (
-                    <div className="space-y-3">
-                      <TransactionsList
-                        items={getFilteredTransactions}
-                        renderItem={(t) => {
-
-
-                        const atrasada = !t.pago && t.data < hojeStr;
-
-
-                        const isReceita = t.tipo === "receita";
-                        const baseBg = isReceita
-                          ? "bg-emerald-50/20 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-700/20"
-                          : "bg-rose-50/20 dark:bg-rose-900/10 border-rose-100 dark:border-rose-700/20";
-
-                        const glowAtraso = atrasada
-                          ? "ring-2 ring-rose-400/60 dark:ring-rose-500/30 bg-rose-50/25 dark:bg-rose-500/10 shadow-[0_0_26px_rgba(244,63,94,0.28)]"
-                          : "";
-
- // ===== FUSÃO VISUAL DE TRANSFERÊNCIA (1 card só) =====
-const transferId = (t as any).transferId as string | undefined;
-const isTransfer =
-  Boolean(transferId) ||
-  String((t as any).categoria || "").toLowerCase().includes("transfer");
-
-// vars que o JSX da transferência vai usar (precisam existir FORA do if)
-let origemLabel = "";
-let destinoLabel = "";
-let origemBadge = "";
-let destinoBadge = "";
-let valorAbs = 0;
-
-if (isTransfer) {
-  // procura o par NA LISTA COMPLETA (mesmo se no filtro atual só tem 1 lado)
-  const pair = (transactions || []).find(
-    (x: any) => x.id !== (t as any).id && x.transferId === transferId
-  ) as any;
-
-  // decide quem é saída (negativa) e quem é entrada (positiva)
-  const valT = Number((t as any).valor ?? 0);
-  const valP = Number((pair as any)?.valor ?? 0);
-
-  const saida = pair ? (valT < 0 ? (t as any) : pair) : (t as any);
-  const entrada = pair ? (saida === (t as any) ? pair : (t as any)) : undefined;
-
-  // se o par também está no filtro atual, renderiza só quando for a "saída"
-  const pairNoFiltro = pair
-    ? getFilteredTransactions.some((x: any) => x.id === pair.id)
-    : false;
-
-  if (pair && pairNoFiltro && Number((t as any).valor ?? 0) >= 0) {
-    return null;
-  }
-
-  // IDs reais da origem/destino (pega do objeto "saída", que tem os dois)
-const fromId = asId(
-  (saida as any).contaOrigemId ??
-  (saida as any).transferFromId ??
-  (saida as any).profileId ??
-  ""
-);
-
-
-const toId = asId(
-  (saida as any).contaDestinoId ??
-  (saida as any).transferToId ??
-  (entrada as any)?.profileId ??
-  ""
-);
-
-
-  const contaOrigem = profiles.find((p: any) => asId(p.id) === fromId);
-  const contaDestino = profiles.find((p: any) => asId(p.id) === toId);
-
-
-  origemLabel = contaOrigem ? getContaLabel(contaOrigem) : "Origem";
-  destinoLabel = contaDestino ? getContaLabel(contaDestino) : "Destino";
-  origemBadge = contaOrigem ? getContaBadge(contaOrigem) : "";
-  destinoBadge = contaDestino ? getContaBadge(contaDestino) : "";
-
-  valorAbs = Math.abs(Number((saida as any).valor ?? valT));
-
-    return (
-      <div
-        key={`tr-${transferId}`}
-        className="group flex items-center justify-between p-4 rounded-2xl border border-violet-500/20 bg-slate-900/40 shadow-lg shadow-black/20 transition-all"
-      >
-        {/* ESQUERDA */}
-        <div className="flex items-center gap-4 min-w-0">
-          {/* bolinha */}
-          <button
-            type="button"
-            onClick={() => togglePago(t.id)}
-            className="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold transition-all bg-indigo-600 border-indigo-600 text-white"
-            title="Transferência"
-          >
-            ✓
-          </button>
-
-          <div className="min-w-0">
-            <p className="font-bold text-slate-100 leading-none">
-              Transferência
-            </p>
-
-            {/* ORIGEM -> DESTINO */}
-            <div className="mt-1 flex items-center gap-2 flex-wrap text-[12px]">
-              <span className="px-2 py-1 rounded-full bg-rose-500/10 text-rose-300 font-semibold">
-                {origemBadge ? `${origemBadge} · ` : ""}{origemLabel}
-              </span>
-
-              <span className="text-violet-300 font-bold">↔</span>
-
-              <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 font-semibold">
-                {destinoBadge ? `${destinoBadge} · ` : ""}{destinoLabel}
-              </span>
-            </div>
-
-            {/* linha de baixo */}
-            <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-400">
-              <span>{formatarData(t.data)}</span>
-              <span className="text-slate-600">•</span>
-              <span>Transferência</span>
-            </div>
-          </div>
-        </div>
-
-        {/* DIREITA (valor + -/+) */}
-        <div className="flex flex-col items-end shrink-0">
-          <p className="font-bold text-slate-100">{formatarMoeda(valorAbs)}</p>
-          <div className="mt-1 flex items-center gap-2 text-[11px]">
-            <span className="text-rose-300">- {formatarMoeda(valorAbs)}</span>
-            <span className="text-slate-600">/</span>
-            <span className="text-emerald-300">+ {formatarMoeda(valorAbs)}</span>
-          </div>
-        </div>
-      </div>
-                      )}
-// ====== fim fusão ======
-
-
-return (
-  <TransactionItem
-    t={t}
-    profiles={profiles}
-    hojeStr={hojeStr}
-    togglePago={togglePago}
-    formatarData={formatarData}
-    formatarMoeda={formatarMoeda}
-    getContaPartsById={getContaPartsById}
-    onEdit={handleEditClick}
-    onDelete={confirmDelete}
-
-  />
-);
-
-                        }}
-/>
-
-                    </div>
-                  ) : (
-                    <div className="py-20 text-center space-y-2">
-                      <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                        Nenhum registro encontrado para estes filtros.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <TransacoesTab
+                filtroMes={filtroMes}
+                setFiltroMes={setFiltroMes}
+                filtroLancamento={filtroLancamento}
+                setFiltroLancamento={setFiltroLancamento}
+                filtroConta={filtroConta}
+                setFiltroConta={setFiltroConta}
+                filtroCategoria={filtroCategoria}
+                setFiltroCategoria={setFiltroCategoria}
+                categoriasFiltradasTransacoes={categoriasFiltradasTransacoes}
+                filtroMetodo={filtroMetodo}
+                setFiltroMetodo={setFiltroMetodo}
+                metodosCredito={metodosPagamento.credito}
+                filtroTipoGasto={filtroTipoGasto}
+                setFiltroTipoGasto={setFiltroTipoGasto}
+                handleLimparFiltros={handleLimparFiltros}
+                profiles={profiles}
+                renderContaOptionLabel={renderContaOptionLabel}
+                mostrarReceitasResumo={mostrarReceitasResumo}
+                mostrarDespesasResumo={mostrarDespesasResumo}
+                totalFiltradoReceitas={totalFiltradoReceitas}
+                totalFiltradoDespesas={totalFiltradoDespesas}
+                anoRef={anoRef}
+                totalAnualReceitas={totalAnualReceitas}
+                totalAnualDespesas={totalAnualDespesas}
+                itemsFiltrados={getFilteredTransactions}
+                transactions={transactions}
+                hojeStr={hojeStr}
+                togglePago={togglePago}
+                handleEditClick={handleEditClick}
+                confirmDelete={confirmDelete}
+              />
             )}
+
 
             {/* GASTOS */}
             {activeTab === "gastos" && (

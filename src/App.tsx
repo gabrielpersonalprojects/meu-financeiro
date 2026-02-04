@@ -9,20 +9,17 @@ import { useUI } from "./components/UIProvider";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FC } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { parseBRLToCents, formatCentsToBRL } from "./app/money";
 import {
   passarFiltroConta as passarFiltroContaLogic,
-  maskLast4,
-  formatContaLabelById,
   mergeTransfers,
 } from "./app/transactions/logic";
 
 
 
-import { sortByValueDesc, sortStringsAsc } from "./app/utils/sort";
+import { sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
 import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
-import { getCartoesDisponiveis, labelCartao } from "./app/profiles/selectors";
+import { getCartoesDisponiveis } from "./app/profiles/selectors";
 import { newId } from "./app/utils/ids";
 import { loadOrMigrateTransacoes, persistTransacoes } from "./app/utils/storage";
 import { AppTopBar } from "./components/AppTopBar";
@@ -31,6 +28,7 @@ import { getContaBadge, getContaLabel } from "./domain";
 import { toastCompact, type ToastKind } from "./services/toast";
 import { getHojeLocal } from "./domain/date";
 import { AppHeader } from "./components/AppHeader";
+import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import NewTransactionCard from "./components/NewTransactionCard";
 import GastosTab from "./components/tabs/GastosTab";
 import ProjecaoTab from "./components/tabs/ProjecaoTab";
@@ -877,89 +875,6 @@ function passarFiltroConta(t: Transaction) {
   return passarFiltroContaLogic(t, filtroConta, activeProfileId);
 }
 
-
-function maskLast4(v?: string) {
-  if (!v) return "";
-  const digits = String(v).replace(/\D/g, "");
-  if (digits.length <= 4) return digits;
-  return "****" + digits.slice(-4);
-}
-
-function titleCase(s: string) {
-  return s
-    .toLowerCase()
-    .replace(/\b\w/g, (m) => m.toUpperCase())
-    .trim();
-}
-
-function getContaLabelParts(p: any) {
-  const banco = String(p.banco || p.name || "Conta").trim();
-
-  const a = String(p.tipoConta || "").trim();
-  const b = String(p.perfilConta || "").trim();
-
-  const isPerfil = (v: string) => /^(pf|pj)$/i.test(v);
-
-  // perfil é PF/PJ
-  const perfil = isPerfil(a) ? a.toUpperCase() : (isPerfil(b) ? b.toUpperCase() : "");
-
-  // tipo é o que sobrar (c/c, poupança etc)
-  const tipoRaw = isPerfil(a) ? b : a;
-  const tipo = abreviarTipoConta(tipoRaw);
-
-  return { perfil, banco, tipo };
-}
-
-function renderContaOptionLabel(p: any) {
-  const info = getContaLabelParts(p);
-
-  return (
-    <div className="flex items-center gap-2">
-      {!!info.perfil && (
-        <span
-          className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide
-                     bg-indigo-600/20 text-indigo-300 border border-indigo-500/20"
-        >
-          {info.perfil}
-        </span>
-      )}
-
-      <span className="text-slate-100">{info.banco}</span>
-
-      {!!info.tipo && <span className="text-slate-400 text-xs">{info.tipo}</span>}
-    </div>
-  );
-}
-
-function abreviarTipoConta(raw: string) {
-  const s = raw.toLowerCase().trim();
-  if (!s) return "";
-
-  // normaliza
-  const has = (k: string) => s.includes(k);
-
-  // Corrente
-  if (has("corrente") || s === "c/c" || has("cc")) return "C/C";
-
-  // Poupança
-  if (has("poup")) return "C/POUP";
-
-  // Investimento / Investimentos
-  if (has("invest")) return "C/INV";
-
-  // Salário
-  if (has("sal")) return "C/SAL";
-
-  // Pagamento
-  if (has("pag")) return "C/PAG";
-
-  // Carteira / Dinheiro
-  if (has("carteira") || has("dinheiro") || has("cash")) return "DIN";
-
-  // fallback: pega 6 chars e sobe
-  const compact = s.replace(/[^a-z0-9]/g, "").toUpperCase();
-  return compact ? compact.slice(0, 6) : "";
-}
 
 // 1) Base pros CARDS (respeita mês + filtro de conta)
 const txCards = useMemo(() => {

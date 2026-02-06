@@ -2236,41 +2236,50 @@ if (sessionLoading) {
                 accountPickerOpen === "origem" ? p.id === formContaOrigem : p.id === formContaDestino;
 
               return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    if (accountPickerOpen === "origem") setFormContaOrigem(p.id);
-                    else setFormContaDestino(p.id);
-                    setAccountPickerOpen(null);
-                  }}
-                  className={`w-full text-left px-4 py-3 rounded-2xl transition flex items-center justify-between
-                    ${selected
-                      ? "bg-indigo-50 dark:bg-indigo-900/25 border border-indigo-200/60 dark:border-indigo-700/30"
-                      : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                    }`}
-                >
-                 <div className="flex items-center gap-3 min-w-0">
-  {/* badge PF/PJ */}
-  <span className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg
-                   bg-white/5 border border-white/10
-                   text-[10px] font-bold text-slate-200">
-    {getContaBadge(p)}
-  </span>
+<button
+  key={p.id}
+  type="button"
+  onClick={() => {
+    if (accountPickerOpen === "origem") setFormContaOrigem(p.id);
+    else setFormContaDestino(p.id);
+    setAccountPickerOpen(null);
+  }}
+  className={`w-full text-left px-4 py-3 rounded-2xl transition flex items-center justify-between
+    ${selected
+      ? "bg-indigo-50 dark:bg-indigo-900/25 border border-indigo-200/60 dark:border-indigo-700/30"
+      : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
+    }`}
+>
+  <div className="flex items-center gap-3 min-w-0">
+    {/* badge PF/PJ */}
+    <span
+      className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg
+                 bg-slate-100 border border-slate-200 text-slate-700
+                 dark:bg-white/5 dark:border-white/10 dark:text-slate-200
+                 text-[10px] font-bold"
+    >
+      {getContaBadge(p)}
+    </span>
 
-  {/* texto */}
-  <div className="min-w-0">
-    <div className={`text-sm font-semibold truncate ${selected ? "text-indigo-300" : "text-slate-100"}`}>
-      {getContaLabel(p)}
+    {/* texto */}
+    <div className="min-w-0">
+      <div
+        className={`text-sm font-semibold truncate ${
+          selected
+            ? "text-indigo-700 dark:text-indigo-300"
+            : "text-slate-800 dark:text-slate-100"
+        }`}
+      >
+        {getContaLabel(p)}
+      </div>
     </div>
   </div>
-</div>
 
-{selected ? (
-  <span className="shrink-0 text-indigo-300 text-xs font-bold">✓</span>
-) : null}
+  {selected ? (
+    <span className="shrink-0 text-indigo-600 dark:text-indigo-300 text-xs font-bold">✓</span>
+  ) : null}
+</button>
 
-                </button>
               );
             })}
         </div>

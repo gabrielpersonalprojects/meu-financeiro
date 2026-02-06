@@ -501,53 +501,77 @@ export default function NewTransactionCard({
         )}
 
 
-        {/* Transferência */}
-        {formTipo === "transferencia" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="md:col-span-2 w-full min-w-0">
-              <div className="w-full min-w-0 grid grid-cols-[minmax(0,1fr)_44px_minmax(0,1fr)] gap-3 items-center">
-                <div className="w-full min-w-0 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 p-3">
-                  <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase">Origem</p>
-                  <button
-                    type="button"
-                    onClick={() => setAccountPickerOpen("origem")}
-                    className="mt-1 w-full min-w-0 text-left"
-                    title="Selecionar conta origem"
-                  >
-                    <span className="block min-w-0 truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">
-                      {profiles.find((p) => p.id === formContaOrigem)?.name || "Selecione"}
-                    </span>
-                  </button>
-                </div>
+{/* Transferência */}
+{formTipo === "transferencia" && (
+  <div className="mt-2">
+    <div className="grid grid-cols-[minmax(0,1fr)_44px_minmax(0,1fr)] items-center gap-3">
+      {/* ORIGEM */}
+      <button
+        type="button"
+        onClick={() => setAccountPickerOpen("origem")}
+        className="w-full min-w-0 text-left rounded-2xl
+                   border border-slate-200/70 dark:border-slate-700/60
+                   bg-white/60 dark:bg-slate-900/35
+                   px-4 py-2.5
+                   hover:bg-white/80 dark:hover:bg-slate-800/45
+                   transition"
+        title="Selecionar conta origem"
+      >
+        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+          Origem
+        </p>
+        <p className="mt-1 min-w-0 truncate text-[13px] font-extrabold text-slate-900 dark:text-slate-100">
+          {profiles.find((p) => p.id === formContaOrigem)?.name || "Selecione"}
+        </p>
+      </button>
 
-                <button
-                  type="button"
-                  onClick={inverterContas}
-                  className="h-10 w-11 rounded-xl border border-violet-200/50 dark:border-violet-500/25
-                             bg-white/70 dark:bg-slate-900/40 backdrop-blur
-                             hover:bg-violet-50/70 dark:hover:bg-slate-800/60"
-                  title="Inverter contas"
-                >
-                  ↔
-                </button>
+      {/* INVERTER (centralizado) */}
+      <div className="flex items-center justify-center">
+        <button
+          type="button"
+          onClick={inverterContas}
+          className="h-10 w-10 rounded-xl
+                     border border-violet-500/45 dark:border-violet-400/35
+                     bg-transparent
+                     hover:bg-violet-500/10 dark:hover:bg-violet-500/10
+                     transition
+                     flex items-center justify-center"
+          title="Inverter contas"
+        >
+          <span className="text-[16px] font-black leading-none text-violet-600 dark:text-violet-200">
+            {"<>"}
+          </span>
+        </button>
+      </div>
 
-                <div className="w-full min-w-0 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 p-3">
-                  <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase">Destino</p>
-                  <button
-                    type="button"
-                    onClick={() => setAccountPickerOpen("destino")}
-                    className="mt-1 w-full min-w-0 text-left"
-                    title="Selecionar conta destino"
-                  >
-                    <span className="block min-w-0 truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">
-                      {profiles.find((p) => p.id === formContaDestino)?.name || "Selecione"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* DESTINO */}
+      <button
+        type="button"
+        onClick={() => setAccountPickerOpen("destino")}
+        className="w-full min-w-0 text-left rounded-2xl
+                   border border-slate-200/70 dark:border-slate-700/60
+                   bg-white/60 dark:bg-slate-900/35
+                   px-4 py-2.5
+                   hover:bg-white/80 dark:hover:bg-slate-800/45
+                   transition"
+        title="Selecionar conta destino"
+      >
+        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+          Destino
+        </p>
+        <p className="mt-1 min-w-0 truncate text-[13px] font-extrabold text-slate-900 dark:text-slate-100">
+          {profiles.find((p) => p.id === formContaDestino)?.name || "Selecione"}
+        </p>
+      </button>
+    </div>
+  </div>
+)}
+
+
+
+
+
+
 
                {/* Fixas/recorrentes - só quando for DESPESA À VISTA e Tipo de Gasto = Fixo */}
         {formTipo === "despesa" && isParceladoMode === false && String(formTipoGasto) === "Fixo" && (

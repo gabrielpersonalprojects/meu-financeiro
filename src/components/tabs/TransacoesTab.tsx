@@ -331,56 +331,88 @@ export default function TransacoesTab({
 
                   valorAbs = Math.abs(Number((saida as any).valor ?? valT));
 
-                  return (
-                    <div
-                      key={`tr-${transferId}`}
-                      className="group flex items-center justify-between p-4 rounded-2xl border border-violet-500/20 bg-slate-900/40 shadow-lg shadow-black/20 transition-all"
-                    >
-                      <div className="flex items-center gap-4 min-w-0">
-                        <button
-                          type="button"
-                          onClick={() => togglePago(t.id)}
-                          className="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold transition-all bg-indigo-600 border-indigo-600 text-white"
-                          title="Transferência"
-                        >
-                          ✓
-                        </button>
+return (
+  <div
+    key={`tr-${transferId}`}
+    className="
+      group flex items-center justify-between p-4 rounded-2xl border transition-all
+      bg-white/70 border-slate-200/70 shadow-sm
+      dark:bg-slate-900/40 dark:border-violet-500/20 dark:shadow-lg dark:shadow-black/20
+      hover:bg-white/90 dark:hover:bg-slate-900/55
+    "
+  >
+    <div className="flex items-center gap-4 min-w-0">
+      <button
+        type="button"
+        onClick={() => togglePago(t.id)}
+        className="
+          w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold transition-all
+          bg-indigo-600 border-indigo-600 text-white
+          shadow-[0_10px_30px_-18px_rgba(79,70,229,0.85)]
+        "
+        title="Transferência"
+      >
+        ✓
+      </button>
 
-                        <div className="min-w-0">
-                          <p className="font-bold text-slate-100 leading-none">Transferência</p>
+      <div className="min-w-0">
+        <p className="font-bold leading-none text-slate-900 dark:text-slate-100">
+          Transferência
+        </p>
 
-                          <div className="mt-1 flex items-center gap-2 flex-wrap text-[12px]">
-                            <span className="px-2 py-1 rounded-full bg-rose-500/10 text-rose-300 font-semibold">
-                              {origemBadge ? `${origemBadge} · ` : ""}
-                              {origemLabel}
-                            </span>
+        <div className="mt-1 flex items-center gap-2 flex-wrap text-[12px]">
+          <span
+            className="
+              px-2 py-1 rounded-full font-semibold
+              bg-rose-500/10 text-rose-700 border border-rose-500/15
+              dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20
+            "
+          >
+            {origemBadge ? `${origemBadge} · ` : ""}
+            {origemLabel}
+          </span>
 
-                            <span className="text-violet-300 font-bold">↔</span>
+          <span className="font-bold text-slate-500 dark:text-violet-300">
+            ↔
+          </span>
 
-                            <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 font-semibold">
-                              {destinoBadge ? `${destinoBadge} · ` : ""}
-                              {destinoLabel}
-                            </span>
-                          </div>
+          <span
+            className="
+              px-2 py-1 rounded-full font-semibold
+              bg-emerald-500/10 text-emerald-700 border border-emerald-500/15
+              dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20
+            "
+          >
+            {destinoBadge ? `${destinoBadge} · ` : ""}
+            {destinoLabel}
+          </span>
+        </div>
 
-                          <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-400">
-                            <span>{formatarData(t.data)}</span>
-                            <span className="text-slate-600">•</span>
-                            <span>Transferência</span>
-                          </div>
-                        </div>
-                      </div>
+        <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <span>{formatarData(t.data)}</span>
+          <span className="text-slate-300 dark:text-slate-600">•</span>
+          <span>Transferência</span>
+        </div>
+      </div>
+    </div>
 
-                      <div className="flex flex-col items-end shrink-0">
-                        <p className="font-bold text-slate-100">{formatarMoeda(valorAbs)}</p>
-                        <div className="mt-1 flex items-center gap-2 text-[11px]">
-                          <span className="text-rose-300">- {formatarMoeda(valorAbs)}</span>
-                          <span className="text-slate-600">/</span>
-                          <span className="text-emerald-300">+ {formatarMoeda(valorAbs)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
+    <div className="flex flex-col items-end shrink-0">
+      <p className="font-bold text-slate-900 dark:text-slate-100">
+        {formatarMoeda(valorAbs)}
+      </p>
+      <div className="mt-1 flex items-center gap-2 text-[11px]">
+        <span className="text-rose-700 dark:text-rose-300">
+          - {formatarMoeda(valorAbs)}
+        </span>
+        <span className="text-slate-300 dark:text-slate-600">/</span>
+        <span className="text-emerald-700 dark:text-emerald-300">
+          + {formatarMoeda(valorAbs)}
+        </span>
+      </div>
+    </div>
+  </div>
+);
+
                 }
                 // ====== fim fusão ======
 

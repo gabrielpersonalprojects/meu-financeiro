@@ -9,10 +9,9 @@ import { useUI } from "./components/UIProvider";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FC } from "react";
 import type { Session } from "@supabase/supabase-js";
-import {
-  passarFiltroConta as passarFiltroContaLogic,
-  mergeTransfers,
-} from "./app/transactions/logic";
+import { mergeTransfers } from "./app/transactions/logic";
+
+
 
 
 
@@ -36,7 +35,7 @@ import TransacoesTab from "./components/tabs/TransacoesTab";
 import { useFilteredTransactions } from "./app/transactions/useFilteredTransactions";
 import { useTransactionTotals } from "./app/transactions/useTransactionTotals";
 import { getResumoFlags } from "./app/transactions/resumoFlags";
-import { limparFiltros, passaFiltroContaFactory } from "./app/transactions/filter";
+import { limparFiltros } from "./app/transactions/filter";
 import { useTransacoesFiltradasMes } from "./app/transactions/useTransacoesFiltradasMes";
 import { useStatsMes } from "./app/transactions/useStatsMes";
 import { useProjection12Months } from "./app/transactions/useProjection12Months";
@@ -126,17 +125,31 @@ const App: FC = () => {
  const PROFILES_LS_KEY = "accounts_list_v1";
 
 const [profiles, setProfiles] = useState<Profile[]>(() => {
+  const isLegacySeed = (p: any) => {
+    const id = String(p?.id ?? "");
+    const name = String(p?.name ?? p?.banco ?? "");
+    return (
+      id === "default" ||
+      id === "profile_secondary" ||
+      name === "Conta Principal" ||
+      name === "Conta Secundária"
+    );
+  };
 
   try {
     const raw = localStorage.getItem(PROFILES_LS_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed)) return parsed;
+
+    if (Array.isArray(parsed)) {
+      // remove seeds antigos caso já tenham sido salvos
+      return parsed.filter((p) => !isLegacySeed(p));
+    }
   } catch {}
-  return [
-    { id: "default", name: "Conta Principal" },
-    { id: "profile_secondary", name: "Conta Secundária" },
-  ];
+
+  // SEM contas padrão: começa vazio e o usuário cria do zero
+  return [];
 });
+
 
 const [editingContaId, setEditingContaId] = useState<string | null>(null);
 const LABEL_TODAS_CONTAS = "Todas as Contas";
@@ -871,9 +884,43 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
     setTimeout(() => window.location.reload(), 400);
   };
 
-function passarFiltroConta(t: Transaction) {
-  return passarFiltroContaLogic(t, filtroConta, activeProfileId);
-}
+const passaFiltroConta = useMemo(() => {
+  // 1) Todas as contas: não filtra por conta
+  if (filtroConta === "todas") return (_t: any) => true;
+
+  // 2) Sem conta: somente lançamentos que NÃO têm conta vinculada
+  if (filtroConta === "sem_conta") {
+    return (t: any) => {
+      const hasAnyConta =
+        Boolean(t?.qualCartao) ||
+        Boolean(t?.profileId) ||
+        Boolean(t?.contaOrigemId) ||
+        Boolean(t?.contaDestinoId) ||
+        Boolean(t?.transferFromId) ||
+        Boolean(t?.transferToId);
+
+      return !hasAnyConta;
+    };
+  }
+
+  // 3) Conta específica: normaliza tudo para comparar "id com id"
+  const alvo = asId(filtroConta);
+
+  return (t: any) => {
+    const ids = [
+      t?.qualCartao,
+      t?.profileId,
+      t?.contaOrigemId,
+      t?.contaDestinoId,
+      t?.transferFromId,
+      t?.transferToId,
+    ].map(asId);
+
+    return ids.includes(alvo);
+  };
+}, [filtroConta]);
+
+
 
 
 // 1) Base pros CARDS (respeita mês + filtro de conta)
@@ -887,75 +934,9 @@ const txCards = useMemo(() => {
   }
 
   // c) se uma conta específica, conta TUDO daquela conta (inclusive transferência)
-  return byMonth.filter((t: any) => {
-const id = asId(String(filtroConta));
+return byMonth.filter(passaFiltroConta);
 
-const isTransfer =
-  Boolean((t as any).transferId) ||
-  String((t as any).categoria || "").toLowerCase().includes("transfer");
 
-const matchConta = (tx: any) => {
-  const profileId = asId(tx?.profileId ?? "");
-
-  const fromId = asId(
-    tx?.contaOrigemId ??
-      tx?.transferFromId ??
-      tx?.contaOrigem ??
-      ""
-  );
-
-  const toId = asId(
-    tx?.contaDestinoId ??
-      tx?.transferToId ??
-      tx?.contaDestino ??
-      ""
-  );
-
-  return profileId === id || fromId === id || toId === id;
-};
-
-// não é transferência: regra normal
-if (!isTransfer) return matchConta(t);
-
-// transferência: valida pelo item OU pelo par
-const getTransferKey = (tx: any) =>
-  String(
-    tx?.transferId ??
-      tx?.transferID ??
-      tx?.transfer_id ??
-      ""
-  ).trim();
-
-const tKey = getTransferKey(t);
-
-// tenta achar par por ID primeiro; se não der, usa heurística
-const pair = (transactions || []).find((x: any) => {
-  if (!x || x.id === t.id) return false;
-
-  const xKey = getTransferKey(x);
-
-  // 1) match por transferId (quando existe)
-  if (tKey && xKey) return xKey === tKey;
-
-  // 2) fallback heurístico (quando transferId falha)
-  const catT = String((t as any).categoria || "").toLowerCase();
-  const catX = String((x as any).categoria || "").toLowerCase();
-  const isTransfT = catT.includes("transfer");
-  const isTransfX = catX.includes("transfer");
-  if (!isTransfT || !isTransfX) return false;
-
-  const sameDate = String(x.data) === String(t.data);
-  const vT = Number((t as any).valor ?? 0);
-  const vX = Number((x as any).valor ?? 0);
-  const sameAbs = Math.abs(vT) === Math.abs(vX);
-  const oppositeSigns = vT * vX < 0;
-
-  return sameDate && sameAbs && oppositeSigns;
-});
-
-return matchConta(t) || (pair ? matchConta(pair) : false);
-
-});
 
 }, [transactions, filtroMes, filtroConta]);
 
@@ -971,7 +952,8 @@ const { getFilteredTransactions, getFilteredTransactionsAno, anoRef } =
     filtroTipoGasto,
     filtroConta,
     mergeTransfers,
-    passarFiltroConta,
+    passarFiltroConta: passaFiltroConta,
+
   });
 
 
@@ -1000,12 +982,6 @@ const handleLimparFiltros = () => {
     setFiltroTipoGasto,
   });
 };
-
-
-const passaFiltroConta = useMemo(
-  () => passaFiltroContaFactory(filtroConta, profiles),
-  [filtroConta, profiles]
-);
 
 
 const transacoesFiltradasUI = useTransacoesFiltradasMes({

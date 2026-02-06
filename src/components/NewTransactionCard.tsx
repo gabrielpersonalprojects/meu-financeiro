@@ -339,54 +339,57 @@ export default function NewTransactionCard({
           </label>
         )}
 
-                {/* Categoria + Método/Conta (2 colunas) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <CustomDropdown
-            label="Categoria"
-            value={formCat}
-            options={(formTipo === "receita" ? (categorias as any).receita : (categorias as any).despesa) as any}
-            onSelect={(val) => setFormCat(val)}
-            onDelete={(idx) => removerCategoria(formTipo === "receita" ? "receita" : "despesa", idx)}
-            onAddNew={onOpenCategoriaModal}
-          />
+{/* Categoria + Método/Conta (2 colunas) */}
+{formTipo !== "transferencia" && (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <CustomDropdown
+      label="Categoria"
+      value={formCat}
+      options={(formTipo === "receita" ? (categorias as any).receita : (categorias as any).despesa) as any}
+      onSelect={(val) => setFormCat(val)}
+      onDelete={(idx) => removerCategoria(formTipo === "receita" ? "receita" : "despesa", idx)}
+      onAddNew={onOpenCategoriaModal}
+    />
 
-          {formTipo === "despesa" ? (
-            <CustomDropdown
-              label="Método de Pagamento"
-              value={formMetodo}
-              options={[
-                { label: "Pix", value: "pix" },
-                { label: "Transferência bancária", value: "transferencia_bancaria" },
-                { label: "Débito/Conta", value: "debito_conta" },
-                { label: "Boleto", value: "boleto" },
-                { label: "Dinheiro", value: "dinheiro" },
-              ]}
-              onSelect={(val) => setFormMetodo(val as PaymentMethod)}
-            />
-          ) : (
-            <CustomDropdown
-              label="Conta"
-              value={formQualCartao}
-              options={profiles.map((p) => ({ label: p.name, value: p.id })) as any}
-              onSelect={(val) => setFormQualCartao(String(val))}
-              onDelete={(id) => handleDeleteAccount(String(id))}
-              onAddNew={() => {
-                setEditingProfileId(null);
-                setAccBanco("");
-                setAccNumeroConta("");
-                setAccNumeroAgencia("");
-                setAccPerfilConta("PF");
-                setAccTipoConta(tiposConta[0]);
-                setAccSaldoInicial("");
-                setAccPossuiCC(false);
-                setAccLimiteCC("");
-                setAccFechamentoCC(1);
-                setAccVencimentoCC(10);
-                setIsAddAccountOpen(true);
-              }}
-            />
-          )}
-        </div>
+    {formTipo === "despesa" ? (
+      <CustomDropdown
+        label="Método de Pagamento"
+        value={formMetodo}
+        options={[
+          { label: "Pix", value: "pix" },
+          { label: "Transferência bancária", value: "transferencia_bancaria" },
+          { label: "Débito/Conta", value: "debito_conta" },
+          { label: "Boleto", value: "boleto" },
+          { label: "Dinheiro", value: "dinheiro" },
+        ]}
+        onSelect={(val) => setFormMetodo(val as PaymentMethod)}
+      />
+    ) : (
+      <CustomDropdown
+        label="Conta"
+        value={formQualCartao}
+        options={profiles.map((p) => ({ label: p.name, value: p.id })) as any}
+        onSelect={(val) => setFormQualCartao(String(val))}
+        onDelete={(id) => handleDeleteAccount(String(id))}
+        onAddNew={() => {
+          setEditingProfileId(null);
+          setAccBanco("");
+          setAccNumeroConta("");
+          setAccNumeroAgencia("");
+          setAccPerfilConta("PF");
+          setAccTipoConta(tiposConta[0]);
+          setAccSaldoInicial("");
+          setAccPossuiCC(false);
+          setAccLimiteCC("");
+          setAccFechamentoCC(1);
+          setAccVencimentoCC(10);
+          setIsAddAccountOpen(true);
+        }}
+      />
+    )}
+  </div>
+)}
+
 
         {/* Despesa: Parcelado + Tipo de Gasto + Conta (2 colunas) */}
         {formTipo === "despesa" && (

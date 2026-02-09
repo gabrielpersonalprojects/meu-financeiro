@@ -3,6 +3,7 @@ import CustomDateInput from "../CustomDateInput";
 import CustomDropdown from "../CustomDropdown";
 import { TransactionsList } from "../TransactionsList";
 import TransactionItem from "../TransactionItem";
+import { EditIcon, TrashIcon } from "../LucideIcons";
 
 import { formatarMoeda, formatarData } from "../../utils/formatters";
 import { getContaBadge, getContaLabel } from "../../domain";
@@ -331,88 +332,99 @@ export default function TransacoesTab({
 
                   valorAbs = Math.abs(Number((saida as any).valor ?? valT));
 
-return (
-  <div
-    key={`tr-${transferId}`}
-    className="
-      group flex items-center justify-between p-4 rounded-2xl border transition-all
-      bg-white/70 border-slate-200/70 shadow-sm
-      dark:bg-slate-900/40 dark:border-violet-500/20 dark:shadow-lg dark:shadow-black/20
-      hover:bg-white/90 dark:hover:bg-slate-900/55
-    "
-  >
-    <div className="flex items-center gap-4 min-w-0">
-      <button
-        type="button"
-        onClick={() => togglePago(t.id)}
-        className="
-          w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold transition-all
-          bg-indigo-600 border-indigo-600 text-white
-          shadow-[0_10px_30px_-18px_rgba(79,70,229,0.85)]
-        "
-        title="Transferência"
-      >
-        ✓
-      </button>
+                  return (
+                    <div
+                      key={`tr-${transferId}`}
+                      className="
+                        group flex items-center justify-between p-4 rounded-2xl border transition-all
+                        bg-white/70 border-slate-200/70 shadow-sm
+                        dark:bg-slate-900/40 dark:border-violet-500/20 dark:shadow-lg dark:shadow-black/20
+                        hover:bg-white/90 dark:hover:bg-slate-900/55
+                      "
+                    >
+                      <div className="flex items-center gap-4 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => togglePago(t.id)}
+                          className="
+                            w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold transition-all
+                            bg-indigo-600 border-indigo-600 text-white
+                            shadow-[0_10px_30px_-18px_rgba(79,70,229,0.85)]
+                          "
+                          title="Transferência"
+                        >
+                          ✓
+                        </button>
 
-      <div className="min-w-0">
-        <p className="font-bold leading-none text-slate-900 dark:text-slate-100">
-          Transferência
-        </p>
+                        <div className="min-w-0">
+                          <p className="font-bold leading-none text-slate-900 dark:text-slate-100">
+                            {(saida as any).descricao || "Transferência"}
+                          </p>
 
-        <div className="mt-1 flex items-center gap-2 flex-wrap text-[12px]">
-          <span
-            className="
-              px-2 py-1 rounded-full font-semibold
-              bg-rose-500/10 text-rose-700 border border-rose-500/15
-              dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20
-            "
-          >
-            {origemBadge ? `${origemBadge} · ` : ""}
-            {origemLabel}
-          </span>
+                          <div className="mt-1 flex items-center gap-2 flex-wrap text-[12px]">
+                            <span
+                              className="
+                                px-2 py-1 rounded-full font-semibold
+                                bg-rose-500/10 text-rose-700 border border-rose-500/15
+                                dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20
+                              "
+                            >
+                              {origemBadge ? `${origemBadge} · ` : ""}
+                              {origemLabel}
+                            </span>
 
-          <span className="font-bold text-slate-500 dark:text-violet-300">
-            ↔
-          </span>
+                            <span className="font-bold text-slate-500 dark:text-violet-300">
+                              ↔
+                            </span>
 
-          <span
-            className="
-              px-2 py-1 rounded-full font-semibold
-              bg-emerald-500/10 text-emerald-700 border border-emerald-500/15
-              dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20
-            "
-          >
-            {destinoBadge ? `${destinoBadge} · ` : ""}
-            {destinoLabel}
-          </span>
-        </div>
+                            <span
+                              className="
+                                px-2 py-1 rounded-full font-semibold
+                                bg-emerald-500/10 text-emerald-700 border border-emerald-500/15
+                                dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20
+                              "
+                            >
+                              {destinoBadge ? `${destinoBadge} · ` : ""}
+                              {destinoLabel}
+                            </span>
+                          </div>
 
-        <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          <span>{formatarData(t.data)}</span>
-          <span className="text-slate-300 dark:text-slate-600">•</span>
-          <span>Transferência</span>
-        </div>
-      </div>
-    </div>
+                          <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <span>{formatarData(t.data)}</span>
+                            <span className="text-slate-300 dark:text-slate-600">•</span>
+                            <span>Transferência</span>
+                          </div>
+                        </div>
+                      </div>
 
-    <div className="flex flex-col items-end shrink-0">
-      <p className="font-bold text-slate-900 dark:text-slate-100">
-        {formatarMoeda(valorAbs)}
-      </p>
-      <div className="mt-1 flex items-center gap-2 text-[11px]">
-        <span className="text-rose-700 dark:text-rose-300">
-          - {formatarMoeda(valorAbs)}
-        </span>
-        <span className="text-slate-300 dark:text-slate-600">/</span>
-        <span className="text-emerald-700 dark:text-emerald-300">
-          + {formatarMoeda(valorAbs)}
-        </span>
-      </div>
-    </div>
-  </div>
-);
+                      <div className="flex flex-col items-end shrink-0">
+                        <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditClick(saida)}
+                                  className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+                                  title="Editar"
+                                >
+                                  <EditIcon className="w-4 h-4" />
+                                </button>
 
+                                <button
+                                  type="button"
+                                  onClick={() => confirmDelete(saida)}
+                                  className="p-1.5 rounded-lg text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                  title="Excluir"
+                                >
+                                  <TrashIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+                          <p className="font-bold text-slate-900 dark:text-slate-100">
+                            {formatarMoeda(valorAbs)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
                 }
                 // ====== fim fusão ======
 

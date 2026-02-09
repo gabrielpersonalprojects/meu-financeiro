@@ -1052,11 +1052,13 @@ const projection12Months = useProjection12Months({
     setEditingTransaction(null);
     toastCompact("Alteração salva com sucesso.", "success");
   };
-  const confirmDelete = (t: Transaction) => {
+const confirmDelete = (t: Transaction) => {
   // guarda a transação que o usuário clicou em excluir
   setDeletingTransaction(t);
 
-  const groupId = typeof (t as any).recorrenciaId === "string" ? (t as any).recorrenciaId : "";
+  // para transferência, o agrupador correto é transferId
+  const transferGroupId =
+    typeof (t as any).transferId === "string" ? (t as any).transferId : "";
 
   // Detecta "Transferência" mesmo com/sem acento
   const catNorm = String((t as any).categoria ?? "")
@@ -1066,15 +1068,17 @@ const projection12Months = useProjection12Months({
 
   const isTransfer = catNorm === "transferencia" || catNorm.includes("transfer");
 
-  if (isTransfer) {
-    setTransacoes((prev: any[]) => prev.filter((tx: any) => (tx as any).transferId !== groupId));
+  if (isTransfer && transferGroupId) {
+    setTransacoes((prev: any[]) =>
+      prev.filter((tx: any) => (tx as any).transferId !== transferGroupId)
+    );
 
     setDeletingTransaction(null);
     toastCompact("Transferência excluída (entrada e saída).", "success");
     return;
   }
 
-  // Se não for transferência, mantém o fluxo atual do seu app (modal etc.)
+  // fallback: se por algum motivo não tiver transferId, segue fluxo padrão
   confirmarExclusao(false);
 };
 
@@ -1236,24 +1240,20 @@ if (formTipo === "transferencia") {
     return;
   }
 
-  if (formContaOrigem === formContaDestino) {
-    toastCompact("Conta origem e destino não podem ser iguais.", "error");
+  if (isSameAccount(formContaOrigem, formContaDestino)) {
+    toastCompact("Conta origem e destino não podem ser a mesma.", "error");
     return;
   }
 
   const origemNome = profiles.find((p) => p.id === formContaOrigem)?.name || "Origem";
   const destinoNome = profiles.find((p) => p.id === formContaDestino)?.name || "Destino";
 
-  // ✅ trava: origem e destino não podem ser iguais
-if (!formContaOrigem || !formContaDestino) {
-  toastCompact("Selecione a conta origem e a conta destino.", "error");
-  return;
-}
+  const origemId = String(formContaOrigem);
+  const destinoId = String(formContaDestino);
 
-if (isSameAccount(formContaOrigem, formContaDestino)) {
-  toastCompact("Conta origem e destino não podem ser a mesma.", "error");
-  return;
-}
+  // ✅ usa a descrição digitada; se vier vazia, cai no fallback
+  const descDigitada = (formDesc || "").trim();
+  const descFinal = descDigitada || `Transferência ${origemNome} → ${destinoNome}`;
 
   const transferId = newId("tr");
 
@@ -1261,68 +1261,59 @@ if (isSameAccount(formContaOrigem, formContaDestino)) {
   const saida: Transaction = {
     id: newId("tx"),
     tipo: "despesa" as any,
-    descricao: `Transferência para ${destinoNome}`,
+    descricao: descFinal,
     valor: -Math.abs(valorNum),
     data: formData,
     categoria: "Transferência",
     pago: true,
 
-    // IMPORTANTES:
-    profileId: formContaOrigem as any,
+    profileId: origemId as any,
     transferId: transferId as any,
-    transferFromId: formContaOrigem as any,
-    transferToId: formContaDestino as any,
+    transferFromId: origemId as any,
+    transferToId: destinoId as any,
     contraParte: destinoNome as any,
+
+    // pra filtro/UI
+    contaOrigemId: origemId as any,
+    contaDestinoId: destinoId as any,
   } as any;
 
   // entrada (positiva) no destino
   const entrada: Transaction = {
     id: newId("tx"),
     tipo: "receita" as any,
-    descricao: `Transferência de ${origemNome}`,
+    descricao: descFinal,
     valor: Math.abs(valorNum),
     data: formData,
     categoria: "Transferência",
     pago: true,
 
-    // IMPORTANTES:
-    profileId: formContaDestino as any,
+    profileId: destinoId as any,
     transferId: transferId as any,
-    transferFromId: formContaOrigem as any,
-    transferToId: formContaDestino as any,
+    transferFromId: origemId as any,
+    transferToId: destinoId as any,
     contraParte: origemNome as any,
+
+    // pra filtro/UI
+    contaOrigemId: origemId as any,
+    contaDestinoId: destinoId as any,
   } as any;
 
-  // guarda origem/destino (pra filtro e UI premium)
-    (saida as any).contaOrigemId = formContaOrigem;
-    (saida as any).contaDestinoId = formContaDestino;
+  setTransactions((prev) => [...prev, saida, entrada]);
 
-    (entrada as any).contaOrigemId = formContaOrigem;
-    (entrada as any).contaDestinoId = formContaDestino;
+  // ✅ resetar campos do formulário (transfer)
+  setFormDesc("");
+  setFormValor("0,00");
+  setFormContaOrigem("");
+  setFormContaDestino("");
 
-    const origemId = String(formContaOrigem);
-    const destinoId = String(formContaDestino);
+  // se você usa "hoje" como padrão no app, pode resetar a data também:
+  // setFormData(getHojeLocal());
 
-    (saida as any).contaOrigemId = origemId;
-    (saida as any).contaDestinoId = destinoId;
-
-    (entrada as any).contaOrigemId = origemId;
-    (entrada as any).contaDestinoId = destinoId;
-
-    // mantém compatível com filtros antigos
-    (saida as any).qualCartao = origemId;
-    (entrada as any).qualCartao = destinoId;
-
-
-  // joga os dois na lista principal (e persiste)
-  setTransacoes((prev: any[]) => {
-    const next = [saida, entrada, ...prev];
-    return next;
-  });
-
-  toastCompact("Transferência lançada.", "success");
+  toastCompact("Transferência registrada.", "success");
   return;
 }
+
 
 
 // CARTÃO DE CRÉDITO (lança como "cartao_credito")

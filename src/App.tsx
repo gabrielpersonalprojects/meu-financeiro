@@ -40,6 +40,7 @@ import { useTransacoesFiltradasMes } from "./app/transactions/useTransacoesFiltr
 import { useStatsMes } from "./app/transactions/useStatsMes";
 import { useProjection12Months } from "./app/transactions/useProjection12Months";
 import { togglePagoById, applyEditToTransactions } from "./app/transactions/useTransactionActions";
+import CustomDropdown from "./components/CustomDropdown";
 
 
 import { asId } from "./utils/asId";
@@ -854,35 +855,48 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
     setter((parseInt(clean, 10) / 100).toFixed(2).replace(".", ","));
   };
 
-  const handleLimparDados = async () => {
-    const ok = await confirm({
-      title: "Limpar dados",
-      message: "CUIDADO: Isso apagará TODOS os dados DO PERFIL ATUAL permanentemente. Deseja continuar?",
-      confirmText: "Sim, apagar tudo",
-      cancelText: "Cancelar",
-    });
+  // ===== Reset total do app (com confirmação digitada) =====
+  const RESET_APP_PHRASE = "REINICIAR";
 
-    if (!ok) return;
+  const [resetAppOpen, setResetAppOpen] = useState(false);
+  const [resetAppText, setResetAppText] = useState("");
 
-    isClearingRef.current = true;
-    setIsClearing(true);
+  const executarLimpezaTotal = () => {
+    // fecha settings
+    setSettingsOpen(false);
 
-    const prefix = activeProfileId === "default" ? "" : `${activeProfileId}_`;
+    // limpa storages do app
+    localStorage.removeItem("fluxmoney_profiles_v1");
+    localStorage.removeItem("fluxmoney_transactions_v1");
+    localStorage.removeItem("fluxmoney_categoriaReceitas_v1");
+    localStorage.removeItem("fluxmoney_categoriaDespesas_v1");
+    localStorage.removeItem("fluxmoney_metodosPagamento_v1");
+    localStorage.removeItem("fluxmoney_saldoInicial_v1");
+    localStorage.removeItem("fluxmoney_last_profile_id_v1");
+    localStorage.removeItem("fluxmoney_session_v1");
 
-    localStorage.removeItem(`${prefix}transacoes`);
-    localStorage.removeItem(`${prefix}categorias`);
-    localStorage.removeItem(`${prefix}metodosPagamento`);
-    localStorage.removeItem(`${prefix}userName`);
-
-    setTransacoes([]);
-    setCategorias(CATEGORIAS_PADRAO);
-    setMetodosPagamento({ credito: [], debito: [] });
-    setUserName("");
-    setNameInput("");
-
-    toastCompact("Dados do perfil atual apagados com sucesso.", "success");
-    setTimeout(() => window.location.reload(), 400);
+    // volta pro start original (login)
+    window.location.reload();
   };
+
+  const confirmarResetApp = () => {
+    const typed = resetAppText.trim().toUpperCase();
+
+    if (typed !== RESET_APP_PHRASE) {
+      toastCompact(`Digite ${RESET_APP_PHRASE} para confirmar.`, "error");
+      return;
+    }
+
+    setResetAppOpen(false);
+    executarLimpezaTotal();
+  };
+
+  const handleLimparDados = () => {
+    setResetAppText("");
+    setResetAppOpen(true);
+  };
+
+
 
 const passaFiltroConta = useMemo(() => {
   // 1) Todas as contas: não filtra por conta
@@ -1922,7 +1936,7 @@ if (sessionLoading) {
                 <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-3 flex items-center justify-between gap-4">
                   <div>
                     <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Dados do app</p>
-                    <p className="text-[12px] text-slate-500 dark:text-slate-400">Apaga os dados do perfil atual</p>
+                    <p className="text-[12px] text-slate-500 dark:text-slate-400">Apaga tudo e volta ao padrão inicial</p>
                   </div>
 
                   <button
@@ -1964,6 +1978,86 @@ if (sessionLoading) {
           </div>
         </>
       )}
+
+            {/* RESET APP MODAL (digitado) */}
+      {resetAppOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 max-w-lg w-full shadow-2xl animate-in zoom-in-95 border border-slate-200/60 dark:border-slate-700/60">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+                  Voltar ao padrão inicial
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                  Isso vai apagar <b>todas</b> as contas, lançamentos, categorias e configurações salvas neste dispositivo.
+                  <br />
+                  Para confirmar, digite <b>{RESET_APP_PHRASE}</b> abaixo.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setResetAppOpen(false)}
+                className="h-10 w-10 rounded-xl border border-slate-200/60 dark:border-slate-700/60
+                           bg-white/60 dark:bg-slate-900/60 text-slate-600 dark:text-slate-300
+                           hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                title="Fechar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-2">
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Confirmação
+              </label>
+
+              <input
+                value={resetAppText}
+                onChange={(e) => setResetAppText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmarResetApp();
+                  if (e.key === "Escape") setResetAppOpen(false);
+                }}
+                placeholder={`Digite ${RESET_APP_PHRASE}`}
+                className="w-full h-12 px-4 rounded-xl
+                           border border-slate-200 dark:border-slate-700
+                           bg-white dark:bg-slate-950/30
+                           text-slate-900 dark:text-slate-100
+                           outline-none focus:ring-2 focus:ring-violet-500/40"
+                autoFocus
+              />
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setResetAppOpen(false)}
+                className="h-11 px-5 rounded-xl
+                           border border-slate-200 dark:border-slate-700
+                           bg-white dark:bg-slate-900
+                           text-slate-700 dark:text-slate-200 text-sm font-semibold
+                           hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmarResetApp}
+                disabled={resetAppText.trim().toUpperCase() !== RESET_APP_PHRASE}
+                className="h-11 px-5 rounded-xl text-sm font-extrabold
+                           bg-rose-600 text-white
+                           hover:bg-rose-700 transition
+                           disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Apagar tudo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* EDIT MODAL */}
       {editingTransaction && (
@@ -2332,23 +2426,29 @@ if (sessionLoading) {
             </div>
           </div>
 
-          {/* Tipo de conta */}
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">
-              Tipo de conta
-            </label>
-            <select
-              value={accTipoConta}
-              onChange={(e) => setAccTipoConta(e.target.value)}
-              className="w-full p-2.5 bg-slate-800/60 rounded-xl border border-slate-700 text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {TIPOS_CONTA.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+{/* Tipo de conta */}
+<div>
+  <CustomDropdown
+    label="Tipo de conta"
+    placeholder="Selecione"
+    value={accTipoConta}
+    options={TIPOS_CONTA.map((t) => ({
+      value: t,
+      label: (
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-semibold text-slate-900 dark:text-slate-100">
+            {t}
+          </span>
+
+          {/* detalhe visual discreto (sem texto) */}
           </div>
+      ),
+    }))}
+    onSelect={(val) => setAccTipoConta(String(val))}
+    className="w-full"
+  />
+</div>
+
 
           {/* Banco / Conta / Agência */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">

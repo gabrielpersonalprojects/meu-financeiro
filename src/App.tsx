@@ -41,6 +41,7 @@ import { useStatsMes } from "./app/transactions/useStatsMes";
 import { useProjection12Months } from "./app/transactions/useProjection12Months";
 import { togglePagoById, applyEditToTransactions } from "./app/transactions/useTransactionActions";
 import CustomDropdown from "./components/CustomDropdown";
+import { useCallback } from "react";
 
 
 import { asId } from "./utils/asId";
@@ -94,6 +95,8 @@ const hojeStr = getHojeLocal();
 
 const App: FC = () => {
   const [transacoes, setTransacoes] = useState<Transaction[]>(() => loadOrMigrateTransacoes());
+  const [projectionMode, setProjectionMode] = useState<"acumulado" | "mensal">("acumulado");
+
   useEffect(() => {
   try {
     persistTransacoes(transacoes);
@@ -520,7 +523,8 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [inputNovoCartao, setInputNovoCartao] = useState("");
 
   // --- Filtros ---
-  const [filtroMes, setFiltroMes] = useState(getHojeLocal().substring(0, 7));
+  const [filtroMesTransacoes, setFiltroMesTransacoes] = useState(getHojeLocal().substring(0, 7));
+  const [filtroMesAnalise, setFiltroMesAnalise] = useState(getHojeLocal().substring(0, 7));
   const [filtroLancamento, setFiltroLancamento] = useState<"todos" | "receita" | "despesa">("todos");
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroMetodo, setFiltroMetodo] = useState("");
@@ -978,27 +982,30 @@ const passaFiltroConta = useMemo(() => {
 
 // 1) Base pros CARDS (respeita mês + filtro de conta)
 const txCards = useMemo(() => {
-  // a) filtra pelo mês selecionado (ajuste se seu filtroMes tiver outro formato)
-  const byMonth = transactions.filter((t) => (t.data || "").slice(0, 7) === filtroMes);
+  // a) filtra pelo mês selecionado NA ABA TRANSAÇÕES
+  const byMonth = transactions.filter(
+    (t) => (t.data || "").slice(0, 7) === filtroMesTransacoes
+  );
 
   // b) se "todas", NÃO contar transferências como entrada/saída geral (só movimentação interna)
   if (filtroConta === "todas") {
-    return byMonth.filter((t: any) => !t.transferId && String(t.categoria || "").toLowerCase() !== "transferência");
+    return byMonth.filter(
+      (t: any) =>
+        !t.transferId &&
+        String(t.categoria || "").trim().toLowerCase() !== "transferência"
+    );
   }
 
   // c) se uma conta específica, conta TUDO daquela conta (inclusive transferência)
-return byMonth.filter(passaFiltroConta);
-
-
-
-}, [transactions, filtroMes, filtroConta]);
+  return byMonth.filter(passaFiltroConta);
+}, [transactions, filtroMesTransacoes, filtroConta, passaFiltroConta]);
 
 
 // --- Filtros (memo limpo, SEM duplicações) ---
 const { getFilteredTransactions, getFilteredTransactionsAno, anoRef } =
   useFilteredTransactions({
     transacoes,
-    filtroMes,
+    filtroMes: filtroMesTransacoes,
     filtroLancamento,
     filtroCategoria,
     filtroMetodo,
@@ -1006,9 +1013,7 @@ const { getFilteredTransactions, getFilteredTransactionsAno, anoRef } =
     filtroConta,
     mergeTransfers,
     passarFiltroConta: passaFiltroConta,
-
   });
-
 
 
 const {
@@ -1024,22 +1029,25 @@ const {
 });
 
 
-const { mostrarReceitasResumo, mostrarDespesasResumo } = getResumoFlags(filtroLancamento);
+const { mostrarReceitasResumo, mostrarDespesasResumo } =
+  getResumoFlags(filtroLancamento);
+
 
 const handleLimparFiltros = () => {
   limparFiltros({
-    setFiltroMes,
+    setFiltroMes: setFiltroMesTransacoes,
     setFiltroLancamento,
     setFiltroCategoria,
     setFiltroMetodo,
     setFiltroTipoGasto,
-  });
+   });
 };
 
 
+// Lista/UI da aba Transações (mês da aba Transações)
 const transacoesFiltradasUI = useTransacoesFiltradasMes({
   transactions,
-  filtroMes,
+  filtroMes: filtroMesTransacoes,
   filtroLancamento,
   passaFiltroConta,
 });
@@ -1048,89 +1056,119 @@ const transacoesFiltradasUI = useTransacoesFiltradasMes({
 // --- Stats (não contar transferência/cartão de crédito por enquanto) ---
 const stats = useStatsMes({
   transactions,
-  filtroMes,
+  filtroMes: filtroMesTransacoes,
   filtroConta,
   profiles,
   passaFiltroConta,
 });
 
+const {
+  saldoTotal,
+  receitasMes,
+  despesasMes,
+  pendenteReceita,
+  pendenteDespesa,
+} = stats;
 
-
-const { saldoTotal, receitasMes, despesasMes, pendenteReceita, pendenteDespesa } = stats;
 
 // --- Gastos por categoria (somente despesa) ---
+// IMPORTANTE: aqui usa o mês da ABA ANÁLISE, independente de Transações
 const spendingByCategoryData = useMemo(() => {
-  return computeSpendingByCategoryData(transacoes, filtroMes);
-}, [transacoes, filtroMes]);
+  return computeSpendingByCategoryData(transacoes, filtroMesAnalise);
+}, [transacoes, filtroMesAnalise]);
+
+// --- Base anual da Projeção (independente do mês da aba Transações) ---
+const anoBaseProjecao = useMemo(() => getHojeLocal().slice(0, 4), []);
+
+const transacoesAnoProjecao = useMemo(() => {
+  return (transactions ?? []).filter(
+    (t: any) => String(t?.data ?? "").slice(0, 4) === anoBaseProjecao
+  );
+}, [transactions, anoBaseProjecao]);
+
+// --- Saldo inicial pra projeção (respeita filtro de conta) ---
+const saldoInicialProjecao = useMemo(() => {
+  if (!Array.isArray(profiles) || profiles.length === 0) return 0;
+
+  const fc = String(filtroConta ?? "todas").trim().toLowerCase();
+  const isTodas =
+    fc === "" ||
+    fc === "todas" ||
+    fc === "todas as contas" ||
+    fc === "todas_as_contas";
+
+  const toReais = (p: any) => {
+    // prioridade total pro campo correto do teu app
+    if (p?.initialBalanceCents != null) return (Number(p.initialBalanceCents) || 0) / 100;
+
+    // fallback (caso exista em algum profile antigo)
+    if (p?.saldoInicial != null) return Number(p.saldoInicial) || 0;
+    if (p?.saldo_inicial != null) return Number(p.saldo_inicial) || 0;
+
+    return 0;
+  };
+
+return profiles.reduce((sum: number, p: any) => sum + toReais(p), 0);
+}, [profiles]);
 
 
-  // --- Projeção ---
+// --- Projeção ---
+
+const MESES_PT = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+
+const getMesAnoExtenso = useCallback((mesAno: string) => {
+  const [ano, mes] = String(mesAno).split("-");
+  const idx = Math.max(0, Math.min(11, (Number(mes) || 1) - 1));
+  return `${MESES_PT[idx]} de ${ano}`;
+}, []);
+
 const projection12Months = useProjection12Months({
-  transactions: transacoesFiltradasUI,
+  transactions: transacoes, // <- SEMPRE a lista bruta
+  getMesAnoExtenso,
+  saldoInicialBase: saldoInicialProjecao,
+  mode: projectionMode,
 });
 
 
-  // --- Categorias filtradas para dropdown (transações) ---
-  const categoriasFiltradasTransacoes = useMemo(() => {
+
+// --- Categorias filtradas para dropdown (Transações) ---
+const categoriasFiltradasTransacoes = useMemo(() => {
   if (filtroLancamento === "receita") return sortStringsAsc(categorias.receita);
   if (filtroLancamento === "despesa") return sortStringsAsc(categorias.despesa);
   return sortStringsAsc([...new Set([...categorias.despesa, ...categorias.receita])]);
 }, [categorias, filtroLancamento]);
 
-  // --- CRUD helpers ---
-const togglePago = (payload: any) => {
-  setTransacoes((prev: any[]) => {
-    console.log("TOGGLE CLICK payload:", payload);
-
-    const before = prev.map((x: any) => ({
-      id: x.id,
-      transferId: x.transferId,
-      pago: x.pago,
-    }));
-
-    const next = togglePagoById(prev, payload);
-
-    const after = next.map((x: any) => ({
-      id: x.id,
-      transferId: x.transferId,
-      pago: x.pago,
-    }));
-
-    console.log("TOGGLE BEFORE (slice):", before.slice(0, 20));
-    console.log("TOGGLE AFTER  (slice):", after.slice(0, 20));
-
-    return next;
-  });
+const handleEditClick = (t: Transaction) => {
+  setEditingTransaction(t);
+  setEditValueInput(Math.abs(Number(t.valor) || 0).toFixed(2).replace(".", ","));
+  setEditDescInput(t.descricao);
+  setApplyToAllRelated(false);
 };
 
+const salvarEdicao = () => {
+  if (!editingTransaction) return;
 
+  const novoValorAbs = extrairValorMoeda(editValueInput);
+  const novaDesc = editDescInput.trim() || editingTransaction.descricao;
 
-  const handleEditClick = (t: Transaction) => {
-    setEditingTransaction(t);
-    setEditValueInput(Math.abs(Number(t.valor) || 0).toFixed(2).replace(".", ","));
-    setEditDescInput(t.descricao);
-    setApplyToAllRelated(false);
-  };
+  const sign = editingTransaction.tipo === "receita" ? 1 : -1;
 
-  const salvarEdicao = () => {
-    if (!editingTransaction) return;
+  setTransacoes((prev) =>
+    applyEditToTransactions(prev, editingTransaction, novoValorAbs, novaDesc, applyToAllRelated)
+  );
 
-    const novoValorAbs = extrairValorMoeda(editValueInput);
-    const novaDesc = editDescInput.trim() || editingTransaction.descricao;
+  setEditingTransaction(null);
+  toastCompact("Alteração salva com sucesso.", "success");
+};
 
-    const sign = editingTransaction.tipo === "receita" ? 1 : -1;
-
-   setTransacoes((prev) =>
-  applyEditToTransactions(prev, editingTransaction, novoValorAbs, novaDesc, applyToAllRelated)
-);
-
-    setEditingTransaction(null);
-    toastCompact("Alteração salva com sucesso.", "success");
-  };
 const confirmDelete = (t: Transaction) => {
   // guarda a transação que o usuário clicou em excluir
   setDeletingTransaction(t);
-const normTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
+
+  const normTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
 
   // para transferência, o agrupador correto é transferId
   const transferGroupId =
@@ -1156,6 +1194,11 @@ const normTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
 
   // fallback: se por algum motivo não tiver transferId, segue fluxo padrão
   confirmarExclusao(false);
+};
+
+// ✅ INSERIDO AQUI (logo após o confirmDelete)
+const togglePago = (payload: any) => {
+  setTransacoes((prev: any[]) => togglePagoById(prev, payload));
 };
 
 
@@ -1764,57 +1807,67 @@ if (sessionLoading) {
             {/* TRANSACOES */}
             {activeTab === "transacoes" && (
               <TransacoesTab
-                filtroMes={filtroMes}
-                setFiltroMes={setFiltroMes}
-                filtroLancamento={filtroLancamento}
-                setFiltroLancamento={setFiltroLancamento}
-                filtroConta={filtroConta}
-                setFiltroConta={setFiltroConta}
-                filtroCategoria={filtroCategoria}
-                setFiltroCategoria={setFiltroCategoria}
-                categoriasFiltradasTransacoes={categoriasFiltradasTransacoes}
-                filtroMetodo={filtroMetodo}
-                setFiltroMetodo={setFiltroMetodo}
-                metodosCredito={metodosPagamento.credito}
-                filtroTipoGasto={filtroTipoGasto}
-                setFiltroTipoGasto={setFiltroTipoGasto}
-                handleLimparFiltros={handleLimparFiltros}
-                profiles={profiles}
-                renderContaOptionLabel={renderContaOptionLabel}
-                mostrarReceitasResumo={mostrarReceitasResumo}
-                mostrarDespesasResumo={mostrarDespesasResumo}
-                totalFiltradoReceitas={totalFiltradoReceitas}
-                totalFiltradoDespesas={totalFiltradoDespesas}
-                anoRef={anoRef}
-                totalAnualReceitas={totalAnualReceitas}
-                totalAnualDespesas={totalAnualDespesas}
-                itemsFiltrados={getFilteredTransactions}
-                transactions={transactions}
-                hojeStr={hojeStr}
-                togglePago={togglePago}
-                handleEditClick={handleEditClick}
-                confirmDelete={confirmDelete}
-              />
+  filtroMes={filtroMesTransacoes}
+  setFiltroMes={setFiltroMesTransacoes}
+  filtroLancamento={filtroLancamento}
+  setFiltroLancamento={setFiltroLancamento}
+  filtroConta={filtroConta}
+  setFiltroConta={setFiltroConta}
+  filtroCategoria={filtroCategoria}
+  setFiltroCategoria={setFiltroCategoria}
+  categoriasFiltradasTransacoes={categoriasFiltradasTransacoes}
+  filtroMetodo={filtroMetodo}
+  setFiltroMetodo={setFiltroMetodo}
+  metodosCredito={metodosPagamento.credito}
+  filtroTipoGasto={filtroTipoGasto}
+  setFiltroTipoGasto={setFiltroTipoGasto}
+  handleLimparFiltros={handleLimparFiltros}
+  profiles={profiles}
+  renderContaOptionLabel={renderContaOptionLabel}
+  mostrarReceitasResumo={mostrarReceitasResumo}
+  mostrarDespesasResumo={mostrarDespesasResumo}
+  totalFiltradoReceitas={totalFiltradoReceitas}
+  totalFiltradoDespesas={totalFiltradoDespesas}
+  anoRef={anoRef}
+  totalAnualReceitas={totalAnualReceitas}
+  totalAnualDespesas={totalAnualDespesas}
+  itemsFiltrados={getFilteredTransactions}
+  transactions={transactions}
+  hojeStr={hojeStr}
+  togglePago={togglePago}
+  handleEditClick={handleEditClick}
+  confirmDelete={confirmDelete}
+/>
+
             )}
 
 
             {/* GASTOS */}
             {activeTab === "gastos" && (
-              <GastosTab
-                spendingByCategoryData={spendingByCategoryData}
-                filtroMes={filtroMes}
-                setFiltroMes={setFiltroMes}
-                isDarkMode={isDarkMode}
-              />
+<GastosTab
+  spendingByCategoryData={spendingByCategoryData}
+  filtroMes={filtroMesAnalise}
+  setFiltroMes={setFiltroMesAnalise}
+  isDarkMode={isDarkMode}
+/>
+
             )}
 
 
             {/* PROJECAO */}
-            {activeTab === "projecao" && (
-              <ProjecaoTab projection12Months={projection12Months} />
-            )}
 
-          </div>
+            {activeTab === "projecao" && (
+  <>
+<ProjecaoTab
+  projection12Months={projection12Months}
+  projectionMode={projectionMode}
+  setProjectionMode={setProjectionMode}
+  saldoInicial={saldoInicialProjecao}
+/>
+  </>
+)}
+
+         </div>
         </div>
 
 {isAddCardModalOpen && (

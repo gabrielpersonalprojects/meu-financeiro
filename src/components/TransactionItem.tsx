@@ -78,16 +78,17 @@ const atrasada = !paid && t.data < hojeStr;
 
           <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide">
             <span
-              className={`px-2 py-0.5 rounded-full font-black ${
-                t.paid
-                  ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
-                  : atrasada
-                  ? "bg-rose-100/80 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300"
-                  : "bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-              }`}
-            >
-              {paid ? "Pago" : atrasada ? "Atrasada" : "Pendente"}
-            </span>
+                    className={`px-2 py-0.5 rounded-full font-black ${
+                      paid
+                        ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+                        : atrasada
+                        ? "bg-rose-100/80 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300"
+                        : "bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                    }`}
+                  >
+                    {paid ? "Pago" : atrasada ? "Atrasada" : "Pendente"}
+                  </span>
+
 
             <span className="text-slate-500 dark:text-slate-400 uppercase font-bold">
               {formatarData(t.data)} <span className="mx-1">•</span> {t.categoria}

@@ -1,7 +1,9 @@
+import { useMemo } from "react";
 import CustomDateInput from "../CustomDateInput";
 import { getMesAnoExtenso, formatarMoeda } from "../../utils/formatters";
 import { getHojeLocal } from "../../domain/date";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+
 
 const COLORS = [
   "#6366f1",
@@ -30,6 +32,22 @@ export default function GastosTab({
   setFiltroMes,
   isDarkMode,
 }: Props) {
+    const filteredData = useMemo(() => {
+    const norm = (s: any) =>
+      String(s ?? "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, ""); // remove acentos
+
+    return (spendingByCategoryData ?? []).filter((entry: any) => {
+      const name = norm(entry?.name);
+      // cobre: "Transferência", "Transferencias", "Transferência entre contas" etc.
+      if (name.includes("transfer")) return false;
+      return true;
+    });
+  }, [spendingByCategoryData]);
+
   return (
     <div className="animate-in fade-in py-4 space-y-6">
       <div className="flex flex-col items-center gap-4 mb-10">
@@ -54,13 +72,13 @@ export default function GastosTab({
         </div>
       </div>
 
-      {spendingByCategoryData.length > 0 ? (
+      {filteredData.length > 0 ? (
         <div className="flex flex-col lg:flex-row items-center gap-12 mt-8">
           <div className="h-[350px] w-full lg:w-1/2">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={spendingByCategoryData}
+                  data={filteredData}
                   cx="50%"
                   cy="50%"
                   innerRadius={80}
@@ -69,7 +87,7 @@ export default function GastosTab({
                   dataKey="value"
                   stroke="none"
                 >
-                  {spendingByCategoryData.map((_, index) => (
+                  {filteredData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -89,7 +107,7 @@ export default function GastosTab({
           </div>
 
           <div className="flex-1 space-y-3 w-full">
-            {spendingByCategoryData.map((entry, index) => (
+            {filteredData.map((entry, index) => (
               <div
                 key={entry.name}
                 className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700"

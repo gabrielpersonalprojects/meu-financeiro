@@ -6,17 +6,54 @@ export type ProjectionRow = {
   fixas: number;
   variaveis: number;
   receitas: number;
-  saldo: number;
+  saldo: number; // no modo acumulado = saldo final acumulado; no mensal = resultado do mês
+};
+
+export type ProjectionMode = "acumulado" | "mensal";
+
+const isTransfer = (t: any) => {
+  const tipo = String(t?.tipo ?? "").toLowerCase();
+  const categoria = String(t?.categoria ?? "").toLowerCase();
+  const desc = String(t?.descricao ?? "").toLowerCase();
+
+  return (
+    // se existir um tipo específico
+    tipo === "transferencia" ||
+    tipo === "transferência" ||
+
+    // se vocês marcam por categoria
+    categoria === "transferencia" ||
+    categoria === "transferência" ||
+
+    // marcadores comuns (se existirem no seu modelo)
+    Boolean(t?.isTransfer) ||
+    Boolean(t?.transferId) ||
+    Boolean(t?.transferenciaId) ||
+    (t?.origem && t?.destino) ||
+
+    // último fallback (se vocês colocam a palavra na descrição)
+    desc.includes("transfer")
+  );
 };
 
 export const computeProjection12Months = (params: {
   transacoes: Transaction[];
   getMesAnoExtenso: (mesAno: string) => string;
+  mode?: ProjectionMode;
+  saldoInicialBase?: number; // em REAIS
 }): ProjectionRow[] => {
-  const { transacoes, getMesAnoExtenso } = params;
+  const {
+    transacoes,
+    getMesAnoExtenso,
+    mode = "acumulado",
+    saldoInicialBase = 0,
+  } = params;
 
   const results: ProjectionRow[] = [];
   const now = new Date();
+
+  // saldo acumulado (começa no saldo inicial das contas, respeitando filtro)
+  let runningSaldo = Number(saldoInicialBase) || 0;
 
   for (let i = 0; i < 12; i++) {
     const targetDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
@@ -24,29 +61,44 @@ export const computeProjection12Months = (params: {
       targetDate.getMonth() + 1
     ).padStart(2, "0")}`;
 
-    const monthTransactions = (transacoes || []).filter((t) =>
-      String(t.data || "").startsWith(targetMonthStr)
-    );
+   const monthTransactions = (transacoes || [])
+  .filter((t) => String((t as any).data || "").startsWith(targetMonthStr))
+  .filter((t) => !isTransfer(t));
+
 
     const fixas = monthTransactions
-      .filter((t) => t.tipo === "despesa" && (t as any).tipoGasto === "Fixo")
+      .filter((t) => (t as any).tipo === "despesa" && (t as any).tipoGasto === "Fixo")
       .reduce((s, t) => s + Math.abs(Number((t as any).valor) || 0), 0);
 
     const variaveis = monthTransactions
-      .filter((t) => t.tipo === "despesa" && (t as any).tipoGasto === "Variável")
+      .filter((t) => (t as any).tipo === "despesa" && (t as any).tipoGasto === "Variável")
       .reduce((s, t) => s + Math.abs(Number((t as any).valor) || 0), 0);
 
     const receitas = monthTransactions
-      .filter((t) => t.tipo === "receita")
+      .filter((t) => (t as any).tipo === "receita")
       .reduce((s, t) => s + (Number((t as any).valor) || 0), 0);
 
-    results.push({
-      mesAno: getMesAnoExtenso(targetMonthStr),
-      fixas,
-      variaveis,
-      receitas,
-      saldo: receitas - (fixas + variaveis),
-    });
+    const resultadoMes = receitas - (fixas + variaveis);
+
+    if (mode === "acumulado") {
+      runningSaldo += resultadoMes;
+      results.push({
+        mesAno: getMesAnoExtenso(targetMonthStr),
+        fixas,
+        variaveis,
+        receitas, // receita do 1º mês inclui saldo inicial
+        saldo: runningSaldo,
+      });
+    } else {
+      // mensal (não acumulado): mostra só o resultado do mês
+      results.push({
+        mesAno: getMesAnoExtenso(targetMonthStr),
+        fixas,
+        variaveis,
+        receitas,
+        saldo: resultadoMes,
+      });
+    }
   }
 
   return results;

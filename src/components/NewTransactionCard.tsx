@@ -314,30 +314,46 @@ export default function NewTransactionCard({
         </div>
 
         <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-              Valor (R$)
-            </label>
-            <input
-              type="text"
-              value={formValor}
-              onChange={(e) => handleFormatCurrencyInput(e.target.value, setFormValor)}
-              placeholder="0,00"
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none"
-            />
-          </div>
+         <div className="flex-1">
+<div className="flex items-center gap-2 mb-1.5">
+  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
+    Valor (R$)
+  </label>
 
+  {formTipo !== "transferencia" && (
+    <label className="flex items-center gap-2 ml-2">
+      <input
+        type="checkbox"
+        checked={formPago}
+        onChange={(e) => setFormPago(e.target.checked)}
+        className="h-3 w-3 rounded border border-slate-200 dark:border-slate-700 accent-indigo-600"
+      />
+      <span className="text-[11px] leading-none font-medium text-slate-600 dark:text-slate-300 select-none">
+        Pago
+      </span>
+    </label>
+  )}
+</div>
+
+
+
+  <input
+    type="text"
+    value={formValor}
+    onChange={(e) => handleFormatCurrencyInput(e.target.value, setFormValor)}
+    placeholder="0,00"
+    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none"
+  />
+</div>
+
+                    
           <div className="flex-1">
             <CustomDateInput label="Data" value={formData} onChange={setFormData} />
           </div>
         </div>
 
-        {formTipo !== "transferencia" && (
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
-            <input type="checkbox" checked={formPago} onChange={(e) => setFormPago(e.target.checked)} />
-            Pago
-          </label>
-        )}
+
+
 
 {/* Categoria + Método/Conta (2 colunas) */}
 {formTipo !== "transferencia" && (

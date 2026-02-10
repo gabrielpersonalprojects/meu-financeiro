@@ -38,8 +38,9 @@ export const buildFilteredTransactions = (
   if (filtroMetodo) list = list.filter((t: any) => t.metodoPagamento === filtroMetodo);
   if (filtroTipoGasto) list = list.filter((t: any) => t.tipoGasto === filtroTipoGasto);
 
-  list = mergeTransfers(list);
   list = list.filter(passarFiltroConta);
+  list = mergeTransfers(list);
+
 
   if (filtroLancamento !== "todos") {
     list = list.filter((t) => t.tipo === filtroLancamento);

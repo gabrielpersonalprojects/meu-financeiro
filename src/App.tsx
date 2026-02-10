@@ -580,7 +580,7 @@ const saveTransacoesByProfile = (pid: string, list: Transaction[]) => {
   const [formMetodo, setFormMetodo] = useState<PaymentMethod | "">("");
   const [formQualCartao, setFormQualCartao] = useState("");
   const [formParcelas, setFormParcelas] = useState(2);
-  const [formPago, setFormPago] = useState(true);
+  const [formPago, setFormPago] = useState(false);
   const [formContaOrigem, setFormContaOrigem] = useState("");
   const [formContaDestino, setFormContaDestino] = useState("");
   const [formBancoId, setFormBancoId] = useState<string>("");
@@ -770,7 +770,7 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
 
   const isReceitaOuDespesa = formTipo === "receita" || formTipo === "despesa";
 
-  useEffect(() => {
+useEffect(() => {
   setFormCat("");
   setPrazoMode(null);
   setFormTipoGasto("");
@@ -778,6 +778,7 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
   setFormMetodo("");
   setFormQualCartao("");
 
+  // default do checkbox só quando TROCA o tipo
   if (formTipo === "receita") {
     setFormPago(false);
   } else {
@@ -789,7 +790,9 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
     setFormContaOrigem(activeProfileId);
     setFormContaDestino("");
   }
-}, [formTipo, activeProfileId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [formTipo]);
+
 
   // --- Persistência por Perfil ---
   useEffect(() => {
@@ -855,46 +858,50 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
     setter((parseInt(clean, 10) / 100).toFixed(2).replace(".", ","));
   };
 
-  // ===== Reset total do app (com confirmação digitada) =====
-  const RESET_APP_PHRASE = "REINICIAR";
+// ===== Reset total do app (com confirmação digitada) =====
+const RESET_APP_PHRASE = "REINICIAR";
 
-  const [resetAppOpen, setResetAppOpen] = useState(false);
-  const [resetAppText, setResetAppText] = useState("");
+const [resetAppOpen, setResetAppOpen] = useState(false);
+const [resetAppText, setResetAppText] = useState("");
 
-  const executarLimpezaTotal = () => {
-    // fecha settings
-    setSettingsOpen(false);
+const executarLimpezaTotal = () => {
+  try {
+    // se quiser preservar theme, descomenta as 2 linhas:
+    // const theme = localStorage.getItem("theme");
 
-    // limpa storages do app
-    localStorage.removeItem("fluxmoney_profiles_v1");
-    localStorage.removeItem("fluxmoney_transactions_v1");
-    localStorage.removeItem("fluxmoney_categoriaReceitas_v1");
-    localStorage.removeItem("fluxmoney_categoriaDespesas_v1");
-    localStorage.removeItem("fluxmoney_metodosPagamento_v1");
-    localStorage.removeItem("fluxmoney_saldoInicial_v1");
-    localStorage.removeItem("fluxmoney_last_profile_id_v1");
-    localStorage.removeItem("fluxmoney_session_v1");
+    localStorage.clear();
+    sessionStorage.clear();
 
-    // volta pro start original (login)
-    window.location.reload();
-  };
+    // se quiser preservar theme, descomenta:
+    // if (theme) localStorage.setItem("theme", theme);
+  } catch (e) {
+    console.error("RESET ERROR:", e);
+  } finally {
+    // reload “limpo” (evita algum estado preso)
+    window.location.href = window.location.origin + window.location.pathname;
+  }
+};
 
-  const confirmarResetApp = () => {
-    const typed = resetAppText.trim().toUpperCase();
 
-    if (typed !== RESET_APP_PHRASE) {
-      toastCompact(`Digite ${RESET_APP_PHRASE} para confirmar.`, "error");
-      return;
-    }
+const confirmarResetApp = () => {
+  const typed = resetAppText.trim().toUpperCase();
 
-    setResetAppOpen(false);
-    executarLimpezaTotal();
-  };
+  if (typed !== RESET_APP_PHRASE) {
+    toastCompact(`Digite "${RESET_APP_PHRASE}" para confirmar.`, "error");
+    return;
+  }
 
-  const handleLimparDados = () => {
-    setResetAppText("");
-    setResetAppOpen(true);
-  };
+  setResetAppOpen(false);
+  setResetAppText("");
+
+  executarLimpezaTotal();
+};
+
+const handleLimparDados = () => {
+  setResetAppText("");
+  setResetAppOpen(true);
+};
+
 
 
 
@@ -902,9 +909,23 @@ const passaFiltroConta = useMemo(() => {
   // 1) Todas as contas: não filtra por conta
   if (filtroConta === "todas") return (_t: any) => true;
 
+  const alvo = asId(filtroConta);
+
   // 2) Sem conta: somente lançamentos que NÃO têm conta vinculada
   if (filtroConta === "sem_conta") {
     return (t: any) => {
+      const tipo = String(t?.tipo ?? "");
+      const hasTransfer = Boolean(t?.transferId);
+
+      // se for perna de transferência, considera só o lado dela
+      if (hasTransfer && (tipo === "despesa" || tipo === "receita")) {
+        const sideId =
+          tipo === "despesa"
+            ? asId(t?.profileId ?? t?.contaOrigemId ?? t?.transferFromId ?? "")
+            : asId(t?.profileId ?? t?.contaDestinoId ?? t?.transferToId ?? "");
+        return !sideId;
+      }
+
       const hasAnyConta =
         Boolean(t?.qualCartao) ||
         Boolean(t?.profileId) ||
@@ -917,19 +938,37 @@ const passaFiltroConta = useMemo(() => {
     };
   }
 
-  // 3) Conta específica: normaliza tudo para comparar "id com id"
-  const alvo = asId(filtroConta);
-
+  // 3) Conta específica: filtro DIRECIONAL para transferências
   return (t: any) => {
-    const ids = [
-      t?.qualCartao,
-      t?.profileId,
-      t?.contaOrigemId,
-      t?.contaDestinoId,
-      t?.transferFromId,
-      t?.transferToId,
-    ].map(asId);
+    const tipo = String(t?.tipo ?? "");
+    const hasTransfer = Boolean(t?.transferId);
 
+    // card mesclado (tipo "transferencia") -> aparece se for origem OU destino
+    if (tipo === "transferencia") {
+      const ids = [
+        t?.contaOrigemId,
+        t?.contaDestinoId,
+        t?.transferFromId,
+        t?.transferToId,
+        t?.profileId,
+        t?.qualCartao,
+      ].map(asId);
+
+      return ids.includes(alvo);
+    }
+
+    // pernas da transferência: despesa = origem / receita = destino
+    if (hasTransfer && (tipo === "despesa" || tipo === "receita")) {
+      const sideId =
+        tipo === "despesa"
+          ? asId(t?.profileId ?? t?.contaOrigemId ?? t?.transferFromId ?? "")
+          : asId(t?.profileId ?? t?.contaDestinoId ?? t?.transferToId ?? "");
+
+      return sideId === alvo;
+    }
+
+    // demais transações (normal)
+    const ids = [t?.qualCartao, t?.profileId].map(asId);
     return ids.includes(alvo);
   };
 }, [filtroConta]);
@@ -1039,9 +1078,31 @@ const projection12Months = useProjection12Months({
 }, [categorias, filtroLancamento]);
 
   // --- CRUD helpers ---
- const togglePago = (id: number) => {
-  setTransacoes((prev) => togglePagoById(prev, id));
+const togglePago = (payload: any) => {
+  setTransacoes((prev: any[]) => {
+    console.log("TOGGLE CLICK payload:", payload);
+
+    const before = prev.map((x: any) => ({
+      id: x.id,
+      transferId: x.transferId,
+      pago: x.pago,
+    }));
+
+    const next = togglePagoById(prev, payload);
+
+    const after = next.map((x: any) => ({
+      id: x.id,
+      transferId: x.transferId,
+      pago: x.pago,
+    }));
+
+    console.log("TOGGLE BEFORE (slice):", before.slice(0, 20));
+    console.log("TOGGLE AFTER  (slice):", after.slice(0, 20));
+
+    return next;
+  });
 };
+
 
 
   const handleEditClick = (t: Transaction) => {
@@ -1069,6 +1130,7 @@ const projection12Months = useProjection12Months({
 const confirmDelete = (t: Transaction) => {
   // guarda a transação que o usuário clicou em excluir
   setDeletingTransaction(t);
+const normTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
 
   // para transferência, o agrupador correto é transferId
   const transferGroupId =
@@ -1084,7 +1146,7 @@ const confirmDelete = (t: Transaction) => {
 
   if (isTransfer && transferGroupId) {
     setTransacoes((prev: any[]) =>
-      prev.filter((tx: any) => (tx as any).transferId !== transferGroupId)
+      prev.filter((tx: any) => normTid((tx as any).transferId) !== normTid(transferGroupId))
     );
 
     setDeletingTransaction(null);
@@ -1271,6 +1333,13 @@ if (formTipo === "transferencia") {
 
   const transferId = newId("tr");
 
+  const normalizeTid = (v: any) =>
+  String(v ?? "").trim().replace(/^tr_+/g, "");
+
+// se você gera transferId em algum lugar, normalize aqui:
+const tid = normalizeTid(transferId);
+
+
   // saída (negativa) na origem
   const saida: Transaction = {
     id: newId("tx"),
@@ -1279,10 +1348,11 @@ if (formTipo === "transferencia") {
     valor: -Math.abs(valorNum),
     data: formData,
     categoria: "Transferência",
-    pago: true,
+    pago: formPago,
+
 
     profileId: origemId as any,
-    transferId: transferId as any,
+    transferId: tid as any,
     transferFromId: origemId as any,
     transferToId: destinoId as any,
     contraParte: destinoNome as any,
@@ -1300,10 +1370,11 @@ if (formTipo === "transferencia") {
     valor: Math.abs(valorNum),
     data: formData,
     categoria: "Transferência",
-    pago: true,
+    pago: formPago,
+
 
     profileId: destinoId as any,
-    transferId: transferId as any,
+    transferId: tid as any,
     transferFromId: origemId as any,
     transferToId: destinoId as any,
     contraParte: origemNome as any,

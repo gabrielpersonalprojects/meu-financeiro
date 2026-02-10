@@ -12,7 +12,7 @@ type Props = {
   t: any;
   profiles: any[];
   hojeStr: string;
-  togglePago: (id: any) => void;
+  togglePago: (t: any) => void;
   formatarData: (data: string) => string;
   formatarMoeda: (valor: number) => string;
   getContaPartsById: (id: string, profiles: any[]) => ContaParts | null;
@@ -33,7 +33,11 @@ export default function TransactionItem({
   onDelete,
 
 }: Props) {
-  const atrasada = !t.pago && t.data < hojeStr;
+  const paid =
+  t?.pago === true || t?.pago === 1 || t?.pago === "1" || t?.pago === "true" || t?.pago === "pago";
+
+const atrasada = !paid && t.data < hojeStr;
+
 
   const isReceita = t.tipo === "receita";
   const baseBg = isReceita
@@ -48,21 +52,23 @@ export default function TransactionItem({
     <div
       key={t.id}
       className={`group flex items-center justify-between p-4 rounded-2xl border transition-all ${baseBg} ${
-        t.pago ? "opacity-80" : ""
+        paid ? "opacity-80" : ""
       } ${glowAtraso}`}
     >
       <div className="flex items-center gap-4">
         <button
           type="button"
-          onClick={() => togglePago(t.id)}
+       onClick={() => togglePago(t)}
+
+
           className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold transition-all ${
-            t.pago
+            paid
               ? "bg-indigo-600 border-indigo-600 text-white"
               : "border-slate-300 dark:border-slate-700 text-slate-400"
           }`}
-          title={t.pago ? "Marcar como não pago" : "Marcar como pago"}
+          title={paid ? "Marcar como não pago" : "Marcar como pago"}
         >
-          {t.pago ? "✓" : ""}
+          {paid ? "✓" : ""}
         </button>
 
         <div>
@@ -73,14 +79,14 @@ export default function TransactionItem({
           <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide">
             <span
               className={`px-2 py-0.5 rounded-full font-black ${
-                t.pago
+                t.paid
                   ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
                   : atrasada
                   ? "bg-rose-100/80 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300"
                   : "bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
               }`}
             >
-              {t.pago ? "Pago" : atrasada ? "Atrasada" : "Pendente"}
+              {paid ? "Pago" : atrasada ? "Atrasada" : "Pendente"}
             </span>
 
             <span className="text-slate-500 dark:text-slate-400 uppercase font-bold">

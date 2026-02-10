@@ -1,5 +1,6 @@
 // src/app/transactions/logic.ts
 import type { Transaction } from "../types";
+const isPaid = (v: any) => v === true || v === 1 || v === "1" || v === "true" || v === "pago";
 
 export const passarFiltroConta = (
   t: Transaction,
@@ -82,42 +83,83 @@ export const formatContaLabelById = (accountId: string, contas: any[]) => {
 };
 
 export const mergeTransfers = (list: Transaction[]) => {
+  const safeList = (Array.isArray(list) ? list : []).filter(Boolean) as any[];
+
+  const normTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
+  const getTid = (x: any) => normTid(x?.transferId ?? x?.transferID ?? x?.transfer_id);
+
   const out: Transaction[] = [];
   const seen = new Set<string>();
 
-  for (const t of list) {
-    const tid = String((t as any).transferId || "");
+  for (const t of safeList) {
+    if (!t) continue;
+
+    const tid = getTid(t);
     if (!tid) {
-      out.push(t);
+      out.push(t as Transaction);
       continue;
     }
+
     if (seen.has(tid)) continue;
     seen.add(tid);
 
-    const group = list.filter((x) => String((x as any).transferId || "") === tid);
+    const group = safeList.filter((x) => x && getTid(x) === tid);
 
-    const saida = group.find((x) => x.tipo === "despesa") ?? group[0];
-    const entrada = group.find((x) => x.tipo === "receita") ?? group[1] ?? group[0];
+        // ✅ se não tiver as DUAS pernas, não mescla
+    const hasDespesa = group.some((x) => String((x as any).tipo) === "despesa");
+    const hasReceita = group.some((x) => String((x as any).tipo) === "receita");
+    if (!hasDespesa || !hasReceita) {
+      out.push(t as Transaction);
+      continue;
+    }
+
+
+    if (group.length < 2) {
+      out.push(...(group as Transaction[]));
+      continue;
+    }
+
+    // escolhe pernas de forma robusta
+    const saida =
+      group.find((x) => Number((x as any).valor) < 0) ??
+      group.find((x) => (x as any).tipo === "despesa") ??
+      group[0];
+
+    const entrada =
+      group.find((x) => Number((x as any).valor) > 0) ??
+      group.find((x) => (x as any).tipo === "receita") ??
+      group[1] ??
+      group[0];
+
+    const abs = Math.abs(Number((saida as any).valor ?? (entrada as any).valor ?? 0)) || 0;
 
     const merged: any = {
       ...saida,
+
       id: `tr_${tid}`,
       tipo: "transferencia" as any,
       categoria: "Transferência",
       transferId: tid,
 
-      contaOrigemId: String((saida as any).contaOrigemId ?? (saida as any).qualCartao ?? ""),
-      contaDestinoId: String((entrada as any).contaDestinoId ?? (entrada as any).qualCartao ?? ""),
+      contaOrigemId: String(
+        (saida as any).contaOrigemId ?? (saida as any).profileId ?? ""
+      ),
+      contaDestinoId: String(
+        (entrada as any).contaDestinoId ?? (entrada as any).profileId ?? ""
+      ),
 
-      // valores “duplos” só pra render premium
-      valor: Math.abs(Number((saida as any).valor ?? (entrada as any).valor ?? 0)),
-      valorSaida: -Math.abs(Number((saida as any).valor ?? 0)),
-      valorEntrada: Math.abs(Number((entrada as any).valor ?? 0)),
+      valor: abs,
+      valorSaida: -abs,
+      valorEntrada: abs,
 
-      // pago da transferência (você pode decidir a regra)
-      pago: Boolean(saida.pago && entrada.pago),
+      // ✅ pago = true só se TODAS as pernas estão pagas
+      
+      pago: group.every((x: any) => isPaid(x?.pago)),
 
-      data: saida.data ?? entrada.data,
+
+      data: (saida as any).data ?? (entrada as any).data,
+
+      _sourceIds: group.map((x: any) => x?.id).filter(Boolean),
     };
 
     out.push(merged as Transaction);
@@ -125,3 +167,6 @@ export const mergeTransfers = (list: Transaction[]) => {
 
   return out;
 };
+
+
+

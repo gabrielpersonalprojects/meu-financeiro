@@ -214,7 +214,11 @@ export default function NewTransactionCard({
 
             <button
               type="button"
-              onClick={() => setFormTipo("transferencia")}
+              onClick={() => {
+  setFormTipo("transferencia");
+  setFormPago(false); // <-- importante: transferência começa como "não pago"
+}}
+
               className={`w-full h-11 rounded-2xl text-sm font-semibold transition-all border backdrop-blur-xl
                 ${
                   formTipo === "transferencia"
@@ -320,8 +324,7 @@ export default function NewTransactionCard({
     Valor (R$)
   </label>
 
-  {formTipo !== "transferencia" && (
-    <label className="flex items-center gap-2 ml-2">
+      <label className="flex items-center gap-2 ml-2">
       <input
         type="checkbox"
         checked={formPago}
@@ -332,7 +335,6 @@ export default function NewTransactionCard({
         Pago
       </span>
     </label>
-  )}
 </div>
 
 

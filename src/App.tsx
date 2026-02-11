@@ -596,19 +596,22 @@ const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
 
 const [ccNome, setCcNome] = useState("");
 const [ccEmissor, setCcEmissor] = useState("");
+const [ccValidade, setCcValidade] = useState("");
 const [ccFechamento, setCcFechamento] = useState("1");
 const [ccVencimento, setCcVencimento] = useState("10");
 const [ccLimite, setCcLimite] = useState("");
-const [ccContaVinculadaId, setCcContaVinculadaId] = useState<string>("");
+const [ccLimiteRaw, setCcLimiteRaw] = useState("");
+const [isEditingLimite, setIsEditingLimite] = useState(false);
 
 type CreditCard = {
   id: string;
   name: string;
   emissor: string;
+  validade?: string;
   diaFechamento: number;
   diaVencimento: number;
   limite: number;
-  contaVinculadaId: string | null;
+  contaVinculadaId?: string | null;
 };
 
 
@@ -643,15 +646,28 @@ useEffect(() => {
   }
 }, [creditCards, selectedCreditCardId]);
 
+const formatBRLFromIntegers = (digits: string) => {
+  const only = (digits || "").replace(/\D/g, "");
+  if (!only) return "";
+  const n = Number(only); // 10000 => dez mil reais
+  return `R$ ${n.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+
 // ===== Cartão de Crédito (Modal) =====
 const resetAddCardModal = () => {
   setCcNome("");
   setCcEmissor("");
+  setCcValidade("");
   setCcFechamento("1");
   setCcVencimento("10");
   setCcLimite("");
-  setCcContaVinculadaId("");
-};
+  setCcLimiteRaw("");
+  setIsEditingLimite(false);
+  };
 
 const openAddCardModal = () => {
   console.log("openAddCardModal", creditCards.length);
@@ -668,9 +684,102 @@ const closeAddCardModal = () => {
   resetAddCardModal();
 };
 
+const clampMonth = (mm: string) => {
+  const n = Number(mm);
+  if (!Number.isFinite(n)) return mm;
+  if (n <= 0) return "01";
+  if (n > 12) return "12";
+  return String(n).padStart(2, "0");
+};
+
+const clampDayOfMonth = (dd: string) => {
+  const n = Number(dd);
+  if (!Number.isFinite(n)) return dd;
+  if (n <= 0) return "1";
+  if (n > 31) return "31";
+  return String(n).padStart(2, "0");
+};
+
+const maskDiaMes = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 2);
+
+  // digitando...
+  if (digits.length === 0) return "";
+  if (digits.length === 1) return digits;
+
+  // com 2 dígitos: clampa 01..31 e já padroniza "02", "10", etc.
+  return clampDayOfMonth(digits);
+};
+
+
+const formatMoedaBRReais = (value: string) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  // mantém só dígitos e vírgula
+  const hasComma = raw.includes(",");
+  const onlyDigits = (s: string) => s.replace(/\D/g, "");
+
+  if (hasComma) {
+    const [left, right = ""] = raw.split(",");
+    const intDigits = onlyDigits(left);
+    const decDigits = onlyDigits(right).slice(0, 2);
+
+    const intNum = intDigits ? Number(intDigits) : 0;
+    const intFmt = String(intNum).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const decFmt = decDigits.padEnd(2, "0");
+
+    return `${intFmt},${decFmt}`;
+  }
+
+  // sem vírgula: interpreta como REAIS inteiros
+  const intDigits = onlyDigits(raw);
+  const intNum = intDigits ? Number(intDigits) : 0;
+  const intFmt = String(intNum).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${intFmt},00`;
+};
+
+const maskValidadeMMYY = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 4);
+
+  // ainda digitando o mês
+  if (digits.length <= 2) {
+    // se digitou 2 dígitos, já ajusta para 01..12
+    if (digits.length === 2) return clampMonth(digits);
+    return digits;
+  }
+
+  const mmRaw = digits.slice(0, 2);
+  const yy = digits.slice(2, 4);
+  const mm = clampMonth(mmRaw);
+  return `${mm}/${yy}`;
+};
+
+const maskMoedaBR = (value: string) => {
+  // pega só dígitos
+  const digits = value.replace(/\D/g, "");
+
+  // vazio -> vazio (pra não forçar 0,00)
+  if (!digits) return "";
+
+  // interpreta como centavos
+  const int = Number(digits);
+  const centavos = int % 100;
+  const reais = Math.floor(int / 100);
+
+  // milhar com ponto
+  const reaisStr = String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const centStr = String(centavos).padStart(2, "0");
+
+  return `${reaisStr},${centStr}`;
+};
+
+
 const handleSaveNewCreditCard = () => {
   const nome = ccNome.trim();
   const emissor = ccEmissor.trim();
+  const validade = ccValidade.trim();
+
 
   if (!nome) return toastCompact("Informe o nome do cartão.", "info");
   if (!emissor) return toastCompact("Informe o banco emissor.", "info");
@@ -685,7 +794,8 @@ const handleSaveNewCreditCard = () => {
   if (!Number.isFinite(vencimento) || vencimento < 1 || vencimento > 31)
     return toastCompact("Dia de vencimento inválido (1 a 31).", "info");
 
-  const limiteNum = Math.max(0, Number(extrairValorMoeda(ccLimite) || 0));
+  const limiteNum = Math.max(0, Number(ccLimiteRaw || "0"));
+
 
   const id = `cc_${Date.now()}`;
 
@@ -693,11 +803,11 @@ const handleSaveNewCreditCard = () => {
     id,
     name: nome,
     emissor,
+    validade,
     diaFechamento: fechamento,
     diaVencimento: vencimento,
     limite: limiteNum,
-    contaVinculadaId: ccContaVinculadaId ? ccContaVinculadaId : null,
-  };
+    };
 
   setCreditCards((prev) => [...prev, card]);
   setSelectedCreditCardId(id);
@@ -853,14 +963,26 @@ useEffect(() => {
     setIsEditingName(false);
   };
 
-  const handleFormatCurrencyInput = (value: string, setter: (v: string) => void) => {
-    const clean = value.replace(/\D/g, "");
-    if (!clean) {
-      setter("");
-      return;
-    }
-    setter((parseInt(clean, 10) / 100).toFixed(2).replace(".", ","));
-  };
+const handleFormatCurrencyInput = (
+  value: string,
+  setValue: (v: string) => void
+) => {
+  const digits = value.replace(/\D/g, "");
+
+  if (!digits) {
+    setValue("");
+    return;
+  }
+
+  const n = Number(digits); // agora "10000" => 10000 reais
+  const formatted = n.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  setValue(`R$ ${formatted}`);
+};
+
 
 // ===== Reset total do app (com confirmação digitada) =====
 const RESET_APP_PHRASE = "REINICIAR";
@@ -1901,89 +2023,146 @@ if (sessionLoading) {
           {/* Nome */}
           <div>
             <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-              Nome do cartão
+              Nome impresso no cartão
             </label>
             <input
               value={ccNome}
               onChange={(e) => setCcNome(e.target.value)}
-              placeholder="Ex.: Nubank"
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
             />
           </div>
 
-          {/* Emissor */}
-          <div>
-            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-              Banco emissor
-            </label>
-            <input
-              value={ccEmissor}
-              onChange={(e) => setCcEmissor(e.target.value)}
-              placeholder="Ex.: Nubank, Itaú, Inter..."
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-            />
-          </div>
+{/* Emissor / Validade */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+  <div>
+    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+      Banco emissor
+    </label>
+    <input
+      value={ccEmissor}
+      onChange={(e) => setCcEmissor(e.target.value)}
+      placeholder="Ex.: Nubank, Itaú, Inter..."
+      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+    />
+  </div>
 
-          {/* Fechamento / Vencimento */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                Dia de fechamento
-              </label>
-<input
-  type="number"
-  min={1}
-  max={31}
-  value={ccFechamento}
-  onChange={(e) => setCcFechamento(e.target.value)}
+  <div>
+    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+      Validade
+    </label>
+    <input
+      value={ccValidade}
+      onChange={(e) => setCcValidade(maskValidadeMMYY(e.target.value))}
+      placeholder="00/00"
+      inputMode="numeric"
+      maxLength={5}
+      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+    />
+  </div>
+</div>
+
+
+{/* Fechamento / Vencimento */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+  <div>
+    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+      Dia de fechamento
+    </label>
+    <input
+      type="text"
+      value={ccFechamento}
+      onChange={(e) => setCcFechamento(maskDiaMes(e.target.value))}
+      onBlur={() => ccFechamento && setCcFechamento(maskDiaMes(ccFechamento))}
+      inputMode="numeric"
+      maxLength={2}
+      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+    />
+  </div>
+
+  <div>
+    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+      Dia de vencimento
+    </label>
+    <input
+      type="text"
+      value={ccVencimento}
+      onChange={(e) => setCcVencimento(maskDiaMes(e.target.value))}
+      onBlur={() => ccVencimento && setCcVencimento(maskDiaMes(ccVencimento))}
+      inputMode="numeric"
+      maxLength={2}
+      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+    />
+  </div>
+</div>
+
+
+
+{/* Limite */}
+<div>
+  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+    Limite do cartão
+  </label>
+
+  <input
+  type="text"
+  inputMode="numeric"
+  value={ccLimiteRaw ? formatBRLFromIntegers(ccLimiteRaw) : ""}
+  placeholder="R$ 0,00"
+  onFocus={(e) => {
+    // deixa o cursor sempre no final (evita edits no meio do texto formatado)
+    const el = e.target as HTMLInputElement;
+    requestAnimationFrame(() => {
+      const len = el.value.length;
+      el.setSelectionRange(len, len);
+    });
+  }}
+  onKeyDown={(e) => {
+    const key = e.key;
+
+    // permite atalhos/teclas úteis
+    if (e.ctrlKey || e.metaKey || key === "Tab" || key === "ArrowLeft" || key === "ArrowRight") {
+      return;
+    }
+
+    // backspace: remove 1 dígito do RAW (sem pulo)
+    if (key === "Backspace") {
+      e.preventDefault();
+      setCcLimiteRaw((prev) => prev.slice(0, -1));
+      return;
+    }
+
+    // delete: limpa tudo
+    if (key === "Delete") {
+      e.preventDefault();
+      setCcLimiteRaw("");
+      return;
+    }
+
+    // só aceita número
+    if (/^\d$/.test(key)) {
+      e.preventDefault();
+      setCcLimiteRaw((prev) => {
+        const next = (prev + key).replace(/\D/g, "").slice(0, 12); // limite de dígitos
+        return next;
+      });
+      return;
+    }
+
+    // bloqueia qualquer outra tecla (vírgula, ponto, letras)
+    e.preventDefault();
+  }}
+  onPaste={(e) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData("text");
+    const digits = (text || "").replace(/\D/g, "").slice(0, 12);
+    setCcLimiteRaw(digits);
+  }}
   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
 />
 
-<input
-  type="number"
-  min={1}
-  max={31}
-  value={ccVencimento}
-  onChange={(e) => setCcVencimento(e.target.value)}
-  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-/>
+</div>
 
-            </div>
-          </div>
 
-          {/* Limite */}
-          <div>
-            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-              Limite do cartão
-            </label>
-            <input
-              type="text"
-              value={ccLimite}
-              onChange={(e) => handleFormatCurrencyInput(e.target.value, setCcLimite)}
-              placeholder="0,00"
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-            />
-          </div>
-
-          {/* Vincular conta */}
-          <div>
-            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-              Vincular a uma conta (opcional)
-            </label>
-
-            <select
-              value={ccContaVinculadaId}
-              onChange={(e) => setCcContaVinculadaId(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-            >
-              <option value="">Nenhuma</option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* ações */}

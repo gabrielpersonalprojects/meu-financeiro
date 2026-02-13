@@ -5,3 +5,5 @@ dist
 .vscode
 src/App_hoje_backup.tsx
 src/App_hoje_ruim.tsx
+.env.local
+.env.*

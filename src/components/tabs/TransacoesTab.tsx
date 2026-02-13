@@ -43,6 +43,7 @@ type Props = {
   profiles: any[];
   renderContaOptionLabel: (p: any) => ReactNode;
 
+
   mostrarReceitasResumo: boolean;
   mostrarDespesasResumo: boolean;
   totalFiltradoReceitas: number;

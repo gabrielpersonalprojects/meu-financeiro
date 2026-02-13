@@ -27,7 +27,6 @@ import { getContaBadge, getContaLabel } from "./domain";
 import { toastCompact, type ToastKind } from "./services/toast";
 import { getHojeLocal } from "./domain/date";
 import { AppHeader } from "./components/AppHeader";
-import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import NewTransactionCard from "./components/NewTransactionCard";
 import GastosTab from "./components/tabs/GastosTab";
 import ProjecaoTab from "./components/tabs/ProjecaoTab";
@@ -42,6 +41,11 @@ import { useProjection12Months } from "./app/transactions/useProjection12Months"
 import { togglePagoById, applyEditToTransactions } from "./app/transactions/useTransactionActions";
 import CustomDropdown from "./components/CustomDropdown";
 import { useCallback } from "react";
+import { CreditDashboard } from "./app/credit/CreditDashboard";
+import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
+
+
+
 
 
 import { asId } from "./utils/asId";
@@ -199,6 +203,7 @@ const [accLimiteCC, setAccLimiteCC] = useState("");
 const [accFechamentoCC, setAccFechamentoCC] = useState<number>(1);
 const [accVencimentoCC, setAccVencimentoCC] = useState<number>(10);
 const [accSaldoInicial, setAccSaldoInicial] = useState("");
+const [modoCentro, setModoCentro] = useState<"normal" | "credito">("normal");
 const hojeStr = getHojeLocal();
 
 
@@ -592,6 +597,23 @@ const saveTransacoesByProfile = (pid: string, list: Transaction[]) => {
 const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
 const [selectedCreditCardId, setSelectedCreditCardId] = useState<string>("");
 
+const [isCcExpanded, setIsCcExpanded] = useState(false);
+const toggleCcExpanded = () => setIsCcExpanded((v) => !v);
+
+const toggleCcDetails = (id: string) => {
+  setIsCcExpanded((open) => {
+    const same = selectedCreditCardId === id;
+    // se clicar no mesmo cartão: alterna abre/fecha
+    // se clicar em outro cartão: abre
+    return same ? !open : true;
+  });
+  setSelectedCreditCardId(id);
+};
+
+const closeCcDetails = () => setIsCcExpanded(false);
+
+const selectedCard = creditCards.find((c) => c.id === selectedCreditCardId) ?? null;
+
 const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
 
 const [ccNome, setCcNome] = useState("");
@@ -602,6 +624,8 @@ const [ccVencimento, setCcVencimento] = useState("10");
 const [ccLimite, setCcLimite] = useState("");
 const [ccLimiteRaw, setCcLimiteRaw] = useState("");
 const [isEditingLimite, setIsEditingLimite] = useState(false);
+const [ccPerfil, setCcPerfil] = useState<"pf" | "pj">("pf");
+
 
 type CreditCard = {
   id: string;
@@ -612,7 +636,11 @@ type CreditCard = {
   diaVencimento: number;
   limite: number;
   contaVinculadaId?: string | null;
+
+  // novo:
+  perfil: "pf" | "pj";
 };
+
 
 
 const CREDIT_CARDS_LS_KEY = "CREDIT_CARDS_V1";
@@ -626,8 +654,17 @@ useEffect(() => {
   try {
     const raw = localStorage.getItem(CREDIT_CARDS_LS_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as CreditCard[];
-      if (Array.isArray(parsed)) setCreditCards(parsed);
+const parsed = JSON.parse(raw) as any[];
+
+if (Array.isArray(parsed)) {
+  const normalized = parsed.map((c) => ({
+    ...c,
+    perfil: c?.perfil === "pj" ? "pj" : "pf",
+  })) as CreditCard[];
+
+  setCreditCards(normalized);
+}
+
     }
   } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -667,6 +704,7 @@ const resetAddCardModal = () => {
   setCcLimite("");
   setCcLimiteRaw("");
   setIsEditingLimite(false);
+  setCcPerfil("pf");
   };
 
 const openAddCardModal = () => {
@@ -807,10 +845,12 @@ const handleSaveNewCreditCard = () => {
     diaFechamento: fechamento,
     diaVencimento: vencimento,
     limite: limiteNum,
+    perfil: ccPerfil,
     };
 
   setCreditCards((prev) => [...prev, card]);
   setSelectedCreditCardId(id);
+  setIsCcExpanded(false);
 
   closeAddCardModal();
   toastCompact("Cartão cadastrado.", "success");
@@ -951,6 +991,31 @@ useEffect(() => {
   }, [transacoes, categorias, metodosPagamento, userName, activeProfileId, isClearing]);
 
   // --- Helpers ---
+
+  const digitsOnly = (s: string) => (s ?? "").replace(/\D/g, "");
+
+// Aceita number (reais), string "R$ 1.234,56", "123456", etc.
+// e devolve SEMPRE "centavos em dígitos" (ex.: 123456 => R$ 1.234,56)
+const centsDigitsFromAny = (v: any) => {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return String(Math.round(v * 100));
+  }
+  return digitsOnly(String(v));
+};
+
+const formatBRLFromCentsDigits = (digits: string) => {
+  const cents = Number(digitsOnly(digits) || "0");
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+};
+
+const numberFromCentsDigits = (digits: string) => {
+  const cents = Number(digitsOnly(digits) || "0");
+  return cents / 100;
+};
 
 
    const handleSwitchProfile = (id: string) => {
@@ -1265,7 +1330,7 @@ const categoriasFiltradasTransacoes = useMemo(() => {
 
 const handleEditClick = (t: Transaction) => {
   setEditingTransaction(t);
-  setEditValueInput(Math.abs(Number(t.valor) || 0).toFixed(2).replace(".", ","));
+  setEditValueInput(centsDigitsFromAny(t.valor));
   setEditDescInput(t.descricao);
   setApplyToAllRelated(false);
 };
@@ -1763,9 +1828,19 @@ if (sessionLoading) {
   ? profiles.find((p) => p.id === activeProfileId)
   : undefined;
 
+  const selectedCc =
+  creditCards.find((c) => c.id === selectedCreditCardId) ??
+  creditCards[0] ??
+  null;
+
+const selectedCcCard =
+  creditCards.find((c) => c.id === selectedCreditCardId) ?? null;
+
 
  return (
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+   ...
+
     <Toaster
   position="bottom-center"
   containerStyle={{ zIndex: 999999, bottom: 18 }}
@@ -1779,417 +1854,614 @@ if (sessionLoading) {
   settingsIcon={<SettingsIcon />}
 />
 
+    {/* --- DEBUG: CreditDashboard (REMOVER DEPOIS) --- */}
+    <main className="container mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-5">
+      {/* COLUNA ESQUERDA */}
+      <div className="lg:col-span-4 space-y-6">
+        {/* Card Novo lançamento */}
+        <NewTransactionCard
+          formTipo={formTipo}
+          setFormTipo={setFormTipo}
+          creditCards={creditCards}
+          selectedCreditCardId={selectedCreditCardId}
+          setSelectedCreditCardId={setSelectedCreditCardId}
+          openAddCardModal={openAddCardModal}
+          ccIsParceladoMode={ccIsParceladoMode}
+          setCcIsParceladoMode={setCcIsParceladoMode}
+          isParceladoMode={isParceladoMode}
+          setIsParceladoMode={setIsParceladoMode}
+          formParcelas={formParcelas}
+          setFormParcelas={setFormParcelas}
+          formTipoGasto={formTipoGasto}
+          setFormTipoGasto={setFormTipoGasto}
+          formDesc={formDesc}
+          setFormDesc={setFormDesc}
+          formValor={formValor}
+          setFormValor={setFormValor}
+          formData={formData}
+          setFormData={setFormData}
+          formPago={formPago}
+          setFormPago={setFormPago}
+          handleFormatCurrencyInput={handleFormatCurrencyInput}
+          categorias={categorias}
+          formCat={formCat}
+          setFormCat={setFormCat}
+          removerCategoria={removerCategoria}
+          onOpenCategoriaModal={() => setShowModalCategoria(true)}
+          formMetodo={formMetodo}
+          setFormMetodo={setFormMetodo}
+          profiles={profiles}
+          formQualCartao={formQualCartao}
+          setFormQualCartao={setFormQualCartao}
+          handleDeleteAccount={handleDeleteAccount}
+          tiposConta={TIPOS_CONTA}
+          setEditingProfileId={setEditingProfileId}
+          setAccBanco={setAccBanco}
+          setAccNumeroConta={setAccNumeroConta}
+          setAccNumeroAgencia={setAccNumeroAgencia}
+          setAccPerfilConta={setAccPerfilConta}
+          setAccTipoConta={setAccTipoConta}
+          setAccSaldoInicial={setAccSaldoInicial}
+          setAccPossuiCC={setAccPossuiCC}
+          setAccLimiteCC={setAccLimiteCC}
+          setAccFechamentoCC={setAccFechamentoCC}
+          setAccVencimentoCC={setAccVencimentoCC}
+          setIsAddAccountOpen={setIsAddAccountOpen}
+          formContaOrigem={formContaOrigem}
+          formContaDestino={formContaDestino}
+          inverterContas={inverterContas}
+          setAccountPickerOpen={setAccountPickerOpen}
+          prazoMode={prazoMode}
+          setPrazoMode={setPrazoMode}
+          formDataTerminoFixa={formDataTerminoFixa}
+          setFormDataTerminoFixa={setFormDataTerminoFixa}
+          SEM_PRAZO_MESES={SEM_PRAZO_MESES}
+          handleAddTransaction={handleAddTransaction}
+          setModoCentro={setModoCentro}
+        />
+      </div>
 
-      <main className="container mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-  {/* COLUNA ESQUERDA */}
-  <div className="lg:col-span-4 space-y-6">
-   
-    {/* Card Novo lançamento */}
+      {/* COLUNA DIREITA */}
+      <div
+  className={`lg:col-span-8 space-y-6 ${
+    modoCentro === "credito" ? "lg:-ml-2" : ""
+  }`}
+>
+  {modoCentro === "credito" ? (
+  <div className="space-y-4">
+    {/* ===== LISTA (não expandido) ===== */}
+    {!isCcExpanded ? (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* cartões cadastrados */}
+        {creditCards.map((c) => {
+          const isSelected = c.id === selectedCreditCardId;
 
+          return (
+            <button
+              key={c.id}
+              type="button"
+onClick={() => {
+  // clicou no mesmo cartão -> alterna abrir/fechar
+  if (c.id === selectedCreditCardId) {
+    toggleCcExpanded();
+    return;
+  }
 
-          {/* Card Novo lançamento */}
-          <NewTransactionCard
-  formTipo={formTipo}
-  setFormTipo={setFormTipo}
-  creditCards={creditCards}
-  selectedCreditCardId={selectedCreditCardId}
-  setSelectedCreditCardId={setSelectedCreditCardId}
-  openAddCardModal={openAddCardModal}
-  ccIsParceladoMode={ccIsParceladoMode}
-  setCcIsParceladoMode={setCcIsParceladoMode}
-  isParceladoMode={isParceladoMode}
-  setIsParceladoMode={setIsParceladoMode}
-  formParcelas={formParcelas}
-  setFormParcelas={setFormParcelas}
-  formTipoGasto={formTipoGasto}
-  setFormTipoGasto={setFormTipoGasto}
-  formDesc={formDesc}
-  setFormDesc={setFormDesc}
-  formValor={formValor}
-  setFormValor={setFormValor}
-  formData={formData}
-  setFormData={setFormData}
-  formPago={formPago}
-  setFormPago={setFormPago}
-  handleFormatCurrencyInput={handleFormatCurrencyInput}
-  categorias={categorias}
-  formCat={formCat}
-  setFormCat={setFormCat}
-  removerCategoria={removerCategoria}
-  onOpenCategoriaModal={() => setShowModalCategoria(true)}
-  formMetodo={formMetodo}
-  setFormMetodo={setFormMetodo}
-  profiles={profiles}
-  formQualCartao={formQualCartao}
-  setFormQualCartao={setFormQualCartao}
-  handleDeleteAccount={handleDeleteAccount}
-  tiposConta={TIPOS_CONTA}
-  setEditingProfileId={setEditingProfileId}
-  setAccBanco={setAccBanco}
-  setAccNumeroConta={setAccNumeroConta}
-  setAccNumeroAgencia={setAccNumeroAgencia}
-  setAccPerfilConta={setAccPerfilConta}
-  setAccTipoConta={setAccTipoConta}
-  setAccSaldoInicial={setAccSaldoInicial}
-  setAccPossuiCC={setAccPossuiCC}
-  setAccLimiteCC={setAccLimiteCC}
-  setAccFechamentoCC={setAccFechamentoCC}
-  setAccVencimentoCC={setAccVencimentoCC}
-  setIsAddAccountOpen={setIsAddAccountOpen}
-  formContaOrigem={formContaOrigem}
-  formContaDestino={formContaDestino}
-  inverterContas={inverterContas}
-  setAccountPickerOpen={setAccountPickerOpen}
-  prazoMode={prazoMode}
-  setPrazoMode={setPrazoMode}
-  formDataTerminoFixa={formDataTerminoFixa}
-  setFormDataTerminoFixa={setFormDataTerminoFixa}
-  SEM_PRAZO_MESES={SEM_PRAZO_MESES}
-  handleAddTransaction={handleAddTransaction}
-/>
+  // clicou em outro cartão -> seleciona e abre (não fecha)
+  setSelectedCreditCardId(c.id);
+  setIsCcExpanded(true);
+}}
 
-        </div>
+              className={[
+                "text-left rounded-2xl p-5 shadow-sm border transition-all",
+                "bg-white/5 border-slate-200/10 hover:border-slate-200/20 hover:bg-white/7",
+                isSelected ? "ring-1 ring-purple-500/40" : "",
+              ].join(" ")}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-slate-200 font-semibold">{c.emissor || "Banco"}</p>
+                  <p className="text-slate-400 text-sm">{c.name || "Cartão"}</p>
+                </div>
 
-        {/* COLUNA DIREITA */}
-        <div className="lg:col-span-8 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Saldo */}
-            <div className="relative overflow-hidden rounded-2xl p-8 shadow-xl flex flex-col justify-center min-h-[160px] text-white bg-gradient-to-r from-[#220055] to-[#5A00D8] shadow-[0_18px_50px_-35px_rgba(70,0,172,0.9)]">
-              <div className="pointer-events-none absolute inset-0 bg-black/45" />
-              <div className="absolute inset-0 bg-black/20 backdrop-blur-xl" />
-              <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/12 blur-3xl" />
-
-              <div className="relative">
-                <p className="text-[10px] font-black text-white/80 uppercase tracking-[0.25em] mb-4">
-                  Saldo Disponível
-                </p>
-                <p className="text-4xl font-black text-white tracking-tight">
-  {formatarMoeda(stats.saldoTotal)}
-</p>
+                <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-slate-200 border border-slate-200/10">
+                  {c.perfil?.toUpperCase?.() ?? "PF"}
+                </span>
               </div>
-            </div>
 
-            {/* Entradas */}
-            <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px] transition-colors">
-              <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
-              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
-                Entradas (Mês)
-              </p>
-             <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-  {formatarMoeda(stats.receitasMes)}
-</p>
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
-                Pendente:{" "}
-                <span className="text-emerald-600 dark:text-emerald-400">
-                  {formatarMoeda(stats.pendenteReceita)}
-                </span>
-              </p>
-            </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-xl p-3 bg-black/20 border border-slate-200/10">
+                  <p className="text-[11px] text-slate-400 uppercase">Fechamento</p>
+                  <p className="text-slate-100 font-semibold">{String(c.diaFechamento).padStart(2, "0")}</p>
+                </div>
+                <div className="rounded-xl p-3 bg-black/20 border border-slate-200/10">
+                  <p className="text-[11px] text-slate-400 uppercase">Vencimento</p>
+                  <p className="text-slate-100 font-semibold">{String(c.diaVencimento).padStart(2, "0")}</p>
+                </div>
+              </div>
+            </button>
+          );
+        })}
 
-            {/* Saídas */}
-            <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px] transition-colors">
-              <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-rose-500/10 blur-3xl" />
-              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
-                Saídas (Mês)
-              </p>
-             <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-  {formatarMoeda(stats.despesasMes)}
-</p>
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
-                Pendente:{" "}
-                <span className="text-rose-600 dark:text-rose-400">
-                  {formatarMoeda(stats.pendenteDespesa)}
-                </span>
-              </p>
-            </div>
+        {/* card "novo cartão" */}
+        {!isCcExpanded && (
+        <button
+          type="button"
+onClick={() => {
+  openAddCardModal();
+  setIsCcExpanded(false);
+}}
+
+          className={[
+            "rounded-2xl p-5 shadow-sm border transition-all flex flex-col items-center justify-center gap-3",
+            "bg-white/5 border-slate-200/10 hover:border-slate-200/20 hover:bg-white/7",
+            "min-h-[160px]",
+          ].join(" ")}
+        >
+          <div className="w-12 h-12 rounded-full border border-slate-200/20 flex items-center justify-center text-slate-100">
+            +
           </div>
+          <p className="text-slate-200 font-semibold">Novo cartão</p>
+          <p className="text-slate-400 text-sm">Adicionar cartão de crédito</p>
+        </button>
+        )}
+      </div>
+    ) : (
+      /* ===== DETALHES (expandido) ===== */
+      <div className="space-y-4">
+        {/* cartão selecionado (clicável pra recolher) */}
+        {(() => {
+          const selected =
+            creditCards.find((c) => c.id === selectedCreditCardId) ?? creditCards[0];
 
-          {/* Tabs */}
-          <div className="px-0 pt-2 pb-0">
-            <div className="grid grid-cols-3 gap-4">
-              {(["transacoes", "gastos", "projecao"] as TabType[]).map((tab) => (
+          if (!selected) {
+            // sem cartão ainda: volta pra lista e sugere criar
+            return (
+              <div className="rounded-2xl p-5 border border-slate-200/10 bg-white/5">
+                <p className="text-slate-200 font-semibold">Nenhum cartão cadastrado</p>
+                <p className="text-slate-400 text-sm mt-1">
+                  Adicione um cartão para ver os detalhes.
+                </p>
                 <button
-                  key={tab}
                   type="button"
-                  onClick={() => setActiveTab(tab)}
-                  className={`h-14 px-5 rounded-2xl transition-all whitespace-nowrap
-                    ${activeTab === tab
-                      ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"
-                      : "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                    }`}
+                  onClick={openAddCardModal}
+                  className="mt-4 px-4 py-2 rounded-xl bg-purple-600/80 hover:bg-purple-600 text-white font-semibold"
                 >
-                  {tab === "transacoes" ? "Transações" : tab === "gastos" ? "Análise" : "Projeção"}
+                  Adicionar cartão
                 </button>
-              ))}
-            </div>
-          </div>
+              </div>
+            );
+          }
 
-          {/* Conteúdo */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 min-h-[550px] transition-colors">
-            {/* TRANSACOES */}
-            {activeTab === "transacoes" && (
-              <TransacoesTab
-  filtroMes={filtroMesTransacoes}
-  setFiltroMes={setFiltroMesTransacoes}
-  filtroLancamento={filtroLancamento}
-  setFiltroLancamento={setFiltroLancamento}
-  filtroConta={filtroConta}
-  setFiltroConta={setFiltroConta}
-  filtroCategoria={filtroCategoria}
-  setFiltroCategoria={setFiltroCategoria}
-  categoriasFiltradasTransacoes={categoriasFiltradasTransacoes}
-  filtroMetodo={filtroMetodo}
-  setFiltroMetodo={setFiltroMetodo}
-  metodosCredito={metodosPagamento.credito}
-  filtroTipoGasto={filtroTipoGasto}
-  setFiltroTipoGasto={setFiltroTipoGasto}
-  handleLimparFiltros={handleLimparFiltros}
-  profiles={profiles}
-  renderContaOptionLabel={renderContaOptionLabel}
-  mostrarReceitasResumo={mostrarReceitasResumo}
-  mostrarDespesasResumo={mostrarDespesasResumo}
-  totalFiltradoReceitas={totalFiltradoReceitas}
-  totalFiltradoDespesas={totalFiltradoDespesas}
-  anoRef={anoRef}
-  totalAnualReceitas={totalAnualReceitas}
-  totalAnualDespesas={totalAnualDespesas}
-  itemsFiltrados={getFilteredTransactions}
-  transactions={transactions}
-  hojeStr={hojeStr}
-  togglePago={togglePago}
-  handleEditClick={handleEditClick}
-  confirmDelete={confirmDelete}
-/>
+          return (
+            <button
+              type="button"
+              onClick={toggleCcExpanded} // fecha detalhes
+              className="w-full text-left rounded-2xl p-5 shadow-sm border transition-all bg-white/5 border-slate-200/10 hover:border-slate-200/20 hover:bg-white/7"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-slate-200 font-semibold">{selected.emissor || "Banco"}</p>
+                  <p className="text-slate-400 text-sm">{selected.name || "Cartão"}</p>
+                </div>
+                <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-slate-200 border border-slate-200/10">
+                  {selected.perfil?.toUpperCase?.() ?? "PF"}
+                </span>
+              </div>
+              <p className="text-slate-400 text-xs mt-3">Clique para recolher os detalhes</p>
+            </button>
+          );
+        })()}
 
-            )}
+{/* DETALHES (renderiza só quando estiver expandido e com cartão selecionado) */}
+{isCcExpanded && selectedCcCard ? (
+  <CreditDashboard
+    cartao={{
+      id: selectedCcCard.id ?? "",
+      nome: selectedCcCard.name ?? "",
+      titular: "Fulano da Silva",
+      limiteTotal: selectedCcCard.limite ?? 0,
+      diaFechamento: selectedCcCard.diaFechamento ?? 10,
+      diaVencimento: selectedCcCard.diaVencimento ?? 10,
+      bankText: "nu",
+      brand: "Mastercard",
+      last4: "1234",
+      gradientFrom: "#220055",
+      gradientTo: "#4600ac",
+    }}
+transacoes={
+  transacoes
+    .filter((t) => t.qualCartao === (selectedCcCard.name ?? ""))
+    .map((t) => ({
+      ...t,
+      id: String(t.id),
+      tipo: t.tipo === "cartao_credito" ? "despesa" : t.tipo,
+    }))
+}
 
-
-            {/* GASTOS */}
-            {activeTab === "gastos" && (
-<GastosTab
-  spendingByCategoryData={spendingByCategoryData}
-  filtroMes={filtroMesAnalise}
-  setFiltroMes={setFiltroMesAnalise}
-  isDarkMode={isDarkMode}
-/>
-
-            )}
+ />
+) : null}
 
 
-            {/* PROJECAO */}
+      </div>
+    )}
+  </div>
+) : (
+  <></>
+)}
 
-            {activeTab === "projecao" && (
+          <>
+{modoCentro !== "credito" && (
   <>
-<ProjecaoTab
-  projection12Months={projection12Months}
-  projectionMode={projectionMode}
-  setProjectionMode={setProjectionMode}
-  saldoInicial={saldoInicialProjecao}
-/>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Saldo */}
+      <div className="relative overflow-hidden rounded-2xl p-8 shadow-xl flex flex-col justify-center min-h-[160px] text-white bg-gradient-to-r from-[#220055] to-[#5A00D8] shadow-[0_18px_50px_-35px_rgba(70,0,172,0.9)]">
+        <div className="pointer-events-none absolute inset-0 bg-black/45" />
+        <div className="absolute inset-0 bg-black/20 backdrop-blur-xl" />
+        <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/12 blur-3xl" />
+
+        <div className="relative">
+          <p className="text-[10px] font-black text-white/80 uppercase tracking-[0.25em] mb-4">
+            Saldo Disponível
+          </p>
+          <p className="text-4xl font-black text-white tracking-tight">
+            {formatarMoeda(stats.saldoTotal)}
+          </p>
+        </div>
+      </div>
+
+      {/* Entradas */}
+      <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px] transition-colors">
+        <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
+        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
+          Entradas (Mês)
+        </p>
+        <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+          {formatarMoeda(stats.receitasMes)}
+        </p>
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
+          Pendente:{" "}
+          <span className="text-emerald-600 dark:text-emerald-400">
+            {formatarMoeda(stats.pendenteReceita)}
+          </span>
+        </p>
+      </div>
+
+      {/* Saídas */}
+      <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px] transition-colors">
+        <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-rose-500/10 blur-3xl" />
+        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
+          Saídas (Mês)
+        </p>
+        <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+          {formatarMoeda(stats.despesasMes)}
+        </p>
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
+          Pendente:{" "}
+          <span className="text-rose-600 dark:text-rose-400">
+            {formatarMoeda(stats.pendenteDespesa)}
+          </span>
+        </p>
+      </div>
+    </div>
+
+    {/* Tabs */}
+    <div className="px-0 pt-2 pb-0">
+      <div className="grid grid-cols-3 gap-4">
+        {(["transacoes", "gastos", "projecao"] as TabType[]).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`h-14 px-5 rounded-2xl transition-all whitespace-nowrap
+              ${
+                activeTab === tab
+                  ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"
+                  : "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              }`}
+          >
+            {tab === "transacoes"
+              ? "Transações"
+              : tab === "gastos"
+              ? "Análise"
+              : "Projeção"}
+          </button>
+        ))}
+      </div>
+    </div>
   </>
 )}
 
-         </div>
-        </div>
 
-{isAddCardModalOpen && (
-  <div className="fixed inset-0 z-[95]">
-    {/* backdrop */}
-    <button
-      type="button"
-      className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-      onClick={closeAddCardModal}
-      aria-label="Fechar modal"
-    />
+{/* Conteúdo */}
+{modoCentro !== "credito" && (
+  <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 min-h-[550px] transition-colors">
+    {/* TRANSACOES */}
+    {activeTab === "transacoes" && (
+      <TransacoesTab
+        filtroMes={filtroMesTransacoes}
+        setFiltroMes={setFiltroMesTransacoes}
+        filtroLancamento={filtroLancamento}
+        setFiltroLancamento={setFiltroLancamento}
+        filtroConta={filtroConta}
+        setFiltroConta={setFiltroConta}
+        filtroCategoria={filtroCategoria}
+        setFiltroCategoria={setFiltroCategoria}
+        categoriasFiltradasTransacoes={categoriasFiltradasTransacoes}
+        filtroMetodo={filtroMetodo}
+        setFiltroMetodo={setFiltroMetodo}
+        metodosCredito={metodosPagamento.credito}
+        filtroTipoGasto={filtroTipoGasto}
+        setFiltroTipoGasto={setFiltroTipoGasto}
+        handleLimparFiltros={handleLimparFiltros}
+        profiles={profiles}
+        renderContaOptionLabel={renderContaOptionLabel}
+        mostrarReceitasResumo={mostrarReceitasResumo}
+        mostrarDespesasResumo={mostrarDespesasResumo}
+        totalFiltradoReceitas={totalFiltradoReceitas}
+        totalFiltradoDespesas={totalFiltradoDespesas}
+        anoRef={anoRef}
+        totalAnualReceitas={totalAnualReceitas}
+        totalAnualDespesas={totalAnualDespesas}
+        itemsFiltrados={getFilteredTransactions}
+        transactions={transacoes}
+        hojeStr={hojeStr}
+        togglePago={togglePago}
+        handleEditClick={handleEditClick}
+        confirmDelete={confirmDelete}
+      />
+    )}
 
-    {/* modal */}
-    <div className="absolute inset-0 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/90 shadow-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-black text-slate-900 dark:text-white">
-            Novo cartão de crédito
-          </h3>
+    {/* GASTOS */}
+    {activeTab === "gastos" && (
+      <GastosTab
+        spendingByCategoryData={spendingByCategoryData}
+        filtroMes={filtroMesAnalise}
+        setFiltroMes={setFiltroMesAnalise}
+        isDarkMode={isDarkMode}
+      />
+    )}
 
-          <button
-            type="button"
-            onClick={closeAddCardModal}
-            className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-          >
-            Fechar
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {/* Nome */}
-          <div>
-            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-              Nome impresso no cartão
-            </label>
-            <input
-              value={ccNome}
-              onChange={(e) => setCcNome(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-            />
-          </div>
-
-{/* Emissor / Validade */}
-<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-  <div>
-    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-      Banco emissor
-    </label>
-    <input
-      value={ccEmissor}
-      onChange={(e) => setCcEmissor(e.target.value)}
-      placeholder="Ex.: Nubank, Itaú, Inter..."
-      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-    />
-  </div>
-
-  <div>
-    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-      Validade
-    </label>
-    <input
-      value={ccValidade}
-      onChange={(e) => setCcValidade(maskValidadeMMYY(e.target.value))}
-      placeholder="00/00"
-      inputMode="numeric"
-      maxLength={5}
-      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-    />
-  </div>
-</div>
-
-
-{/* Fechamento / Vencimento */}
-<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-  <div>
-    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-      Dia de fechamento
-    </label>
-    <input
-      type="text"
-      value={ccFechamento}
-      onChange={(e) => setCcFechamento(maskDiaMes(e.target.value))}
-      onBlur={() => ccFechamento && setCcFechamento(maskDiaMes(ccFechamento))}
-      inputMode="numeric"
-      maxLength={2}
-      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-    />
-  </div>
-
-  <div>
-    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-      Dia de vencimento
-    </label>
-    <input
-      type="text"
-      value={ccVencimento}
-      onChange={(e) => setCcVencimento(maskDiaMes(e.target.value))}
-      onBlur={() => ccVencimento && setCcVencimento(maskDiaMes(ccVencimento))}
-      inputMode="numeric"
-      maxLength={2}
-      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-    />
-  </div>
-</div>
-
-
-
-{/* Limite */}
-<div>
-  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-    Limite do cartão
-  </label>
-
-  <input
-  type="text"
-  inputMode="numeric"
-  value={ccLimiteRaw ? formatBRLFromIntegers(ccLimiteRaw) : ""}
-  placeholder="R$ 0,00"
-  onFocus={(e) => {
-    // deixa o cursor sempre no final (evita edits no meio do texto formatado)
-    const el = e.target as HTMLInputElement;
-    requestAnimationFrame(() => {
-      const len = el.value.length;
-      el.setSelectionRange(len, len);
-    });
-  }}
-  onKeyDown={(e) => {
-    const key = e.key;
-
-    // permite atalhos/teclas úteis
-    if (e.ctrlKey || e.metaKey || key === "Tab" || key === "ArrowLeft" || key === "ArrowRight") {
-      return;
-    }
-
-    // backspace: remove 1 dígito do RAW (sem pulo)
-    if (key === "Backspace") {
-      e.preventDefault();
-      setCcLimiteRaw((prev) => prev.slice(0, -1));
-      return;
-    }
-
-    // delete: limpa tudo
-    if (key === "Delete") {
-      e.preventDefault();
-      setCcLimiteRaw("");
-      return;
-    }
-
-    // só aceita número
-    if (/^\d$/.test(key)) {
-      e.preventDefault();
-      setCcLimiteRaw((prev) => {
-        const next = (prev + key).replace(/\D/g, "").slice(0, 12); // limite de dígitos
-        return next;
-      });
-      return;
-    }
-
-    // bloqueia qualquer outra tecla (vírgula, ponto, letras)
-    e.preventDefault();
-  }}
-  onPaste={(e) => {
-    e.preventDefault();
-    const text = e.clipboardData.getData("text");
-    const digits = (text || "").replace(/\D/g, "").slice(0, 12);
-    setCcLimiteRaw(digits);
-  }}
-  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-/>
-
-</div>
-
-
-        </div>
-
-        {/* ações */}
-        <div className="mt-5 flex gap-2 justify-end">
-          <button
-            type="button"
-            onClick={closeAddCardModal}
-            className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm font-bold"
-          >
-            Cancelar
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSaveNewCreditCard}
-            className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold"
-          >
-            Salvar
-          </button>
-        </div>
-      </div>
-    </div>
+    {/* PROJECAO */}
+    {activeTab === "projecao" && (
+      <ProjecaoTab
+        projection12Months={projection12Months}
+        projectionMode={projectionMode}
+        setProjectionMode={setProjectionMode}
+        saldoInicial={saldoInicialProjecao}
+      />
+    )}
   </div>
 )}
 
+          </>
+        </div>
 
-      </main>
+      {isAddCardModalOpen && (
+        <div className="fixed inset-0 z-[95]">
+          {/* backdrop */}
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            onClick={closeAddCardModal}
+            aria-label="Fechar modal"
+          />
+
+          {/* modal */}
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-lg rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/90 shadow-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                  Novo cartão de crédito
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={closeAddCardModal}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {/* Nome */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                    Nome impresso no cartão
+                  </label>
+                  <input
+                    value={ccNome}
+                    onChange={(e) => setCcNome(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+                  />
+                </div>
+
+                {/* Perfil do cartão (PF/PJ) */}
+<div>
+  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+    Perfil do cartão
+  </label>
+
+  <div className="grid grid-cols-2 gap-2">
+    <button
+      type="button"
+      onClick={() => setCcPerfil("pf")}
+      className={`h-10 rounded-xl border transition text-sm font-semibold ${
+        ccPerfil === "pf"
+          ? "bg-purple-600 text-white border-purple-500 shadow-[0_10px_25px_rgba(88,28,135,0.35)]"
+          : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+      }`}
+    >
+      PF
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setCcPerfil("pj")}
+      className={`h-10 rounded-xl border transition text-sm font-semibold ${
+        ccPerfil === "pj"
+          ? "bg-purple-600 text-white border-purple-500 shadow-[0_10px_25px_rgba(88,28,135,0.35)]"
+          : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+      }`}
+    >
+      PJ
+    </button>
+  </div>
+</div>
+
+
+                {/* Emissor / Validade */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                      Banco emissor
+                    </label>
+                    <input
+                      value={ccEmissor}
+                      onChange={(e) => setCcEmissor(e.target.value)}
+                      placeholder="Ex.: Nubank, Itaú, Inter..."
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                      Validade
+                    </label>
+                    <input
+                      value={ccValidade}
+                      onChange={(e) => setCcValidade(maskValidadeMMYY(e.target.value))}
+                      placeholder="00/00"
+                      inputMode="numeric"
+                      maxLength={5}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Fechamento / Vencimento */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                      Dia de fechamento
+                    </label>
+                    <input
+                      type="text"
+                      value={ccFechamento}
+                      onChange={(e) => setCcFechamento(maskDiaMes(e.target.value))}
+                      onBlur={() => ccFechamento && setCcFechamento(maskDiaMes(ccFechamento))}
+                      inputMode="numeric"
+                      maxLength={2}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                      Dia de vencimento
+                    </label>
+                    <input
+                      type="text"
+                      value={ccVencimento}
+                      onChange={(e) => setCcVencimento(maskDiaMes(e.target.value))}
+                      onBlur={() => ccVencimento && setCcVencimento(maskDiaMes(ccVencimento))}
+                      inputMode="numeric"
+                      maxLength={2}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Limite */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                    Limite do cartão
+                  </label>
+
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={ccLimiteRaw ? formatBRLFromIntegers(ccLimiteRaw) : ""}
+                    placeholder="R$ 0,00"
+                    onFocus={(e) => {
+                      const el = e.target as HTMLInputElement;
+                      requestAnimationFrame(() => {
+                        const len = el.value.length;
+                        el.setSelectionRange(len, len);
+                      });
+                    }}
+                    onKeyDown={(e) => {
+                      const key = e.key;
+
+                      if (
+                        e.ctrlKey ||
+                        e.metaKey ||
+                        key === "Tab" ||
+                        key === "ArrowLeft" ||
+                        key === "ArrowRight"
+                      ) {
+                        return;
+                      }
+
+                      if (key === "Backspace") {
+                        e.preventDefault();
+                        setCcLimiteRaw((prev) => prev.slice(0, -1));
+                        return;
+                      }
+
+                      if (key === "Delete") {
+                        e.preventDefault();
+                        setCcLimiteRaw("");
+                        return;
+                      }
+
+                      if (/^\d$/.test(key)) {
+                        e.preventDefault();
+                        setCcLimiteRaw((prev) => {
+                          const next = (prev + key).replace(/\D/g, "").slice(0, 12);
+                          return next;
+                        });
+                        return;
+                      }
+
+                      e.preventDefault();
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const text = e.clipboardData.getData("text");
+                      const digits = (text || "").replace(/\D/g, "").slice(0, 12);
+                      setCcLimiteRaw(digits);
+                    }}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* ações */}
+              <div className="mt-5 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={closeAddCardModal}
+                  className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm font-bold"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveNewCreditCard}
+                  className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+
 
       {/* SETTINGS MODAL */}
       {settingsOpen && (
@@ -2362,69 +2634,124 @@ if (sessionLoading) {
       )}
 
 
-      {/* EDIT MODAL */}
-      {editingTransaction && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
-            <h3 className="text-2xl font-black mb-6 text-slate-800 dark:text-white">Editar Lançamento</h3>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                  Descrição
-                </label>
-                <input
-                  type="text"
-                  value={editDescInput}
-                  onChange={(e) => setEditDescInput(e.target.value)}
-                  className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 transition-colors"
-                />
-              </div>
+{/* EDIT MODAL */}
+{editingTransaction && (
+  <div
+    className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+    onMouseDown={(e) => {
+      // fecha ao clicar fora do card
+      if (e.target === e.currentTarget) setEditingTransaction(null);
+    }}
+    onKeyDown={(e) => {
+      if (e.key === "Escape") setEditingTransaction(null);
+    }}
+    tabIndex={-1}
+  >
+    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
+      <h3 className="text-2xl font-black mb-6 text-slate-800 dark:text-white">
+        Editar Lançamento
+      </h3>
 
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                  Valor (R$)
-                </label>
-                <input
-                  type="text"
-                  value={editValueInput}
-                  onChange={(e) => handleFormatCurrencyInput(e.target.value, setEditValueInput)}
-                  className="w-full p-5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl font-black text-2xl text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 transition-colors"
-                />
-              </div>
-
-              {editingTransaction.recorrenciaId && (
-                <label className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 cursor-pointer hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={applyToAllRelated}
-                    onChange={(e) => setApplyToAllRelated(e.target.checked)}
-                    className="w-6 h-6 rounded-lg text-indigo-600 dark:bg-slate-800"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-black text-indigo-900 dark:text-indigo-300">Atualizar todas as parcelas</span>
-                    <span className="text-[10px] font-bold text-indigo-400 dark:text-indigo-500 uppercase">Aplicar mudança em toda a série</span>
-                  </div>
-                </label>
-              )}
-
-              <div className="flex gap-4 pt-4">
-                <button
-                  onClick={() => setEditingTransaction(null)}
-                  className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-black text-slate-500 dark:text-slate-400 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={salvarEdicao}
-                  className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 dark:shadow-none transition-all hover:bg-indigo-700"
-                >
-                  Salvar Alteração
-                </button>
-              </div>
-            </div>
-          </div>
+      <div className="space-y-6">
+        <div>
+          <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+            Descrição
+          </label>
+          <input
+            type="text"
+            value={editDescInput}
+            onChange={(e) => setEditDescInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") salvarEdicao();
+              if (e.key === "Escape") setEditingTransaction(null);
+            }}
+            className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 transition-colors"
+          />
         </div>
-      )}
+
+        <div>
+          <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+            Valor (R$)
+          </label>
+
+          <input
+            type="text"
+            inputMode="numeric"
+            value={formatBRLFromCentsDigits(editValueInput)}
+            onChange={(e) => {
+              setEditValueInput(digitsOnly(e.target.value));
+            }}
+            onPaste={(e) => {
+              // cola qualquer coisa (ex: "150,25" / "R$ 150,25" / "15025") e normaliza
+              e.preventDefault();
+              const text = e.clipboardData.getData("text");
+              setEditValueInput(digitsOnly(text));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") salvarEdicao();
+              if (e.key === "Escape") setEditingTransaction(null);
+
+              // permite atalhos e navegação
+              if (e.ctrlKey || e.metaKey) return;
+              const allowed = [
+                "Backspace",
+                "Delete",
+                "ArrowLeft",
+                "ArrowRight",
+                "Home",
+                "End",
+                "Tab",
+              ];
+              if (allowed.includes(e.key)) return;
+
+              // bloqueia qualquer coisa que não seja dígito
+              if (!/^\d$/.test(e.key)) {
+                e.preventDefault();
+              }
+            }}
+            className="w-full p-5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl font-black text-2xl text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+
+        {editingTransaction.recorrenciaId && (
+          <label className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 cursor-pointer hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30 transition-colors">
+            <input
+              type="checkbox"
+              checked={applyToAllRelated}
+              onChange={(e) => setApplyToAllRelated(e.target.checked)}
+              className="w-6 h-6 rounded-lg text-indigo-600 dark:bg-slate-800"
+            />
+            <div className="flex flex-col">
+              <span className="text-sm font-black text-indigo-900 dark:text-indigo-300">
+                Atualizar todas as parcelas
+              </span>
+              <span className="text-[10px] font-bold text-indigo-400 dark:text-indigo-500 uppercase">
+                Aplicar mudança em toda a série
+              </span>
+            </div>
+          </label>
+        )}
+
+        <div className="flex gap-4 pt-4">
+          <button
+            onClick={() => setEditingTransaction(null)}
+            className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-black text-slate-500 dark:text-slate-400 transition-colors"
+          >
+            Cancelar
+          </button>
+
+          <button
+            onClick={salvarEdicao}
+            className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 dark:shadow-none transition-all hover:bg-indigo-700"
+          >
+            Salvar Alteração
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
 
       {/* DELETE MODAL */}
       {deletingTransaction && (

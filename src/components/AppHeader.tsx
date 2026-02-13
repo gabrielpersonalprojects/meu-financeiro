@@ -8,7 +8,7 @@ export function AppHeader({
   settingsIcon: ReactNode;
 }) {
   return (
-    <header className="border-b border-slate-200/70 dark:border-white/10 bg-white dark:bg-slate-900 py-6 transition-colors">
+    <header className="bg-transparent py-6 transition-colors">
       <div className="container mx-auto px-4">
         {/* MOBILE */}
         <div className="md:hidden w-full px-4">
@@ -22,7 +22,7 @@ export function AppHeader({
             <button
               type="button"
               onClick={onOpenSettings}
-              className="group p-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/70 backdrop-blur transition hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="group p-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-transparent transition hover:bg-white/10 dark:hover:bg-white/10"
               title="Configurações"
             >
               <span className="text-slate-500 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
@@ -45,7 +45,7 @@ export function AppHeader({
           <button
             type="button"
             onClick={onOpenSettings}
-            className="group p-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/70 backdrop-blur transition hover:bg-slate-50 dark:hover:bg-slate-800"
+            className="group p-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-transparent transition hover:bg-white/10 dark:hover:bg-white/10"
             title="Configurações"
           >
             <span className="text-slate-500 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">

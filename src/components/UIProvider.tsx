@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { UIOverlays } from "./UIOverlays";
+import { setConfirmHandler } from "../services/confirm";
 
 
 
@@ -65,6 +66,25 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     confirmText: "Confirmar",
     cancelText: "Cancelar",
   });
+
+  useEffect(() => {
+  setConfirmHandler((opts) => {
+    setConfirmOpts({
+      title: opts.title,
+      message: opts.message,
+      confirmText: opts.confirmText ?? "OK",
+      cancelText: opts.cancelText ?? "Cancelar",
+      // se o seu ConfirmOptions NÃO tiver tone, apaga a linha abaixo
+      tone: (opts as any).tone ?? "default",
+    } as any);
+
+    setConfirmOpen(true);
+
+    return new Promise<boolean>((resolve) => {
+      resolverRef.current = resolve;
+    });
+  });
+}, []);
 
 
   const confirm = (options: ConfirmOptions) => {

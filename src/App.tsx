@@ -43,7 +43,8 @@ import CustomDropdown from "./components/CustomDropdown";
 import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
-
+import { CreditCardVisual } from "./app/credit/CreditCardVisual";
+import { Pencil, Trash2 } from "lucide-react";
 
 
 
@@ -594,10 +595,29 @@ const saveTransacoesByProfile = (pid: string, list: Transaction[]) => {
   const [formContaDestino, setFormContaDestino] = useState("");
   const [formBancoId, setFormBancoId] = useState<string>("");
 
-const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
+const LS_CREDIT_CARDS_KEY = "fluxmoney_creditCards";
+
+const [creditCards, setCreditCards] = useState<CreditCard[]>(() => {
+  try {
+    const raw = localStorage.getItem(LS_CREDIT_CARDS_KEY);
+    return raw ? (JSON.parse(raw) as CreditCard[]) : [];
+  } catch {
+    return [];
+  }
+});
+
 const [selectedCreditCardId, setSelectedCreditCardId] = useState<string>("");
 
 const [isCcExpanded, setIsCcExpanded] = useState(false);
+
+useEffect(() => {
+  try {
+    localStorage.setItem(LS_CREDIT_CARDS_KEY, JSON.stringify(creditCards));
+  } catch {
+    // ignora
+  }
+}, [creditCards]);
+
 const toggleCcExpanded = () => setIsCcExpanded((v) => !v);
 
 const toggleCcDetails = (id: string) => {
@@ -618,6 +638,7 @@ const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
 
 const [ccNome, setCcNome] = useState("");
 const [ccEmissor, setCcEmissor] = useState("");
+const [ccCategoria, setCcCategoria] = useState("");
 const [ccValidade, setCcValidade] = useState("");
 const [ccFechamento, setCcFechamento] = useState("1");
 const [ccVencimento, setCcVencimento] = useState("10");
@@ -636,8 +657,12 @@ type CreditCard = {
   diaVencimento: number;
   limite: number;
   contaVinculadaId?: string | null;
+  gradientFrom?: string;
+  gradientTo?: string;
+
 
   // novo:
+  categoria?: string;
   perfil: "pf" | "pj";
 };
 
@@ -695,9 +720,29 @@ const formatBRLFromIntegers = (digits: string) => {
 
 
 // ===== Cartão de Crédito (Modal) =====
+
+type CardDesign = { id: string; label: string; from: string; to: string };
+
+const CC_DESIGNS: CardDesign[] = [
+  { id: "roxo", label: "Roxo", from: "#220055", to: "#4600ac" }, // seu padrão FluxMoney
+  { id: "laranja", label: "Laranja", from: "#ff6a00", to: "#ffb100" }, // estilo itaú vibe
+  { id: "azul", label: "Azul", from: "#001b5a", to: "#0b4cff" },
+  { id: "verde", label: "Verde", from: "#004d3d", to: "#00c389" },
+  { id: "preto", label: "Preto", from: "#0b0f1a", to: "#2b2f3a" },
+  { id: "pink", label: "Pink", from: "#6d00ff", to: "#ff3d9a" },
+  { id: "vermelho", label: "Vermelho", from: "#7f0015", to: "#ff2d55" },
+  { id: "amarelo", label: "Amarelo", from: "#b45309", to: "#fde047" },
+  { id: "cinza", label: "Cinza", from: "#334155", to: "#94a3b8" },
+];
+
+const [ccDesignId, setCcDesignId] = useState<string>(CC_DESIGNS[0].id);
+const [ccDesignOpen, setCcDesignOpen] = useState(false);
+
+
 const resetAddCardModal = () => {
   setCcNome("");
   setCcEmissor("");
+  setCcCategoria("");
   setCcValidade("");
   setCcFechamento("1");
   setCcVencimento("10");
@@ -705,11 +750,12 @@ const resetAddCardModal = () => {
   setCcLimiteRaw("");
   setIsEditingLimite(false);
   setCcPerfil("pf");
+  setCcDesignId(CC_DESIGNS[0].id);
   };
 
 const openAddCardModal = () => {
   console.log("openAddCardModal", creditCards.length);
-  if (creditCards.length >= 1) {
+  if (creditCards.length >= 30) {
   toastCompact("Limite de 30 cartões atingido.", "info");
   return;
 }
@@ -720,6 +766,7 @@ const openAddCardModal = () => {
 const closeAddCardModal = () => {
   setIsAddCardModalOpen(false);
   resetAddCardModal();
+  setSelectedCreditCardId("");
 };
 
 const clampMonth = (mm: string) => {
@@ -835,25 +882,34 @@ const handleSaveNewCreditCard = () => {
   const limiteNum = Math.max(0, Number(ccLimiteRaw || "0"));
 
 
-  const id = `cc_${Date.now()}`;
+  const id = isEditingLimite ? selectedCreditCardId : `cc_${Date.now()}`;
 
   const card: CreditCard = {
     id,
     name: nome,
     emissor,
+    categoria: ccCategoria.trim(),
     validade,
     diaFechamento: fechamento,
     diaVencimento: vencimento,
     limite: limiteNum,
     perfil: ccPerfil,
+    gradientFrom: CC_DESIGNS.find((d) => d.id === ccDesignId)?.from ?? "#220055",
+    gradientTo: CC_DESIGNS.find((d) => d.id === ccDesignId)?.to ?? "#4600ac",
+
     };
 
-  setCreditCards((prev) => [...prev, card]);
+  setCreditCards((prev) => {
+  if (!isEditingLimite) return [...prev, card];
+  return prev.map((x) => (x.id === card.id ? card : x));
+});
+
   setSelectedCreditCardId(id);
   setIsCcExpanded(false);
 
   closeAddCardModal();
-  toastCompact("Cartão cadastrado.", "success");
+  toastCompact(isEditingLimite ? "Cartão atualizado." : "Cartão cadastrado.", "success");
+  setIsEditingLimite(false);
 };
 
 
@@ -896,10 +952,16 @@ const handleEditProfile = (id: string) => {
   toastCompact("Conta atualizada.", "success");
 };
 
-const handleDeleteProfile = (id: string) => {
+const handleDeleteProfile = async (id: string) => {
   const p = profiles.find((x: any) => x.id === id);
-  const ok = window.confirm(`Excluir a conta "${p?.name ?? "Conta"}"?`);
-  if (!ok) return;
+const ok = await confirm({
+  title: "Excluir conta",
+  message: `Tem certeza que deseja excluir a conta "${p?.name ?? "Conta"}"?`,
+  confirmText: "Excluir",
+  cancelText: "Cancelar",
+});
+if (!ok) return;
+
 
   setProfiles((prev: any[]) => {
     const next = prev.filter((x) => x.id !== id);
@@ -1921,7 +1983,7 @@ const selectedCcCard =
         />
       </div>
 
-      {/* COLUNA DIREITA */}
+     {/* COLUNA DIREITA */}
       <div
   className={`lg:col-span-8 space-y-6 ${
     modoCentro === "credito" ? "lg:-ml-2" : ""
@@ -1931,67 +1993,14 @@ const selectedCcCard =
   <div className="space-y-4">
     {/* ===== LISTA (não expandido) ===== */}
     {!isCcExpanded ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* cartões cadastrados */}
-        {creditCards.map((c) => {
-          const isSelected = c.id === selectedCreditCardId;
-
-          return (
-            <button
-              key={c.id}
-              type="button"
-onClick={() => {
-  // clicou no mesmo cartão -> alterna abrir/fechar
-  if (c.id === selectedCreditCardId) {
-    toggleCcExpanded();
-    return;
-  }
-
-  // clicou em outro cartão -> seleciona e abre (não fecha)
-  setSelectedCreditCardId(c.id);
-  setIsCcExpanded(true);
-}}
-
-              className={[
-                "text-left rounded-2xl p-5 shadow-sm border transition-all",
-                "bg-white/5 border-slate-200/10 hover:border-slate-200/20 hover:bg-white/7",
-                isSelected ? "ring-1 ring-purple-500/40" : "",
-              ].join(" ")}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-slate-200 font-semibold">{c.emissor || "Banco"}</p>
-                  <p className="text-slate-400 text-sm">{c.name || "Cartão"}</p>
-                </div>
-
-                <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-slate-200 border border-slate-200/10">
-                  {c.perfil?.toUpperCase?.() ?? "PF"}
-                </span>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl p-3 bg-black/20 border border-slate-200/10">
-                  <p className="text-[11px] text-slate-400 uppercase">Fechamento</p>
-                  <p className="text-slate-100 font-semibold">{String(c.diaFechamento).padStart(2, "0")}</p>
-                </div>
-                <div className="rounded-xl p-3 bg-black/20 border border-slate-200/10">
-                  <p className="text-[11px] text-slate-400 uppercase">Vencimento</p>
-                  <p className="text-slate-100 font-semibold">{String(c.diaVencimento).padStart(2, "0")}</p>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-
-        {/* card "novo cartão" */}
-        {!isCcExpanded && (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* card "novo cartão" - SEMPRE primeiro */}
         <button
           type="button"
-onClick={() => {
-  openAddCardModal();
-  setIsCcExpanded(false);
-}}
-
+          onClick={() => {
+            openAddCardModal();
+            setIsCcExpanded(false);
+          }}
           className={[
             "rounded-2xl p-5 shadow-sm border transition-all flex flex-col items-center justify-center gap-3",
             "bg-white/5 border-slate-200/10 hover:border-slate-200/20 hover:bg-white/7",
@@ -2004,10 +2013,136 @@ onClick={() => {
           <p className="text-slate-200 font-semibold">Novo cartão</p>
           <p className="text-slate-400 text-sm">Adicionar cartão de crédito</p>
         </button>
-        )}
+
+        {/* cartões cadastrados */}
+        {creditCards.map((c) => {
+          const isSelected = c.id === selectedCreditCardId;
+
+          return (
+            <div key={c.id} className="relative group w-full max-w-[360px]">
+              {/* CARTÃO (clicável) */}
+              <button
+                type="button"
+                onClick={() => {
+                  // clicou no mesmo cartão -> alterna abrir/fechar
+                  if (c.id === selectedCreditCardId) {
+                    toggleCcExpanded();
+                    return;
+                  }
+
+                  // clicou em outro cartão -> seleciona e abre (não fecha)
+                  setSelectedCreditCardId(c.id);
+                  setIsCcExpanded(true);
+                }}
+                className={[
+                  "w-full block text-left rounded-2xl transition-all",
+                  "hover:bg-white/5",
+                ].join(" ")}
+              >
+                <CreditCardVisual
+                  nome={(c as any).name || (c as any).nome || "Cartão"}
+                  emissor={c.emissor || "Banco"}
+                  categoria={c.categoria ?? ""}
+                  perfil={c.perfil?.toUpperCase?.() ?? "PF"}
+                  limite={c.limite ?? 0}
+                  fechamentoDia={c.diaFechamento ?? 1}
+                  vencimentoDia={c.diaVencimento ?? 10}
+                  design={{
+                    from: c.gradientFrom ?? "#220055",
+                    to: c.gradientTo ?? "#4600ac",
+                  }}
+                />
+              </button>
+
+              {/* ÍCONES NO HOVER (por cima do cartão) */}
+<div
+  className="
+    absolute top-1/2 right-3 -translate-y-1/2 z-10 flex gap-2
+    opacity-0 pointer-events-none
+    group-hover:opacity-100 group-hover:pointer-events-auto
+    transition-opacity
+  "
+>
+
+                <button
+                  type="button"
+                  title="Editar"
+                  className="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white backdrop-blur flex items-center justify-center"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+
+                    // preencher formulário com dados do cartão clicado
+                    setCcNome((c as any).name ?? (c as any).nome ?? "");
+                    setCcEmissor((c as any).emissor ?? "");
+                    setCcCategoria((c as any).categoria ?? "");
+                    setCcValidade((c as any).validade ?? "");
+                    setCcFechamento(String((c as any).diaFechamento ?? 1));
+                    setCcVencimento(String((c as any).diaVencimento ?? 10));
+                    setCcLimite(String((c as any).limite ?? 0));
+                    setCcLimiteRaw(String((c as any).limite ?? 0));
+
+                    const perfil = String((c as any).perfil ?? "pf").toLowerCase();
+                    setCcPerfil(perfil === "pj" ? "pj" : "pf");
+
+                    // modo edição
+                    setIsEditingLimite(true);
+                    setSelectedCreditCardId(c.id);
+
+                    // abre modal
+                    setIsAddCardModalOpen(true);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+
+<button
+  type="button"
+  title="Excluir"
+  className="h-9 w-9 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/25 text-red-200 backdrop-blur flex items-center justify-center"
+  onMouseDown={(e) => e.stopPropagation()}
+  onClick={async (e) => {
+    e.stopPropagation();
+
+    const ok = await confirm({
+      title: "Excluir cartão",
+      message: "Tem certeza que deseja excluir este cartão?",
+      confirmText: "Excluir",
+      cancelText: "Cancelar",
+      // se você tiver tone no tipo, pode manter:
+      // tone: "danger",
+    });
+
+    if (!ok) return;
+
+    setCreditCards((prev) => {
+      const next = prev.filter((x) => x.id !== c.id);
+
+      // se deletou o selecionado, aponta pro primeiro que sobrar (ou "")
+      if (selectedCreditCardId === c.id) {
+        setSelectedCreditCardId(next[0]?.id ?? "");
+        setIsCcExpanded(false);
+        setIsEditingLimite(false);
+      }
+
+      return next;
+    });
+
+    toastCompact("Cartão excluído.", "success");
+  }}
+>
+  <Trash2 className="h-4 w-4" />
+</button>
+
+              </div>
+            </div>
+          );
+        })}
+
       </div>
     ) : (
       /* ===== DETALHES (expandido) ===== */
+
       <div className="space-y-4">
         {/* cartão selecionado (clicável pra recolher) */}
         {(() => {
@@ -2032,25 +2167,6 @@ onClick={() => {
               </div>
             );
           }
-
-          return (
-            <button
-              type="button"
-              onClick={toggleCcExpanded} // fecha detalhes
-              className="w-full text-left rounded-2xl p-5 shadow-sm border transition-all bg-white/5 border-slate-200/10 hover:border-slate-200/20 hover:bg-white/7"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-slate-200 font-semibold">{selected.emissor || "Banco"}</p>
-                  <p className="text-slate-400 text-sm">{selected.name || "Cartão"}</p>
-                </div>
-                <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-slate-200 border border-slate-200/10">
-                  {selected.perfil?.toUpperCase?.() ?? "PF"}
-                </span>
-              </div>
-              <p className="text-slate-400 text-xs mt-3">Clique para recolher os detalhes</p>
-            </button>
-          );
         })()}
 
 {/* DETALHES (renderiza só quando estiver expandido e com cartão selecionado) */}
@@ -2063,12 +2179,13 @@ onClick={() => {
       limiteTotal: selectedCcCard.limite ?? 0,
       diaFechamento: selectedCcCard.diaFechamento ?? 10,
       diaVencimento: selectedCcCard.diaVencimento ?? 10,
-      bankText: "nu",
+      bankText: selectedCcCard.emissor ?? "",
       brand: "Mastercard",
       last4: "1234",
-      gradientFrom: "#220055",
-      gradientTo: "#4600ac",
-    }}
+      gradientFrom: selectedCcCard.gradientFrom ?? "#220055",
+      gradientTo: selectedCcCard.gradientTo ?? "#4600ac",
+      categoria: selectedCard?.categoria ?? "",
+      }}
 transacoes={
   transacoes
     .filter((t) => t.qualCartao === (selectedCcCard.name ?? ""))
@@ -2078,6 +2195,7 @@ transacoes={
       tipo: t.tipo === "cartao_credito" ? "despesa" : t.tipo,
     }))
 }
+onPickOtherCard={toggleCcExpanded}
 
  />
 ) : null}
@@ -2310,6 +2428,64 @@ transacoes={
   </div>
 </div>
 
+<div className="mt-3">
+ <button
+  type="button"
+  onClick={() => setCcDesignOpen((v) => !v)}
+  className="w-full flex items-center justify-between rounded-xl border border-slate-200/70 dark:border-slate-700/60
+             bg-white/60 dark:bg-slate-900/40 px-3 py-2 hover:bg-white/80 dark:hover:bg-slate-800/40 transition"
+>
+  <div className="text-left">
+    <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
+      Escolha o design do cartão
+    </p>
+  </div>
+
+  <div className="flex items-center gap-2">
+    <div
+      className="h-9 w-14 rounded-xl"
+      style={{
+        backgroundImage: `linear-gradient(90deg, ${
+          (CC_DESIGNS.find((d) => d.id === ccDesignId) ?? CC_DESIGNS[0]).from
+        }, ${(CC_DESIGNS.find((d) => d.id === ccDesignId) ?? CC_DESIGNS[0]).to})`,
+      }}
+      title="Preview"
+    />
+    <span className="text-[12px] font-extrabold text-slate-800 dark:text-slate-100">
+      {CC_DESIGNS.find((d) => d.id === ccDesignId)?.label || "Selecionar"}
+    </span>
+  </div>
+</button>
+
+
+  {ccDesignOpen && (
+    <div className="mt-2 grid grid-cols-3 gap-2">
+      {CC_DESIGNS.map((d) => {
+        const active = ccDesignId === d.id;
+        return (
+          <button
+            key={d.id}
+            type="button"
+            onClick={() => {
+              setCcDesignId(d.id);
+              setCcDesignOpen(false);
+            }}
+className={`h-12 rounded-2xl transition-all flex items-center justify-center
+  ring-1 ring-inset ring-white/15 hover:ring-white/25
+  ${active ? "ring-2 ring-inset ring-white/60" : ""}
+`}
+            style={{ backgroundImage: `linear-gradient(90deg, ${d.from}, ${d.to})` }}
+            title={d.label}
+          >
+            <span className={`text-[12px] font-black ${active ? "text-white" : "text-white/90"}`}>
+              {d.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  )}
+</div>
 
                 {/* Emissor / Validade */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2324,8 +2500,8 @@ transacoes={
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
                     />
                   </div>
-
                   <div>
+
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
                       Validade
                     </label>
@@ -2339,7 +2515,18 @@ transacoes={
                     />
                   </div>
                 </div>
-
+{/* Categoria */}
+<div>
+  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+    Categoria
+  </label>
+  <input
+    value={ccCategoria}
+    onChange={(e) => setCcCategoria(e.target.value)}
+    placeholder="Ex.: Platinum, Uniclass, Visa..."
+    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
+  />
+</div>
                 {/* Fechamento / Vencimento */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>

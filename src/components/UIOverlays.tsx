@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { setConfirmHandler } from "../services/confirm";
 
 type ToastType = "success" | "error" | "info";
 
@@ -9,7 +10,7 @@ type Toast = {
   duration: number;
 };
 
-type ConfirmOptions = {
+export type ConfirmOptions = {
   title?: string;
   message: string;
   confirmText?: string;
@@ -45,9 +46,11 @@ export function UIOverlays({
         <div className="ui-backdrop" onClick={() => onCloseConfirm(false)} />
 
         <div className="ui-modal-card" role="dialog" aria-modal="true">
-          <h3 id="ui-modal-title" className="ui-modal-title">
-            {confirmOpts.title}
-          </h3>
+          {confirmOpts.title ? (
+            <h3 id="ui-modal-title" className="ui-modal-title">
+              {confirmOpts.title}
+            </h3>
+          ) : null}
 
           <p id="ui-modal-message" className="ui-modal-message">
             {confirmOpts.message}
@@ -55,11 +58,11 @@ export function UIOverlays({
 
           <div className="ui-modal-actions">
             <button className="ui-btn ui-btn-ghost" onClick={() => onCloseConfirm(false)}>
-              {confirmOpts.cancelText}
+              {confirmOpts.cancelText ?? "Cancelar"}
             </button>
 
             <button className="ui-btn ui-btn-primary" onClick={() => onCloseConfirm(true)}>
-              {confirmOpts.confirmText}
+              {confirmOpts.confirmText ?? "OK"}
             </button>
           </div>
         </div>
@@ -71,6 +74,59 @@ export function UIOverlays({
           <ToastItem key={t.id} message={t.message} type={t.type} />
         ))}
       </div>
+    </>
+  );
+}
+
+export function UIProvider({ children }: { children: ReactNode }) {
+  // ===== Confirm =====
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmOpts, setConfirmOpts] = useState<ConfirmOptions>({
+    title: "",
+    message: "",
+    confirmText: "OK",
+    cancelText: "Cancelar",
+  });
+
+  const confirmResolverRef = useRef<((value: boolean) => void) | null>(null);
+
+  useEffect(() => {
+    // Registra o handler que substitui o window.confirm
+    setConfirmHandler((opts: ConfirmOptions) => {
+      setConfirmOpts({
+        title: opts.title,
+        message: opts.message,
+        confirmText: opts.confirmText ?? "OK",
+        cancelText: opts.cancelText ?? "Cancelar",
+      });
+
+      setConfirmOpen(true);
+
+      return new Promise<boolean>((resolve) => {
+        confirmResolverRef.current = resolve;
+      });
+    });
+  }, []);
+
+  function onCloseConfirm(value: boolean) {
+    setConfirmOpen(false);
+    const resolve = confirmResolverRef.current;
+    confirmResolverRef.current = null;
+    resolve?.(value);
+  }
+
+  // ===== Toasts (mantém como está; se você já tem outro sistema, não atrapalha) =====
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  return (
+    <>
+      {children}
+      <UIOverlays
+        confirmOpen={confirmOpen}
+        confirmOpts={confirmOpts}
+        onCloseConfirm={onCloseConfirm}
+        toasts={toasts}
+      />
     </>
   );
 }

@@ -20,6 +20,7 @@ type Props = {
   ccIsParceladoMode: boolean | null;
   setCcIsParceladoMode: (v: boolean | null) => void;
 
+  // despesa (parcelado)
   isParceladoMode: boolean | null;
   setIsParceladoMode: (v: boolean | null) => void;
 
@@ -99,6 +100,23 @@ type Props = {
   setModoCentro?: Dispatch<SetStateAction<"normal" | "credito">>;
 };
 
+function safeStr(v: any) {
+  return String(v ?? "").trim();
+}
+
+function getCardLabel(card: any) {
+  // tenta montar um label “premium” com o que existir no objeto
+  const banco = safeStr(card?.banco || card?.bank || card?.issuer || card?.emissor);
+  const nome = safeStr(card?.nome || card?.name || card?.apelido || card?.nickname);
+  const categoria = safeStr(card?.categoria || card?.category || card?.tier);
+  const perfil = safeStr(card?.perfil || card?.profile || card?.tipoPerfil || card?.scope);
+
+  const base = [banco || nome || "Cartão", categoria].filter(Boolean).join(" ");
+  const suffix = perfil ? `• ${perfil.toLowerCase()}` : "";
+
+  return `${base}${suffix ? ` ${suffix}` : ""}`.trim();
+}
+
 export default function NewTransactionCard({
   formTipo,
   setFormTipo,
@@ -108,9 +126,7 @@ export default function NewTransactionCard({
   setSelectedCreditCardId,
   openAddCardModal,
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   ccIsParceladoMode,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setCcIsParceladoMode,
 
   isParceladoMode,
@@ -185,22 +201,32 @@ export default function NewTransactionCard({
     setModoCentro?.(tipo === "cartao_credito" ? "credito" : "normal");
     setFormTipo(tipo);
     setFormValor("");
+
+    // resets “para não vazar estado” entre modos
+    if (tipo !== "despesa") setIsParceladoMode(null);
+    if (tipo !== "cartao_credito") setCcIsParceladoMode(null);
+
+    // ao entrar no cartão, defaults bons
+    if (tipo === "cartao_credito") {
+      // default: à vista
+      if (ccIsParceladoMode === null) setCcIsParceladoMode(false);
+      setPrazoMode(null);
+      setFormDataTerminoFixa("");
+    }
   };
 
   // ✅ digitação “normal” + formatação no blur (sem explodir zeros)
   const normalizeBRLInput = (raw: string) => {
-    // mantém só dígitos e vírgula
     let v = raw.replace(/[^\d,]/g, "");
 
-    // só uma vírgula
     const firstComma = v.indexOf(",");
     if (firstComma !== -1) {
       v = v.slice(0, firstComma + 1) + v.slice(firstComma + 1).replace(/,/g, "");
     }
 
     const [intPartRaw, decPartRaw = ""] = v.split(",");
-    const intPart = intPartRaw.replace(/^0+(?=\d)/, ""); // remove zeros à esquerda
-    const decPart = decPartRaw.slice(0, 2); // 2 casas no máximo
+    const intPart = intPartRaw.replace(/^0+(?=\d)/, "");
+    const decPart = decPartRaw.slice(0, 2);
 
     if (firstComma !== -1) return `${intPart || "0"},${decPart}`;
     return intPart;
@@ -210,7 +236,6 @@ export default function NewTransactionCard({
     const s = String(raw ?? "").trim();
     if (!s) return "";
 
-    // transforma "1.234,56" => "1234.56"
     const normalized = s.replace(/\./g, "").replace(",", ".");
     const n = Number(normalized);
 
@@ -220,6 +245,23 @@ export default function NewTransactionCard({
       maximumFractionDigits: 2,
     });
   };
+
+  const isCC = formTipo === "cartao_credito";
+  const ccHasCardSelected = safeStr(selectedCreditCardId) !== "";
+  const canSubmit = !isCC || ccHasCardSelected;
+
+  const ccCardOptions =
+    (creditCards || []).map((c: any) => ({
+      label: getCardLabel(c),
+      value: String(c?.id ?? c?.cardId ?? ""),
+    })) || [];
+
+  const ccCardValue =
+    ccHasCardSelected && ccCardOptions.some((o) => String(o.value) === String(selectedCreditCardId))
+      ? selectedCreditCardId
+      : "";
+
+  const ccCategoryOptions = (categorias as any).despesa as any; // gasto no cartão é despesa
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 space-y-5 transition-colors">
@@ -300,43 +342,28 @@ export default function NewTransactionCard({
           </div>
         )}
 
-        {formTipo === "cartao_credito" && (
-          <div className="mt-3 space-y-2">
-            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-              Cartão
-            </label>
+        {/* Cartão (obrigatório) - só no modo cartão */}
+        {isCC && (
+          <div className="mt-1">
+            <CustomDropdown
+              label="Cartão"
+              value={ccCardValue}
+              options={ccCardOptions as any}
+              onSelect={(val) => setSelectedCreditCardId(String(val))}
+              onAddNew={() => {
+                // força seleção obrigatória
+                openAddCardModal();
+              }}
+            />
 
-            <select
-              value={selectedCreditCardId}
-              onChange={(e) => setSelectedCreditCardId(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-            >
-              {creditCards.length === 0 ? (
-                <option value="" disabled>
-                  Nenhum cartão cadastrado
-                </option>
-              ) : (
-                <option value="" disabled>
-                  Selecione um cartão
-                </option>
-              )}
-
-              {creditCards.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-
-            <button
-              type="button"
-              onClick={openAddCardModal}
-              className="w-full mt-2 h-10 rounded-xl border border-slate-200 dark:border-slate-700
-                       bg-white/60 dark:bg-slate-900/40 text-[13px] font-bold
-                       text-indigo-600 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-              + Adicionar novo cartão
-            </button>
+            {!ccHasCardSelected && (
+              <div className="mt-2 px-3 py-2 rounded-xl border border-violet-500/25 dark:border-violet-300/15 bg-violet-500/10 dark:bg-violet-500/10">
+                <p className="text-[12px] leading-snug text-violet-200/90 dark:text-violet-100/80">
+                  Selecione um cartão para lançar esta despesa. Se ainda não tiver, clique em{" "}
+                  <span className="font-bold">adicionar novo</span>.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -349,11 +376,7 @@ export default function NewTransactionCard({
             type="text"
             value={formDesc}
             onChange={(e) => setFormDesc(e.target.value)}
-            placeholder={
-              formTipo === "transferencia"
-                ? "Ex: Valor poupança, Reembolso..."
-                : "Ex: Mercado, Aluguel..."
-            }
+            placeholder={formTipo === "transferencia" ? "Ex: Valor poupança, Reembolso..." : "Ex: Mercado, Aluguel..."}
             className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-medium text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900"
           />
         </div>
@@ -394,16 +417,165 @@ export default function NewTransactionCard({
           </div>
         </div>
 
-        {/* Categoria + Método/Conta */}
-        {formTipo !== "transferencia" && (
+        {/* ===== CARTÃO DE CRÉDITO: botões À vista/Parcelado ABAIXO de Valor/Data (como pediu) ===== */}
+        {isCC && (
+          <div className="mt-1 space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                Parcelado?
+              </label>
+
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCcIsParceladoMode(false);
+                    setFormParcelas(1);
+                    // libera fixo/variável
+                    // (não mexo em formTipoGasto aqui pra não apagar escolha do usuário)
+                  }}
+                  className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
+                    ${
+                      ccIsParceladoMode === false
+                        ? "bg-violet-600/90 border-violet-500/40 text-white"
+                        : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
+                    }`}
+                >
+                  À vista
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCcIsParceladoMode(true);
+                    if (!formParcelas || formParcelas < 2) setFormParcelas(2);
+
+                    // parcelado: não faz sentido abrir "fixo / prazo"
+                    setPrazoMode(null);
+                    setFormDataTerminoFixa("");
+                  }}
+                  className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
+                    ${
+                      ccIsParceladoMode === true
+                        ? "bg-violet-600/90 border-violet-500/40 text-white"
+                        : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
+                    }`}
+                >
+                  Parcelado
+                </button>
+              </div>
+            </div>
+
+            {/* Tipo de Gasto (esq) + Categoria (dir) SEMPRE aqui, abaixo dos botões */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {ccIsParceladoMode === true ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                    Número de parcelas
+                  </label>
+                  <input
+                    type="number"
+                    min={2}
+                    value={formParcelas}
+                    onChange={(e) => {
+                      const n = parseInt(e.target.value || "2", 10);
+                      setFormParcelas(Number.isFinite(n) ? Math.max(2, n) : 2);
+                    }}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none focus:ring-2 focus:ring-violet-100 dark:focus:ring-violet-900"
+                  />
+                </div>
+              ) : (
+                <CustomDropdown
+                  label="Tipo de Gasto"
+                  value={formTipoGasto}
+                  options={["Variável", "Fixo"] as any}
+                  onSelect={(val) => {
+                    setFormTipoGasto(val);
+                    if (String(val) !== "Fixo") {
+                      setPrazoMode(null);
+                      setFormDataTerminoFixa("");
+                    }
+                  }}
+                />
+              )}
+
+              <CustomDropdown
+                label="Categoria"
+                value={formCat}
+                options={ccCategoryOptions as any}
+                onSelect={(val) => setFormCat(val)}
+                onDelete={(idx) => removerCategoria("despesa", idx)}
+                onAddNew={onOpenCategoriaModal}
+              />
+            </div>
+
+            {/* Cartão: Fixo -> Com prazo / Sem prazo (igual despesa) */}
+            {ccIsParceladoMode === false && String(formTipoGasto) === "Fixo" && (
+              <div className="mt-1 space-y-2">
+                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
+                  Lançamento fixo
+                </label>
+
+                <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
+                  <button
+                    type="button"
+                    onClick={() => setPrazoMode("com_prazo")}
+                    className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
+                      ${
+                        prazoMode === "com_prazo"
+                          ? "bg-violet-600/90 border-violet-500/40 text-white"
+                          : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
+                      }`}
+                  >
+                    Com prazo
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPrazoMode("sem_prazo")}
+                    className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
+                      ${
+                        prazoMode === "sem_prazo"
+                          ? "bg-violet-600/90 border-violet-500/40 text-white"
+                          : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
+                      }`}
+                  >
+                    Sem prazo
+                  </button>
+                </div>
+
+                {prazoMode === "com_prazo" && (
+                  <div className="mt-2">
+                    <CustomDateInput
+                      label="Último lançamento em:"
+                      value={formDataTerminoFixa}
+                      onChange={setFormDataTerminoFixa}
+                    />
+                  </div>
+                )}
+
+                {prazoMode === "sem_prazo" && (
+                  <div className="mt-2 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30">
+                    <p className="text-[12px] leading-snug text-slate-500 dark:text-slate-400">
+                      Sem prazo: vamos considerar{" "}
+                      <span className="font-bold">{SEM_PRAZO_MESES} meses</span> (5 anos) ou até você excluir este
+                      lançamento.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Categoria + Método/Conta (apenas fora do cartão e fora da transferência) */}
+        {formTipo !== "transferencia" && !isCC && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <CustomDropdown
               label="Categoria"
               value={formCat}
               options={
-                (formTipo === "receita"
-                  ? (categorias as any).receita
-                  : (categorias as any).despesa) as any
+                (formTipo === "receita" ? (categorias as any).receita : (categorias as any).despesa) as any
               }
               onSelect={(val) => setFormCat(val)}
               onDelete={(idx) => removerCategoria(formTipo === "receita" ? "receita" : "despesa", idx)}
@@ -607,7 +779,7 @@ export default function NewTransactionCard({
           </div>
         )}
 
-        {/* Fixas/recorrentes */}
+        {/* Fixas/recorrentes (somente despesa à vista + fixo) */}
         {formTipo === "despesa" && isParceladoMode === false && String(formTipoGasto) === "Fixo" && (
           <div className="mt-2 space-y-2">
             <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
@@ -666,10 +838,19 @@ export default function NewTransactionCard({
 
         <button
           type="button"
-          onClick={handleAddTransaction}
-          className="mt-4 w-full h-12 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac]
+          onClick={() => {
+            if (!canSubmit) {
+              openAddCardModal();
+              return;
+            }
+            handleAddTransaction();
+          }}
+          disabled={!canSubmit}
+          className={`mt-4 w-full h-12 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac]
                    text-white font-black tracking-wide shadow-lg shadow-violet-900/20
-                   hover:brightness-110 active:scale-[0.99] transition"
+                   hover:brightness-110 active:scale-[0.99] transition
+                   ${!canSubmit ? "opacity-60 cursor-not-allowed hover:brightness-100 active:scale-100" : ""}`}
+          title={!canSubmit ? "Selecione um cartão para lançar." : "Efetuar lançamento"}
         >
           Efetuar Lançamento
         </button>

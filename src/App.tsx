@@ -100,6 +100,11 @@ const hojeStr = getHojeLocal();
 
 const App: FC = () => {
   const [transacoes, setTransacoes] = useState<Transaction[]>(() => loadOrMigrateTransacoes());
+
+  const [creditCardTxByCardId, setCreditCardTxByCardId] = useState<
+  Record<string, Transaction[]>
+>({});
+
   const [projectionMode, setProjectionMode] = useState<"acumulado" | "mensal">("acumulado");
 
   useEffect(() => {
@@ -1693,7 +1698,7 @@ const tid = normalizeTid(transferId);
 
 
 
-// CARTÃO DE CRÉDITO (lança como "cartao_credito")
+// CARTÃO DE CRÉDITO (lança na lista do cartão selecionado)
 if (formTipo === "cartao_credito") {
   const desc = (formDesc || "").trim();
 
@@ -1708,32 +1713,75 @@ if (formTipo === "cartao_credito") {
   }
 
   if (!selectedCreditCardId) {
-  toastCompact("Selecione o cartão.", "error");
-  return;
-}
+    toastCompact("Selecione o cartão.", "error");
+    return;
+  }
 
-  const novo: Transaction = {
-    id: Date.now(),
-    tipo: "cartao_credito",
-    descricao: desc || "Cartão de Crédito",
-    valor: -Math.abs(valorNum),
-    data: formData,
-    categoria: "Cartão de Crédito",
-    tipoGasto: (formTipoGasto as any) ?? "",
-    qualCartao: selectedCreditCardId,
-    pago: true,
+  // à vista ou parcelado (usa o mesmo state que você já tem no NewTransactionCard)
+  const ehParcelado = isParceladoMode === true;
+  const parcelas = ehParcelado ? Math.max(2, Number(formParcelas || 2)) : 1;
+
+  const baseDate = new Date(`${formData}T12:00:00`);
+  const descBase = desc || "Cartão de Crédito";
+
+  // valor total fica negativo, igual despesa
+  const total = Math.abs(valorNum);
+  const valorParcela = parcelas > 1 ? total / parcelas : total;
+
+  const makeId = (suffix: string) => {
+    // se existir newId no seu projeto, usa.
+    try {
+      // @ts-ignore
+      return typeof newId === "function" ? newId("cc") : `${Date.now()}_${suffix}`;
+    } catch {
+      return `${Date.now()}_${suffix}`;
+    }
   };
 
-  setTransacoes((prev) => [...prev, novo]);
+  const novos: Transaction[] = [];
 
+  for (let i = 0; i < parcelas; i++) {
+    const d = new Date(baseDate);
+    d.setMonth(baseDate.getMonth() + i);
+
+    novos.push({
+      id: makeId(String(i)),
+      tipo: "cartao_credito",
+      descricao: parcelas > 1 ? `${descBase} (${i + 1}/${parcelas})` : descBase,
+      valor: -Math.abs(valorParcela),
+      data: d.toISOString().split("T")[0],
+      categoria: "Cartão de Crédito",
+      tipoGasto: (formTipoGasto as any) ?? "",
+      qualCartao: selectedCreditCardId,
+      pago: true,
+      // opcional: se você quiser ligar parcelas em um grupo
+      recorrenciaId: parcelas > 1 ? `cc_${selectedCreditCardId}_${Date.now()}` : undefined,
+    } as any);
+  }
+
+  // ✅ salva na lista DO CARTÃO (não no quadro geral)
+  setCreditCardTxByCardId((prev) => {
+    const current = prev[selectedCreditCardId] ?? [];
+    return {
+      ...prev,
+      [selectedCreditCardId]: [...current, ...novos],
+    };
+  });
+
+  // reset
   setFormDesc("");
   setFormValor("");
   setFormData(getHojeLocal());
   setFormPago(true);
 
+  // opcional: reset do parcelado quando lançar
+  // setIsParceladoMode(false);
+  // setFormParcelas(1);
+
   toastCompact("Lançamento no cartão realizado com sucesso!", "success");
   return;
 }
+
 
 
     // receita / despesa (lógica atual)
@@ -1895,8 +1943,11 @@ if (sessionLoading) {
   creditCards[0] ??
   null;
 
-const selectedCcCard =
+  const selectedCcCard =
   creditCards.find((c) => c.id === selectedCreditCardId) ?? null;
+
+  const creditTxSelecionado =
+  selectedCreditCardId ? (creditCardTxByCardId[selectedCreditCardId] ?? []) : [];
 
 
  return (
@@ -2186,15 +2237,8 @@ const selectedCcCard =
       gradientTo: selectedCcCard.gradientTo ?? "#4600ac",
       categoria: selectedCard?.categoria ?? "",
       }}
-transacoes={
-  transacoes
-    .filter((t) => t.qualCartao === (selectedCcCard.name ?? ""))
-    .map((t) => ({
-      ...t,
-      id: String(t.id),
-      tipo: t.tipo === "cartao_credito" ? "despesa" : t.tipo,
-    }))
-}
+transacoes={creditTxSelecionado.map((t) => ({ ...t, id: String(t.id) }))}
+
 onPickOtherCard={toggleCcExpanded}
 
  />

@@ -2,7 +2,7 @@
    PARTE 1/3 — IMPORTS + COMPONENTES (Dropdown / Date / Ícones)
    Cole do topo do arquivo até o final desta parte.
 ========================= */
-import { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
 import AuthPage from "./components/AuthPage";
 import { supabase } from "./lib/supabase";
 import { useUI } from "./components/UIProvider";
@@ -10,10 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FC } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { mergeTransfers } from "./app/transactions/logic";
-
-
-
-
+import { createPortal } from "react-dom";
 
 import { sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
@@ -98,7 +95,38 @@ const hojeStr = getHojeLocal();
 
 
 
-const App: FC = () => {
+  const App: FC = () => {
+type ConfirmState = {
+  title: string;
+  message: string;
+  confirmText: string;
+  cancelText?: string;
+  onConfirm: () => void;
+  onCancel?: () => void; // 👈 adiciona isso
+};
+
+const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+
+function abrirConfirmacao(opts: ConfirmState) {
+  setConfirmState({
+    ...opts,
+    cancelText: opts.cancelText ?? "Cancelar",
+  });
+}
+
+function fecharConfirmacao() {
+  setConfirmState(null);
+}
+
+function confirmToast(opts: ConfirmState) {
+  abrirConfirmacao(opts);
+}
+
+  // daqui pra baixo segue seu código normal:
+  // const [transacoes, setTransacoes] = useState(...)
+  // const activeProfile = ...
+  // ...
+
   const [transacoes, setTransacoes] = useState<Transaction[]>(() => loadOrMigrateTransacoes());
 
   const [creditCardTxByCardId, setCreditCardTxByCardId] = useState<
@@ -1722,7 +1750,9 @@ if (formTipo === "cartao_credito") {
   const parcelas = ehParcelado ? Math.max(2, Number(formParcelas || 2)) : 1;
 
   const baseDate = new Date(`${formData}T12:00:00`);
-  const descBase = desc || "Cartão de Crédito";
+  const descBase = desc || "Compra no cartão";
+  const categoriaBase = String((categorias as any) ?? "").trim();
+
 
   // valor total fica negativo, igual despesa
   const total = Math.abs(valorNum);
@@ -1750,7 +1780,7 @@ if (formTipo === "cartao_credito") {
       descricao: parcelas > 1 ? `${descBase} (${i + 1}/${parcelas})` : descBase,
       valor: -Math.abs(valorParcela),
       data: d.toISOString().split("T")[0],
-      categoria: "Cartão de Crédito",
+      categoria: categoriaBase || undefined,
       tipoGasto: (formTipoGasto as any) ?? "",
       qualCartao: selectedCreditCardId,
       pago: true,
@@ -1954,14 +1984,19 @@ if (sessionLoading) {
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
    ...
 
-    <Toaster
+<Toaster
   position="bottom-center"
-  containerStyle={{ zIndex: 999999, bottom: 18 }}
+  containerStyle={{
+    inset: 0,
+    zIndex: 999999,
+    pointerEvents: "none",
+  }}
   toastOptions={{
     duration: 3000,
-    style: { maxWidth: "420px" },
+    style: { maxWidth: "420px", pointerEvents: "auto" },
   }}
 />
+
         <AppHeader
   onOpenSettings={() => setSettingsOpen(true)}
   settingsIcon={<SettingsIcon />}
@@ -2240,6 +2275,28 @@ if (sessionLoading) {
 transacoes={creditTxSelecionado.map((t) => ({ ...t, id: String(t.id) }))}
 
 onPickOtherCard={toggleCcExpanded}
+onDeleteTransacao={(id: string) => {
+  confirmToast({
+    title: "Excluir transação",
+    message: "Tem certeza que deseja excluir esta transação?",
+    confirmText: "Excluir",
+    cancelText: "Cancelar",
+    onConfirm: () => {
+      setCreditCardTxByCardId((prev: any) => {
+        const cardId = String(selectedCreditCardId ?? "");
+        if (!cardId) return prev;
+
+        const atual = prev?.[cardId] ?? [];
+        const atualizado = atual.filter((t: any) => String(t.id) !== String(id));
+
+        return { ...prev, [cardId]: atualizado };
+      });
+
+      toast.success("Transação excluída");
+    },
+  });
+}}
+
 
  />
 ) : null}
@@ -3397,6 +3454,41 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
   </div>
 )}
 
+{confirmState && (
+  <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
+    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1020] p-5 shadow-2xl">
+      <div className="text-lg font-semibold text-white">
+        {confirmState.title}
+      </div>
+
+      <div className="mt-2 text-sm text-white/80">
+        {confirmState.message}
+      </div>
+
+      <div className="mt-5 flex items-center justify-end gap-3">
+        <button
+          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+          onClick={() => {
+            confirmState.onCancel?.();
+            fecharConfirmacao();
+          }}
+        >
+          {confirmState.cancelText}
+        </button>
+
+        <button
+          className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+          onClick={() => {
+            confirmState.onConfirm();
+            fecharConfirmacao();
+          }}
+        >
+          {confirmState.confirmText}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
     </div>
   );

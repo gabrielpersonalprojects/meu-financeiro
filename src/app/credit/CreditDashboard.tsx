@@ -16,28 +16,50 @@ type CartaoUI = {
   gradientTo?: string;
 };
 
+type CategoriaLike =
+  | string
+  | {
+      nome?: string;
+      label?: string;
+      value?: string;
+      id?: string;
+    }
+  | null
+  | undefined;
+
 type TransacaoCCUI = {
   id: string;
   tipo: "cartao_credito" | "despesa" | "receita" | "transferencia";
   valor: number;
   data: string;
   descricao?: string;
-  categoria?: string;
+  categoria?: CategoriaLike;
 };
 
 type Props = {
   cartao: CartaoUI;
   transacoes: TransacaoCCUI[];
   onPickOtherCard?: () => void;
+  onDeleteTransacao?: (id: string) => void;
 };
 
-export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) {
+function categoriaToLabel(cat: CategoriaLike) {
+  if (!cat) return "";
+  if (typeof cat === "string") return cat;
+  return cat.nome ?? cat.label ?? cat.value ?? "";
+}
+
+export function CreditDashboard({
+  cartao,
+  transacoes,
+  onPickOtherCard,
+  onDeleteTransacao,
+}: Props) {
   function pad2(n: number) {
     return String(n).padStart(2, "0");
   }
 
   function formatBRDate(iso: string) {
-    // iso: YYYY-MM-DD
     const [y, m, d] = String(iso || "").split("-");
     if (!y || !m || !d) return iso;
     return `${d}/${m}/${y}`;
@@ -62,7 +84,6 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
       year: "numeric",
     });
     const s = fmt.format(date);
-    // "fevereiro de 2026" -> "Fevereiro 2026"
     return s.charAt(0).toUpperCase() + s.slice(1).replace(" de ", " ");
   }
 
@@ -75,12 +96,11 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
   const labelPrev = monthLabelPT(addMonths(baseMonth, -1));
   const labelNext = monthLabelPT(addMonths(baseMonth, +1));
 
-  // filtra transações do cartão para o mês selecionado
   const txMes = (transacoes || []).filter((t) => monthKey(t.data) === baseMonthKey);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start">
-      {/* COLUNA ESQUERDA: cartão + detalhes */}
+      {/* COLUNA ESQUERDA */}
       <div className="w-full max-w-[320px] justify-self-start space-y-6">
         {onPickOtherCard ? (
           <button type="button" onClick={onPickOtherCard} className="w-full text-left">
@@ -97,7 +117,6 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
               }}
             />
 
-            {/* Card de detalhes (abaixo do cartão) */}
             <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
               <div className="text-white/70 text-sm font-medium">Detalhes do cartão</div>
 
@@ -111,7 +130,6 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
                 </div>
               </div>
 
-              {/* Fechamento e vencimento na MESMA LINHA */}
               <div className="mt-3 flex items-center justify-between">
                 <div className="text-white/50 text-[11px] leading-none">
                   Fechamento{" "}
@@ -130,7 +148,6 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
 
               <div className="mt-3 h-px bg-white/10" />
 
-              {/* Fatura anterior */}
               <div className="mt-3">
                 <div className="text-white/50 text-[11px] leading-none">
                   Valor fatura anterior
@@ -159,7 +176,6 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
               }}
             />
 
-            {/* Card de detalhes (abaixo do cartão) */}
             <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
               <div className="text-white/70 text-sm font-medium">Detalhes do cartão</div>
 
@@ -207,9 +223,8 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
         )}
       </div>
 
-      {/* COLUNA DIREITA: carrossel + lista (AQUI é o ajuste) */}
+      {/* COLUNA DIREITA */}
       <div className="w-full space-y-3">
-        {/* Cabeçalho do mês da fatura */}
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
@@ -242,7 +257,6 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
           </button>
         </div>
 
-        {/* Lista premium (agora fica logo abaixo do carrossel) */}
         {txMes.length ? (
           <ul className="space-y-2">
             {txMes.map((t) => {
@@ -254,6 +268,8 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
               const parcelaAtual =
                 (t as any).parcelaAtual ?? (t as any).parcelaN ?? null;
               const isParcelado = Boolean(parcelasTotal && parcelaAtual);
+
+              const catLabel = categoriaToLabel(t.categoria);
 
               return (
                 <li
@@ -271,9 +287,9 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
                           {formatBRDate(t.data)}
                         </span>
 
-                        {t.categoria ? (
+                        {catLabel ? (
                           <span className="text-white/70 text-xs px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">
-                            {t.categoria}
+                            {catLabel}
                           </span>
                         ) : null}
 
@@ -285,7 +301,7 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 flex items-center gap-2">
                       <div
                         className={`text-sm font-semibold ${
                           isNeg ? "text-red-300" : "text-emerald-300"
@@ -296,6 +312,18 @@ export function CreditDashboard({ cartao, transacoes, onPickOtherCard }: Props) 
                           currency: "BRL",
                         })}
                       </div>
+
+                      {onDeleteTransacao ? (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteTransacao(t.id)}
+                          className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/80"
+                          title="Excluir transação"
+                          aria-label="Excluir transação"
+                        >
+                          🗑
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </li>

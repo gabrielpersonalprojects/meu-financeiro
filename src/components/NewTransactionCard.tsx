@@ -117,6 +117,30 @@ function getCardLabel(card: any) {
   return `${base}${suffix ? ` ${suffix}` : ""}`.trim();
 }
 
+/**
+ * ✅ Normaliza o valor vindo do CustomDropdown para SEMPRE virar string.
+ * Evita salvar objeto (que viraria "[object Object]" na UI).
+ */
+function normalizeCategory(val: any): string {
+  if (val == null) return "";
+  if (typeof val === "string") return val.trim();
+
+  if (typeof val === "object") {
+    const direct =
+      val.nome ?? val.name ?? val.label ?? val.titulo ?? val.value;
+
+    const nested =
+      val.value && typeof val.value === "object"
+        ? (val.value.nome ?? val.value.name ?? val.value.label ?? val.value.titulo ?? val.value.value)
+        : null;
+
+    const pick = direct ?? nested;
+    return pick != null ? String(pick).trim() : "";
+  }
+
+  return String(val).trim();
+}
+
 export default function NewTransactionCard({
   formTipo,
   setFormTipo,
@@ -503,7 +527,7 @@ export default function NewTransactionCard({
                 label="Categoria"
                 value={formCat}
                 options={ccCategoryOptions as any}
-                onSelect={(val) => setFormCat(val)}
+                onSelect={(val) => setFormCat(normalizeCategory(val))}
                 onDelete={(idx) => removerCategoria("despesa", idx)}
                 onAddNew={onOpenCategoriaModal}
               />
@@ -577,7 +601,7 @@ export default function NewTransactionCard({
               options={
                 (formTipo === "receita" ? (categorias as any).receita : (categorias as any).despesa) as any
               }
-              onSelect={(val) => setFormCat(val)}
+              onSelect={(val) => setFormCat(normalizeCategory(val))}
               onDelete={(idx) => removerCategoria(formTipo === "receita" ? "receita" : "despesa", idx)}
               onAddNew={onOpenCategoriaModal}
             />

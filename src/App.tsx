@@ -96,6 +96,7 @@ const hojeStr = getHojeLocal();
 
 
   const App: FC = () => {
+    const addTxLockRef = useRef(false);
 type ConfirmState = {
   title: string;
   message: string;
@@ -129,10 +130,7 @@ function confirmToast(opts: ConfirmState) {
 
   const [transacoes, setTransacoes] = useState<Transaction[]>(() => loadOrMigrateTransacoes());
 
-  const [creditCardTxByCardId, setCreditCardTxByCardId] = useState<
-  Record<string, Transaction[]>
->({});
-
+  
   const [projectionMode, setProjectionMode] = useState<"acumulado" | "mensal">("acumulado");
 
   useEffect(() => {
@@ -1614,10 +1612,30 @@ const isSameAccount = (a: any, b: any) => {
   return resolveProfileId(a) === resolveProfileId(b);
 };
 
+function dedupeById<T extends { id: string }>(arr: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of arr) {
+    const id = String(item.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(item);
+  }
+  return out;
+}
 
   // --- Add Transaction (com suporte simples a transferencia/cartao_credito) ---
   const handleAddTransaction = () => {
-    console.log("CLICK Efetuar -> handleAddTransaction", {
+if (addTxLockRef.current) return;
+addTxLockRef.current = true;
+
+try {
+  // (deixa TODO o resto do seu handleAddTransaction aqui embaixo)
+} finally {
+  addTxLockRef.current = false;
+}
+
+  console.log("CLICK Efetuar -> handleAddTransaction", {
   formTipo,
   formValor,
   formData,
@@ -1746,13 +1764,17 @@ if (formTipo === "cartao_credito") {
   }
 
   // à vista ou parcelado (usa o mesmo state que você já tem no NewTransactionCard)
-  const ehParcelado = isParceladoMode === true;
+  const ehParcelado = ccIsParceladoMode === true;
   const parcelas = ehParcelado ? Math.max(2, Number(formParcelas || 2)) : 1;
 
   const baseDate = new Date(`${formData}T12:00:00`);
   const descBase = desc || "Compra no cartão";
-  const categoriaBase = String((categorias as any) ?? "").trim();
+  const rawCat: any = formCat;
 
+  const categoriaBase =
+    (typeof rawCat === "string"
+      ? rawCat
+      : (rawCat?.nome ?? rawCat?.name ?? rawCat?.label ?? rawCat?.titulo ?? rawCat?.value)) ?? "";
 
   // valor total fica negativo, igual despesa
   const total = Math.abs(valorNum);
@@ -1790,13 +1812,10 @@ if (formTipo === "cartao_credito") {
   }
 
   // ✅ salva na lista DO CARTÃO (não no quadro geral)
-  setCreditCardTxByCardId((prev) => {
-    const current = prev[selectedCreditCardId] ?? [];
-    return {
-      ...prev,
-      [selectedCreditCardId]: [...current, ...novos],
-    };
-  });
+// ✅ salva no QUADRO GERAL (transacoes) => persiste e aparece nos próximos meses
+setTransacoes((prev) => [...prev, ...novos]);
+
+// (opcional) se você ainda usa creditCardTxByCardId pra UI do cartão, pode manter:
 
   // reset
   setFormDesc("");
@@ -1811,8 +1830,6 @@ if (formTipo === "cartao_credito") {
   toastCompact("Lançamento no cartão realizado com sucesso!", "success");
   return;
 }
-
-
 
     // receita / despesa (lógica atual)
     if (!formCat) {
@@ -1869,6 +1886,7 @@ if (formTipo === "cartao_credito") {
         });
       }
     }
+
     // recorrente fixo
     else if (formTipoGasto === "Fixo") {
       const dataInicio = new Date(formData + "T12:00:00");
@@ -1905,6 +1923,8 @@ if (formTipo === "cartao_credito") {
         });
       }
     }
+
+    
     // comum
     else {
       const sign = formTipo === "receita" ? 1 : -1;
@@ -1923,7 +1943,12 @@ if (formTipo === "cartao_credito") {
       });
     }
 
-    setTransacoes((prev) => [...prev, ...newTrans]);
+    setTransacoes((prev) => {
+  const next = [...prev, ...newTrans];
+  persistTransacoes(next);
+  return next;
+});
+
 
     setFormDesc("");
     setFormValor("");
@@ -1936,6 +1961,19 @@ if (formTipo === "cartao_credito") {
 
     toastCompact("Lançamento realizado com sucesso!", "success");
   };
+
+  const creditTxSelecionado = useMemo<Transaction[]>(() => {
+  const cardId = String(selectedCreditCardId ?? "");
+  if (!cardId) return [];
+
+  return transacoes
+    .filter(
+      (t) =>
+        t.tipo === "cartao_credito" &&
+        String((t as any).qualCartao ?? "") === cardId
+    )
+    .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+}, [transacoes, selectedCreditCardId]);
 
   // --- Loading/Auth guard ---
 if (sessionLoading) {
@@ -1976,11 +2014,7 @@ if (sessionLoading) {
   const selectedCcCard =
   creditCards.find((c) => c.id === selectedCreditCardId) ?? null;
 
-  const creditTxSelecionado =
-  selectedCreditCardId ? (creditCardTxByCardId[selectedCreditCardId] ?? []) : [];
-
-
- return (
+  return (
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
    ...
 
@@ -2272,7 +2306,7 @@ if (sessionLoading) {
       gradientTo: selectedCcCard.gradientTo ?? "#4600ac",
       categoria: selectedCard?.categoria ?? "",
       }}
-transacoes={creditTxSelecionado.map((t) => ({ ...t, id: String(t.id) }))}
+transacoes={creditTxSelecionado.map((t: Transaction) => ({ ...t, id: String(t.id) }))}
 
 onPickOtherCard={toggleCcExpanded}
 onDeleteTransacao={(id: string) => {
@@ -2282,20 +2316,33 @@ onDeleteTransacao={(id: string) => {
     confirmText: "Excluir",
     cancelText: "Cancelar",
     onConfirm: () => {
-      setCreditCardTxByCardId((prev: any) => {
-        const cardId = String(selectedCreditCardId ?? "");
-        if (!cardId) return prev;
+      setTransacoes((prev) => {
+        const target = prev.find((t) => String(t.id) === String(id));
+        if (!target) return prev;
 
-        const atual = prev?.[cardId] ?? [];
-        const atualizado = atual.filter((t: any) => String(t.id) !== String(id));
+        // se for parcela de cartão e tiver recorrenciaId, remove o grupo inteiro
+        const isCC = target.tipo === "cartao_credito";
+        const rid = (target as any).recorrenciaId;
+        const cardId = (target as any).qualCartao;
 
-        return { ...prev, [cardId]: atualizado };
+        if (isCC && rid) {
+          return prev.filter(
+            (t) =>
+              !(
+                t.tipo === "cartao_credito" &&
+                String((t as any).qualCartao) === String(cardId) &&
+                String((t as any).recorrenciaId) === String(rid)
+              )
+          );
+        }
+
+        // caso normal: remove só 1 item
+        return prev.filter((t) => String(t.id) !== String(id));
       });
-
-      toast.success("Transação excluída");
     },
   });
 }}
+
 
 
  />

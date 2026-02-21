@@ -4,6 +4,7 @@ import CustomDropdown from "./CustomDropdown";
 import { PlusIcon } from "./LucideIcons";
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { useEffect } from "react";
 
 type PrazoMode = "com_prazo" | "sem_prazo" | null;
 
@@ -290,6 +291,15 @@ export default function NewTransactionCard({
   const ccHasCardSelected = safeStr(selectedCreditCardId) !== "";
   const canSubmit = !isCC || ccHasCardSelected;
 
+  useEffect(() => {
+  if (!isCC) {
+    setFormTipoGasto("");
+    setPrazoMode("sem_prazo");
+    setCcIsParceladoMode(false);
+    setFormParcelas(1);
+  }
+}, [isCC]);
+
   const ccCardOptions =
     (creditCards || []).map((c: any) => ({
       label: getCardLabel(c),
@@ -542,12 +552,14 @@ export default function NewTransactionCard({
               <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
                 <button
                   type="button"
-                  onClick={() => {
-                    setCcIsParceladoMode(false);
-                    setFormParcelas(1);
-                    // libera fixo/variável
-                    // (não mexo em formTipoGasto aqui pra não apagar escolha do usuário)
-                  }}
+onClick={() => {
+  setCcIsParceladoMode(false);
+  setFormParcelas(1);
+
+  // RESETAR como no comportamento da Despesa
+  setFormTipoGasto(""); // volta pro "Selecione"
+  setPrazoMode("sem_prazo");
+}}
                   className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
                     ${
                       ccIsParceladoMode === false
@@ -567,6 +579,8 @@ export default function NewTransactionCard({
                     // parcelado: não faz sentido abrir "fixo / prazo"
                     setPrazoMode(null);
                     setFormDataTerminoFixa("");
+                    setFormTipoGasto(""); // volta pro "Selecione"
+                    setPrazoMode("sem_prazo");
                   }}
                   className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
                     ${

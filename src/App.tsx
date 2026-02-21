@@ -1744,7 +1744,7 @@ const tid = normalizeTid(transferId);
 
 
 
-// CARTÃO DE CRÉDITO (lança na lista do cartão selecionado)
+// CARTÃO DE CRÉDITO
 if (formTipo === "cartao_credito") {
   const desc = (formDesc || "").trim();
 
@@ -1763,9 +1763,30 @@ if (formTipo === "cartao_credito") {
     return;
   }
 
-  // à vista ou parcelado (usa o mesmo state que você já tem no NewTransactionCard)
+  // helper: soma meses sem “pular” mês quando o dia não existe (ex: 31)
+  const addMonthsSafe = (date: Date, monthsToAdd: number) => {
+    const y = date.getFullYear();
+    const m = date.getMonth();
+    const d = date.getDate();
+
+    const lastDayTarget = new Date(y, m + monthsToAdd + 1, 0).getDate();
+    const day = Math.min(d, lastDayTarget);
+
+    return new Date(y, m + monthsToAdd, day, 12, 0, 0, 0);
+  };
+
   const ehParcelado = ccIsParceladoMode === true;
-  const parcelas = ehParcelado ? Math.max(2, Number(formParcelas || 2)) : 1;
+  const ehFixo = !ehParcelado && String(formTipoGasto) === "Fixo";
+
+  if (ehFixo && prazoMode === null) {
+    toastCompact("Selecione 'Com prazo' ou 'Sem prazo' para continuar.", "error");
+    return;
+  }
+
+  if (ehFixo && prazoMode === "com_prazo" && !formDataTerminoFixa) {
+    toastCompact("Selecione a data final (Último lançamento em:).", "error");
+    return;
+  }
 
   const baseDate = new Date(`${formData}T12:00:00`);
   const descBase = desc || "Compra no cartão";
@@ -1776,12 +1797,9 @@ if (formTipo === "cartao_credito") {
       ? rawCat
       : (rawCat?.nome ?? rawCat?.name ?? rawCat?.label ?? rawCat?.titulo ?? rawCat?.value)) ?? "";
 
-  // valor total fica negativo, igual despesa
   const total = Math.abs(valorNum);
-  const valorParcela = parcelas > 1 ? total / parcelas : total;
 
   const makeId = (suffix: string) => {
-    // se existir newId no seu projeto, usa.
     try {
       // @ts-ignore
       return typeof newId === "function" ? newId("cc") : `${Date.now()}_${suffix}`;
@@ -1792,40 +1810,89 @@ if (formTipo === "cartao_credito") {
 
   const novos: Transaction[] = [];
 
-  for (let i = 0; i < parcelas; i++) {
-    const d = new Date(baseDate);
-    d.setMonth(baseDate.getMonth() + i);
+  // 1) PARCELADO
+  if (ehParcelado) {
+    const parcelas = Math.max(2, Number(formParcelas || 2));
+    const valorParcela = total / parcelas;
+    const recorrenciaId = `cc_parc_${selectedCreditCardId}_${Date.now()}`;
 
+    for (let i = 0; i < parcelas; i++) {
+      const d = addMonthsSafe(baseDate, i);
+
+      novos.push({
+        id: makeId(String(i)),
+        tipo: "cartao_credito",
+        descricao: `${descBase} (${i + 1}/${parcelas})`,
+        valor: -Math.abs(valorParcela),
+        data: d.toISOString().split("T")[0],
+        categoria: categoriaBase || undefined,
+        tipoGasto: "Fixo",
+        qualCartao: selectedCreditCardId,
+        pago: i === 0 ? formPago : false,
+        recorrenciaId,
+      } as any);
+    }
+  }
+
+  // 2) FIXO (COM PRAZO / SEM PRAZO)
+  else if (ehFixo) {
+    let mesesParaGerar = 1;
+
+    if (prazoMode === "sem_prazo") {
+      mesesParaGerar = SEM_PRAZO_MESES;
+    } else {
+      const dataFim = new Date(`${formDataTerminoFixa}T12:00:00`);
+      const diffAnos = dataFim.getFullYear() - baseDate.getFullYear();
+      const diffMeses = dataFim.getMonth() - baseDate.getMonth();
+      mesesParaGerar = Math.max(1, diffAnos * 12 + diffMeses + 1);
+    }
+
+    const recorrenciaId = `cc_fixo_${selectedCreditCardId}_${Date.now()}`;
+
+    for (let i = 0; i < mesesParaGerar; i++) {
+      const d = addMonthsSafe(baseDate, i);
+
+      novos.push({
+        id: makeId(`fixo_${i}`),
+        tipo: "cartao_credito",
+        descricao: descBase,
+        valor: -Math.abs(total),
+        data: d.toISOString().split("T")[0],
+        categoria: categoriaBase || undefined,
+        tipoGasto: "Fixo",
+        qualCartao: selectedCreditCardId,
+        pago: i === 0 ? formPago : false,
+        isRecorrente: true,
+        recorrenciaId,
+      } as any);
+    }
+  }
+
+  // 3) À VISTA NORMAL
+  else {
     novos.push({
-      id: makeId(String(i)),
+      id: makeId("avista"),
       tipo: "cartao_credito",
-      descricao: parcelas > 1 ? `${descBase} (${i + 1}/${parcelas})` : descBase,
-      valor: -Math.abs(valorParcela),
-      data: d.toISOString().split("T")[0],
+      descricao: descBase,
+      valor: -Math.abs(total),
+      data: baseDate.toISOString().split("T")[0],
       categoria: categoriaBase || undefined,
       tipoGasto: (formTipoGasto as any) ?? "",
       qualCartao: selectedCreditCardId,
-      pago: true,
-      // opcional: se você quiser ligar parcelas em um grupo
-      recorrenciaId: parcelas > 1 ? `cc_${selectedCreditCardId}_${Date.now()}` : undefined,
+      pago: formPago,
     } as any);
   }
 
-  // ✅ salva na lista DO CARTÃO (não no quadro geral)
-// ✅ salva no QUADRO GERAL (transacoes) => persiste e aparece nos próximos meses
-setTransacoes((prev) => [...prev, ...novos]);
+  setTransacoes((prev) => {
+    const next = [...prev, ...novos];
+    persistTransacoes(next);
+    return next;
+  });
 
-// (opcional) se você ainda usa creditCardTxByCardId pra UI do cartão, pode manter:
-
-  // reset
   setFormDesc("");
   setFormValor("");
   setFormData(getHojeLocal());
   setFormPago(true);
-
-  // opcional: reset do parcelado quando lançar
-  // setIsParceladoMode(false);
-  // setFormParcelas(1);
 
   toastCompact("Lançamento no cartão realizado com sucesso!", "success");
   return;

@@ -97,6 +97,35 @@ const hojeStr = getHojeLocal();
 
   const App: FC = () => {
     const addTxLockRef = useRef(false);
+    const [ccTags, setCcTags] = useState<string[]>(() => {
+  try {
+    const raw = localStorage.getItem("fluxmoney_cc_tags");
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+});
+
+const removeCCTag = (tag: string) => {
+  const target = (tag || "").trim().toLowerCase();
+  setCcTags((prev) => {
+    const next = prev.filter((t) => t.trim().toLowerCase() !== target);
+    persistCCTags(next);
+    return next;
+  });
+
+  // se a tag removida estiver selecionada no formulário, limpa
+  if ((formTagCC || "").trim().toLowerCase() === target) {
+    setFormTagCC("");
+  }
+};
+
+const persistCCTags = (tags: string[]) => {
+  try {
+    localStorage.setItem("fluxmoney_cc_tags", JSON.stringify(tags));
+  } catch {}
+};
 type ConfirmState = {
   title: string;
   message: string;
@@ -617,6 +646,7 @@ const saveTransacoesByProfile = (pid: string, list: Transaction[]) => {
   const [formValor, setFormValor] = useState("");
   const [formData, setFormData] = useState(getHojeLocal());
   const [formCat, setFormCat] = useState("");
+  const [formTagCC, setFormTagCC] = useState("");
   const [formTipoGasto, setFormTipoGasto] = useState<SpendingType | "">("");
   const [formMetodo, setFormMetodo] = useState<PaymentMethod | "">("");
   const [formQualCartao, setFormQualCartao] = useState("");
@@ -1747,6 +1777,7 @@ const tid = normalizeTid(transferId);
 // CARTÃO DE CRÉDITO
 if (formTipo === "cartao_credito") {
   const desc = (formDesc || "").trim();
+  const tagCC = (formTagCC || "").trim();
 
   if (!valorNum) {
     toastCompact("Por favor, preencha o valor.", "error");
@@ -1826,6 +1857,7 @@ if (formTipo === "cartao_credito") {
         valor: -Math.abs(valorParcela),
         data: d.toISOString().split("T")[0],
         categoria: categoriaBase || undefined,
+        tag: tagCC || undefined,
         tipoGasto: "Fixo",
         qualCartao: selectedCreditCardId,
         pago: i === 0 ? formPago : false,
@@ -1859,6 +1891,7 @@ if (formTipo === "cartao_credito") {
         valor: -Math.abs(total),
         data: d.toISOString().split("T")[0],
         categoria: categoriaBase || undefined,
+        tag: tagCC || undefined,
         tipoGasto: "Fixo",
         qualCartao: selectedCreditCardId,
         pago: i === 0 ? formPago : false,
@@ -1877,11 +1910,21 @@ if (formTipo === "cartao_credito") {
       valor: -Math.abs(total),
       data: baseDate.toISOString().split("T")[0],
       categoria: categoriaBase || undefined,
+      tag: tagCC || undefined,
       tipoGasto: (formTipoGasto as any) ?? "",
       qualCartao: selectedCreditCardId,
       pago: formPago,
     } as any);
   }
+if (tagCC) {
+  setCcTags((prev) => {
+    const normalized = tagCC.trim();
+    const exists = prev.some((t) => t.toLowerCase() === normalized.toLowerCase());
+    const next = exists ? prev : [...prev, normalized].sort((a, b) => a.localeCompare(b, "pt-BR"));
+    persistCCTags(next);
+    return next;
+  });
+}
 
   setTransacoes((prev) => {
     const next = [...prev, ...novos];
@@ -1893,6 +1936,7 @@ if (formTipo === "cartao_credito") {
   setFormValor("");
   setFormData(getHojeLocal());
   setFormPago(true);
+  setFormTagCC("");
 
   toastCompact("Lançamento no cartão realizado com sucesso!", "success");
   return;
@@ -2167,6 +2211,10 @@ if (sessionLoading) {
           SEM_PRAZO_MESES={SEM_PRAZO_MESES}
           handleAddTransaction={handleAddTransaction}
           setModoCentro={setModoCentro}
+          formTagCC={formTagCC}
+          setFormTagCC={setFormTagCC}
+          ccTags={ccTags}
+          onRemoveCCTag={removeCCTag}
         />
       </div>
 

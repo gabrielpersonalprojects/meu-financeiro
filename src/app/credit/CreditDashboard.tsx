@@ -34,6 +34,7 @@ type TransacaoCCUI = {
   data: string;
   descricao?: string;
   categoria?: CategoriaLike;
+  tag?: string;
 };
 
 type Props = {
@@ -120,15 +121,15 @@ export function CreditDashboard({
             <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
               <div className="text-white/70 text-sm font-medium">Detalhes do cartão</div>
 
-              <div className="mt-3">
-                <div className="text-white/50 text-[11px] leading-none">Limite</div>
-                <div className="mt-1 text-white/85 text-[13px] font-semibold leading-none">
-                  {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  })}
-                </div>
-              </div>
+<div className="mt-3 grid grid-cols-2 items-center gap-2">
+  <div className="text-white/50 text-[11px] leading-none">Limite</div>
+  <div className="text-right text-white/85 text-[13px] font-semibold leading-none">
+    {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    })}
+  </div>
+</div>
 
               <div className="mt-3 flex items-center justify-between">
                 <div className="text-white/50 text-[11px] leading-none">
@@ -179,15 +180,16 @@ export function CreditDashboard({
             <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
               <div className="text-white/70 text-sm font-medium">Detalhes do cartão</div>
 
-              <div className="mt-3">
-                <div className="text-white/50 text-[11px] leading-none">Limite</div>
-                <div className="mt-1 text-white/85 text-[13px] font-semibold leading-none">
-                  {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  })}
-                </div>
-              </div>
+<div className="grid grid-cols-2 items-center gap-2">
+  <div className="text-white/50 text-[11px] leading-none">Limite</div>
+
+  <div className="text-right text-white/85 text-[13px] font-semibold leading-none">
+    {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    })}
+  </div>
+</div>
 
               <div className="mt-3 flex items-center justify-between">
                 <div className="text-white/50 text-[11px] leading-none">
@@ -293,6 +295,11 @@ export function CreditDashboard({
                           </span>
                         ) : null}
 
+                        {t.tag ? (
+                            <span className="text-white/80 text-xs px-2 py-0.5 rounded-lg bg-violet-500/10 border border-violet-400/20">
+                              {t.tag}
+                            </span>
+                          ) : null}
                         {isParcelado ? (
                           <span className="text-white/80 text-xs px-2 py-0.5 rounded-lg bg-purple-500/10 border border-purple-400/20">
                             Parcelado {parcelaAtual}/{parcelasTotal}
@@ -300,7 +307,6 @@ export function CreditDashboard({
                         ) : null}
                       </div>
                     </div>
-
                     <div className="text-right shrink-0 flex items-center gap-2">
                       <div
                         className={`text-sm font-semibold ${
@@ -331,7 +337,11 @@ export function CreditDashboard({
             })}
           </ul>
         ) : (
-          <div className="text-white/60 text-sm">Nenhuma transação encontrada.</div>
+          <div className="min-h-[160px] flex items-center justify-center">
+  <div className="text-white/60 text-sm text-center">
+    Nenhuma transação encontrada.
+  </div>
+</div>
         )}
       </div>
     </div>

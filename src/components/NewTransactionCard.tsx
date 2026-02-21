@@ -1,8 +1,9 @@
-import type { Dispatch, SetStateAction } from "react";
 import type { Categories, PaymentMethod, Profile, TransactionType } from "../app/types";
 import CustomDateInput from "./CustomDateInput";
 import CustomDropdown from "./CustomDropdown";
 import { PlusIcon } from "./LucideIcons";
+import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 
 type PrazoMode = "com_prazo" | "sem_prazo" | null;
 
@@ -42,6 +43,14 @@ type Props = {
 
   formPago: boolean;
   setFormPago: (v: boolean) => void;
+
+  // tag (só cartão de crédito)
+  formTagCC: string;
+  setFormTagCC: (v: string) => void;
+
+  ccTags: string[];
+
+  onRemoveCCTag: (tag: string) => void;
 
   // mantive no props por compatibilidade (não uso aqui)
   handleFormatCurrencyInput: (value: string, setter: (v: string) => void) => void;
@@ -126,8 +135,7 @@ function normalizeCategory(val: any): string {
   if (typeof val === "string") return val.trim();
 
   if (typeof val === "object") {
-    const direct =
-      val.nome ?? val.name ?? val.label ?? val.titulo ?? val.value;
+    const direct = val.nome ?? val.name ?? val.label ?? val.titulo ?? val.value;
 
     const nested =
       val.value && typeof val.value === "object"
@@ -173,6 +181,13 @@ export default function NewTransactionCard({
 
   formPago,
   setFormPago,
+
+  formTagCC,
+  setFormTagCC,
+
+  ccTags,
+
+  onRemoveCCTag,
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   handleFormatCurrencyInput,
@@ -270,6 +285,7 @@ export default function NewTransactionCard({
     });
   };
 
+  const [isTagOpen, setIsTagOpen] = useState(false);
   const isCC = formTipo === "cartao_credito";
   const ccHasCardSelected = safeStr(selectedCreditCardId) !== "";
   const canSubmit = !isCC || ccHasCardSelected;
@@ -288,7 +304,7 @@ export default function NewTransactionCard({
   const ccCategoryOptions = (categorias as any).despesa as any; // gasto no cartão é despesa
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 space-y-5 transition-colors">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6">
       <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
         <PlusIcon /> Novo Lançamento
       </h2>
@@ -296,7 +312,7 @@ export default function NewTransactionCard({
       <div className="space-y-4">
         <div>
           <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-            O que é?
+          
           </label>
 
           <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
@@ -358,38 +374,112 @@ export default function NewTransactionCard({
           <div className="mt-2 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 flex justify-center">
             <p className="text-[12px] leading-snug text-slate-500 dark:text-slate-400 text-center">
               Transfira valores{" "}
-              <span className="font-semibold text-slate-600 dark:text-slate-300">
-                entre suas contas cadastradas
-              </span>
-              :
+              <span className="font-semibold text-slate-600 dark:text-slate-300">entre suas contas cadastradas</span>:
             </p>
           </div>
         )}
 
-        {/* Cartão (obrigatório) - só no modo cartão */}
-        {isCC && (
-          <div className="mt-1">
-            <CustomDropdown
-              label="Cartão"
-              value={ccCardValue}
-              options={ccCardOptions as any}
-              onSelect={(val) => setSelectedCreditCardId(String(val))}
-              onAddNew={() => {
-                // força seleção obrigatória
-                openAddCardModal();
-              }}
-            />
+{/* Cartão (obrigatório) + Tag lado a lado - só no modo cartão */}
+{isCC && (
+  <div className="mt-1 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+    <div className="min-w-0 w-full">
+      <div className="w-full">
+        <CustomDropdown
+          label="Cartão"
+          value={ccCardValue}
+          options={ccCardOptions as any}
+          onSelect={(val) => setSelectedCreditCardId(String(val))}
+          onAddNew={() => {
+            openAddCardModal();
+          }}
+        />
+      </div>
 
-            {!ccHasCardSelected && (
-              <div className="mt-2 px-3 py-2 rounded-xl border border-violet-500/25 dark:border-violet-300/15 bg-violet-500/10 dark:bg-violet-500/10">
-                <p className="text-[12px] leading-snug text-violet-200/90 dark:text-violet-100/80">
-                  Selecione um cartão para lançar esta despesa. Se ainda não tiver, clique em{" "}
-                  <span className="font-bold">adicionar novo</span>.
-                </p>
-              </div>
-            )}
+      {!ccHasCardSelected && (
+        <div className="mt-2 px-3 py-2 rounded-xl border border-violet-500/25 dark:border-violet-300/15 bg-violet-500/10 dark:bg-violet-500/10">
+          <p className="text-[12px] leading-snug text-violet-200/90 dark:text-violet-100/80">
+            Selecione um cartão para lançar esta despesa. Se ainda não tiver, clique em{" "}
+            <span className="font-bold">adicionar novo</span>.
+          </p>
+        </div>
+      )}
+    </div>
+
+    <div className="min-w-0 w-full">
+<label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+  Tag (opcional)
+</label>
+
+      <div className="relative w-full">
+        <input
+          type="text"
+          value={formTagCC}
+          onChange={(e) => setFormTagCC(e.target.value)}
+          onFocus={() => setIsTagOpen(true)}
+          onBlur={() => {
+            window.setTimeout(() => setIsTagOpen(false), 120);
+          }}
+          placeholder="Casa, pai, carro..."
+          className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-sm font-semibold outline-none focus:ring-2 focus:ring-violet-100 dark:focus:ring-violet-900"
+        />
+
+        {isTagOpen && (ccTags?.length ?? 0) > 0 && (
+          <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-lg">
+            <div className="max-h-56 overflow-auto p-1">
+              {(ccTags || [])
+                .filter((t) => {
+                  const q = (formTagCC || "").trim().toLowerCase();
+                  if (!q) return true;
+                  return t.toLowerCase().includes(q);
+                })
+                .slice(0, 30)
+                .map((t) => (
+                  <div
+                    key={t}
+                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition"
+                  >
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setFormTagCC(t);
+                        setIsTagOpen(false);
+                      }}
+                      className="flex-1 text-left text-sm font-semibold text-slate-800 dark:text-slate-100"
+                      title="Selecionar tag"
+                    >
+                      {t}
+                    </button>
+
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => onRemoveCCTag(t)}
+                      className="h-8 w-8 rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 hover:bg-white/80 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-200"
+                      title="Remover tag"
+                      aria-label={`Remover tag ${t}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+
+              {(ccTags || []).filter((t) => {
+                const q = (formTagCC || "").trim().toLowerCase();
+                if (!q) return true;
+                return t.toLowerCase().includes(q);
+              }).length === 0 && (
+                <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
+                  Nenhuma tag encontrada.
+                </div>
+              )}
+            </div>
           </div>
         )}
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Descrição */}
         <div>
@@ -408,21 +498,21 @@ export default function NewTransactionCard({
         <div className="flex gap-3">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1.5">
-              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
-                Valor (R$)
-              </label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Valor (R$)</label>
 
-              <label className="flex items-center gap-2 ml-2">
-                <input
-                  type="checkbox"
-                  checked={formPago}
-                  onChange={(e) => setFormPago(e.target.checked)}
-                  className="h-3 w-3 rounded border border-slate-200 dark:border-slate-700 accent-indigo-600"
-                />
-                <span className="text-[11px] leading-none font-medium text-slate-600 dark:text-slate-300 select-none">
-                  Pago
-                </span>
-              </label>
+{!isCC && (
+  <label className="flex items-center gap-2 ml-2">
+    <input
+      type="checkbox"
+      checked={formPago}
+      onChange={(e) => setFormPago(e.target.checked)}
+      className="h-3 w-3 rounded border border-slate-200 dark:border-slate-700 accent-indigo-600"
+    />
+    <span className="text-[11px] leading-none font-medium text-slate-600 dark:text-slate-300 select-none">
+      Pago
+    </span>
+  </label>
+)}
             </div>
 
             <input
@@ -446,7 +536,7 @@ export default function NewTransactionCard({
           <div className="mt-1 space-y-3">
             <div>
               <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                Parcelado?
+                Modelo de Pagamento
               </label>
 
               <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
@@ -581,9 +671,8 @@ export default function NewTransactionCard({
                 {prazoMode === "sem_prazo" && (
                   <div className="mt-2 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30">
                     <p className="text-[12px] leading-snug text-slate-500 dark:text-slate-400">
-                      Sem prazo: vamos considerar{" "}
-                      <span className="font-bold">{SEM_PRAZO_MESES} meses</span> (5 anos) ou até você excluir este
-                      lançamento.
+                      Sem prazo: vamos considerar <span className="font-bold">{SEM_PRAZO_MESES} meses</span> (5 anos) ou
+                      até você excluir este lançamento.
                     </p>
                   </div>
                 )}
@@ -598,9 +687,7 @@ export default function NewTransactionCard({
             <CustomDropdown
               label="Categoria"
               value={formCat}
-              options={
-                (formTipo === "receita" ? (categorias as any).receita : (categorias as any).despesa) as any
-              }
+              options={(formTipo === "receita" ? (categorias as any).receita : (categorias as any).despesa) as any}
               onSelect={(val) => setFormCat(normalizeCategory(val))}
               onDelete={(idx) => removerCategoria(formTipo === "receita" ? "receita" : "despesa", idx)}
               onAddNew={onOpenCategoriaModal}
@@ -840,11 +927,7 @@ export default function NewTransactionCard({
 
             {prazoMode === "com_prazo" && (
               <div className="mt-2">
-                <CustomDateInput
-                  label="Último lançamento em:"
-                  value={formDataTerminoFixa}
-                  onChange={setFormDataTerminoFixa}
-                />
+                <CustomDateInput label="Último lançamento em:" value={formDataTerminoFixa} onChange={setFormDataTerminoFixa} />
               </div>
             )}
 
@@ -852,8 +935,7 @@ export default function NewTransactionCard({
               <div className="mt-2 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30">
                 <p className="text-[12px] leading-snug text-slate-500 dark:text-slate-400">
                   Sem prazo: vamos considerar{" "}
-                  <span className="font-bold">{SEM_PRAZO_MESES} meses</span> (5 anos) ou até você excluir este
-                  lançamento.
+                  <span className="font-bold">{SEM_PRAZO_MESES} meses</span> (5 anos) ou até você excluir este lançamento.
                 </p>
               </div>
             )}

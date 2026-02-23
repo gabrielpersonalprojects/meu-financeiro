@@ -1,5 +1,6 @@
 import { CreditCardVisual } from "./CreditCardVisual";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import CustomDropdown from "../../components/CustomDropdown";
 
 type CartaoUI = {
   id: string;
@@ -66,6 +67,13 @@ export function CreditDashboard({
     return `${d}/${m}/${y}`;
   }
 
+  function moedaBR(v: number) {
+  return (v || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
   function monthKey(dateIso: string) {
     const [y, m] = String(dateIso || "").split("-");
     if (!y || !m) return "";
@@ -98,6 +106,58 @@ export function CreditDashboard({
   const labelNext = monthLabelPT(addMonths(baseMonth, +1));
 
   const txMes = (transacoes || []).filter((t) => monthKey(t.data) === baseMonthKey);
+
+    // --- Filtros da lista de TRANSAÇÕES do CARTÃO (somente aqui) ---
+  const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
+  const [filtroTagCC, setFiltroTagCC] = useState<string>("todas");
+
+  const categoriasCC = Array.from(
+    new Set(
+      txMes
+        .map((t) => {
+          const c: any = (t as any).categoria;
+          if (!c) return "";
+          if (typeof c === "string") return c.trim();
+          return String(c.nome ?? c.label ?? c.value ?? "").trim();
+        })
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  const tagsCC = Array.from(
+    new Set(
+      txMes
+        .map((t) => String((t as any).tag ?? "").trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  const txMesFiltradas = txMes.filter((t) => {
+    const c: any = (t as any).categoria;
+    const cLabel =
+      !c ? "" : typeof c === "string" ? c.trim() : String(c.nome ?? c.label ?? c.value ?? "").trim();
+
+    const tag = String((t as any).tag ?? "").trim();
+
+    const okCat = filtroCategoriaCC === "todas" || cLabel === filtroCategoriaCC;
+    const okTag = filtroTagCC === "todas" || tag === filtroTagCC;
+
+    return okCat && okTag;
+  });
+
+  const totalFiltradoCC = txMesFiltradas.reduce((acc, t) => acc + (Number((t as any).valor) || 0), 0);
+  const totalMesCC = txMes.reduce((acc, t) => acc + (Number((t as any).valor) || 0), 0);
+
+  useEffect(() => {
+  // Se ao trocar de mês não existir mais a categoria/tag selecionada, volta pra "todas"
+  if (filtroCategoriaCC !== "todas" && !categoriasCC.includes(filtroCategoriaCC)) {
+    setFiltroCategoriaCC("todas");
+  }
+  if (filtroTagCC !== "todas" && !tagsCC.includes(filtroTagCC)) {
+    setFiltroTagCC("todas");
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [baseMonthKey, categoriasCC.join("|"), tagsCC.join("|")]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start">
@@ -259,9 +319,82 @@ export function CreditDashboard({
           </button>
         </div>
 
+        {/* Filtros (somente na lista de CARTÕES) */}
+{txMes.length ? (
+<div className="mb-3 flex flex-col gap-2">
+  {/* linha dos filtros */}
+  <div className="flex flex-col gap-2 md:flex-row md:items-end">
+    {/* Categoria */}
+    <div className="flex flex-col">
+      <span className="text-white/70 text-xs mb-1">Categoria</span>
+
+      {/* (deixa seu controle atual aqui: select OU CustomDropdown) */}
+      {/* se ainda estiver com <select>, não mexe agora */}
+      {/* se estiver com CustomDropdown, mantém */}
+      {/* --- */}
+<CustomDropdown
+  value={filtroCategoriaCC}
+  onSelect={(v) => setFiltroCategoriaCC(String(v))}
+  options={[
+    { label: "Todas", value: "todas" },
+    ...categoriasCC.map((c) => ({ label: c, value: c })),
+  ]}
+  placeholder="Todas"
+/>
+    </div>
+
+    {/* Tag */}
+    <div className="flex flex-col">
+      <span className="text-white/70 text-xs mb-1">Tag</span>
+
+      <CustomDropdown
+  value={filtroTagCC}
+  onSelect={(v) => setFiltroTagCC(String(v))}
+  options={[
+    { label: "Todas", value: "todas" },
+    ...tagsCC.map((t) => ({ label: t, value: t })),
+  ]}
+  placeholder="Todas"
+/>
+    </div>
+
+    {/* botão limpar (vai pra direita no md+) */}
+    {(filtroCategoriaCC !== "todas" || filtroTagCC !== "todas") ? (
+      <div className="md:ml-auto">
+        <button
+          type="button"
+          onClick={() => {
+            setFiltroCategoriaCC("todas");
+            setFiltroTagCC("todas");
+          }}
+          className="h-9 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 px-3 text-xs text-white/80"
+        >
+          Limpar filtros
+        </button>
+      </div>
+    ) : null}
+  </div>
+
+  {/* linha dos totalizadores (abaixo) */}
+  <div className="flex flex-wrap items-center gap-3 px-0 py-0">
+    <span className="text-white/70 text-xs">Itens: {txMesFiltradas.length}</span>
+
+    <div className="flex items-baseline gap-2">
+      <span className="text-white/60 text-xs">Filtrado</span>
+      <span className="text-white/90 text-sm font-semibold">{moedaBR(totalFiltradoCC)}</span>
+    </div>
+
+<div className="flex items-baseline gap-2">
+  <span className="text-white/60 text-xs">Valor total da fatura</span>
+  <span className="text-red-400 text-sm font-semibold">{moedaBR(totalMesCC)}</span>
+</div>
+  </div>
+</div>
+) : null}
+
         {txMes.length ? (
           <ul className="space-y-2">
-            {txMes.map((t) => {
+            {txMesFiltradas.map((t) => {
               const valor = Number(t.valor) || 0;
               const isNeg = valor < 0;
 

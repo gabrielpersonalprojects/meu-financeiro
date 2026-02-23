@@ -36,6 +36,11 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [menuMaxH, setMenuMaxH] = useState<number>(MAX_MENU_PX);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number }>({
+  top: 0,
+  left: 0,
+  width: 0,
+});
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ✅ garante que NÃO fica scroll travado no body (caso alguma versão antiga tenha deixado preso)
@@ -66,6 +71,18 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
     return found ? found.label : placeholder;
   }, [normalized, value, placeholder]);
 
+  const recalcMenuPosition = () => {
+  const el = containerRef.current;
+  if (!el) return;
+
+  const rect = el.getBoundingClientRect();
+  const top = rect.bottom + 8; // 8px de gap (mt-2)
+  const left = rect.left;
+  const width = rect.width;
+
+  setMenuPos({ top, left, width });
+};
+
   const recalcMenuHeight = () => {
     const el = containerRef.current;
     if (!el) return;
@@ -88,8 +105,12 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
     if (!isOpen) return;
 
     recalcMenuHeight();
+    recalcMenuPosition();
 
-    const onResize = () => recalcMenuHeight();
+    const onResize = () => {
+      recalcMenuHeight();
+      recalcMenuPosition();
+    };
     window.addEventListener("resize", onResize);
 
     return () => window.removeEventListener("resize", onResize);
@@ -108,33 +129,39 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
         onClick={() => {
           setIsOpen((v) => !v);
         }}
-        className="h-10 w-full rounded-xl px-3 text-[13px]
-          bg-white dark:bg-slate-900
-          border border-slate-200 dark:border-slate-700
-          text-slate-900 dark:text-slate-100
-          flex items-center justify-between
-          hover:bg-slate-50 dark:hover:bg-slate-800/60"
+className="h-10 w-full rounded-xl pl-3.5 pr-2.5 text-[13px]
+  bg-white dark:bg-slate-900
+  border border-slate-200 dark:border-slate-700
+  text-slate-900 dark:text-slate-100
+  flex items-center justify-between gap-2
+  hover:bg-slate-50 dark:hover:bg-slate-800/60"
       >
-        <span
-          className={
-            displayValue === placeholder
-              ? "text-slate-500"
-              : "text-slate-900 dark:text-slate-100 [&_*]:text-slate-900 dark:[&_*]:text-slate-100"
-          }
-        >
-          {displayValue}
-        </span>
+<span
+  className={
+    (displayValue === placeholder
+      ? "text-slate-500"
+      : "text-slate-900 dark:text-slate-100 [&_*]:text-slate-900 dark:[&_*]:text-slate-100") +
+    " min-w-0 flex-1 truncate text-left"
+  }
+>
+  {displayValue}
+</span>
 
-        <span className="text-slate-500 dark:text-slate-400">›</span>
+        <span className="shrink-0 text-slate-500 dark:text-slate-400">›</span>
       </button>
 
       {isOpen && (
-        <div
-          className="absolute left-0 top-full z-50 mt-2 w-full rounded-xl
-            border border-slate-200 bg-white shadow-lg
-            text-slate-900
-            dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-        >
+<div
+  className="fixed z-[9999] rounded-xl
+    border border-slate-200 bg-white shadow-lg
+    text-slate-900
+    dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+  style={{
+  top: menuPos.top,
+  left: menuPos.left,
+  width: Math.max(menuPos.width, 220),
+}}
+>
           <div
             className="overflow-y-auto overscroll-contain"
             style={{ maxHeight: menuMaxH }}
@@ -168,13 +195,13 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
                 >
                   <button
                     type="button"
-                    className="min-w-0 flex-1 text-left truncate"
+                    className="min-w-0 flex-1 text-left"
                     onClick={() => {
                       onSelect(optValue);
                       setIsOpen(false);
                     }}
                   >
-                    <span className="block min-w-0 truncate text-slate-900 dark:text-slate-100 [&_*]:text-slate-900 dark:[&_*]:text-slate-100">
+                    <span className="block min-w-0 whitespace-normal break-words text-slate-900 dark:text-slate-100 [&_*]:text-slate-900 dark:[&_*]:text-slate-100">
                       {opt.label}
                     </span>
                   </button>

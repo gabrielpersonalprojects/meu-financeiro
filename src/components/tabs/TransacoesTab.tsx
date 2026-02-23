@@ -109,7 +109,9 @@ export default function TransacoesTab({
   handleEditClick,
   confirmDelete,
 }: Props) {
-  const getFilteredTransactions = itemsFiltrados;
+  const getFilteredTransactions = (itemsFiltrados || []).filter(
+  (t: any) => String(t?.tipo) !== "cartao_credito"
+);
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">

@@ -46,6 +46,18 @@ export interface Transaction {
   isRecorrente?: boolean;
 }
 
+export type PagamentoFaturaApp = {
+  id: string;
+  cartaoId: string;
+  cicloKey: string;
+  dataPagamento: string; // YYYY-MM-DD
+  valor: number;
+  contaId: string;
+  contaLabel: string;
+  criadoEm: number;
+  transacaoId?: number;
+};
+
 export type Profile = {
   id: string;
   name: string;
@@ -63,3 +75,4 @@ export type Profile = {
   diaFechamento?: number;
   diaVencimento?: number;
 };
+

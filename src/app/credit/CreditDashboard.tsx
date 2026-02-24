@@ -1,5 +1,5 @@
 import { CreditCardVisual } from "./CreditCardVisual";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CustomDropdown from "../../components/CustomDropdown";
 
 type CartaoUI = {
@@ -43,6 +43,45 @@ type Props = {
   transacoes: TransacaoCCUI[];
   onPickOtherCard?: () => void;
   onDeleteTransacao?: (id: string) => void;
+
+  // contas reais vindas do App (para pagar a fatura)
+  contaPagamentoOptions?: Array<{ value: string; label: string }>;
+
+  // integração real de pagamento de fatura (App)
+  pagamentosFatura?: Array<{
+    id: string;
+    cartaoId: string;
+    cicloKey: string;
+    dataPagamento: string;
+    valor: number;
+    contaId: string;
+    contaLabel: string;
+    criadoEm: number;
+  }>;
+  onRegistrarPagamentoFatura?: (payload: {
+    cartaoId: string;
+    cartaoNome: string;
+    cicloKey: string;
+    dataPagamento: string;
+    valor: number;
+    contaId: string;
+    contaLabel: string;
+  }) => void;
+  onRemoverPagamentoFatura?: (pagamentoId: string) => void;
+  onOpenInvoiceModal?: () => void;
+  isInvoiceModalOpen?: boolean;
+  onCloseInvoiceModal?: () => void;
+};
+
+type PagamentoFaturaUI = {
+  id: string;
+  cartaoId: string;
+  cicloKey: string;
+  dataPagamento: string; // YYYY-MM-DD
+  valor: number;
+  contaId: string;
+  contaLabel: string;
+  criadoEm: number;
 };
 
 function categoriaToLabel(cat: CategoriaLike) {
@@ -56,6 +95,13 @@ export function CreditDashboard({
   transacoes,
   onPickOtherCard,
   onDeleteTransacao,
+  contaPagamentoOptions: contaPagamentoOptionsProp,
+  pagamentosFatura: pagamentosFaturaProp,
+  onRegistrarPagamentoFatura,
+  onRemoverPagamentoFatura,
+  onOpenInvoiceModal,
+  isInvoiceModalOpen,
+ onCloseInvoiceModal,
 }: Props) {
   function pad2(n: number) {
     return String(n).padStart(2, "0");
@@ -68,11 +114,11 @@ export function CreditDashboard({
   }
 
   function moedaBR(v: number) {
-  return (v || 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-}
+    return (v || 0).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+  }
 
   function monthKey(dateIso: string) {
     const [y, m] = String(dateIso || "").split("-");
@@ -96,6 +142,50 @@ export function CreditDashboard({
     return s.charAt(0).toUpperCase() + s.slice(1).replace(" de ", " ");
   }
 
+  function parseISODateLocal(iso: string) {
+    const [y, m, d] = String(iso || "").split("-").map(Number);
+    if (!y || !m || !d) return new Date(NaN);
+    return new Date(y, m - 1, d, 12, 0, 0, 0);
+  }
+
+  function clampDay(year: number, monthIndex0: number, day: number) {
+    const lastDay = new Date(year, monthIndex0 + 1, 0).getDate();
+    return Math.max(1, Math.min(day, lastDay));
+  }
+
+  function makeDate(year: number, monthIndex0: number, day: number) {
+    const dd = clampDay(year, monthIndex0, day);
+    return new Date(year, monthIndex0, dd, 12, 0, 0, 0);
+  }
+
+  function formatDateOnlyISO(d: Date) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function todayISO() {
+    return formatDateOnlyISO(new Date());
+  }
+
+  function parseCurrencyInputBR(input: string) {
+    const raw = String(input ?? "").trim();
+    if (!raw) return 0;
+
+    const normalized = raw
+      .replace(/\s/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".");
+
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function newLocalId(prefix = "id") {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
   const now = new Date();
   const [invoiceMonthOffset, setInvoiceMonthOffset] = useState(0);
 
@@ -105,9 +195,62 @@ export function CreditDashboard({
   const labelPrev = monthLabelPT(addMonths(baseMonth, -1));
   const labelNext = monthLabelPT(addMonths(baseMonth, +1));
 
+  // Lista por mês calendário (usada na LISTA visual da direita)
   const txMes = (transacoes || []).filter((t) => monthKey(t.data) === baseMonthKey);
 
-    // --- Filtros da lista de TRANSAÇÕES do CARTÃO (somente aqui) ---
+  // =========================
+  // FATURA POR CICLO (respeita fechamento e vencimento)
+  // =========================
+  const diaFechamento = Number(cartao.diaFechamento || 1);
+  const diaVencimento = Number(cartao.diaVencimento || 1);
+
+  // Fatura do mês selecionado:
+  // ciclo = (fechamento do mês anterior + 1) até fechamento do mês atual
+  const cicloFim = makeDate(baseMonth.getFullYear(), baseMonth.getMonth(), diaFechamento);
+
+  const mesAnterior = addMonths(baseMonth, -1);
+  const fechamentoMesAnterior = makeDate(
+    mesAnterior.getFullYear(),
+    mesAnterior.getMonth(),
+    diaFechamento
+  );
+
+  const cicloInicio = new Date(fechamentoMesAnterior);
+  cicloInicio.setDate(cicloInicio.getDate() + 1);
+
+  const vencimentoFaturaAtual = makeDate(
+    baseMonth.getFullYear(),
+    baseMonth.getMonth(),
+    diaVencimento
+  );
+
+  const cicloLabel = `${formatBRDate(formatDateOnlyISO(cicloInicio))} até ${formatBRDate(
+    formatDateOnlyISO(cicloFim)
+  )}`;
+
+  const cicloKeyFatura = `${cartao.id}__${formatDateOnlyISO(cicloInicio)}__${formatDateOnlyISO(cicloFim)}`;
+
+  // Transações que compõem a FATURA (por ciclo)
+  const txFaturaCiclo = (transacoes || []).filter((t) => {
+    const dt = parseISODateLocal(t.data);
+    if (Number.isNaN(dt.getTime())) return false;
+    if (dt < cicloInicio || dt > cicloFim) return false;
+    return t.tipo === "cartao_credito";
+  });
+
+  const totalFaturaCicloBruto = txFaturaCiclo.reduce(
+    (acc, t) => acc + (Number((t as any).valor) || 0),
+    0
+  );
+
+// Exibir valor de fatura como positivo (derivado das transações do ciclo exibidas no cartão)
+// Obs: somamos o valor absoluto de cada item para não depender de totalFaturaCicloBruto (que pode vir zerado)
+const valorFaturaTotal = txMes.reduce((acc, t) => {
+  const v = Number((t as any).valor) || 0;
+  return acc + Math.abs(v);
+}, 0);
+
+  // --- Filtros da lista de TRANSAÇÕES do CARTÃO (somente lista à direita) ---
   const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
   const [filtroTagCC, setFiltroTagCC] = useState<string>("todas");
 
@@ -146,18 +289,403 @@ export function CreditDashboard({
   });
 
   const totalFiltradoCC = txMesFiltradas.reduce((acc, t) => acc + (Number((t as any).valor) || 0), 0);
-  const totalMesCC = txMes.reduce((acc, t) => acc + (Number((t as any).valor) || 0), 0);
 
   useEffect(() => {
-  // Se ao trocar de mês não existir mais a categoria/tag selecionada, volta pra "todas"
-  if (filtroCategoriaCC !== "todas" && !categoriasCC.includes(filtroCategoriaCC)) {
-    setFiltroCategoriaCC("todas");
+    if (filtroCategoriaCC !== "todas" && !categoriasCC.includes(filtroCategoriaCC)) {
+      setFiltroCategoriaCC("todas");
+    }
+    if (filtroTagCC !== "todas" && !tagsCC.includes(filtroTagCC)) {
+      setFiltroTagCC("todas");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseMonthKey, categoriasCC.join("|"), tagsCC.join("|")]);
+
+  // =========================
+  // PAGAMENTO DE FATURA (mock local funcional)
+  // - permite parcial
+  // - permite adiantamento dentro do ciclo
+  // =========================
+  const [pagamentosFaturaLocal, setPagamentosFaturaLocal] = useState<PagamentoFaturaUI[]>([]);
+  const pagamentosFatura = (pagamentosFaturaProp as PagamentoFaturaUI[] | undefined) ?? pagamentosFaturaLocal;
+  const [contaPagamentoFatura, setContaPagamentoFatura] = useState<string>("conta_principal");
+  const [statusRapidoPagamento, setStatusRapidoPagamento] = useState<string>("pendente");
+  const [valorPagamentoInput, setValorPagamentoInput] = useState<string>("");
+  const [dataPagamentoFatura, setDataPagamentoFatura] = useState<string>(todayISO());
+  const [erroPagamentoFatura, setErroPagamentoFatura] = useState<string>("");
+  const [sucessoPagamentoFatura, setSucessoPagamentoFatura] = useState<string>("");
+
+const contaPagamentoOptions = useMemo(
+  () =>
+    contaPagamentoOptionsProp && contaPagamentoOptionsProp.length
+      ? contaPagamentoOptionsProp
+      : [
+          { label: "Conta principal", value: "conta_principal" },
+          { label: "Conta Itaú", value: "itau" },
+          { label: "Conta Nubank", value: "nubank" },
+          { label: "Dinheiro / Caixa", value: "caixa" },
+        ],
+  [contaPagamentoOptionsProp]
+);
+
+  const statusPagamentoOptions = useMemo(
+    () => [
+      { label: "Pendente", value: "pendente" },
+      { label: "Pago", value: "pago" },
+    ],
+    []
+  );
+
+  const contaSelecionadaLabel =
+    contaPagamentoOptions.find((o) => o.value === contaPagamentoFatura)?.label ?? "Conta";
+
+    useEffect(() => {
+  if (!contaPagamentoOptions.length) return;
+
+  const existe = contaPagamentoOptions.some((o) => o.value === contaPagamentoFatura);
+  if (!existe) {
+    setContaPagamentoFatura(contaPagamentoOptions[0].value);
   }
-  if (filtroTagCC !== "todas" && !tagsCC.includes(filtroTagCC)) {
-    setFiltroTagCC("todas");
+}, [contaPagamentoOptions, contaPagamentoFatura]);
+
+  const pagamentosDoCiclo = pagamentosFatura
+    .filter((p) => p.cartaoId === cartao.id && p.cicloKey === cicloKeyFatura)
+    .sort((a, b) => b.criadoEm - a.criadoEm);
+
+  const valorPagoFatura = pagamentosDoCiclo.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
+  const saldoRestanteFatura = Math.max(0, valorFaturaTotal - valorPagoFatura);
+
+  const statusFaturaDerivado: "pendente" | "parcial" | "pago" =
+    valorFaturaTotal <= 0
+      ? "pendente"
+      : saldoRestanteFatura <= 0
+      ? "pago"
+      : valorPagoFatura > 0
+      ? "parcial"
+      : "pendente";
+
+  useEffect(() => {
+    setErroPagamentoFatura("");
+    setSucessoPagamentoFatura("");
+    setStatusRapidoPagamento("pendente");
+    setValorPagamentoInput("");
+    setDataPagamentoFatura(todayISO());
+  }, [cicloKeyFatura]);
+
+  useEffect(() => {
+    if (statusRapidoPagamento === "pago") {
+      if (saldoRestanteFatura > 0) {
+        setValorPagamentoInput(
+          saldoRestanteFatura.toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        );
+      } else {
+        setValorPagamentoInput("");
+      }
+    }
+  }, [statusRapidoPagamento, saldoRestanteFatura]);
+
+  function registrarPagamentoFatura() {
+    setErroPagamentoFatura("");
+    setSucessoPagamentoFatura("");
+
+    if (valorFaturaTotal <= 0) {
+      setErroPagamentoFatura("Não há valor de fatura para pagar neste ciclo.");
+      return;
+    }
+
+    const valorDigitado = parseCurrencyInputBR(valorPagamentoInput);
+    let valorFinal = valorDigitado;
+
+    if (statusRapidoPagamento === "pago" && valorFinal <= 0) {
+      valorFinal = saldoRestanteFatura;
+    }
+
+    if (valorFinal <= 0) {
+      setErroPagamentoFatura("Informe um valor de pagamento maior que zero.");
+      return;
+    }
+
+    if (!contaPagamentoFatura) {
+      setErroPagamentoFatura("Selecione a conta para pagamento.");
+      return;
+    }
+
+    if (!dataPagamentoFatura) {
+      setErroPagamentoFatura("Informe a data do pagamento.");
+      return;
+    }
+
+    if (saldoRestanteFatura <= 0) {
+      setErroPagamentoFatura("Esta fatura já está quitada.");
+      return;
+    }
+
+    // Por enquanto: limita ao saldo restante da fatura do ciclo
+    // (pré-pagamento de fatura futura fica para integração real)
+    const valorAplicado = Math.min(valorFinal, saldoRestanteFatura);
+
+    const novo: PagamentoFaturaUI = {
+      id: newLocalId("pgf"),
+      cartaoId: cartao.id,
+      cicloKey: cicloKeyFatura,
+      dataPagamento: dataPagamentoFatura,
+      valor: valorAplicado,
+      contaId: contaPagamentoFatura,
+      contaLabel: contaSelecionadaLabel,
+      criadoEm: Date.now(),
+    };
+
+    if (onRegistrarPagamentoFatura) {
+  onRegistrarPagamentoFatura({
+    cartaoId: cartao.id,
+    cartaoNome: cartao.nome,
+    cicloKey: cicloKeyFatura,
+    dataPagamento: dataPagamentoFatura,
+    valor: valorAplicado,
+    contaId: contaPagamentoFatura,
+    contaLabel: contaSelecionadaLabel,
+  });
+} else {
+  setPagamentosFaturaLocal((prev) => [novo, ...prev]);
+}
+
+    const houveAjuste = valorAplicado < valorFinal;
+    setSucessoPagamentoFatura(
+      houveAjuste
+        ? `Pagamento registrado (${moedaBR(valorAplicado)}). O valor foi ajustado ao saldo restante.`
+        : `Pagamento registrado com sucesso (${moedaBR(valorAplicado)}).`
+    );
+
+    setStatusRapidoPagamento("pendente");
+    setValorPagamentoInput("");
   }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [baseMonthKey, categoriasCC.join("|"), tagsCC.join("|")]);
+
+ function removerPagamentoFatura(id: string) {
+  if (onRemoverPagamentoFatura) {
+    onRemoverPagamentoFatura(id);
+  } else {
+    setPagamentosFaturaLocal((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  setErroPagamentoFatura("");
+  setSucessoPagamentoFatura("Pagamento removido.");
+}
+
+  const renderPagamentoFaturaCard = () => (
+    <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-white/70 text-sm font-medium">Pagamento da fatura</div>
+          <div className="mt-1 text-white/45 text-[10px] leading-none">
+            Ciclo da fatura: {cicloLabel}
+          </div>
+          <div className="mt-1 text-white/45 text-[10px] leading-none">
+            Vencimento: {formatBRDate(formatDateOnlyISO(vencimentoFaturaAtual))}
+          </div>
+        </div>
+
+        <span
+          className={`text-[11px] px-2 py-1 rounded-lg border whitespace-nowrap ${
+            statusFaturaDerivado === "pago"
+              ? "text-emerald-300 bg-emerald-500/10 border-emerald-400/20"
+              : statusFaturaDerivado === "parcial"
+              ? "text-sky-300 bg-sky-500/10 border-sky-400/20"
+              : "text-amber-300 bg-amber-500/10 border-amber-400/20"
+          }`}
+        >
+          {statusFaturaDerivado === "pago"
+            ? "Pago"
+            : statusFaturaDerivado === "parcial"
+            ? "Parcial"
+            : "Pendente"}
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+          <div className="text-white/50 text-[11px] leading-none">Valor da fatura</div>
+          <div className="mt-2 text-red-300 text-[13px] font-semibold leading-none">
+            {moedaBR(valorFaturaTotal)}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+          <div className="text-white/50 text-[11px] leading-none">Saldo restante</div>
+          <div
+            className={`mt-2 text-[13px] font-semibold leading-none ${
+              saldoRestanteFatura > 0 ? "text-amber-300" : "text-emerald-300"
+            }`}
+          >
+            {moedaBR(saldoRestanteFatura)}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+          <div className="text-white/50 text-[11px] leading-none">Valor já pago</div>
+          <div className="mt-2 text-emerald-300 text-[13px] font-semibold leading-none">
+            {moedaBR(valorPagoFatura)}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+          <div className="text-white/50 text-[11px] leading-none">Transações no ciclo</div>
+          <div className="mt-2 text-white/85 text-[13px] font-semibold leading-none">
+            {txFaturaCiclo.length}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 h-px bg-white/10" />
+
+      <div className="mt-3 space-y-3">
+        <div>
+          <div className="text-white/50 text-[11px] mb-1">Conta para pagamento</div>
+          <CustomDropdown
+            value={contaPagamentoFatura}
+            onSelect={(v) => setContaPagamentoFatura(String(v))}
+            options={contaPagamentoOptions}
+            placeholder="Selecione"
+          />
+        </div>
+
+        <div>
+          <div className="text-white/50 text-[11px] mb-1">Status (ação rápida)</div>
+          <CustomDropdown
+            value={statusRapidoPagamento}
+            onSelect={(v) => setStatusRapidoPagamento(String(v))}
+            options={statusPagamentoOptions}
+            placeholder="Pendente"
+          />
+          <div className="mt-1 text-white/35 text-[10px] leading-none">
+            “Pago” sugere automaticamente o saldo restante no valor.
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3">
+          <div>
+            <div className="text-white/50 text-[11px] mb-1">Valor a pagar</div>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={valorPagamentoInput}
+              onChange={(e) => setValorPagamentoInput(e.target.value)}
+              placeholder={
+                saldoRestanteFatura > 0
+                  ? saldoRestanteFatura.toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : "0,00"
+              }
+              className="h-10 w-full rounded-xl px-3 text-[13px]
+                bg-white dark:bg-slate-900
+                border border-slate-200 dark:border-slate-700
+                text-slate-900 dark:text-slate-100
+                hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            />
+            <div className="mt-1 text-white/35 text-[10px] leading-none">
+              Pagamento parcial é permitido (adiantamento também).
+            </div>
+          </div>
+
+          <div>
+            <div className="text-white/50 text-[11px] mb-1">Data do pagamento</div>
+            <input
+              type="date"
+              value={dataPagamentoFatura}
+              onChange={(e) => setDataPagamentoFatura(e.target.value)}
+              className="h-10 w-full rounded-xl px-3 text-[13px]
+                bg-white dark:bg-slate-900
+                border border-slate-200 dark:border-slate-700
+                text-slate-900 dark:text-slate-100
+                hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            />
+          </div>
+        </div>
+
+        {erroPagamentoFatura ? (
+          <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-rose-200 text-[11px]">
+            {erroPagamentoFatura}
+          </div>
+        ) : null}
+
+        {sucessoPagamentoFatura ? (
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-emerald-200 text-[11px]">
+            {sucessoPagamentoFatura}
+          </div>
+        ) : null}
+
+<button
+  type="button"
+  onClick={onOpenInvoiceModal}
+  className="mb-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+>
+  Acessar fatura
+</button>
+
+        <button
+          type="button"
+          onClick={registrarPagamentoFatura}
+          disabled={valorFaturaTotal <= 0}
+          className={`h-10 rounded-xl border text-sm font-semibold transition ${
+            valorFaturaTotal <= 0
+              ? "border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
+              : "border-white/10 bg-white/5 text-white/90 hover:bg-white/10"
+          }`}
+        >
+          Registrar pagamento
+        </button>
+      </div>
+
+      <div className="mt-4">
+        <div className="text-white/50 text-[11px] mb-2">Pagamentos registrados neste ciclo</div>
+
+        {pagamentosDoCiclo.length ? (
+          <div className="space-y-2">
+            {pagamentosDoCiclo.map((p) => (
+              <div
+                key={p.id}
+                className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-white/85 text-[12px] font-medium truncate">
+                      {p.contaLabel}
+                    </div>
+                    <div className="mt-1 text-white/45 text-[10px] leading-none">
+                      {formatBRDate(p.dataPagamento)}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2">
+                    <div className="text-emerald-300 text-[12px] font-semibold">
+                      {moedaBR(p.valor)}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removerPagamentoFatura(p.id)}
+                      className="h-8 w-8 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white/70"
+                      title="Remover pagamento"
+                      aria-label="Remover pagamento"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-white/50 text-[11px]">
+            Nenhum pagamento registrado para esta fatura.
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start">
@@ -177,112 +705,118 @@ export function CreditDashboard({
                 to: cartao.gradientTo ?? "#4600ac",
               }}
             />
-
-            <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
-              <div className="text-white/70 text-sm font-medium">Detalhes do cartão</div>
-
-<div className="mt-3 grid grid-cols-2 items-center gap-2">
-  <div className="text-white/50 text-[11px] leading-none">Limite</div>
-  <div className="text-right text-white/85 text-[13px] font-semibold leading-none">
-    {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    })}
-  </div>
-</div>
-
-              <div className="mt-3 flex items-center justify-between">
-                <div className="text-white/50 text-[11px] leading-none">
-                  Fechamento{" "}
-                  <span className="ml-2 text-white/85 text-[13px] font-semibold">
-                    {String(cartao.diaFechamento ?? "").padStart(2, "0")}
-                  </span>
-                </div>
-
-                <div className="text-white/50 text-[11px] leading-none">
-                  Vencimento{" "}
-                  <span className="ml-2 text-white/85 text-[13px] font-semibold">
-                    {String(cartao.diaVencimento ?? "").padStart(2, "0")}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-3 h-px bg-white/10" />
-
-              <div className="mt-3">
-                <div className="text-white/50 text-[11px] leading-none">
-                  Valor fatura anterior
-                </div>
-                <div className="mt-1 text-white/35 text-[10px] leading-none">
-                  último pagamento efetuado
-                </div>
-                <div className="mt-2 text-emerald-400 text-[12px] font-semibold leading-none">
-                  - R$ 0,00
-                </div>
-              </div>
-            </div>
           </button>
         ) : (
-          <>
-            <CreditCardVisual
-              nome={cartao.nome}
-              categoria={cartao.categoria ?? ""}
-              limite={cartao.limiteTotal}
-              fechamentoDia={cartao.diaFechamento}
-              vencimentoDia={cartao.diaVencimento}
-              emissor={cartao.bankText ?? ""}
-              design={{
-                from: cartao.gradientFrom ?? "#220055",
-                to: cartao.gradientTo ?? "#4600ac",
-              }}
-            />
-
-            <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
-              <div className="text-white/70 text-sm font-medium">Detalhes do cartão</div>
-
-<div className="grid grid-cols-2 items-center gap-2">
-  <div className="text-white/50 text-[11px] leading-none">Limite</div>
-
-  <div className="text-right text-white/85 text-[13px] font-semibold leading-none">
-    {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    })}
-  </div>
-</div>
-
-              <div className="mt-3 flex items-center justify-between">
-                <div className="text-white/50 text-[11px] leading-none">
-                  Fechamento{" "}
-                  <span className="ml-2 text-white/85 text-[13px] font-semibold">
-                    {String(cartao.diaFechamento ?? "").padStart(2, "0")}
-                  </span>
-                </div>
-
-                <div className="text-white/50 text-[11px] leading-none">
-                  Vencimento{" "}
-                  <span className="ml-2 text-white/85 text-[13px] font-semibold">
-                    {String(cartao.diaVencimento ?? "").padStart(2, "0")}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-3 h-px bg-white/10" />
-
-              <div className="mt-3">
-                <div className="text-white/50 text-[11px] leading-none">
-                  Valor fatura anterior
-                </div>
-                <div className="mt-1 text-white/35 text-[10px] leading-none">
-                  último pagamento efetuado
-                </div>
-                <div className="mt-2 text-emerald-400 text-[12px] font-semibold leading-none">
-                  - R$ 0,00
-                </div>
-              </div>
-            </div>
-          </>
+          <CreditCardVisual
+            nome={cartao.nome}
+            categoria={cartao.categoria ?? ""}
+            limite={cartao.limiteTotal}
+            fechamentoDia={cartao.diaFechamento}
+            vencimentoDia={cartao.diaVencimento}
+            emissor={cartao.bankText ?? ""}
+            design={{
+              from: cartao.gradientFrom ?? "#220055",
+              to: cartao.gradientTo ?? "#4600ac",
+            }}
+          />
         )}
+
+        {/* Detalhes do cartão */}
+        <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
+          <div className="text-white/70 text-sm font-medium">Detalhes do cartão</div>
+
+          <div className="mt-3 grid grid-cols-2 items-center gap-2">
+            <div className="text-white/50 text-[11px] leading-none">Limite</div>
+            <div className="text-right text-white/85 text-[13px] font-semibold leading-none">
+              {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between">
+            <div className="text-white/50 text-[11px] leading-none">
+              Fechamento{" "}
+              <span className="ml-2 text-white/85 text-[13px] font-semibold">
+                {String(cartao.diaFechamento ?? "").padStart(2, "0")}
+              </span>
+            </div>
+
+            <div className="text-white/50 text-[11px] leading-none">
+              Vencimento{" "}
+              <span className="ml-2 text-white/85 text-[13px] font-semibold">
+                {String(cartao.diaVencimento ?? "").padStart(2, "0")}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-3 h-px bg-white/10" />
+
+          <div className="mt-3">
+            <div className="text-white/50 text-[11px] leading-none">Valor fatura anterior</div>
+            <div className="mt-1 text-white/35 text-[10px] leading-none">
+              último pagamento efetuado
+            </div>
+            <div className="mt-2 text-emerald-400 text-[12px] font-semibold leading-none">
+              - R$ 0,00
+            </div>
+          </div>
+        </div>
+
+        {/* Pagamento da fatura */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+  <div className="flex items-start justify-between gap-3">
+    <div>
+      <div className="text-white/70 text-[11px]">Pagamento da fatura</div>
+      <div className="text-white font-semibold text-sm">Resumo da fatura</div>
+    </div>
+
+    <span
+      className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${
+        saldoRestanteFatura <= 0 && valorFaturaTotal > 0
+          ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
+          : valorPagoFatura > 0
+          ? "border-amber-400/20 bg-amber-500/10 text-amber-300"
+          : "border-rose-400/20 bg-rose-500/10 text-rose-300"
+      }`}
+    >
+      {saldoRestanteFatura <= 0 && valorFaturaTotal > 0
+        ? "Pago"
+        : valorPagoFatura > 0
+        ? "Parcial"
+        : "Pendente"}
+    </span>
+  </div>
+
+  <div className="mt-3 grid grid-cols-2 gap-2">
+    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+      <div className="text-[11px] text-white/60">Valor da fatura</div>
+      <div className="text-sm font-semibold text-white">
+        {moedaBR(valorFaturaTotal)}
+      </div>
+    </div>
+
+    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+      <div className="text-[11px] text-white/60">Saldo restante</div>
+      <div
+        className={`text-sm font-semibold ${
+          saldoRestanteFatura <= 0 ? "text-emerald-300" : "text-white"
+        }`}
+      >
+        {moedaBR(saldoRestanteFatura)}
+      </div>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    onClick={onOpenInvoiceModal}
+    className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+  >
+    Acessar fatura
+  </button>
+</div>
       </div>
 
       {/* COLUNA DIREITA */}
@@ -319,78 +853,71 @@ export function CreditDashboard({
           </button>
         </div>
 
-        {/* Filtros (somente na lista de CARTÕES) */}
-{txMes.length ? (
-<div className="mb-3 flex flex-col gap-2">
-  {/* linha dos filtros */}
-  <div className="flex flex-col gap-2 md:flex-row md:items-end">
-    {/* Categoria */}
-    <div className="flex flex-col">
-      <span className="text-white/70 text-xs mb-1">Categoria</span>
+        {/* Filtros da lista (mês calendário) */}
+        {txMes.length ? (
+          <div className="mb-3 flex flex-col gap-2">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end">
+              <div className="flex flex-col">
+                <span className="text-white/70 text-xs mb-1">Categoria</span>
+                <CustomDropdown
+                  value={filtroCategoriaCC}
+                  onSelect={(v) => setFiltroCategoriaCC(String(v))}
+                  options={[
+                    { label: "Todas", value: "todas" },
+                    ...categoriasCC.map((c) => ({ label: c, value: c })),
+                  ]}
+                  placeholder="Todas"
+                />
+              </div>
 
-      {/* (deixa seu controle atual aqui: select OU CustomDropdown) */}
-      {/* se ainda estiver com <select>, não mexe agora */}
-      {/* se estiver com CustomDropdown, mantém */}
-      {/* --- */}
-<CustomDropdown
-  value={filtroCategoriaCC}
-  onSelect={(v) => setFiltroCategoriaCC(String(v))}
-  options={[
-    { label: "Todas", value: "todas" },
-    ...categoriasCC.map((c) => ({ label: c, value: c })),
-  ]}
-  placeholder="Todas"
-/>
-    </div>
+              <div className="flex flex-col">
+                <span className="text-white/70 text-xs mb-1">Tag</span>
+                <CustomDropdown
+                  value={filtroTagCC}
+                  onSelect={(v) => setFiltroTagCC(String(v))}
+                  options={[
+                    { label: "Todas", value: "todas" },
+                    ...tagsCC.map((t) => ({ label: t, value: t })),
+                  ]}
+                  placeholder="Todas"
+                />
+              </div>
 
-    {/* Tag */}
-    <div className="flex flex-col">
-      <span className="text-white/70 text-xs mb-1">Tag</span>
+              {filtroCategoriaCC !== "todas" || filtroTagCC !== "todas" ? (
+                <div className="md:ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiltroCategoriaCC("todas");
+                      setFiltroTagCC("todas");
+                    }}
+                    className="h-9 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 px-3 text-xs text-white/80"
+                  >
+                    Limpar filtros
+                  </button>
+                </div>
+              ) : null}
+            </div>
 
-      <CustomDropdown
-  value={filtroTagCC}
-  onSelect={(v) => setFiltroTagCC(String(v))}
-  options={[
-    { label: "Todas", value: "todas" },
-    ...tagsCC.map((t) => ({ label: t, value: t })),
-  ]}
-  placeholder="Todas"
-/>
-    </div>
+            <div className="flex flex-wrap items-center gap-3 px-0 py-0">
+              <span className="text-white/70 text-xs">Itens: {txMesFiltradas.length}</span>
 
-    {/* botão limpar (vai pra direita no md+) */}
-    {(filtroCategoriaCC !== "todas" || filtroTagCC !== "todas") ? (
-      <div className="md:ml-auto">
-        <button
-          type="button"
-          onClick={() => {
-            setFiltroCategoriaCC("todas");
-            setFiltroTagCC("todas");
-          }}
-          className="h-9 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 px-3 text-xs text-white/80"
-        >
-          Limpar filtros
-        </button>
-      </div>
-    ) : null}
-  </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-white/60 text-xs">Filtrado</span>
+                <span className="text-white/90 text-sm font-semibold">
+                  {moedaBR(totalFiltradoCC)}
+                </span>
+              </div>
 
-  {/* linha dos totalizadores (abaixo) */}
-  <div className="flex flex-wrap items-center gap-3 px-0 py-0">
-    <span className="text-white/70 text-xs">Itens: {txMesFiltradas.length}</span>
-
-    <div className="flex items-baseline gap-2">
-      <span className="text-white/60 text-xs">Filtrado</span>
-      <span className="text-white/90 text-sm font-semibold">{moedaBR(totalFiltradoCC)}</span>
-    </div>
-
-<div className="flex items-baseline gap-2">
-  <span className="text-white/60 text-xs">Valor total da fatura</span>
-  <span className="text-red-400 text-sm font-semibold">{moedaBR(totalMesCC)}</span>
-</div>
-  </div>
-</div>
-) : null}
+              <div className="flex items-baseline gap-2">
+                <span className="text-white/60 text-xs">Valor total da fatura</span>
+                <span className="text-red-400 text-sm font-semibold">
+                  {moedaBR(valorFaturaTotal)}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {txMes.length ? (
           <ul className="space-y-2">
@@ -418,9 +945,7 @@ export function CreditDashboard({
                       </div>
 
                       <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className="text-white/60 text-xs">
-                          {formatBRDate(t.data)}
-                        </span>
+                        <span className="text-white/60 text-xs">{formatBRDate(t.data)}</span>
 
                         {catLabel ? (
                           <span className="text-white/70 text-xs px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">
@@ -429,10 +954,11 @@ export function CreditDashboard({
                         ) : null}
 
                         {t.tag ? (
-                            <span className="text-white/80 text-xs px-2 py-0.5 rounded-lg bg-violet-500/10 border border-violet-400/20">
-                              {t.tag}
-                            </span>
-                          ) : null}
+                          <span className="text-white/80 text-xs px-2 py-0.5 rounded-lg bg-violet-500/10 border border-violet-400/20">
+                            {t.tag}
+                          </span>
+                        ) : null}
+
                         {isParcelado ? (
                           <span className="text-white/80 text-xs px-2 py-0.5 rounded-lg bg-purple-500/10 border border-purple-400/20">
                             Parcelado {parcelaAtual}/{parcelasTotal}
@@ -440,6 +966,7 @@ export function CreditDashboard({
                         ) : null}
                       </div>
                     </div>
+
                     <div className="text-right shrink-0 flex items-center gap-2">
                       <div
                         className={`text-sm font-semibold ${
@@ -471,10 +998,8 @@ export function CreditDashboard({
           </ul>
         ) : (
           <div className="min-h-[160px] flex items-center justify-center">
-  <div className="text-white/60 text-sm text-center">
-    Nenhuma transação encontrada.
-  </div>
-</div>
+            <div className="text-white/60 text-sm text-center">Nenhuma transação encontrada.</div>
+          </div>
         )}
       </div>
     </div>

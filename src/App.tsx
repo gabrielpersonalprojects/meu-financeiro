@@ -61,6 +61,7 @@ import type {
   SpendingType,
   PaymentMethod,
   Profile,
+  PagamentoFaturaApp,
 } from "./app/types";
 
 
@@ -106,6 +107,8 @@ const hojeStr = getHojeLocal();
     return [];
   }
 });
+
+const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
 const removeCCTag = (tag: string) => {
   const target = (tag || "").trim().toLowerCase();
@@ -170,6 +173,16 @@ function confirmToast(opts: ConfirmState) {
 
   const ui = useUI();
   
+const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>(() =>
+  loadPagamentosFatura()
+);
+
+useEffect(() => {
+  try {
+    localStorage.setItem(FATURA_PAYMENTS_LS_KEY, JSON.stringify(pagamentosFatura));
+  } catch {}
+}, [pagamentosFatura]);
+
   // --- Auth Session ---
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -189,6 +202,71 @@ function confirmToast(opts: ConfirmState) {
       data.subscription.unsubscribe();
     };
   }, []);
+
+  const handleRegistrarPagamentoFatura = (payload: {
+  cartaoId: string;
+  cartaoNome: string;
+  cicloKey: string;
+  dataPagamento: string;
+  valor: number;
+  contaId: string;
+  contaLabel: string;
+}) => {
+  const valor = Number(payload.valor) || 0;
+  if (valor <= 0) {
+    throw new Error("Valor de pagamento inválido.");
+  }
+
+  // cria despesa real na lista de transações
+  const nextTxId = Date.now(); // compatível com Transaction.id:number
+  const novaTransacao: Transaction = {
+    id: nextTxId,
+    tipo: "despesa",
+    descricao: `Pagamento fatura - ${payload.cartaoNome || "Cartão"}`,
+    valor: valor,
+    data: payload.dataPagamento,
+    categoria: "Cartão de Crédito",
+    tipoGasto: "",
+    metodoPagamento: undefined,
+    qualCartao: "", // pagamento da fatura não é compra no cartão
+    pago: true,
+    contaId: payload.contaId,
+  };
+
+  setTransacoes((prev) => [novaTransacao, ...prev]);
+
+  const novoPagamento: PagamentoFaturaApp = {
+    id: makeId(),
+    cartaoId: payload.cartaoId,
+    cicloKey: payload.cicloKey,
+    dataPagamento: payload.dataPagamento,
+    valor,
+    contaId: payload.contaId,
+    contaLabel: payload.contaLabel,
+    criadoEm: Date.now(),
+    transacaoId: nextTxId,
+  };
+
+  setPagamentosFatura((prev) => [novoPagamento, ...prev]);
+
+  // opcional: se você quiser toast aqui depois
+  // toastCompact("Pagamento de fatura registrado.", "success");
+};
+
+const handleRemoverPagamentoFatura = (pagamentoId: string) => {
+  setPagamentosFatura((prevPagamentos) => {
+    const alvo = prevPagamentos.find((p) => p.id === pagamentoId);
+
+    // remove também a despesa real vinculada (se existir)
+    if (alvo?.transacaoId != null) {
+      setTransacoes((prevTx) =>
+        prevTx.filter((t) => Number(t.id) !== Number(alvo.transacaoId))
+      );
+    }
+
+    return prevPagamentos.filter((p) => p.id !== pagamentoId);
+  });
+};
 
   // --- Perfis ---
  const PROFILES_LS_KEY = "accounts_list_v1";
@@ -762,6 +840,20 @@ useEffect(() => {
   } catch {}
 }, [creditCards]);
 
+const FATURA_PAYMENTS_LS_KEY = "fluxmoney:fatura_payments:v1";
+
+function loadPagamentosFatura(): PagamentoFaturaApp[] {
+  try {
+    const raw = localStorage.getItem(FATURA_PAYMENTS_LS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 // se tiver cartões e nenhum selecionado, seleciona o primeiro
 useEffect(() => {
   if (creditCards.length > 0 && !selectedCreditCardId) {
@@ -999,9 +1091,12 @@ useEffect(() => {
 
   const [activeProfileId, setActiveProfileId] = useState<string>("default");
   const [isParceladoMode, setIsParceladoMode] = useState<boolean | null>(null);
+  
+  
+  
   // Cartão de Crédito: À vista (false) / Parcelado (true) / nada (null)
 
-const handleEditProfile = (id: string) => {
+  const handleEditProfile = (id: string) => {
   const p = profiles.find((x: any) => x.id === id);
   const novo = window.prompt("Renomear conta:", p?.name ?? "");
   if (!novo || !novo.trim()) return;
@@ -2420,47 +2515,60 @@ if (sessionLoading) {
       gradientFrom: selectedCcCard.gradientFrom ?? "#220055",
       gradientTo: selectedCcCard.gradientTo ?? "#4600ac",
       categoria: selectedCard?.categoria ?? "",
-      }}
-transacoes={creditTxSelecionado.map((t: Transaction) => ({ ...t, id: String(t.id) }))}
+    }}
+    transacoes={creditTxSelecionado.map((t: Transaction) => ({ ...t, id: String(t.id) }))}
+    contaPagamentoOptions={(profiles ?? []).map((p) => {
+      const banco = String(p.banco ?? "").trim();
+      const nome = String(p.name ?? "").trim();
+      const perfil = String(p.perfilConta ?? "").trim();
 
-onPickOtherCard={toggleCcExpanded}
-onDeleteTransacao={(id: string) => {
-  confirmToast({
-    title: "Excluir transação",
-    message: "Tem certeza que deseja excluir esta transação?",
-    confirmText: "Excluir",
-    cancelText: "Cancelar",
-    onConfirm: () => {
-      setTransacoes((prev) => {
-        const target = prev.find((t) => String(t.id) === String(id));
-        if (!target) return prev;
+      const labelBase = banco || nome || "Conta";
+      const label = perfil ? `${labelBase} (${perfil})` : labelBase;
 
-        // se for parcela de cartão e tiver recorrenciaId, remove o grupo inteiro
-        const isCC = target.tipo === "cartao_credito";
-        const rid = (target as any).recorrenciaId;
-        const cardId = (target as any).qualCartao;
+      return {
+        value: String(p.id),
+        label,
+      };
+    })}
 
-        if (isCC && rid) {
-          return prev.filter(
-            (t) =>
-              !(
-                t.tipo === "cartao_credito" &&
-                String((t as any).qualCartao) === String(cardId) &&
-                String((t as any).recorrenciaId) === String(rid)
-              )
-          );
-        }
+    onPickOtherCard={toggleCcExpanded}
+    onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
+    isInvoiceModalOpen={isInvoiceModalOpen}
+    onCloseInvoiceModal={() => setIsInvoiceModalOpen(false)}
+    onDeleteTransacao={(id: string) => {
+      confirmToast({
+        title: "Excluir transação",
+        message: "Tem certeza que deseja excluir esta transação?",
+        confirmText: "Excluir",
+        cancelText: "Cancelar",
+        onConfirm: () => {
+          setTransacoes((prev) => {
+            const target = prev.find((t) => String(t.id) === String(id));
+            if (!target) return prev;
 
-        // caso normal: remove só 1 item
-        return prev.filter((t) => String(t.id) !== String(id));
+            // se for parcela de cartão e tiver recorrenciaId, remove o grupo inteiro
+            const isCC = target.tipo === "cartao_credito";
+            const rid = (target as any).recorrenciaId;
+            const cardId = (target as any).qualCartao;
+
+            if (isCC && rid) {
+              return prev.filter(
+                (t) =>
+                  !(
+                    t.tipo === "cartao_credito" &&
+                    String((t as any).qualCartao) === String(cardId) &&
+                    String((t as any).recorrenciaId) === String(rid)
+                  )
+              );
+            }
+
+            // caso normal: remove só 1 item
+            return prev.filter((t) => String(t.id) !== String(id));
+          });
+        },
       });
-    },
-  });
-}}
-
-
-
- />
+    }}
+  />
 ) : null}
 
 
@@ -2912,6 +3020,67 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
       )}
     </main>
 
+{isInvoiceModalOpen && (
+  <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
+    <button
+      type="button"
+      aria-label="Fechar modal da fatura"
+      onClick={() => setIsInvoiceModalOpen(false)}
+      className="absolute inset-0 cursor-default"
+    />
+
+    <div className="relative z-[121] w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-[#071028] shadow-2xl">
+      <div className="border-b border-white/10 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[11px] text-white/60">Pagamento da fatura</div>
+            <h3 className="text-sm font-semibold text-white">Acessar fatura</h3>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsInvoiceModalOpen(false)}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/10"
+          >
+            Fechar
+          </button>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-3">
+        <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="text-white text-sm font-semibold">Detalhes da fatura em breve aqui</div>
+          <div className="mt-1 text-xs text-white/60 leading-relaxed">
+            Este modal já está pronto para receber o conteúdo completo de pagamento da fatura
+            (resumo, status, pagamento parcial e histórico), sem poluir a tela principal.
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+            <div className="text-[11px] text-white/60">Resumo</div>
+            <div className="text-sm font-medium text-white">Visual limpo na tela principal</div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+            <div className="text-[11px] text-white/60">Próximo passo</div>
+            <div className="text-sm font-medium text-white">Mover card completo para cá</div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setIsInvoiceModalOpen(false)}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            Fechar modal
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* SETTINGS MODAL */}
       {settingsOpen && (

@@ -101,7 +101,7 @@ export function CreditDashboard({
   onRemoverPagamentoFatura,
   onOpenInvoiceModal,
   isInvoiceModalOpen,
- onCloseInvoiceModal,
+  onCloseInvoiceModal,
 }: Props) {
   function pad2(n: number) {
     return String(n).padStart(2, "0");
@@ -173,11 +173,7 @@ export function CreditDashboard({
     const raw = String(input ?? "").trim();
     if (!raw) return 0;
 
-    const normalized = raw
-      .replace(/\s/g, "")
-      .replace(/\./g, "")
-      .replace(",", ".");
-
+    const normalized = raw.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
     const n = Number(normalized);
     return Number.isFinite(n) ? n : 0;
   }
@@ -228,7 +224,9 @@ export function CreditDashboard({
     formatDateOnlyISO(cicloFim)
   )}`;
 
-  const cicloKeyFatura = `${cartao.id}__${formatDateOnlyISO(cicloInicio)}__${formatDateOnlyISO(cicloFim)}`;
+  const cicloKeyFatura = `${cartao.id}__${formatDateOnlyISO(cicloInicio)}__${formatDateOnlyISO(
+    cicloFim
+  )}`;
 
   // Transações que compõem a FATURA (por ciclo)
   const txFaturaCiclo = (transacoes || []).filter((t) => {
@@ -243,12 +241,12 @@ export function CreditDashboard({
     0
   );
 
-// Exibir valor de fatura como positivo (derivado das transações do ciclo exibidas no cartão)
-// Obs: somamos o valor absoluto de cada item para não depender de totalFaturaCicloBruto (que pode vir zerado)
-const valorFaturaTotal = txMes.reduce((acc, t) => {
-  const v = Number((t as any).valor) || 0;
-  return acc + Math.abs(v);
-}, 0);
+  // Exibir valor de fatura como positivo (derivado das transações do mês visual)
+  // Obs: somamos o valor absoluto de cada item para não depender de sinal.
+  const valorFaturaTotal = txMes.reduce((acc, t) => {
+    const v = Number((t as any).valor) || 0;
+    return acc + Math.abs(v);
+  }, 0);
 
   // --- Filtros da lista de TRANSAÇÕES do CARTÃO (somente lista à direita) ---
   const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
@@ -301,51 +299,42 @@ const valorFaturaTotal = txMes.reduce((acc, t) => {
   }, [baseMonthKey, categoriasCC.join("|"), tagsCC.join("|")]);
 
   // =========================
-  // PAGAMENTO DE FATURA (mock local funcional)
-  // - permite parcial
-  // - permite adiantamento dentro do ciclo
+  // PAGAMENTO DE FATURA (mock local funcional / integração com App)
   // =========================
   const [pagamentosFaturaLocal, setPagamentosFaturaLocal] = useState<PagamentoFaturaUI[]>([]);
-  const pagamentosFatura = (pagamentosFaturaProp as PagamentoFaturaUI[] | undefined) ?? pagamentosFaturaLocal;
+  const pagamentosFatura =
+    (pagamentosFaturaProp as PagamentoFaturaUI[] | undefined) ?? pagamentosFaturaLocal;
+
   const [contaPagamentoFatura, setContaPagamentoFatura] = useState<string>("conta_principal");
-  const [statusRapidoPagamento, setStatusRapidoPagamento] = useState<string>("pendente");
   const [valorPagamentoInput, setValorPagamentoInput] = useState<string>("");
   const [dataPagamentoFatura, setDataPagamentoFatura] = useState<string>(todayISO());
   const [erroPagamentoFatura, setErroPagamentoFatura] = useState<string>("");
   const [sucessoPagamentoFatura, setSucessoPagamentoFatura] = useState<string>("");
 
-const contaPagamentoOptions = useMemo(
-  () =>
-    contaPagamentoOptionsProp && contaPagamentoOptionsProp.length
-      ? contaPagamentoOptionsProp
-      : [
-          { label: "Conta principal", value: "conta_principal" },
-          { label: "Conta Itaú", value: "itau" },
-          { label: "Conta Nubank", value: "nubank" },
-          { label: "Dinheiro / Caixa", value: "caixa" },
-        ],
-  [contaPagamentoOptionsProp]
-);
-
-  const statusPagamentoOptions = useMemo(
-    () => [
-      { label: "Pendente", value: "pendente" },
-      { label: "Pago", value: "pago" },
-    ],
-    []
+  const contaPagamentoOptions = useMemo(
+    () =>
+      contaPagamentoOptionsProp && contaPagamentoOptionsProp.length
+        ? contaPagamentoOptionsProp
+        : [
+            { label: "Conta principal", value: "conta_principal" },
+            { label: "Conta Itaú", value: "itau" },
+            { label: "Conta Nubank", value: "nubank" },
+            { label: "Dinheiro / Caixa", value: "caixa" },
+          ],
+    [contaPagamentoOptionsProp]
   );
 
   const contaSelecionadaLabel =
     contaPagamentoOptions.find((o) => o.value === contaPagamentoFatura)?.label ?? "Conta";
 
-    useEffect(() => {
-  if (!contaPagamentoOptions.length) return;
+  useEffect(() => {
+    if (!contaPagamentoOptions.length) return;
 
-  const existe = contaPagamentoOptions.some((o) => o.value === contaPagamentoFatura);
-  if (!existe) {
-    setContaPagamentoFatura(contaPagamentoOptions[0].value);
-  }
-}, [contaPagamentoOptions, contaPagamentoFatura]);
+    const existe = contaPagamentoOptions.some((o) => o.value === contaPagamentoFatura);
+    if (!existe) {
+      setContaPagamentoFatura(contaPagamentoOptions[0].value);
+    }
+  }, [contaPagamentoOptions, contaPagamentoFatura]);
 
   const pagamentosDoCiclo = pagamentosFatura
     .filter((p) => p.cartaoId === cartao.id && p.cicloKey === cicloKeyFatura)
@@ -366,25 +355,9 @@ const contaPagamentoOptions = useMemo(
   useEffect(() => {
     setErroPagamentoFatura("");
     setSucessoPagamentoFatura("");
-    setStatusRapidoPagamento("pendente");
     setValorPagamentoInput("");
     setDataPagamentoFatura(todayISO());
   }, [cicloKeyFatura]);
-
-  useEffect(() => {
-    if (statusRapidoPagamento === "pago") {
-      if (saldoRestanteFatura > 0) {
-        setValorPagamentoInput(
-          saldoRestanteFatura.toLocaleString("pt-BR", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })
-        );
-      } else {
-        setValorPagamentoInput("");
-      }
-    }
-  }, [statusRapidoPagamento, saldoRestanteFatura]);
 
   function registrarPagamentoFatura() {
     setErroPagamentoFatura("");
@@ -397,10 +370,6 @@ const contaPagamentoOptions = useMemo(
 
     const valorDigitado = parseCurrencyInputBR(valorPagamentoInput);
     let valorFinal = valorDigitado;
-
-    if (statusRapidoPagamento === "pago" && valorFinal <= 0) {
-      valorFinal = saldoRestanteFatura;
-    }
 
     if (valorFinal <= 0) {
       setErroPagamentoFatura("Informe um valor de pagamento maior que zero.");
@@ -423,7 +392,6 @@ const contaPagamentoOptions = useMemo(
     }
 
     // Por enquanto: limita ao saldo restante da fatura do ciclo
-    // (pré-pagamento de fatura futura fica para integração real)
     const valorAplicado = Math.min(valorFinal, saldoRestanteFatura);
 
     const novo: PagamentoFaturaUI = {
@@ -438,18 +406,18 @@ const contaPagamentoOptions = useMemo(
     };
 
     if (onRegistrarPagamentoFatura) {
-  onRegistrarPagamentoFatura({
-    cartaoId: cartao.id,
-    cartaoNome: cartao.nome,
-    cicloKey: cicloKeyFatura,
-    dataPagamento: dataPagamentoFatura,
-    valor: valorAplicado,
-    contaId: contaPagamentoFatura,
-    contaLabel: contaSelecionadaLabel,
-  });
-} else {
-  setPagamentosFaturaLocal((prev) => [novo, ...prev]);
-}
+      onRegistrarPagamentoFatura({
+        cartaoId: cartao.id,
+        cartaoNome: cartao.nome,
+        cicloKey: cicloKeyFatura,
+        dataPagamento: dataPagamentoFatura,
+        valor: valorAplicado,
+        contaId: contaPagamentoFatura,
+        contaLabel: contaSelecionadaLabel,
+      });
+    } else {
+      setPagamentosFaturaLocal((prev) => [novo, ...prev]);
+    }
 
     const houveAjuste = valorAplicado < valorFinal;
     setSucessoPagamentoFatura(
@@ -458,211 +426,175 @@ const contaPagamentoOptions = useMemo(
         : `Pagamento registrado com sucesso (${moedaBR(valorAplicado)}).`
     );
 
-    setStatusRapidoPagamento("pendente");
-    setValorPagamentoInput("");
+     setValorPagamentoInput("");
   }
 
- function removerPagamentoFatura(id: string) {
-  if (onRemoverPagamentoFatura) {
-    onRemoverPagamentoFatura(id);
-  } else {
-    setPagamentosFaturaLocal((prev) => prev.filter((p) => p.id !== id));
+  function removerPagamentoFatura(id: string) {
+    if (onRemoverPagamentoFatura) {
+      onRemoverPagamentoFatura(id);
+    } else {
+      setPagamentosFaturaLocal((prev) => prev.filter((p) => p.id !== id));
+    }
+
+    setErroPagamentoFatura("");
+    setSucessoPagamentoFatura("Pagamento removido.");
   }
 
-  setErroPagamentoFatura("");
-  setSucessoPagamentoFatura("Pagamento removido.");
-}
-
-  const renderPagamentoFaturaCard = () => (
-    <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-white/70 text-sm font-medium">Pagamento da fatura</div>
-          <div className="mt-1 text-white/45 text-[10px] leading-none">
-            Ciclo da fatura: {cicloLabel}
-          </div>
-          <div className="mt-1 text-white/45 text-[10px] leading-none">
-            Vencimento: {formatBRDate(formatDateOnlyISO(vencimentoFaturaAtual))}
-          </div>
-        </div>
-
-        <span
-          className={`text-[11px] px-2 py-1 rounded-lg border whitespace-nowrap ${
-            statusFaturaDerivado === "pago"
-              ? "text-emerald-300 bg-emerald-500/10 border-emerald-400/20"
-              : statusFaturaDerivado === "parcial"
-              ? "text-sky-300 bg-sky-500/10 border-sky-400/20"
-              : "text-amber-300 bg-amber-500/10 border-amber-400/20"
-          }`}
-        >
-          {statusFaturaDerivado === "pago"
-            ? "Pago"
-            : statusFaturaDerivado === "parcial"
-            ? "Parcial"
-            : "Pendente"}
-        </span>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-          <div className="text-white/50 text-[11px] leading-none">Valor da fatura</div>
-          <div className="mt-2 text-red-300 text-[13px] font-semibold leading-none">
-            {moedaBR(valorFaturaTotal)}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-          <div className="text-white/50 text-[11px] leading-none">Saldo restante</div>
-          <div
-            className={`mt-2 text-[13px] font-semibold leading-none ${
-              saldoRestanteFatura > 0 ? "text-amber-300" : "text-emerald-300"
-            }`}
-          >
-            {moedaBR(saldoRestanteFatura)}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-          <div className="text-white/50 text-[11px] leading-none">Valor já pago</div>
-          <div className="mt-2 text-emerald-300 text-[13px] font-semibold leading-none">
-            {moedaBR(valorPagoFatura)}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-          <div className="text-white/50 text-[11px] leading-none">Transações no ciclo</div>
-          <div className="mt-2 text-white/85 text-[13px] font-semibold leading-none">
-            {txFaturaCiclo.length}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-3 h-px bg-white/10" />
-
-      <div className="mt-3 space-y-3">
-        <div>
-          <div className="text-white/50 text-[11px] mb-1">Conta para pagamento</div>
-          <CustomDropdown
-            value={contaPagamentoFatura}
-            onSelect={(v) => setContaPagamentoFatura(String(v))}
-            options={contaPagamentoOptions}
-            placeholder="Selecione"
-          />
-        </div>
-
-        <div>
-          <div className="text-white/50 text-[11px] mb-1">Status (ação rápida)</div>
-          <CustomDropdown
-            value={statusRapidoPagamento}
-            onSelect={(v) => setStatusRapidoPagamento(String(v))}
-            options={statusPagamentoOptions}
-            placeholder="Pendente"
-          />
-          <div className="mt-1 text-white/35 text-[10px] leading-none">
-            “Pago” sugere automaticamente o saldo restante no valor.
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3">
+  // Conteúdo COMPLETO que vai para o MODAL
+  const renderPagamentoFaturaModalContent = () => (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-white/50 text-[11px] mb-1">Valor a pagar</div>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={valorPagamentoInput}
-              onChange={(e) => setValorPagamentoInput(e.target.value)}
-              placeholder={
-                saldoRestanteFatura > 0
-                  ? saldoRestanteFatura.toLocaleString("pt-BR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })
-                  : "0,00"
-              }
-              className="h-10 w-full rounded-xl px-3 text-[13px]
-                bg-white dark:bg-slate-900
-                border border-slate-200 dark:border-slate-700
-                text-slate-900 dark:text-slate-100
-                hover:bg-slate-50 dark:hover:bg-slate-800/60"
-            />
-            <div className="mt-1 text-white/35 text-[10px] leading-none">
-              Pagamento parcial é permitido (adiantamento também).
+            <div className="text-white/70 text-sm font-medium">Pagamento da fatura</div>
+            <div className="mt-1 text-white/45 text-[10px] leading-none">
+              Ciclo da fatura: {cicloLabel}
+            </div>
+            <div className="mt-1 text-white/45 text-[10px] leading-none">
+              Vencimento: {formatBRDate(formatDateOnlyISO(vencimentoFaturaAtual))}
             </div>
           </div>
 
-          <div>
-            <div className="text-white/50 text-[11px] mb-1">Data do pagamento</div>
-            <input
-              type="date"
-              value={dataPagamentoFatura}
-              onChange={(e) => setDataPagamentoFatura(e.target.value)}
-              className="h-10 w-full rounded-xl px-3 text-[13px]
-                bg-white dark:bg-slate-900
-                border border-slate-200 dark:border-slate-700
-                text-slate-900 dark:text-slate-100
-                hover:bg-slate-50 dark:hover:bg-slate-800/60"
-            />
-          </div>
+          <span
+            className={`text-[11px] px-2 py-1 rounded-lg border whitespace-nowrap ${
+              statusFaturaDerivado === "pago"
+                ? "text-emerald-300 bg-emerald-500/10 border-emerald-400/20"
+                : statusFaturaDerivado === "parcial"
+                ? "text-sky-300 bg-sky-500/10 border-sky-400/20"
+                : "text-amber-300 bg-amber-500/10 border-amber-400/20"
+            }`}
+          >
+            {statusFaturaDerivado === "pago"
+              ? "Pago"
+              : statusFaturaDerivado === "parcial"
+              ? "Parcial"
+              : "Pendente"}
+          </span>
         </div>
 
-        {erroPagamentoFatura ? (
-          <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-rose-200 text-[11px]">
-            {erroPagamentoFatura}
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+            <div className="text-white/50 text-[11px] leading-none">Valor da fatura</div>
+            <div className="mt-2 text-red-300 text-[13px] font-semibold leading-none">
+              {moedaBR(valorFaturaTotal)}
+            </div>
           </div>
-        ) : null}
 
-        {sucessoPagamentoFatura ? (
-          <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-emerald-200 text-[11px]">
-            {sucessoPagamentoFatura}
+          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+            <div className="text-white/50 text-[11px] leading-none">Saldo pendente</div>
+            <div
+              className={`mt-2 text-[13px] font-semibold leading-none ${
+                saldoRestanteFatura > 0 ? "text-amber-300" : "text-emerald-300"
+              }`}
+            >
+              {moedaBR(saldoRestanteFatura)}
+            </div>
           </div>
-        ) : null}
 
-<button
-  type="button"
-  onClick={onOpenInvoiceModal}
-  className="mb-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
->
-  Acessar fatura
-</button>
+          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+            <div className="text-white/50 text-[11px] leading-none">Valor já pago</div>
+            <div className="mt-2 text-emerald-300 text-[13px] font-semibold leading-none">
+              {moedaBR(valorPagoFatura)}
+            </div>
+          </div>
+<div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+  <div className="text-white/50 text-[11px] leading-none">Conta p/ pgto</div>
+  <div className="mt-2 text-white/85 text-[13px] font-semibold leading-none truncate">
+    {contaSelecionadaLabel}
+  </div>
+</div>
+        </div>
 
-        <button
-          type="button"
-          onClick={registrarPagamentoFatura}
-          disabled={valorFaturaTotal <= 0}
-          className={`h-10 rounded-xl border text-sm font-semibold transition ${
-            valorFaturaTotal <= 0
-              ? "border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
-              : "border-white/10 bg-white/5 text-white/90 hover:bg-white/10"
-          }`}
-        >
-          Registrar pagamento
-        </button>
+        <div className="mt-3 h-px bg-white/10" />
+
+        <div className="mt-3 space-y-3 max-w-[760px]">
+        
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <div className="text-white/50 text-[11px] mb-1">Valor a pagar</div>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={valorPagamentoInput}
+                onChange={(e) => setValorPagamentoInput(e.target.value)}
+                placeholder={
+                  saldoRestanteFatura > 0
+                    ? saldoRestanteFatura.toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                    : "0,00"
+                }
+                className="h-10 w-full rounded-xl px-3 text-[13px]
+                  bg-white dark:bg-slate-900
+                  border border-slate-200 dark:border-slate-700
+                  text-slate-900 dark:text-slate-100
+                  hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              />
+              <div className="mt-1 text-white/35 text-[10px] leading-none">
+                Pagamento parcial é permitido (adiantamento também).
+              </div>
+            </div>
+
+            <div>
+              <div className="text-white/50 text-[11px] mb-1">Data do pagamento</div>
+              <input
+                type="date"
+                value={dataPagamentoFatura}
+                onChange={(e) => setDataPagamentoFatura(e.target.value)}
+                className="h-10 w-full rounded-xl px-3 text-[13px]
+                  bg-white dark:bg-slate-900
+                  border border-slate-200 dark:border-slate-700
+                  text-slate-900 dark:text-slate-100
+                  hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              />
+            </div>
+          </div>
+
+          {erroPagamentoFatura ? (
+            <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-rose-200 text-[11px]">
+              {erroPagamentoFatura}
+            </div>
+          ) : null}
+
+          {sucessoPagamentoFatura ? (
+            <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-emerald-200 text-[11px]">
+              {sucessoPagamentoFatura}
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={registrarPagamentoFatura}
+            disabled={valorFaturaTotal <= 0}
+            className={`h-10 w-full rounded-xl border text-sm font-semibold transition ${
+              valorFaturaTotal <= 0
+                ? "border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
+                : "border-white/10 bg-white/5 text-white/90 hover:bg-white/10"
+            }`}
+          >
+            Registrar pagamento
+          </button>
+        </div>
       </div>
 
-      <div className="mt-4">
+      <div className="rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
         <div className="text-white/50 text-[11px] mb-2">Pagamentos registrados neste ciclo</div>
 
         {pagamentosDoCiclo.length ? (
           <div className="space-y-2">
             {pagamentosDoCiclo.map((p) => (
-              <div
-                key={p.id}
-                className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
-              >
+              <div key={p.id} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-white/85 text-[12px] font-medium truncate">
-                      {p.contaLabel}
-                    </div>
+                    <div className="text-white/85 text-[12px] font-medium truncate">{p.contaLabel}</div>
                     <div className="mt-1 text-white/45 text-[10px] leading-none">
                       {formatBRDate(p.dataPagamento)}
                     </div>
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2">
-                    <div className="text-emerald-300 text-[12px] font-semibold">
-                      {moedaBR(p.valor)}
-                    </div>
+                    <div className="text-emerald-300 text-[12px] font-semibold">{moedaBR(p.valor)}</div>
 
                     <button
                       type="button"
@@ -688,320 +620,348 @@ const contaPagamentoOptions = useMemo(
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start">
-      {/* COLUNA ESQUERDA */}
-      <div className="w-full max-w-[320px] justify-self-start space-y-6">
-        {onPickOtherCard ? (
-          <button type="button" onClick={onPickOtherCard} className="w-full text-left">
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start">
+        {/* COLUNA ESQUERDA */}
+        <div className="w-full max-w-[320px] justify-self-start space-y-6">
+          {onPickOtherCard ? (
+            <button type="button" onClick={onPickOtherCard} className="w-full text-left">
+              <CreditCardVisual
+                nome={cartao.nome}
+                limite={cartao.limiteTotal}
+                fechamentoDia={cartao.diaFechamento}
+                vencimentoDia={cartao.diaVencimento}
+                emissor={cartao.bankText ?? ""}
+                categoria={cartao.categoria ?? ""}
+                design={{
+                  from: cartao.gradientFrom ?? "#220055",
+                  to: cartao.gradientTo ?? "#4600ac",
+                }}
+              />
+            </button>
+          ) : (
             <CreditCardVisual
               nome={cartao.nome}
+              categoria={cartao.categoria ?? ""}
               limite={cartao.limiteTotal}
               fechamentoDia={cartao.diaFechamento}
               vencimentoDia={cartao.diaVencimento}
               emissor={cartao.bankText ?? ""}
-              categoria={cartao.categoria ?? ""}
               design={{
                 from: cartao.gradientFrom ?? "#220055",
                 to: cartao.gradientTo ?? "#4600ac",
               }}
             />
-          </button>
-        ) : (
-          <CreditCardVisual
-            nome={cartao.nome}
-            categoria={cartao.categoria ?? ""}
-            limite={cartao.limiteTotal}
-            fechamentoDia={cartao.diaFechamento}
-            vencimentoDia={cartao.diaVencimento}
-            emissor={cartao.bankText ?? ""}
-            design={{
-              from: cartao.gradientFrom ?? "#220055",
-              to: cartao.gradientTo ?? "#4600ac",
-            }}
-          />
-        )}
+          )}
 
-        {/* Detalhes do cartão */}
-        <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">
-          <div className="text-white/70 text-sm font-medium">Detalhes do cartão</div>
+          {/* Detalhes do cartão */}
+          <div className="mt-2 rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4 max-w-2xl">
+            <div className="text-white/70 text-sm font-medium">Detalhes do cartão</div>
 
-          <div className="mt-3 grid grid-cols-2 items-center gap-2">
-            <div className="text-white/50 text-[11px] leading-none">Limite</div>
-            <div className="text-right text-white/85 text-[13px] font-semibold leading-none">
-              {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              })}
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-center justify-between">
-            <div className="text-white/50 text-[11px] leading-none">
-              Fechamento{" "}
-              <span className="ml-2 text-white/85 text-[13px] font-semibold">
-                {String(cartao.diaFechamento ?? "").padStart(2, "0")}
-              </span>
-            </div>
-
-            <div className="text-white/50 text-[11px] leading-none">
-              Vencimento{" "}
-              <span className="ml-2 text-white/85 text-[13px] font-semibold">
-                {String(cartao.diaVencimento ?? "").padStart(2, "0")}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-3 h-px bg-white/10" />
-
-          <div className="mt-3">
-            <div className="text-white/50 text-[11px] leading-none">Valor fatura anterior</div>
-            <div className="mt-1 text-white/35 text-[10px] leading-none">
-              último pagamento efetuado
-            </div>
-            <div className="mt-2 text-emerald-400 text-[12px] font-semibold leading-none">
-              - R$ 0,00
-            </div>
-          </div>
-        </div>
-
-        {/* Pagamento da fatura */}
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-  <div className="flex items-start justify-between gap-3">
-    <div>
-      <div className="text-white/70 text-[11px]">Pagamento da fatura</div>
-      <div className="text-white font-semibold text-sm">Resumo da fatura</div>
-    </div>
-
-    <span
-      className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${
-        saldoRestanteFatura <= 0 && valorFaturaTotal > 0
-          ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
-          : valorPagoFatura > 0
-          ? "border-amber-400/20 bg-amber-500/10 text-amber-300"
-          : "border-rose-400/20 bg-rose-500/10 text-rose-300"
-      }`}
-    >
-      {saldoRestanteFatura <= 0 && valorFaturaTotal > 0
-        ? "Pago"
-        : valorPagoFatura > 0
-        ? "Parcial"
-        : "Pendente"}
-    </span>
-  </div>
-
-  <div className="mt-3 grid grid-cols-2 gap-2">
-    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-      <div className="text-[11px] text-white/60">Valor da fatura</div>
-      <div className="text-sm font-semibold text-white">
-        {moedaBR(valorFaturaTotal)}
-      </div>
-    </div>
-
-    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-      <div className="text-[11px] text-white/60">Saldo restante</div>
-      <div
-        className={`text-sm font-semibold ${
-          saldoRestanteFatura <= 0 ? "text-emerald-300" : "text-white"
-        }`}
-      >
-        {moedaBR(saldoRestanteFatura)}
-      </div>
-    </div>
-  </div>
-
-  <button
-    type="button"
-    onClick={onOpenInvoiceModal}
-    className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-  >
-    Acessar fatura
-  </button>
-</div>
-      </div>
-
-      {/* COLUNA DIREITA */}
-      <div className="w-full space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => setInvoiceMonthOffset((v) => v - 1)}
-            className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/80"
-            aria-label="Mês anterior"
-            title="Mês anterior"
-          >
-            ‹
-          </button>
-
-          <div className="flex-1 overflow-x-auto">
-            <div className="min-w-max mx-auto flex items-center justify-center gap-3 px-2">
-              <span className="text-white/50 text-sm">{labelPrev}</span>
-              <span className="text-white/90 text-sm font-semibold px-3 py-1 rounded-xl bg-white/5 border border-white/10">
-                {labelAtual}
-              </span>
-              <span className="text-white/50 text-sm">{labelNext}</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setInvoiceMonthOffset((v) => v + 1)}
-            className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/80"
-            aria-label="Próximo mês"
-            title="Próximo mês"
-          >
-            ›
-          </button>
-        </div>
-
-        {/* Filtros da lista (mês calendário) */}
-        {txMes.length ? (
-          <div className="mb-3 flex flex-col gap-2">
-            <div className="flex flex-col gap-2 md:flex-row md:items-end">
-              <div className="flex flex-col">
-                <span className="text-white/70 text-xs mb-1">Categoria</span>
-                <CustomDropdown
-                  value={filtroCategoriaCC}
-                  onSelect={(v) => setFiltroCategoriaCC(String(v))}
-                  options={[
-                    { label: "Todas", value: "todas" },
-                    ...categoriasCC.map((c) => ({ label: c, value: c })),
-                  ]}
-                  placeholder="Todas"
-                />
+            <div className="mt-3 grid grid-cols-2 items-center gap-2">
+              <div className="text-white/50 text-[11px] leading-none">Limite</div>
+              <div className="text-right text-white/85 text-[13px] font-semibold leading-none">
+                {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                })}
               </div>
-
-              <div className="flex flex-col">
-                <span className="text-white/70 text-xs mb-1">Tag</span>
-                <CustomDropdown
-                  value={filtroTagCC}
-                  onSelect={(v) => setFiltroTagCC(String(v))}
-                  options={[
-                    { label: "Todas", value: "todas" },
-                    ...tagsCC.map((t) => ({ label: t, value: t })),
-                  ]}
-                  placeholder="Todas"
-                />
-              </div>
-
-              {filtroCategoriaCC !== "todas" || filtroTagCC !== "todas" ? (
-                <div className="md:ml-auto">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFiltroCategoriaCC("todas");
-                      setFiltroTagCC("todas");
-                    }}
-                    className="h-9 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 px-3 text-xs text-white/80"
-                  >
-                    Limpar filtros
-                  </button>
-                </div>
-              ) : null}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 px-0 py-0">
-              <span className="text-white/70 text-xs">Itens: {txMesFiltradas.length}</span>
-
-              <div className="flex items-baseline gap-2">
-                <span className="text-white/60 text-xs">Filtrado</span>
-                <span className="text-white/90 text-sm font-semibold">
-                  {moedaBR(totalFiltradoCC)}
+            <div className="mt-3 flex items-center justify-between">
+              <div className="text-white/50 text-[11px] leading-none">
+                Fechamento{" "}
+                <span className="ml-2 text-white/85 text-[13px] font-semibold">
+                  {String(cartao.diaFechamento ?? "").padStart(2, "0")}
                 </span>
               </div>
 
-              <div className="flex items-baseline gap-2">
-                <span className="text-white/60 text-xs">Valor total da fatura</span>
-                <span className="text-red-400 text-sm font-semibold">
-                  {moedaBR(valorFaturaTotal)}
+              <div className="text-white/50 text-[11px] leading-none">
+                Vencimento{" "}
+                <span className="ml-2 text-white/85 text-[13px] font-semibold">
+                  {String(cartao.diaVencimento ?? "").padStart(2, "0")}
                 </span>
               </div>
             </div>
+
+            <div className="mt-3 h-px bg-white/10" />
+
+            <div className="mt-3">
+              <div className="text-white/50 text-[11px] leading-none">Valor fatura anterior</div>
+              <div className="mt-1 text-white/35 text-[10px] leading-none">
+                último pagamento efetuado
+              </div>
+              <div className="mt-2 text-emerald-400 text-[12px] font-semibold leading-none">
+                - R$ 0,00
+              </div>
+            </div>
           </div>
-        ) : null}
 
-        {txMes.length ? (
-          <ul className="space-y-2">
-            {txMesFiltradas.map((t) => {
-              const valor = Number(t.valor) || 0;
-              const isNeg = valor < 0;
+          {/* Resumo enxuto da fatura (principal) */}
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-white/70 text-[11px]">Pagamento da fatura</div>
+                <div className="text-white font-semibold text-sm">Resumo da fatura</div>
+              </div>
 
-              const parcelasTotal =
-                (t as any).parcelasTotal ?? (t as any).totalParcelas ?? null;
-              const parcelaAtual =
-                (t as any).parcelaAtual ?? (t as any).parcelaN ?? null;
-              const isParcelado = Boolean(parcelasTotal && parcelaAtual);
+              <span
+                className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${
+                  saldoRestanteFatura <= 0 && valorFaturaTotal > 0
+                    ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
+                    : valorPagoFatura > 0
+                    ? "border-amber-400/20 bg-amber-500/10 text-amber-300"
+                    : "border-rose-400/20 bg-rose-500/10 text-rose-300"
+                }`}
+              >
+                {saldoRestanteFatura <= 0 && valorFaturaTotal > 0
+                  ? "Pago"
+                  : valorPagoFatura > 0
+                  ? "Parcial"
+                  : "Pendente"}
+              </span>
+            </div>
 
-              const catLabel = categoriaToLabel(t.categoria);
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                <div className="text-[11px] text-white/60">Valor da fatura</div>
+                <div className="text-sm font-semibold text-white">{moedaBR(valorFaturaTotal)}</div>
+              </div>
 
-              return (
-                <li
-                  key={t.id}
-                  className="rounded-xl border border-white/10 bg-black/20 hover:bg-black/25 transition px-3 py-2"
+              <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                <div className="text-[11px] text-white/60">Saldo pendente</div>
+                <div
+                  className={`text-sm font-semibold ${
+                    saldoRestanteFatura <= 0 ? "text-emerald-300" : "text-white"
+                  }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-white/90 text-sm font-medium truncate">
-                        {t.descricao || "—"}
-                      </div>
+                  {moedaBR(saldoRestanteFatura)}
+                </div>
+              </div>
+            </div>
 
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className="text-white/60 text-xs">{formatBRDate(t.data)}</span>
-
-                        {catLabel ? (
-                          <span className="text-white/70 text-xs px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">
-                            {catLabel}
-                          </span>
-                        ) : null}
-
-                        {t.tag ? (
-                          <span className="text-white/80 text-xs px-2 py-0.5 rounded-lg bg-violet-500/10 border border-violet-400/20">
-                            {t.tag}
-                          </span>
-                        ) : null}
-
-                        {isParcelado ? (
-                          <span className="text-white/80 text-xs px-2 py-0.5 rounded-lg bg-purple-500/10 border border-purple-400/20">
-                            Parcelado {parcelaAtual}/{parcelasTotal}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0 flex items-center gap-2">
-                      <div
-                        className={`text-sm font-semibold ${
-                          isNeg ? "text-red-300" : "text-emerald-300"
-                        }`}
-                      >
-                        {valor.toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        })}
-                      </div>
-
-                      {onDeleteTransacao ? (
-                        <button
-                          type="button"
-                          onClick={() => onDeleteTransacao(t.id)}
-                          className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/80"
-                          title="Excluir transação"
-                          aria-label="Excluir transação"
-                        >
-                          🗑
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <div className="min-h-[160px] flex items-center justify-center">
-            <div className="text-white/60 text-sm text-center">Nenhuma transação encontrada.</div>
+            <button
+              type="button"
+              onClick={onOpenInvoiceModal}
+              className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              Acessar fatura
+            </button>
           </div>
-        )}
+        </div>
+
+        {/* COLUNA DIREITA */}
+        <div className="w-full space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setInvoiceMonthOffset((v) => v - 1)}
+              className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/80"
+              aria-label="Mês anterior"
+              title="Mês anterior"
+            >
+              ‹
+            </button>
+
+            <div className="flex-1 overflow-x-auto">
+              <div className="min-w-max mx-auto flex items-center justify-center gap-3 px-2">
+                <span className="text-white/50 text-sm">{labelPrev}</span>
+                <span className="text-white/90 text-sm font-semibold px-3 py-1 rounded-xl bg-white/5 border border-white/10">
+                  {labelAtual}
+                </span>
+                <span className="text-white/50 text-sm">{labelNext}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setInvoiceMonthOffset((v) => v + 1)}
+              className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/80"
+              aria-label="Próximo mês"
+              title="Próximo mês"
+            >
+              ›
+            </button>
+          </div>
+
+          {/* Filtros da lista (mês calendário) */}
+          {txMes.length ? (
+            <div className="mb-3 flex flex-col gap-2">
+              <div className="flex flex-col gap-2 md:flex-row md:items-end">
+                <div className="flex flex-col">
+                  <span className="text-white/70 text-xs mb-1">Categoria</span>
+                  <CustomDropdown
+                    value={filtroCategoriaCC}
+                    onSelect={(v) => setFiltroCategoriaCC(String(v))}
+                    options={[
+                      { label: "Todas", value: "todas" },
+                      ...categoriasCC.map((c) => ({ label: c, value: c })),
+                    ]}
+                    placeholder="Todas"
+                  />
+                </div>
+
+                <div className="flex flex-col">
+                  <span className="text-white/70 text-xs mb-1">Tag</span>
+                  <CustomDropdown
+                    value={filtroTagCC}
+                    onSelect={(v) => setFiltroTagCC(String(v))}
+                    options={[
+                      { label: "Todas", value: "todas" },
+                      ...tagsCC.map((t) => ({ label: t, value: t })),
+                    ]}
+                    placeholder="Todas"
+                  />
+                </div>
+
+                {filtroCategoriaCC !== "todas" || filtroTagCC !== "todas" ? (
+                  <div className="md:ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFiltroCategoriaCC("todas");
+                        setFiltroTagCC("todas");
+                      }}
+                      className="h-9 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 px-3 text-xs text-white/80"
+                    >
+                      Limpar filtros
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 px-0 py-0">
+                <span className="text-white/70 text-xs">Itens: {txMesFiltradas.length}</span>
+
+                <div className="flex items-baseline gap-2">
+                  <span className="text-white/60 text-xs">Filtrado</span>
+                  <span className="text-white/90 text-sm font-semibold">{moedaBR(totalFiltradoCC)}</span>
+                </div>
+
+                <div className="flex items-baseline gap-2">
+                  <span className="text-white/60 text-xs">Valor total da fatura</span>
+                  <span className="text-red-400 text-sm font-semibold">{moedaBR(valorFaturaTotal)}</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {txMes.length ? (
+            <ul className="space-y-2">
+              {txMesFiltradas.map((t) => {
+                const valor = Number(t.valor) || 0;
+                const isNeg = valor < 0;
+
+                const parcelasTotal = (t as any).parcelasTotal ?? (t as any).totalParcelas ?? null;
+                const parcelaAtual = (t as any).parcelaAtual ?? (t as any).parcelaN ?? null;
+                const isParcelado = Boolean(parcelasTotal && parcelaAtual);
+
+                const catLabel = categoriaToLabel(t.categoria);
+
+                return (
+                  <li
+                    key={t.id}
+                    className="rounded-xl border border-white/10 bg-black/20 hover:bg-black/25 transition px-3 py-2"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-white/90 text-sm font-medium truncate">
+                          {t.descricao || "—"}
+                        </div>
+
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <span className="text-white/60 text-xs">{formatBRDate(t.data)}</span>
+
+                          {catLabel ? (
+                            <span className="text-white/70 text-xs px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">
+                              {catLabel}
+                            </span>
+                          ) : null}
+
+                          {t.tag ? (
+                            <span className="text-white/80 text-xs px-2 py-0.5 rounded-lg bg-violet-500/10 border border-violet-400/20">
+                              {t.tag}
+                            </span>
+                          ) : null}
+
+                          {isParcelado ? (
+                            <span className="text-white/80 text-xs px-2 py-0.5 rounded-lg bg-purple-500/10 border border-purple-400/20">
+                              Parcelado {parcelaAtual}/{parcelasTotal}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 flex items-center gap-2">
+                        <div
+                          className={`text-sm font-semibold ${
+                            isNeg ? "text-red-300" : "text-emerald-300"
+                          }`}
+                        >
+                          {valor.toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </div>
+
+                        {onDeleteTransacao ? (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteTransacao(t.id)}
+                            className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/80"
+                            title="Excluir transação"
+                            aria-label="Excluir transação"
+                          >
+                            🗑
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="min-h-[160px] flex items-center justify-center">
+              <div className="text-white/60 text-sm text-center">Nenhuma transação encontrada.</div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* MODAL REAL DA FATURA */}
+      {isInvoiceModalOpen ? (
+        <div
+          className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4"
+          onClick={onCloseInvoiceModal}
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl border border-white/10 bg-[#071235] shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-white/60 text-[11px]">Pagamento da fatura</div>
+                <div className="text-white font-semibold text-base">Acessar fatura</div>
+              </div>
+
+<button
+  type="button"
+  onClick={onCloseInvoiceModal}
+  className="h-10 w-10 flex items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/90 hover:bg-white/10"
+  aria-label="Fechar modal"
+  title="Fechar"
+>
+  ✕
+</button>
+            </div>
+
+            <div className="max-h-[75vh] overflow-y-auto p-4 pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.18)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/15 hover:[&::-webkit-scrollbar-thumb]:bg-white/25">
+              {renderPagamentoFaturaModalContent()}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

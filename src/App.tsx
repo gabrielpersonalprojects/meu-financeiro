@@ -3020,67 +3020,6 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
       )}
     </main>
 
-{isInvoiceModalOpen && (
-  <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
-    <button
-      type="button"
-      aria-label="Fechar modal da fatura"
-      onClick={() => setIsInvoiceModalOpen(false)}
-      className="absolute inset-0 cursor-default"
-    />
-
-    <div className="relative z-[121] w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-[#071028] shadow-2xl">
-      <div className="border-b border-white/10 px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[11px] text-white/60">Pagamento da fatura</div>
-            <h3 className="text-sm font-semibold text-white">Acessar fatura</h3>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsInvoiceModalOpen(false)}
-            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/10"
-          >
-            Fechar
-          </button>
-        </div>
-      </div>
-
-      <div className="p-4 space-y-3">
-        <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-          <div className="text-white text-sm font-semibold">Detalhes da fatura em breve aqui</div>
-          <div className="mt-1 text-xs text-white/60 leading-relaxed">
-            Este modal já está pronto para receber o conteúdo completo de pagamento da fatura
-            (resumo, status, pagamento parcial e histórico), sem poluir a tela principal.
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-            <div className="text-[11px] text-white/60">Resumo</div>
-            <div className="text-sm font-medium text-white">Visual limpo na tela principal</div>
-          </div>
-
-          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-            <div className="text-[11px] text-white/60">Próximo passo</div>
-            <div className="text-sm font-medium text-white">Mover card completo para cá</div>
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => setIsInvoiceModalOpen(false)}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-          >
-            Fechar modal
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
 
       {/* SETTINGS MODAL */}
       {settingsOpen && (

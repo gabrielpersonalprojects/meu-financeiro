@@ -172,7 +172,39 @@ function confirmToast(opts: ConfirmState) {
 }, [transacoes]);
 
   const ui = useUI();
-  
+ 
+const FATURA_PAYMENTS_LS_KEY = "fluxmoney:fatura_payments:v1";
+const salvarPagamentosFatura = (lista: PagamentoFaturaApp[]) => {
+  try {
+    console.log("[FATURA][SALVAR] qtd:", Array.isArray(lista) ? lista.length : "nao-array");
+    console.log("[FATURA][SALVAR] lista:", lista);
+
+    localStorage.setItem(FATURA_PAYMENTS_LS_KEY, JSON.stringify(lista));
+
+    console.log("[FATURA][SALVAR] LS bruto:", localStorage.getItem(FATURA_PAYMENTS_LS_KEY));
+  } catch (e) {
+    console.error("[FATURA] erro ao salvar pagamentos", e);
+  }
+};
+
+function loadPagamentosFatura(): PagamentoFaturaApp[] {
+  try {
+    const raw = localStorage.getItem(FATURA_PAYMENTS_LS_KEY);
+    console.log("[FATURA][LOAD] raw:", raw);
+
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    console.log("[FATURA][LOAD] parsed:", parsed);
+
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(Boolean);
+  } catch (e) {
+    console.error("[FATURA][LOAD] erro:", e);
+    return [];
+  }
+}
+
 const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>(() =>
   loadPagamentosFatura()
 );
@@ -212,18 +244,46 @@ useEffect(() => {
   contaId: string;
   contaLabel: string;
 }) => {
+  //console.log("[FATURA] payload recebido:", payload);
   const valor = Number(payload.valor) || 0;
   if (valor <= 0) {
     throw new Error("Valor de pagamento inválido.");
   }
-
+const cartaoRef = creditCards.find((c: any) => String(c.id) === String(payload.cartaoId));
   // cria despesa real na lista de transações
   const nextTxId = Date.now(); // compatível com Transaction.id:number
   const novaTransacao: Transaction = {
     id: nextTxId,
     tipo: "despesa",
-    descricao: `Pagamento fatura - ${payload.cartaoNome || "Cartão"}`,
-    valor: valor,
+descricao: `Pagamento fatura - ${(() => {
+  const banco = String(
+    (cartaoRef as any)?.bankText ??
+    (cartaoRef as any)?.banco ??
+    (cartaoRef as any)?.nomeBanco ??
+    (cartaoRef as any)?.bank ??
+    (cartaoRef as any)?.issuer ??
+    ""
+  ).trim();
+
+  const categoria = String((cartaoRef as any)?.categoria ?? "").trim();
+
+  const nomeCartaoLimpo = String(payload.cartaoNome ?? "")
+    .replace(/\s*[•·]\s*(pf|pj)\s*$/i, "")
+    .trim();
+
+  if (banco && categoria) return `${banco} - ${categoria}`;
+  if (banco) return banco;
+  if (
+    categoria &&
+    nomeCartaoLimpo &&
+    !nomeCartaoLimpo.toLowerCase().includes(categoria.toLowerCase())
+  ) {
+    return `${nomeCartaoLimpo} - ${categoria}`;
+  }
+
+  return nomeCartaoLimpo || categoria || "Cartão";
+})()}`,
+    valor: -Math.abs(Number(payload.valor || 0)),
     data: payload.dataPagamento,
     categoria: "Cartão de Crédito",
     tipoGasto: "",
@@ -246,9 +306,15 @@ useEffect(() => {
     criadoEm: Date.now(),
     transacaoId: nextTxId,
   };
+  
+  setPagamentosFatura((prev) => {
+  const base = Array.isArray(prev) ? prev : [];
+  const next = [...base, novoPagamento];
 
-  setPagamentosFatura((prev) => [novoPagamento, ...prev]);
+  salvarPagamentosFatura(next); // persistência imediata
 
+  return next;
+});
   // opcional: se você quiser toast aqui depois
   // toastCompact("Pagamento de fatura registrado.", "success");
 };
@@ -264,7 +330,13 @@ const handleRemoverPagamentoFatura = (pagamentoId: string) => {
       );
     }
 
-    return prevPagamentos.filter((p) => p.id !== pagamentoId);
+    const next = (Array.isArray(prevPagamentos) ? prevPagamentos : []).filter(
+  (p) => p.id !== pagamentoId
+);
+
+salvarPagamentosFatura(next);
+
+return next;
   });
 };
 
@@ -840,19 +912,6 @@ useEffect(() => {
   } catch {}
 }, [creditCards]);
 
-const FATURA_PAYMENTS_LS_KEY = "fluxmoney:fatura_payments:v1";
-
-function loadPagamentosFatura(): PagamentoFaturaApp[] {
-  try {
-    const raw = localStorage.getItem(FATURA_PAYMENTS_LS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(Boolean);
-  } catch {
-    return [];
-  }
-}
 
 // se tiver cartões e nenhum selecionado, seleciona o primeiro
 useEffect(() => {
@@ -907,7 +966,7 @@ const resetAddCardModal = () => {
   };
 
 const openAddCardModal = () => {
-  console.log("openAddCardModal", creditCards.length);
+  //console.log("openAddCardModal", creditCards.length);
   if (creditCards.length >= 30) {
   toastCompact("Limite de 30 cartões atingido.", "info");
   return;
@@ -1760,16 +1819,15 @@ try {
   addTxLockRef.current = false;
 }
 
-  console.log("CLICK Efetuar -> handleAddTransaction", {
+/* console.log("CLICK Efetuar -> handleAddTransaction", {
   formTipo,
   formValor,
   formData,
   formContaOrigem,
   formContaDestino,
-  
-});
+}); */
 
-console.log("TIPO AGORA:", formTipo);
+//console.log("TIPO AGORA:", formTipo);
 
     const valorNum = extrairValorMoeda(formValor);
 
@@ -2535,73 +2593,10 @@ if (sessionLoading) {
     onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
     isInvoiceModalOpen={isInvoiceModalOpen}
     onCloseInvoiceModal={() => setIsInvoiceModalOpen(false)}
-
-    onRegistrarPagamentoFatura={(payload) => {
-    const contaPagtoId = String(payload.contaId ?? (payload as any).contaid ?? "");
-    const contaPagtoLabel = String(payload.contaLabel ?? "");
-    const cartaoRef = creditCards.find(
-  (c: any) => String(c.id) === String(payload.cartaoId)
-);
-
-const bancoEmissor = String(
-  (cartaoRef as any)?.bankText ??
-  (cartaoRef as any)?.banco ??
-  (cartaoRef as any)?.bancoEmissor ??
-  (cartaoRef as any)?.nomeBanco ??
-  (cartaoRef as any)?.bank ??
-  (cartaoRef as any)?.emissor ??
-  (cartaoRef as any)?.issuer ??
-  ""
-).trim();
-
-const categoriaCartao = String(
-  (cartaoRef as any)?.categoria ?? ""
-).trim();
-
-const nomeExibicaoCartao = [bancoEmissor, categoriaCartao]
-  .filter(Boolean)
-  .join(" ")
-  .trim() || String(payload.cartaoNome ?? "Cartão");
-  setTransacoes((prev) => [
-    {
-      id: `pf-${Date.now()}`,
-      tipo: "despesa",
-      descricao: `Pagamento fatura ${nomeExibicaoCartao}`,
-      valor: -Math.abs(Number(payload.valor || 0)),
-      data: payload.dataPagamento,
-      pago: true,
-
-      // conta pagante (importante pra aparecer na conta certa)
-      profileId: contaPagtoId,
-      perfilId: contaPagtoId,
-      accountId: contaPagtoId,
-      contaId: contaPagtoId,
-      contaid: contaPagtoId,
-      qualConta: contaPagtoId,
-      qualconta: contaPagtoId,
-
-      // extras úteis
-      contaLabel: contaPagtoLabel,
-      contalabel: contaPagtoLabel,
-      conta: contaPagtoId,
-
-        categoria: "Cartão de Crédito",
-        tag: "pagamento_fatura",
-
-        // marcadores pra lógica fatura (evitar duplicar / filtrar)
-        origem: "pagamento_fatura",
-        cartaoId: String(payload.cartaoId),
-        cicloKey: String(payload.cicloKey ?? ""),
-    } as any,
-    ...prev,
-  ]);
-}}
-
-onRemoverPagamentoFatura={(pagamentoId: string) => {
-  setTransacoes((prev) =>
-    prev.filter((t: any) => String(t?.id) !== String(pagamentoId))
-  );
-}}
+    
+    pagamentosFatura={pagamentosFatura}
+    onRegistrarPagamentoFatura={handleRegistrarPagamentoFatura}
+    onRemoverPagamentoFatura={handleRemoverPagamentoFatura}
 
     onDeleteTransacao={(id: string) => {
       confirmToast({

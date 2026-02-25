@@ -393,9 +393,9 @@ export function CreditDashboard({
 
     // Por enquanto: limita ao saldo restante da fatura do ciclo
     const valorAplicado = Math.min(valorFinal, saldoRestanteFatura);
-
+    const pagamentoId = newLocalId("pf");
     const novo: PagamentoFaturaUI = {
-      id: newLocalId("pgf"),
+      id: pagamentoId,
       cartaoId: cartao.id,
       cicloKey: cicloKeyFatura,
       dataPagamento: dataPagamentoFatura,

@@ -121,7 +121,8 @@ export function useStatsMes(params: Params) {
       if (!t) continue;
       if (String(t.id ?? "").startsWith("tr_")) continue; // display-only
       if (!getPaid(t)) continue;
-
+      const tipo = String((t as any).tipo ?? "").toLowerCase();
+      if (tipo === "cartao_credito") continue;
       saldoMov += safeNumber(t.valor);
     }
 
@@ -149,10 +150,11 @@ export function useStatsMes(params: Params) {
 
       const pago = getPaid(t);
 
-      // receita
-      const isRec = tipo === "receita" || valor > 0;
-      // despesa
-      const isDesp = tipo === "despesa" || valor < 0;
+ // receita
+const isRec = tipo === "receita";
+
+// despesa (NÃO conta compra no cartão aqui; fatura paga entra depois como transação própria)
+const isDesp = tipo === "despesa";
 
       if (isRec) {
         if (pago) receitasMes += Math.abs(valor);

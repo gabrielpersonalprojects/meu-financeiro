@@ -2535,6 +2535,74 @@ if (sessionLoading) {
     onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
     isInvoiceModalOpen={isInvoiceModalOpen}
     onCloseInvoiceModal={() => setIsInvoiceModalOpen(false)}
+
+    onRegistrarPagamentoFatura={(payload) => {
+    const contaPagtoId = String(payload.contaId ?? (payload as any).contaid ?? "");
+    const contaPagtoLabel = String(payload.contaLabel ?? "");
+    const cartaoRef = creditCards.find(
+  (c: any) => String(c.id) === String(payload.cartaoId)
+);
+
+const bancoEmissor = String(
+  (cartaoRef as any)?.bankText ??
+  (cartaoRef as any)?.banco ??
+  (cartaoRef as any)?.bancoEmissor ??
+  (cartaoRef as any)?.nomeBanco ??
+  (cartaoRef as any)?.bank ??
+  (cartaoRef as any)?.emissor ??
+  (cartaoRef as any)?.issuer ??
+  ""
+).trim();
+
+const categoriaCartao = String(
+  (cartaoRef as any)?.categoria ?? ""
+).trim();
+
+const nomeExibicaoCartao = [bancoEmissor, categoriaCartao]
+  .filter(Boolean)
+  .join(" ")
+  .trim() || String(payload.cartaoNome ?? "Cartão");
+  setTransacoes((prev) => [
+    {
+      id: `pf-${Date.now()}`,
+      tipo: "despesa",
+      descricao: `Pagamento fatura ${nomeExibicaoCartao}`,
+      valor: -Math.abs(Number(payload.valor || 0)),
+      data: payload.dataPagamento,
+      pago: true,
+
+      // conta pagante (importante pra aparecer na conta certa)
+      profileId: contaPagtoId,
+      perfilId: contaPagtoId,
+      accountId: contaPagtoId,
+      contaId: contaPagtoId,
+      contaid: contaPagtoId,
+      qualConta: contaPagtoId,
+      qualconta: contaPagtoId,
+
+      // extras úteis
+      contaLabel: contaPagtoLabel,
+      contalabel: contaPagtoLabel,
+      conta: contaPagtoId,
+
+        categoria: "Cartão de Crédito",
+        tag: "pagamento_fatura",
+
+        // marcadores pra lógica fatura (evitar duplicar / filtrar)
+        origem: "pagamento_fatura",
+        cartaoId: String(payload.cartaoId),
+        cicloKey: String(payload.cicloKey ?? ""),
+    } as any,
+    ...prev,
+  ]);
+}}
+
+onRemoverPagamentoFatura={(pagamentoId: string) => {
+  setTransacoes((prev) =>
+    prev.filter((t: any) => String(t?.id) !== String(pagamentoId))
+  );
+}}
+
     onDeleteTransacao={(id: string) => {
       confirmToast({
         title: "Excluir transação",

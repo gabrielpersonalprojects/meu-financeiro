@@ -14,15 +14,19 @@ export const passarFiltroConta = (
 
   // 2) helpers
   const getTxContaId = () =>
-    String(
-      anyt.profileId ??
-        anyt.contaId ??
-        anyt.accountId ??
-        anyt.perfilId ??
-        anyt.idConta ??
-        anyt.contaVinculadaId ??
-        ""
-    );
+  String(
+    anyt.profileId ??
+      anyt.contaId ??
+      anyt.contaid ??        // <- novo
+      anyt.qualConta ??      // <- novo
+      anyt.qualconta ??      // <- novo
+      anyt.conta ??          // <- novo
+      anyt.accountId ??
+      anyt.perfilId ??
+      anyt.idConta ??
+      anyt.contaVinculadaId ??
+      ""
+  );
 
   const alvo = String(filtroConta ?? "");
 

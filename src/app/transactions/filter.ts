@@ -127,6 +127,8 @@ export function passaFiltroContaFactory(filtroConta: unknown, profiles: any[]) {
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
 
+  const normId = (v: any) => String(v ?? "").trim().replace(/^acc_/, "");
+
   const fcRaw = String(filtroConta ?? "").trim();
   const fcN = norm(fcRaw);
 
@@ -144,87 +146,39 @@ export function passaFiltroContaFactory(filtroConta: unknown, profiles: any[]) {
 
   const list = Array.isArray(profiles) ? profiles : [];
 
-  // resolve filtro para um profile real (id OU nome)
   const resolvedProfile =
-    list.find((p: any) => String(p?.id ?? "") === fcRaw) ??
+    list.find((p: any) => normId(p?.id) === normId(fcRaw)) ??
     list.find((p: any) => norm(p?.name ?? p?.banco ?? "") === fcN) ??
-    list.find((p: any) => {
-      const label = norm(p?.name ?? p?.banco ?? "");
-      return label && (fcN.includes(label) || label.includes(fcN));
-    }) ??
     null;
 
-  const targetId = String(resolvedProfile?.id ?? "").trim();
-  const targetNameN = norm(String(resolvedProfile?.name ?? resolvedProfile?.banco ?? ""));
+  const targetIdN = normId(resolvedProfile?.id ?? fcRaw);
 
-  const pickIds = (anyT: any) => {
-    const vals = [
-      anyT?.profileId,
-      anyT?.contaId,
-      anyT?.accountId,
+  const getContaIdN = (t: any) => normId(t?.contaId ?? t?.profileId ?? t?.accountId ?? "");
 
-      anyT?.contaOrigemId,
-      anyT?.contaDestinoId,
-
-      anyT?.fromAccountId,
-      anyT?.toAccountId,
-    ]
-      .map((v: any) => String(v ?? "").trim())
-      .filter(Boolean);
-
-    return new Set(vals);
-  };
-
-  const pickNames = (anyT: any) => {
-    const vals = [
-      anyT?.banco,
-      anyT?.bank,
-      anyT?.bankId,
-      anyT?.conta,
-      anyT?.contaNome,
-      anyT?.profileName,
-      anyT?.accountName,
-      anyT?.labelConta,
-      anyT?.nomeConta,
-
-      anyT?.contaOrigem,
-      anyT?.contaDestino,
-      anyT?.origemLabel,
-      anyT?.destinoLabel,
-    ]
-      .map((v: any) => String(v ?? "").trim())
-      .filter(Boolean)
-      .map(norm);
-
-    return new Set(vals);
+  const getTransferIdsN = (t: any) => {
+    const o = normId(t?.contaOrigemId ?? t?.fromAccountId ?? "");
+    const d = normId(t?.contaDestinoId ?? t?.toAccountId ?? "");
+    return { o, d };
   };
 
   if (isSemConta) {
     return (t: Transaction) => {
       const anyT: any = t as any;
-      const ids = pickIds(anyT);
-      const names = pickNames(anyT);
-      return ids.size === 0 && names.size === 0;
+      const contaIdN = getContaIdN(anyT);
+      const { o, d } = getTransferIdsN(anyT);
+      return !contaIdN && !o && !d;
     };
   }
 
   return (t: Transaction) => {
     const anyT: any = t as any;
-    const ids = pickIds(anyT);
-    const names = pickNames(anyT);
+    const contaIdN = getContaIdN(anyT);
 
-    // 1) match por ID (quando filtro é id ou resolvemos um id)
-    if (targetId && ids.has(targetId)) return true;
+    if (contaIdN && contaIdN === targetIdN) return true;
 
-    // 2) match por nome (quando dropdown guarda label/nome)
-    if (targetNameN && names.has(targetNameN)) return true;
-    if (fcN && names.has(fcN)) return true;
-
-    // 3) match por inclusão (ex: "PF Itau c/c" vs "Itau c/c")
-    for (const n of names) {
-      if (targetNameN && (n.includes(targetNameN) || targetNameN.includes(n))) return true;
-      if (fcN && (n.includes(fcN) || fcN.includes(n))) return true;
-    }
+    const { o, d } = getTransferIdsN(anyT);
+    if (o && o === targetIdN) return true;
+    if (d && d === targetIdN) return true;
 
     return false;
   };

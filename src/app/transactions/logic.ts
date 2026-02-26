@@ -55,9 +55,9 @@ export const maskLast4 = (v: string) => {
   if (digits.length <= 4) return digits;
   return "****" + digits.slice(-4);
 };
-
+const normAccId = (v: any) => String(v ?? "").trim().replace(/^acc_/, "");
 export const getContaPartsById = (accountId: string, contas: any[]) => {
-  const c = contas.find((x: any) => x.id === accountId);
+  const c = contas.find((x: any) => normAccId(x?.id) === normAccId(accountId));
   if (!c) return null;
 
   const banco = c.banco || "Conta";
@@ -71,7 +71,7 @@ export const getContaPartsById = (accountId: string, contas: any[]) => {
 };
 
 export const formatContaLabelById = (accountId: string, contas: any[]) => {
-  const c = contas.find((x: any) => x.id === accountId);
+  const c = contas.find((x: any) => normAccId(x?.id) === normAccId(accountId));
   if (!c) return "Conta";
 
   // Ajuste os nomes dos campos conforme seu modelo:

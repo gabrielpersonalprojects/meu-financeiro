@@ -32,14 +32,16 @@ export interface Transaction {
   valor: number;
   data: string; // YYYY-MM-DD
   categoria: string;
+
+  // conta/banco (id da conta/profile)
+  contaId?: string;
+  profileId?: string;
+
   tipoGasto: SpendingType | "";
   metodoPagamento?: PaymentMethod;
 
-  // Mantido obrigatório (igual seu original) pra não quebrar nada agora
   qualCartao: string;
-
   pago: boolean;
-  contaId?: string; // id da conta (profile.id)
 
   // opcionais
   recorrenciaId?: string;

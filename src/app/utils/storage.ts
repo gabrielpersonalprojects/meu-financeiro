@@ -102,6 +102,10 @@ function normalizeTx(input: any) {
   const tipoGasto = pickStr(t.tipoGasto);
   if (tipoGasto) out.tipoGasto = tipoGasto;
 
+    // ✅ conta/banco (ID da conta pagante) — ESSENCIAL pro filtro
+  const contaId = pickStr(t.contaId, t.contaID, t.idConta, t.conta_id, t.conta);
+  if (contaId) out.contaId = contaId;
+
   const pago = pickBool(t.pago);
   if (typeof pago === "boolean") out.pago = pago;
 

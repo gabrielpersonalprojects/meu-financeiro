@@ -235,7 +235,8 @@ useEffect(() => {
     };
   }, []);
 
-  const handleRegistrarPagamentoFatura = (payload: {
+  
+  const handleRegistrarPagamentoFatura = (payload: {  
   cartaoId: string;
   cartaoNome: string;
   cicloKey: string;
@@ -244,7 +245,7 @@ useEffect(() => {
   contaId: string;
   contaLabel: string;
 }) => {
-  //console.log("[FATURA] payload recebido:", payload);
+  console.log("[FATURA] payload recebido:", payload);
   const valor = Number(payload.valor) || 0;
   if (valor <= 0) {
     throw new Error("Valor de pagamento inválido.");
@@ -291,6 +292,7 @@ descricao: `Pagamento fatura - ${(() => {
     qualCartao: "", // pagamento da fatura não é compra no cartão
     pago: true,
     contaId: payload.contaId,
+    profileId: payload.contaId,
   };
 
   setTransacoes((prev) => [novaTransacao, ...prev]);

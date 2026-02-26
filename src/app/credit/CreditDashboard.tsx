@@ -305,24 +305,15 @@ export function CreditDashboard({
   const pagamentosFatura =
     (pagamentosFaturaProp as PagamentoFaturaUI[] | undefined) ?? pagamentosFaturaLocal;
 
-  const [contaPagamentoFatura, setContaPagamentoFatura] = useState<string>("conta_principal");
+  const [contaPagamentoFatura, setContaPagamentoFatura] = useState<string>("");
   const [valorPagamentoInput, setValorPagamentoInput] = useState<string>("");
   const [dataPagamentoFatura, setDataPagamentoFatura] = useState<string>(todayISO());
   const [erroPagamentoFatura, setErroPagamentoFatura] = useState<string>("");
   const [sucessoPagamentoFatura, setSucessoPagamentoFatura] = useState<string>("");
 
-  const contaPagamentoOptions = useMemo(
-    () =>
-      contaPagamentoOptionsProp && contaPagamentoOptionsProp.length
-        ? contaPagamentoOptionsProp
-        : [
-            { label: "Conta principal", value: "conta_principal" },
-            { label: "Conta Itaú", value: "itau" },
-            { label: "Conta Nubank", value: "nubank" },
-            { label: "Dinheiro / Caixa", value: "caixa" },
-          ],
-    [contaPagamentoOptionsProp]
-  );
+const contaPagamentoOptions = useMemo(() => {
+  return (contaPagamentoOptionsProp ?? []).filter(Boolean);
+}, [contaPagamentoOptionsProp]);
 
   const contaSelecionadaLabel =
     contaPagamentoOptions.find((o) => o.value === contaPagamentoFatura)?.label ?? "Conta";
@@ -390,6 +381,11 @@ export function CreditDashboard({
       setErroPagamentoFatura("Esta fatura já está quitada.");
       return;
     }
+
+    if (!String(contaPagamentoFatura ?? "").trim()) {
+  setErroPagamentoFatura("Selecione a conta pagante (banco) para registrar o pagamento.");
+  return;
+}
 
     // Por enquanto: limita ao saldo restante da fatura do ciclo
     const valorAplicado = Math.min(valorFinal, saldoRestanteFatura);

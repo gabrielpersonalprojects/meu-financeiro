@@ -403,6 +403,7 @@ const TIPOS_CONTA = [
 ];
 
 const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
+const [accTab, setAccTab] = useState<"novo" | "gerenciar">("novo");
 
 const [accPerfilConta, setAccPerfilConta] = useState<"PF" | "PJ">("PF");
 const [accTipoConta, setAccTipoConta] = useState<string>(TIPOS_CONTA[0]);
@@ -443,6 +444,7 @@ if (profiles.length >= 50) {
 
 
   resetAddAccountForm();
+  setAccTab("novo");
   setIsAddAccountOpen(true);
   setShowProfileMenu(false); // fecha o menu de contas
 };
@@ -639,7 +641,21 @@ const handleDeleteAccount = (idOrName: string) => {
     return next;
   });
 };
+const confirmDeleteAccount = (id: string) => {
+  const conta = profiles.find((p) => p.id === id);
+  const nome = conta?.banco || conta?.name || "esta conta";
 
+  setConfirmState({
+    title: "Excluir conta?",
+    message:
+      `Ao excluir ${nome}, transações vinculadas a essa conta podem ser perdidas/ficar inacessíveis. ` +
+      `Essa ação não pode ser desfeita. Deseja continuar?`,
+    confirmText: "Excluir",
+    cancelText: "Cancelar",
+    onConfirm: () => handleDeleteAccount(id),
+    onCancel: () => {},
+  });
+};
 const handleEditAccount = (idOrName: string) => {
   if (!idOrName) return;
 
@@ -3645,7 +3661,36 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
             {editingProfileId ? "Editar Conta" : "Adicionar Conta"}
           </h3>
         </div>
+<div className="mt-4 px-4">
+  <div className="flex items-end gap-2 border-b border-white/10">
+    <button
+      type="button"
+      onClick={() => setAccTab("novo")}
+      className={`relative -mb-px px-4 py-2 text-sm font-semibold transition
+        ${
+          accTab === "novo"
+            ? "text-white border-b-2 border-indigo-500"
+            : "text-white/60 hover:text-white"
+        }`}
+    >
+      Nova conta
+    </button>
 
+    <button
+      type="button"
+      onClick={() => setAccTab("gerenciar")}
+      className={`relative -mb-px px-4 py-2 text-sm font-semibold transition
+        ${
+          accTab === "gerenciar"
+            ? "text-white border-b-2 border-indigo-500"
+            : "text-white/60 hover:text-white"
+        }`}
+    >
+      Minhas contas
+    </button>
+  </div>
+</div>
+{accTab === "novo" && (
         <div className="p-4 space-y-4">
           {/* Perfil PF/PJ */}
           <div>
@@ -3766,6 +3811,54 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
           </div>
 
           </div>
+)}
+
+{accTab === "gerenciar" && (
+  <div className="p-4 space-y-3">
+    <div className="text-[11px] font-bold text-slate-400 uppercase">
+      Contas cadastradas
+    </div>
+
+    <div className="max-h-[320px] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/40">
+      {profiles.length === 0 ? (
+        <div className="p-4 text-slate-300 text-sm">Nenhuma conta cadastrada.</div>
+      ) : (
+        profiles.map((p) => (
+          <div
+            key={p.id}
+            className="px-3 py-2 flex items-center justify-between gap-3 border-b border-slate-700 last:border-b-0"
+          >
+            <div className="min-w-0">
+              <div className="text-slate-100 text-sm font-semibold truncate">
+                {p.banco || p.name || "Conta"}
+              </div>
+
+              <div className="text-slate-400 text-xs">
+                {String(p.perfilConta || "").toUpperCase()}
+                {" • "}
+                {String(p.tipoConta || "")}
+              </div>
+            </div>
+
+            <button
+  type="button"
+ onClick={() => confirmDeleteAccount(p.id)}
+  className="p-1.5 text-rose-600 hover:text-rose-700
+    dark:text-rose-500 dark:hover:text-rose-400"
+  title="Excluir conta"
+>
+  <TrashIcon />
+</button>
+          </div>
+        ))
+      )}
+    </div>
+
+    <div className="text-slate-400 text-xs">
+      Para excluir uma conta, clique na lixeira. Você pode recriar depois.
+    </div>
+  </div>
+)}
 
         <div className="p-4 border-t border-slate-200/10 flex gap-2">
           <button

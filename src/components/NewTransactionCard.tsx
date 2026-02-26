@@ -729,7 +729,6 @@ onClick={() => {
                 value={formQualCartao}
                 options={profiles.map((p) => ({ label: p.name, value: p.id })) as any}
                 onSelect={(val) => setFormQualCartao(String(val))}
-                onDelete={(id) => handleDeleteAccount(String(id))}
                 onAddNew={() => {
                   setEditingProfileId(null);
                   setAccBanco("");
@@ -833,7 +832,7 @@ onClick={() => {
                   value={formQualCartao}
                   options={profiles.map((p) => ({ label: p.name, value: p.id })) as any}
                   onSelect={(val) => setFormQualCartao(String(val))}
-                  onDelete={(id) => handleDeleteAccount(String(id))}
+                
                   onAddNew={() => {
                     setEditingProfileId(null);
                     setAccBanco("");

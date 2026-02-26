@@ -762,7 +762,16 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroMetodo, setFiltroMetodo] = useState("");
   const [filtroTipoGasto, setFiltroTipoGasto] = useState("");
-  const [filtroConta, setFiltroConta] = useState<string>("todas");
+  const normalizeFiltroConta = (v: any) => {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return "todas";
+  if (s === "sem_conta" || s === "sem conta" || s === "sem contas" || s === "semconta") return "todas";
+  return String(v);
+};
+  const [filtroConta, setFiltroConta] = useState<string>(() => {
+  const saved = localStorage.getItem("filtroConta");
+  return normalizeFiltroConta(saved);
+});
 
 // helpers p/ mexer no localStorage de OUTRA conta (sem precisar trocar a conta ativa)
 const getPrefixByProfileId = (pid: string) => (pid === "default" ? "" : `${pid}_`);
@@ -1395,33 +1404,6 @@ const passaFiltroConta = useMemo(() => {
   if (filtroConta === "todas") return (_t: any) => true;
 
   const alvo = asId(filtroConta);
-
-  // 2) Sem conta: somente lançamentos que NÃO têm conta vinculada
-  if (filtroConta === "sem_conta") {
-    return (t: any) => {
-      const tipo = String(t?.tipo ?? "");
-      const hasTransfer = Boolean(t?.transferId);
-
-      // se for perna de transferência, considera só o lado dela
-      if (hasTransfer && (tipo === "despesa" || tipo === "receita")) {
-        const sideId =
-          tipo === "despesa"
-            ? asId(t?.profileId ?? t?.contaOrigemId ?? t?.transferFromId ?? "")
-            : asId(t?.profileId ?? t?.contaDestinoId ?? t?.transferToId ?? "");
-        return !sideId;
-      }
-
-      const hasAnyConta =
-        Boolean(t?.qualCartao) ||
-        Boolean(t?.profileId) ||
-        Boolean(t?.contaOrigemId) ||
-        Boolean(t?.contaDestinoId) ||
-        Boolean(t?.transferFromId) ||
-        Boolean(t?.transferToId);
-
-      return !hasAnyConta;
-    };
-  }
 
   // 3) Conta específica: filtro DIRECIONAL para transferências
   return (t: any) => {

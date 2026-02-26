@@ -41,7 +41,6 @@ export const buildFilteredTransactions = (
   list = list.filter(passarFiltroConta);
   list = mergeTransfers(list);
 
-
   if (filtroLancamento !== "todos") {
     list = list.filter((t) => t.tipo === filtroLancamento);
   }
@@ -141,9 +140,6 @@ export function passaFiltroContaFactory(filtroConta: unknown, profiles: any[]) {
 
   if (isTodas) return (_t: Transaction) => true;
 
-  const isSemConta =
-    fcN === "sem conta" || fcN === "sem contas" || fcN === "sem_conta" || fcN === "semconta";
-
   const list = Array.isArray(profiles) ? profiles : [];
 
   const resolvedProfile =
@@ -153,6 +149,7 @@ export function passaFiltroContaFactory(filtroConta: unknown, profiles: any[]) {
 
   const targetIdN = normId(resolvedProfile?.id ?? fcRaw);
 
+  // mantém fallback em profileId/accountId para compatibilidade com dados antigos
   const getContaIdN = (t: any) => normId(t?.contaId ?? t?.profileId ?? t?.accountId ?? "");
 
   const getTransferIdsN = (t: any) => {
@@ -160,15 +157,6 @@ export function passaFiltroContaFactory(filtroConta: unknown, profiles: any[]) {
     const d = normId(t?.contaDestinoId ?? t?.toAccountId ?? "");
     return { o, d };
   };
-
-  if (isSemConta) {
-    return (t: Transaction) => {
-      const anyT: any = t as any;
-      const contaIdN = getContaIdN(anyT);
-      const { o, d } = getTransferIdsN(anyT);
-      return !contaIdN && !o && !d;
-    };
-  }
 
   return (t: Transaction) => {
     const anyT: any = t as any;

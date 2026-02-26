@@ -327,7 +327,7 @@ className="h-9 px-2 rounded-xl text-[15px] font-bold
            text-[#5752ea] hover:text-[#7b76fc]
            transition"
   >
-    + Adicionar conta
+    + Gerenciar Contas
   </button>
 </div>
 

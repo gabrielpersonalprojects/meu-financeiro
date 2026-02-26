@@ -153,7 +153,7 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
 
             {normalized.map((opt, idx) => {
               const optValue = opt.value;
-              const isFixed = optValue === "todas" || optValue === "sem_conta";
+              const isFixed = optValue === "todas";
 
               return (
                 <div

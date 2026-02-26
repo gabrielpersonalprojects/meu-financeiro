@@ -157,17 +157,6 @@ export default function TransacoesTab({
                   ),
                   value: "todas",
                 },
-                {
-                  label: (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/25 text-slate-200 border border-slate-400/20">
-                        —
-                      </span>
-                      <span className="text-slate-100">Sem conta</span>
-                    </span>
-                  ),
-                  value: "sem_conta",
-                },
                 ...profiles.map((p) => ({ label: renderContaOptionLabel(p), value: p.id })),
               ]}
               onSelect={(val) => setFiltroConta(String(val))}

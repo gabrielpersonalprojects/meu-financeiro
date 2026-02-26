@@ -33,12 +33,6 @@ export const passarFiltroConta = (
   // 3) Sem conta / perfil atual (mantém sua lógica original)
   if (!alvo) return true;
 
-  // Se você tiver um caso "sem_conta" no seu app, mantém aqui:
-  if (alvo === "sem_conta") {
-    const txContaId = getTxContaId();
-    return !txContaId || txContaId === "null" || txContaId === "undefined";
-  }
-
   // 4) Match direto por contaId
   const txContaId = getTxContaId();
   if (txContaId && txContaId === alvo) return true;

@@ -63,9 +63,6 @@ function getInitialBalance(profiles: ProfileLike[], filtroConta: string) {
     return totalCents / 100;
   }
 
-  // sem conta
-  if (fc === "sem_conta") return 0;
-
   // conta específica
   const id = asId(filtroConta);
   const p = (profiles || []).find((x: any) => asId(x?.id) === id);

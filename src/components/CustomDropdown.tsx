@@ -36,11 +36,7 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [menuMaxH, setMenuMaxH] = useState<number>(MAX_MENU_PX);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number }>({
-  top: 0,
-  left: 0,
-  width: 0,
-});
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ✅ garante que NÃO fica scroll travado no body (caso alguma versão antiga tenha deixado preso)
@@ -50,9 +46,7 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
   }, []);
 
   const normalized = useMemo<DropdownOption[]>(() => {
-    return options.map((opt: any) =>
-      typeof opt === "string" ? { label: opt, value: opt } : opt
-    );
+    return options.map((opt: any) => (typeof opt === "string" ? { label: opt, value: opt } : opt));
   }, [options]);
 
   useEffect(() => {
@@ -71,18 +65,6 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
     return found ? found.label : placeholder;
   }, [normalized, value, placeholder]);
 
-  const recalcMenuPosition = () => {
-  const el = containerRef.current;
-  if (!el) return;
-
-  const rect = el.getBoundingClientRect();
-  const top = rect.bottom + 8; // 8px de gap (mt-2)
-  const left = rect.left;
-  const width = rect.width;
-
-  setMenuPos({ top, left, width });
-};
-
   const recalcMenuHeight = () => {
     const el = containerRef.current;
     if (!el) return;
@@ -93,23 +75,19 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
     // espaço disponível abaixo do botão (menos uma folga)
     const spaceBelow = viewportH - rect.bottom - 16;
 
-    // menu sempre abre pra baixo, então:
-    // - se tiver bastante espaço: usa 288px
-    // - se tiver pouco: usa o que der, mas no mínimo 160px
+    // menu sempre abre pra baixo
     const next = Math.max(MIN_MENU_PX, Math.min(MAX_MENU_PX, spaceBelow));
     setMenuMaxH(next);
   };
 
-  // quando abre, recalcula altura do menu pra caber na tela (sem travar scroll)
+  // quando abre, recalcula altura do menu pra caber na tela
   useEffect(() => {
     if (!isOpen) return;
 
     recalcMenuHeight();
-    recalcMenuPosition();
 
     const onResize = () => {
       recalcMenuHeight();
-      recalcMenuPosition();
     };
     window.addEventListener("resize", onResize);
 
@@ -126,44 +104,36 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
 
       <button
         type="button"
-        onClick={() => {
-          setIsOpen((v) => !v);
-        }}
-className="h-10 w-full rounded-xl pl-3.5 pr-2.5 text-[13px]
-  bg-white dark:bg-slate-900
-  border border-slate-200 dark:border-slate-700
-  text-slate-900 dark:text-slate-100
-  flex items-center justify-between gap-2
-  hover:bg-slate-50 dark:hover:bg-slate-800/60"
+        onClick={() => setIsOpen((v) => !v)}
+        className="h-10 w-full rounded-xl pl-3.5 pr-2.5 text-[13px]
+          bg-white dark:bg-slate-900
+          border border-slate-200 dark:border-slate-700
+          text-slate-900 dark:text-slate-100
+          flex items-center justify-between gap-2
+          hover:bg-slate-50 dark:hover:bg-slate-800/60"
       >
-<span
-  className={
-    (displayValue === placeholder
-      ? "text-slate-500"
-      : "text-slate-900 dark:text-slate-100 [&_*]:text-slate-900 dark:[&_*]:text-slate-100") +
-    " min-w-0 flex-1 truncate text-left"
-  }
->
-  {displayValue}
-</span>
+        <span
+          className={
+            (displayValue === placeholder
+              ? "text-slate-500"
+              : "text-slate-900 dark:text-slate-100 [&_*]:text-slate-900 dark:[&_*]:text-slate-100") +
+            " min-w-0 flex-1 truncate text-left"
+          }
+        >
+          {displayValue}
+        </span>
 
         <span className="shrink-0 text-slate-500 dark:text-slate-400">›</span>
       </button>
 
       {isOpen && (
-<div
-  className="fixed z-[9999] rounded-xl
-    border border-slate-200 bg-white shadow-lg
-    text-slate-900
-    dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-  style={{
-  top: menuPos.top,
-  left: menuPos.left,
-  width: Math.max(menuPos.width, 220),
-}}
->
+        <div
+          className="absolute z-[9999] mt-2 w-full min-w-[220px] rounded-xl overflow-hidden
+            border border-slate-200 bg-white shadow-lg text-slate-900
+            dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        >
           <div
-            className="overflow-y-auto overscroll-contain"
+            className="overflow-y-auto overflow-x-hidden overscroll-y-contain"
             style={{ maxHeight: menuMaxH }}
           >
             {onAddNew && (

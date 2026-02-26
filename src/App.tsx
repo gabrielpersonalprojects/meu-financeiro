@@ -617,8 +617,7 @@ if (existe) {
     diaVencimento: accPossuiCC ? accVencimentoCC : undefined,
   };
 
-  setProfiles((prev) => [...prev, novo]);
-  setActiveProfileId(id);
+  setProfiles((prev) => [...prev, novo]);  
   setIsAddAccountOpen(false);
   toastCompact("Conta adicionada.", "success");
 };

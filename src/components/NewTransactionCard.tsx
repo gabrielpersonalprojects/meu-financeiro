@@ -286,10 +286,43 @@ export default function NewTransactionCard({
     });
   };
 
-  const [isTagOpen, setIsTagOpen] = useState(false);
-  const isCC = formTipo === "cartao_credito";
-  const ccHasCardSelected = safeStr(selectedCreditCardId) !== "";
-  const canSubmit = !isCC || ccHasCardSelected;
+const [isTagOpen, setIsTagOpen] = useState(false);
+const isCC = formTipo === "cartao_credito";
+const ccHasCardSelected = safeStr(selectedCreditCardId) !== "";
+const hasAccounts = (profiles || []).length > 0;
+// --- conta obrigatória ---
+const contaNormalSelecionada = safeStr(formQualCartao) !== ""; // despesa/receita
+
+const transferenciaOk =
+  safeStr(formContaOrigem) !== "" &&
+  safeStr(formContaDestino) !== "" &&
+  safeStr(formContaOrigem) !== safeStr(formContaDestino);
+
+// cartão: precisa ter conta vinculada no cadastro do cartão
+const selectedCard = (creditCards || []).find(
+  (c: any) => String(c?.id ?? c?.cardId ?? "") === String(selectedCreditCardId)
+);
+
+// tenta achar um campo de conta no objeto do cartão (compatível com variações antigas)
+const contaIdDoCartao = safeStr(
+  selectedCard?.contaPaganteId ??
+  selectedCard?.contaId ??
+  selectedCard?.profileId ??
+  selectedCard?.accountId ??
+  ""
+);
+
+const ccTemContaVinculada = contaIdDoCartao !== "";
+
+// regra final de submit
+const canSubmit =
+  hasAccounts &&
+  (!isCC || ccHasCardSelected) &&
+  (formTipo === "transferencia"
+    ? transferenciaOk
+    : isCC
+      ? ccTemContaVinculada
+      : contaNormalSelecionada);
 
   useEffect(() => {
   if (!isCC) {
@@ -960,19 +993,62 @@ onClick={() => {
 
         <button
           type="button"
-          onClick={() => {
-            if (!canSubmit) {
-              openAddAccountModal();
-              return;
-            }
-            handleAddTransaction();
-          }}
-          disabled={!canSubmit}
+onClick={() => {
+  // 0) sem contas (primeiro uso)
+if (!hasAccounts) {
+  openAddAccountModal();
+  return;
+}
+  // 1) cartão sem cartão selecionado
+  if (isCC && !ccHasCardSelected) {
+    openAddAccountModal();
+    return;
+  }
+
+  // 2) transferência sem origem/destino (ou iguais)
+  if (formTipo === "transferencia" && !transferenciaOk) {
+    alert("Selecione conta de ORIGEM e DESTINO (e elas não podem ser iguais).");
+    setAccountPickerOpen("origem");
+    return;
+  }
+
+  // 3) despesa/receita sem conta
+  if (!isCC && formTipo !== "transferencia" && !contaNormalSelecionada) {
+    if ((profiles || []).length === 0) openAddAccountModal();
+    else alert("Selecione uma conta para salvar o lançamento.");
+    return;
+  }
+
+  // 4) cartão sem conta vinculada no cadastro do cartão
+  if (isCC && ccHasCardSelected && !ccTemContaVinculada) {
+    alert("Esse cartão não tem uma conta vinculada. Vincule uma conta ao cartão antes de lançar.");
+    openAddAccountModal();
+    return;
+  }
+
+  handleAddTransaction();
+}}
+
+          disabled={!canSubmit || !hasAccounts}
           className={`mt-4 w-full h-12 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac]
                    text-white font-black tracking-wide shadow-lg shadow-violet-900/20
                    hover:brightness-110 active:scale-[0.99] transition
                    ${!canSubmit ? "opacity-60 cursor-not-allowed hover:brightness-100 active:scale-100" : ""}`}
-          title={!canSubmit ? "Selecione um cartão para lançar." : "Efetuar lançamento"}
+title={
+  !hasAccounts
+    ? "Crie sua primeira conta para começar."
+    : !canSubmit
+      ? (isCC && !ccHasCardSelected)
+        ? "Selecione um cartão para lançar."
+        : (formTipo === "transferencia" && !transferenciaOk)
+          ? "Selecione origem e destino (diferentes)."
+          : (!isCC && formTipo !== "transferencia" && !contaNormalSelecionada)
+            ? "Selecione uma conta para lançar."
+            : (isCC && ccHasCardSelected && !ccTemContaVinculada)
+              ? "Vincule uma conta ao cartão."
+              : "Preencha os campos obrigatórios."
+      : "Efetuar lançamento"
+}
         >
           Efetuar Lançamento
         </button>

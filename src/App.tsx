@@ -626,7 +626,10 @@ if (existe) {
 
 const handleDeleteAccount = (idOrName: string) => {
   if (!idOrName) return;
-
+if ((profiles || []).length <= 1) {
+  toastCompact("Você precisa ter pelo menos 1 conta cadastrada. Crie outra conta antes de excluir esta.", "error");
+  return;
+}
   // remove por id (padrão) e também funciona se o dropdown estiver mandando o "nome"
   setProfiles((prev) => {
     const next = prev.filter(
@@ -634,9 +637,12 @@ const handleDeleteAccount = (idOrName: string) => {
     );
 
     // se apagou a conta ativa, volta pra "Todas as Contas" pra não quebrar filtro
-    if (activeProfileId === idOrName) {
-      setActiveProfileId(LABEL_TODAS_CONTAS);
-    }
+    if (
+  activeProfileId === idOrName ||
+  prev.some((p) => p.id === activeProfileId && (p.name === idOrName || p.banco === idOrName))
+) {
+  setActiveProfileId(LABEL_TODAS_CONTAS);
+}
 
     return next;
   });
@@ -1807,27 +1813,12 @@ function dedupeById<T extends { id: string }>(arr: T[]): T[] {
   return out;
 }
 
-  // --- Add Transaction (com suporte simples a transferencia/cartao_credito) ---
-  const handleAddTransaction = () => {
-if (addTxLockRef.current) return;
-addTxLockRef.current = true;
+// --- Add Transaction (com suporte simples a transferencia/cartao_credito) ---
+const handleAddTransaction = () => {
+  if (addTxLockRef.current) return;
+  addTxLockRef.current = true;
 
-try {
-  // (deixa TODO o resto do seu handleAddTransaction aqui embaixo)
-} finally {
-  addTxLockRef.current = false;
-}
-
-/* console.log("CLICK Efetuar -> handleAddTransaction", {
-  formTipo,
-  formValor,
-  formData,
-  formContaOrigem,
-  formContaDestino,
-}); */
-
-//console.log("TIPO AGORA:", formTipo);
-
+  try {
     const valorNum = extrairValorMoeda(formValor);
 
     if (!valorNum) {
@@ -1835,266 +1826,295 @@ try {
       return;
     }
 
-if (formTipo === "transferencia") {
-  if (!formContaOrigem || !formContaDestino) {
-    toastCompact("Selecione a conta origem e a conta destino.", "error");
-    return;
-  }
+    // =========================
+    // TRANSFERÊNCIA
+    // =========================
+    if (formTipo === "transferencia") {
+      if (!formContaOrigem || !formContaDestino) {
+        toastCompact("Selecione a conta origem e a conta destino.", "error");
+        return;
+      }
 
-  if (isSameAccount(formContaOrigem, formContaDestino)) {
-    toastCompact("Conta origem e destino não podem ser a mesma.", "error");
-    return;
-  }
+      if (isSameAccount(formContaOrigem, formContaDestino)) {
+        toastCompact("Conta origem e destino não podem ser a mesma.", "error");
+        return;
+      }
 
-  const origemNome = profiles.find((p) => p.id === formContaOrigem)?.name || "Origem";
-  const destinoNome = profiles.find((p) => p.id === formContaDestino)?.name || "Destino";
+      const origemNome = profiles.find((p) => p.id === formContaOrigem)?.name || "Origem";
+      const destinoNome = profiles.find((p) => p.id === formContaDestino)?.name || "Destino";
 
-  const origemId = String(formContaOrigem);
-  const destinoId = String(formContaDestino);
+      const origemId = String(formContaOrigem);
+      const destinoId = String(formContaDestino);
 
-  // ✅ usa a descrição digitada; se vier vazia, cai no fallback
-  const descDigitada = (formDesc || "").trim();
-  const descFinal = descDigitada || `Transferência ${origemNome} → ${destinoNome}`;
+      // ✅ usa a descrição digitada; se vier vazia, cai no fallback
+      const descDigitada = (formDesc || "").trim();
+      const descFinal = descDigitada || `Transferência ${origemNome} → ${destinoNome}`;
 
-  const transferId = newId("tr");
+      const transferId = newId("tr");
 
-  const normalizeTid = (v: any) =>
-  String(v ?? "").trim().replace(/^tr_+/g, "");
+      const normalizeTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
+      const tid = normalizeTid(transferId);
 
-// se você gera transferId em algum lugar, normalize aqui:
-const tid = normalizeTid(transferId);
+      // saída (negativa) na origem
+      const saida: Transaction = {
+        id: newId("tx"),
+        tipo: "despesa" as any,
+        descricao: descFinal,
+        valor: -Math.abs(valorNum),
+        data: formData,
+        categoria: "Transferência",
+        pago: formPago,
 
+        profileId: origemId as any,
+        contaId: origemId as any,
 
-  // saída (negativa) na origem
-  const saida: Transaction = {
-    id: newId("tx"),
-    tipo: "despesa" as any,
-    descricao: descFinal,
-    valor: -Math.abs(valorNum),
-    data: formData,
-    categoria: "Transferência",
-    pago: formPago,
+        transferId: tid as any,
+        transferFromId: origemId as any,
+        transferToId: destinoId as any,
+        contraParte: destinoNome as any,
 
+        // pra filtro/UI
+        contaOrigemId: origemId as any,
+        contaDestinoId: destinoId as any,
+      } as any;
 
-    profileId: origemId as any,
-    transferId: tid as any,
-    transferFromId: origemId as any,
-    transferToId: destinoId as any,
-    contraParte: destinoNome as any,
+      // entrada (positiva) no destino
+      const entrada: Transaction = {
+        id: newId("tx"),
+        tipo: "receita" as any,
+        descricao: descFinal,
+        valor: Math.abs(valorNum),
+        data: formData,
+        categoria: "Transferência",
+        pago: formPago,
 
-    // pra filtro/UI
-    contaOrigemId: origemId as any,
-    contaDestinoId: destinoId as any,
-  } as any;
+        profileId: destinoId as any,
+        contaId: destinoId as any,
 
-  // entrada (positiva) no destino
-  const entrada: Transaction = {
-    id: newId("tx"),
-    tipo: "receita" as any,
-    descricao: descFinal,
-    valor: Math.abs(valorNum),
-    data: formData,
-    categoria: "Transferência",
-    pago: formPago,
+        transferId: tid as any,
+        transferFromId: origemId as any,
+        transferToId: destinoId as any,
+        contraParte: origemNome as any,
 
+        // pra filtro/UI
+        contaOrigemId: origemId as any,
+        contaDestinoId: destinoId as any,
+      } as any;
 
-    profileId: destinoId as any,
-    transferId: tid as any,
-    transferFromId: origemId as any,
-    transferToId: destinoId as any,
-    contraParte: origemNome as any,
+      setTransacoes((prev) => {
+        const next = [...prev, saida, entrada];
+        persistTransacoes(next);
+        return next;
+      });
 
-    // pra filtro/UI
-    contaOrigemId: origemId as any,
-    contaDestinoId: destinoId as any,
-  } as any;
+      // ✅ resetar campos do formulário (transfer)
+      setFormDesc("");
+      setFormValor("0,00");
+      setFormContaOrigem("");
+      setFormContaDestino("");
 
-  setTransactions((prev) => [...prev, saida, entrada]);
-
-  // ✅ resetar campos do formulário (transfer)
-  setFormDesc("");
-  setFormValor("0,00");
-  setFormContaOrigem("");
-  setFormContaDestino("");
-
-  // se você usa "hoje" como padrão no app, pode resetar a data também:
-  // setFormData(getHojeLocal());
-
-  toastCompact("Transferência registrada.", "success");
-  return;
-}
-
-
-
-// CARTÃO DE CRÉDITO
-if (formTipo === "cartao_credito") {
-  const desc = (formDesc || "").trim();
-  const tagCC = (formTagCC || "").trim();
-
-  if (!valorNum) {
-    toastCompact("Por favor, preencha o valor.", "error");
-    return;
-  }
-
-  if (!formData) {
-    toastCompact("Por favor, selecione a data.", "error");
-    return;
-  }
-
-  if (!selectedCreditCardId) {
-    toastCompact("Selecione o cartão.", "error");
-    return;
-  }
-
-  // helper: soma meses sem “pular” mês quando o dia não existe (ex: 31)
-  const addMonthsSafe = (date: Date, monthsToAdd: number) => {
-    const y = date.getFullYear();
-    const m = date.getMonth();
-    const d = date.getDate();
-
-    const lastDayTarget = new Date(y, m + monthsToAdd + 1, 0).getDate();
-    const day = Math.min(d, lastDayTarget);
-
-    return new Date(y, m + monthsToAdd, day, 12, 0, 0, 0);
-  };
-
-  const ehParcelado = ccIsParceladoMode === true;
-  const ehFixo = !ehParcelado && String(formTipoGasto) === "Fixo";
-
-  if (ehFixo && prazoMode === null) {
-    toastCompact("Selecione 'Com prazo' ou 'Sem prazo' para continuar.", "error");
-    return;
-  }
-
-  if (ehFixo && prazoMode === "com_prazo" && !formDataTerminoFixa) {
-    toastCompact("Selecione a data final (Último lançamento em:).", "error");
-    return;
-  }
-
-  const baseDate = new Date(`${formData}T12:00:00`);
-  const descBase = desc || "Compra no cartão";
-  const rawCat: any = formCat;
-
-  const categoriaBase =
-    (typeof rawCat === "string"
-      ? rawCat
-      : (rawCat?.nome ?? rawCat?.name ?? rawCat?.label ?? rawCat?.titulo ?? rawCat?.value)) ?? "";
-
-  const total = Math.abs(valorNum);
-
-  const makeId = (suffix: string) => {
-    try {
-      // @ts-ignore
-      return typeof newId === "function" ? newId("cc") : `${Date.now()}_${suffix}`;
-    } catch {
-      return `${Date.now()}_${suffix}`;
-    }
-  };
-
-  const novos: Transaction[] = [];
-
-  // 1) PARCELADO
-  if (ehParcelado) {
-    const parcelas = Math.max(2, Number(formParcelas || 2));
-    const valorParcela = total / parcelas;
-    const recorrenciaId = `cc_parc_${selectedCreditCardId}_${Date.now()}`;
-
-    for (let i = 0; i < parcelas; i++) {
-      const d = addMonthsSafe(baseDate, i);
-
-      novos.push({
-        id: makeId(String(i)),
-        tipo: "cartao_credito",
-        descricao: `${descBase} (${i + 1}/${parcelas})`,
-        valor: -Math.abs(valorParcela),
-        data: d.toISOString().split("T")[0],
-        categoria: categoriaBase || undefined,
-        tag: tagCC || undefined,
-        tipoGasto: "Fixo",
-        qualCartao: selectedCreditCardId,
-        pago: i === 0 ? formPago : false,
-        recorrenciaId,
-      } as any);
-    }
-  }
-
-  // 2) FIXO (COM PRAZO / SEM PRAZO)
-  else if (ehFixo) {
-    let mesesParaGerar = 1;
-
-    if (prazoMode === "sem_prazo") {
-      mesesParaGerar = SEM_PRAZO_MESES;
-    } else {
-      const dataFim = new Date(`${formDataTerminoFixa}T12:00:00`);
-      const diffAnos = dataFim.getFullYear() - baseDate.getFullYear();
-      const diffMeses = dataFim.getMonth() - baseDate.getMonth();
-      mesesParaGerar = Math.max(1, diffAnos * 12 + diffMeses + 1);
+      toastCompact("Transferência registrada.", "success");
+      return;
     }
 
-    const recorrenciaId = `cc_fixo_${selectedCreditCardId}_${Date.now()}`;
+    // =========================
+    // CARTÃO DE CRÉDITO
+    // =========================
+    if (formTipo === "cartao_credito") {
+      const desc = (formDesc || "").trim();
+      const tagCC = (formTagCC || "").trim();
 
-    for (let i = 0; i < mesesParaGerar; i++) {
-      const d = addMonthsSafe(baseDate, i);
+      if (!formData) {
+        toastCompact("Por favor, selecione a data.", "error");
+        return;
+      }
 
-      novos.push({
-        id: makeId(`fixo_${i}`),
-        tipo: "cartao_credito",
-        descricao: descBase,
-        valor: -Math.abs(total),
-        data: d.toISOString().split("T")[0],
-        categoria: categoriaBase || undefined,
-        tag: tagCC || undefined,
-        tipoGasto: "Fixo",
-        qualCartao: selectedCreditCardId,
-        pago: i === 0 ? formPago : false,
-        isRecorrente: true,
-        recorrenciaId,
-      } as any);
+      if (!selectedCreditCardId) {
+        toastCompact("Selecione o cartão.", "error");
+        return;
+      }
+
+      const selectedCard = (creditCards || []).find(
+        (c: any) => String(c?.id ?? c?.cardId ?? "") === String(selectedCreditCardId)
+      );
+
+        const cardAny: any = selectedCard as any;
+        const contaIdDoCartao = String(
+          cardAny?.contaPaganteId ??
+          cardAny?.contaId ??
+          cardAny?.profileId ??
+          cardAny?.accountId ??
+          ""
+        ).trim();
+
+      if (!contaIdDoCartao) {
+        toastCompact(
+          "Esse cartão não tem uma conta vinculada. Vincule uma conta ao cartão antes de lançar.",
+          "error"
+        );
+        return;
+      }
+
+      // helper: soma meses sem “pular” mês quando o dia não existe (ex: 31)
+      const addMonthsSafe = (date: Date, monthsToAdd: number) => {
+        const y = date.getFullYear();
+        const m = date.getMonth();
+        const d = date.getDate();
+
+        const lastDayTarget = new Date(y, m + monthsToAdd + 1, 0).getDate();
+        const day = Math.min(d, lastDayTarget);
+
+        return new Date(y, m + monthsToAdd, day, 12, 0, 0, 0);
+      };
+
+      const ehParcelado = ccIsParceladoMode === true;
+      const ehFixo = !ehParcelado && String(formTipoGasto) === "Fixo";
+
+      if (ehFixo && prazoMode === null) {
+        toastCompact("Selecione 'Com prazo' ou 'Sem prazo' para continuar.", "error");
+        return;
+      }
+
+      if (ehFixo && prazoMode === "com_prazo" && !formDataTerminoFixa) {
+        toastCompact("Selecione a data final (Último lançamento em:).", "error");
+        return;
+      }
+
+      const baseDate = new Date(`${formData}T12:00:00`);
+      const descBase = desc || "Compra no cartão";
+      const rawCat: any = formCat;
+
+      const categoriaBase =
+        (typeof rawCat === "string"
+          ? rawCat
+          : rawCat?.nome ?? rawCat?.name ?? rawCat?.label ?? rawCat?.titulo ?? rawCat?.value) ?? "";
+
+      const total = Math.abs(valorNum);
+
+      const makeId = (suffix: string) => {
+        try {
+          // @ts-ignore
+          return typeof newId === "function" ? newId("cc") : `${Date.now()}_${suffix}`;
+        } catch {
+          return `${Date.now()}_${suffix}`;
+        }
+      };
+
+      const novos: Transaction[] = [];
+
+      // 1) PARCELADO
+      if (ehParcelado) {
+        const parcelas = Math.max(2, Number(formParcelas || 2));
+        const valorParcela = total / parcelas;
+        const recorrenciaId = `cc_parc_${selectedCreditCardId}_${Date.now()}`;
+
+        for (let i = 0; i < parcelas; i++) {
+          const d = addMonthsSafe(baseDate, i);
+
+          novos.push({
+            id: makeId(String(i)),
+            tipo: "cartao_credito",
+            descricao: `${descBase} (${i + 1}/${parcelas})`,
+            valor: -Math.abs(valorParcela),
+            data: d.toISOString().split("T")[0],
+            categoria: categoriaBase || undefined,
+            tag: tagCC || undefined,
+            tipoGasto: "Fixo",
+            qualCartao: selectedCreditCardId,
+            contaId: contaIdDoCartao,
+            pago: i === 0 ? formPago : false,
+            recorrenciaId,
+          } as any);
+        }
+      }
+
+      // 2) FIXO (COM PRAZO / SEM PRAZO)
+      else if (ehFixo) {
+        let mesesParaGerar = 1;
+
+        if (prazoMode === "sem_prazo") {
+          mesesParaGerar = SEM_PRAZO_MESES;
+        } else {
+          const dataFim = new Date(`${formDataTerminoFixa}T12:00:00`);
+          const diffAnos = dataFim.getFullYear() - baseDate.getFullYear();
+          const diffMeses = dataFim.getMonth() - baseDate.getMonth();
+          mesesParaGerar = Math.max(1, diffAnos * 12 + diffMeses + 1);
+        }
+
+        const recorrenciaId = `cc_fixo_${selectedCreditCardId}_${Date.now()}`;
+
+        for (let i = 0; i < mesesParaGerar; i++) {
+          const d = addMonthsSafe(baseDate, i);
+
+          novos.push({
+            id: makeId(`fixo_${i}`),
+            tipo: "cartao_credito",
+            descricao: descBase,
+            valor: -Math.abs(total),
+            data: d.toISOString().split("T")[0],
+            categoria: categoriaBase || undefined,
+            tag: tagCC || undefined,
+            tipoGasto: "Fixo",
+            qualCartao: selectedCreditCardId,
+            contaId: contaIdDoCartao,
+            pago: i === 0 ? formPago : false,
+            isRecorrente: true,
+            recorrenciaId,
+          } as any);
+        }
+      }
+
+      // 3) À VISTA NORMAL
+      else {
+        novos.push({
+          id: makeId("avista"),
+          tipo: "cartao_credito",
+          descricao: descBase,
+          valor: -Math.abs(total),
+          data: baseDate.toISOString().split("T")[0],
+          categoria: categoriaBase || undefined,
+          tag: tagCC || undefined,
+          tipoGasto: (formTipoGasto as any) ?? "",
+          qualCartao: selectedCreditCardId,
+          contaId: contaIdDoCartao,
+          pago: formPago,
+        } as any);
+      }
+
+      if (tagCC) {
+        setCcTags((prev) => {
+          const normalized = tagCC.trim();
+          const exists = prev.some((t) => t.toLowerCase() === normalized.toLowerCase());
+          const next = exists ? prev : [...prev, normalized].sort((a, b) => a.localeCompare(b, "pt-BR"));
+          persistCCTags(next);
+          return next;
+        });
+      }
+
+      setTransacoes((prev) => {
+        const next = [...prev, ...novos];
+        persistTransacoes(next);
+        return next;
+      });
+
+      setFormDesc("");
+      setFormValor("");
+      setFormData(getHojeLocal());
+      setFormPago(true);
+      setFormTagCC("");
+
+      toastCompact("Lançamento no cartão realizado com sucesso!", "success");
+      return;
     }
-  }
 
-  // 3) À VISTA NORMAL
-  else {
-    novos.push({
-      id: makeId("avista"),
-      tipo: "cartao_credito",
-      descricao: descBase,
-      valor: -Math.abs(total),
-      data: baseDate.toISOString().split("T")[0],
-      categoria: categoriaBase || undefined,
-      tag: tagCC || undefined,
-      tipoGasto: (formTipoGasto as any) ?? "",
-      qualCartao: selectedCreditCardId,
-      pago: formPago,
-    } as any);
-  }
-if (tagCC) {
-  setCcTags((prev) => {
-    const normalized = tagCC.trim();
-    const exists = prev.some((t) => t.toLowerCase() === normalized.toLowerCase());
-    const next = exists ? prev : [...prev, normalized].sort((a, b) => a.localeCompare(b, "pt-BR"));
-    persistCCTags(next);
-    return next;
-  });
-}
+    // =========================
+    // RECEITA / DESPESA
+    // =========================
+    if (!formQualCartao) {
+      toastCompact("Selecione uma conta para salvar o lançamento.", "error");
+      return;
+    }
 
-  setTransacoes((prev) => {
-    const next = [...prev, ...novos];
-    persistTransacoes(next);
-    return next;
-  });
-
-  setFormDesc("");
-  setFormValor("");
-  setFormData(getHojeLocal());
-  setFormPago(true);
-  setFormTagCC("");
-
-  toastCompact("Lançamento no cartão realizado com sucesso!", "success");
-  return;
-}
-
-    // receita / despesa (lógica atual)
     if (!formCat) {
       toastCompact("Por favor, selecione uma categoria.", "error");
       return;
@@ -2144,6 +2164,7 @@ if (tagCC) {
           tipoGasto: "Fixo",
           metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
           qualCartao: formQualCartao,
+          contaId: formQualCartao,
           pago: i === 0 ? formPago : false,
           recorrenciaId,
         });
@@ -2180,6 +2201,7 @@ if (tagCC) {
           tipoGasto: "Fixo",
           metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
           qualCartao: formQualCartao,
+          contaId: formQualCartao,
           pago: i === 0 ? formPago : false,
           isRecorrente: true,
           recorrenciaId,
@@ -2187,7 +2209,6 @@ if (tagCC) {
       }
     }
 
-    
     // comum
     else {
       const sign = formTipo === "receita" ? 1 : -1;
@@ -2202,16 +2223,16 @@ if (tagCC) {
         tipoGasto: formTipo === "despesa" ? (formTipoGasto || "Variável") : "",
         metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
         qualCartao: formQualCartao,
+        contaId: formQualCartao,
         pago: formPago,
       });
     }
 
     setTransacoes((prev) => {
-  const next = [...prev, ...newTrans];
-  persistTransacoes(next);
-  return next;
-});
-
+      const next = [...prev, ...newTrans];
+      persistTransacoes(next);
+      return next;
+    });
 
     setFormDesc("");
     setFormValor("");
@@ -2223,8 +2244,10 @@ if (tagCC) {
     setIsParceladoMode(null);
 
     toastCompact("Lançamento realizado com sucesso!", "success");
-  };
-
+  } finally {
+    addTxLockRef.current = false;
+  }
+};
   const creditTxSelecionado = useMemo<Transaction[]>(() => {
   const cardId = String(selectedCreditCardId ?? "");
   if (!cardId) return [];

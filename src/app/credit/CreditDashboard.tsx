@@ -184,6 +184,9 @@ export function CreditDashboard({
 
   const now = new Date();
   const [invoiceMonthOffset, setInvoiceMonthOffset] = useState(0);
+  
+  const [contaPgtoId, setContaPgtoId] = useState<string>("");
+  const [dataPgtoFatura, setDataPgtoFatura] = useState<string>(todayISO());
 
   const baseMonth = addMonths(now, invoiceMonthOffset);
   const baseMonthKey = `${baseMonth.getFullYear()}-${pad2(baseMonth.getMonth() + 1)}`;

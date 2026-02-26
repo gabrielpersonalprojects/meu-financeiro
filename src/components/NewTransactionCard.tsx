@@ -17,7 +17,7 @@ type Props = {
   creditCards: any[];
   selectedCreditCardId: string;
   setSelectedCreditCardId: (v: string) => void;
-  openAddCardModal: () => void;
+  openAddAccountModal: () => void;
 
   ccIsParceladoMode: boolean | null;
   setCcIsParceladoMode: (v: boolean | null) => void;
@@ -157,7 +157,7 @@ export default function NewTransactionCard({
   creditCards,
   selectedCreditCardId,
   setSelectedCreditCardId,
-  openAddCardModal,
+  openAddAccountModal,
 
   ccIsParceladoMode,
   setCcIsParceladoMode,
@@ -315,9 +315,21 @@ export default function NewTransactionCard({
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl p-6">
-      <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-        <PlusIcon /> Novo Lançamento
-      </h2>
+     <div className="flex items-center justify-between mb-4">
+  <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+    <PlusIcon /> Novo Lançamento
+  </h2>
+
+  <button
+    type="button"
+    onClick={openAddAccountModal}
+className="h-9 px-2 rounded-xl text-[15px] font-bold
+           text-[#5752ea] hover:text-[#7b76fc]
+           transition"
+  >
+    + Adicionar conta
+  </button>
+</div>
 
       <div className="space-y-4">
         <div>
@@ -400,19 +412,10 @@ export default function NewTransactionCard({
           options={ccCardOptions as any}
           onSelect={(val) => setSelectedCreditCardId(String(val))}
           onAddNew={() => {
-            openAddCardModal();
+            openAddAccountModal();
           }}
         />
       </div>
-
-      {!ccHasCardSelected && (
-        <div className="mt-2 px-3 py-2 rounded-xl border border-violet-500/25 dark:border-violet-300/15 bg-violet-500/10 dark:bg-violet-500/10">
-          <p className="text-[12px] leading-snug text-violet-200/90 dark:text-violet-100/80">
-            Selecione um cartão para lançar esta despesa. Se ainda não tiver, clique em{" "}
-            <span className="font-bold">adicionar novo</span>.
-          </p>
-        </div>
-      )}
     </div>
 
     <div className="min-w-0 w-full">
@@ -960,7 +963,7 @@ onClick={() => {
           type="button"
           onClick={() => {
             if (!canSubmit) {
-              openAddCardModal();
+              openAddAccountModal();
               return;
             }
             handleAddTransaction();

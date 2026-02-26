@@ -2313,7 +2313,7 @@ if (sessionLoading) {
           creditCards={creditCards}
           selectedCreditCardId={selectedCreditCardId}
           setSelectedCreditCardId={setSelectedCreditCardId}
-          openAddCardModal={openAddCardModal}
+          openAddAccountModal={openAddAccountModal}
           ccIsParceladoMode={ccIsParceladoMode}
           setCcIsParceladoMode={setCcIsParceladoMode}
           isParceladoMode={isParceladoMode}

@@ -16,6 +16,11 @@ const BRAND = {
 function traduzirErroSupabase(message?: string) {
   const m = (message || "").toLowerCase();
 
+  if (m.includes("missing email or phone")) return "Digite seu e-mail.";
+  if (m.includes("missing password")) return "Digite sua senha.";
+  if (m.includes("email is required")) return "Digite seu e-mail.";
+  if (m.includes("password is required")) return "Digite sua senha.";
+
   if (m.includes("email not confirmed")) return "Você precisa confirmar seu e-mail antes de entrar.";
   if (m.includes("invalid login credentials"))
     return "E-mail ou senha inválidos. Se você ainda não tem conta, clique em “Criar conta”.";
@@ -149,29 +154,40 @@ export default function AuthPage() {
     return rememberMe ? "Manter conectado" : "Não manter conectado (visual)";
   }, [rememberMe]);
 
-  async function onEntrar(e: FormEvent) {
-    e.preventDefault();
-    setErro(null);
-    setMsg(null);
-    setLoading(true);
+async function onEntrar(e: FormEvent) {
+  e.preventDefault();
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: senha,
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      const friendly = traduzirErroSupabase(err?.message);
-      setErro(friendly);
+  setErro(null);
+  setMsg(null);
 
-      if ((err?.message || "").toLowerCase().includes("email not confirmed")) {
-        setLastEmail(email.trim());
-      }
-    } finally {
-      setLoading(false);
-    }
+  const emailTrim = email.trim();
+  if (!emailTrim) {
+    setErro("Digite seu e-mail.");
+    return;
   }
+  if (!senha) {
+    setErro("Digite sua senha.");
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: emailTrim,
+      password: senha,
+    });
+    if (error) throw error;
+  } catch (err: any) {
+    const friendly = traduzirErroSupabase(err?.message);
+    setErro(friendly);
+
+    if ((err?.message || "").toLowerCase().includes("email not confirmed")) {
+      setLastEmail(emailTrim);
+    }
+  } finally {
+    setLoading(false);
+  }
+}
 
   async function onCriarConta(e: FormEvent) {
     e.preventDefault();
@@ -263,21 +279,18 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center px-4">
-      {/* Fundo base (marca) */}
-      <div
-        className="fixed inset-0 -z-10"
-        style={{
-          background: `linear-gradient(180deg,
-            ${BRAND.from} 0%,
-            ${BRAND.to} 58%,
-            #07031b 100%)`,
-        }}
-      />
-
+    <div
+      className="min-h-screen w-full flex items-center justify-center px-4"
+      style={{
+        background: `linear-gradient(180deg,
+          ${BRAND.from} 0%,
+          ${BRAND.to} 58%,
+          #07031b 100%)`,
+      }}
+    >
       {/* Glow roxo sutil (inferior direito) */}
       <div
-        className="fixed inset-0 -z-10"
+        className="fixed inset-0 -z-10 pointer-events-none"
         style={{
           background: `radial-gradient(900px 650px at 85% 85%,
             rgba(70,0,172,0.22) 0%,
@@ -288,7 +301,7 @@ export default function AuthPage() {
 
       {/* Luz geral no topo */}
       <div
-        className="fixed inset-0 -z-10"
+        className="fixed inset-0 -z-10 pointer-events-none"
         style={{
           background: "radial-gradient(circle at top, rgba(255,255,255,0.14), transparent 55%)",
         }}
@@ -331,7 +344,7 @@ export default function AuthPage() {
         {/* Corpo */}
         <div className="px-8 pb-8">
           {mode === "login" && (
-            <form onSubmit={onEntrar} className="space-y-3">
+            <form onSubmit={onEntrar} className="space-y-2">
               <div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
                 <div className="w-12 grid place-items-center text-white/70 border-r border-white/15">
                   <UserMiniIcon />
@@ -368,25 +381,24 @@ export default function AuthPage() {
                 </button>
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-
-                <button
-                  type="button"
-                  onClick={irParaForgot}
-                  className="text-white/70 text-sm hover:text-white hover:underline transition"
-                >
-                  Esqueci minha senha
-                </button>
-              </div>
+<div className="flex items-center justify-start -mt-1">
+  <button
+    type="button"
+    onClick={irParaForgot}
+    className="text-white/70 text-sm hover:text-white hover:underline transition"
+  >
+    Esqueci minha senha
+  </button>
+</div>
 
               {/* BOTÃO ENTRAR (marca) */}
               <button
                 disabled={loading}
-                className="group relative overflow-hidden mt-4 h-12 max-w-[280px] w-full mx-auto block rounded-xl
-                           text-white font-semibold tracking-wide
-                           transition transform hover:scale-[1.01]
-                           hover:shadow-[0_14px_40px_rgba(70,0,172,0.22)]
-                           disabled:opacity-60"
+className="group relative overflow-hidden mt-6 h-12 max-w-[280px] w-full mx-auto block rounded-xl
+           text-white font-semibold tracking-wide
+           transition transform hover:scale-[1.01]
+           hover:shadow-[0_14px_40px_rgba(70,0,172,0.22)]
+           disabled:opacity-60"
                 style={{
                   background: `linear-gradient(135deg,
                     ${BRAND.from} 0%,

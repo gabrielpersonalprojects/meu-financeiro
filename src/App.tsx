@@ -256,33 +256,41 @@ const cartaoRef = creditCards.find((c: any) => String(c.id) === String(payload.c
   const novaTransacao: Transaction = {
     id: nextTxId,
     tipo: "despesa",
-descricao: `Pagamento fatura - ${(() => {
+descricao: `Fatura: ${(() => {
   const banco = String(
     (cartaoRef as any)?.bankText ??
-    (cartaoRef as any)?.banco ??
-    (cartaoRef as any)?.nomeBanco ??
-    (cartaoRef as any)?.bank ??
-    (cartaoRef as any)?.issuer ??
-    ""
+      (cartaoRef as any)?.banco ??
+      (cartaoRef as any)?.nomeBanco ??
+      (cartaoRef as any)?.bank ??
+      (cartaoRef as any)?.issuer ??
+      ""
   ).trim();
 
   const categoria = String((cartaoRef as any)?.categoria ?? "").trim();
 
-  const nomeCartaoLimpo = String(payload.cartaoNome ?? "")
-    .replace(/\s*[•·]\s*(pf|pj)\s*$/i, "")
-    .trim();
+  const bruto = String(payload?.cartaoNome ?? "").trim();
 
-  if (banco && categoria) return `${banco} - ${categoria}`;
-  if (banco) return banco;
-  if (
-    categoria &&
-    nomeCartaoLimpo &&
-    !nomeCartaoLimpo.toLowerCase().includes(categoria.toLowerCase())
-  ) {
-    return `${nomeCartaoLimpo} - ${categoria}`;
-  }
+// pega só a parte antes do hífen e remove (PF)/(PJ)
+const primeiraParte = bruto
+  .split(/[-–—|]/)[0]
+  .replace(/\s*\(.*?\)\s*/g, " ")
+  .trim();
 
-  return nomeCartaoLimpo || categoria || "Cartão";
+// evita cair no nome do titular: só aceita se bater em bancos conhecidos
+const bancosConhecidos = ["itau", "itaú", "nubank", "bradesco", "santander", "inter", "caixa", "bb", "banco do brasil"];
+
+const candidatoDoNome = bancosConhecidos.some((b) =>
+  primeiraParte.toLowerCase().includes(b)
+)
+  ? primeiraParte
+  : "";
+
+const bancoFinal = banco || candidatoDoNome || "Itaú";
+  const categoriaFinal = categoria || "Platinum";
+
+return `${bancoFinal} ${categoriaFinal}`.replace(/\s+/g, " ").trim();
+
+  return `${bancoFinal} — ${categoriaFinal}`;
 })()}`,
     valor: -Math.abs(Number(payload.valor || 0)),
     data: payload.dataPagamento,

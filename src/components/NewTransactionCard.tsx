@@ -9,6 +9,7 @@ import { useEffect } from "react";
 type PrazoMode = "com_prazo" | "sem_prazo" | null;
 
 type Props = {
+  openAddCreditCardModal: () => void;
   // tipo
   formTipo: TransactionType;
   setFormTipo: (v: TransactionType) => void;
@@ -151,6 +152,7 @@ function normalizeCategory(val: any): string {
 }
 
 export default function NewTransactionCard({
+  openAddCreditCardModal,
   formTipo,
   setFormTipo,
 
@@ -447,7 +449,7 @@ className="h-9 px-2 rounded-xl text-[15px] font-bold
           options={ccCardOptions as any}
           onSelect={(val) => setSelectedCreditCardId(String(val))}
           onAddNew={() => {
-            openAddAccountModal();
+            openAddCreditCardModal();
           }}
         />
       </div>

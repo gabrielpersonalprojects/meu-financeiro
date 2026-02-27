@@ -188,6 +188,8 @@ export function CreditDashboard({
   const [contaPgtoId, setContaPgtoId] = useState<string>("");
   const [dataPgtoFatura, setDataPgtoFatura] = useState<string>(todayISO());
 
+  const [confirmExcluirPagamentoId, setConfirmExcluirPagamentoId] = useState<string | null>(null);
+  
   const baseMonth = addMonths(now, invoiceMonthOffset);
   const baseMonthKey = `${baseMonth.getFullYear()}-${pad2(baseMonth.getMonth() + 1)}`;
   const labelAtual = monthLabelPT(baseMonth);
@@ -428,16 +430,16 @@ const contaPagamentoOptions = useMemo(() => {
      setValorPagamentoInput("");
   }
 
-  function removerPagamentoFatura(id: string) {
-    if (onRemoverPagamentoFatura) {
-      onRemoverPagamentoFatura(id);
-    } else {
-      setPagamentosFaturaLocal((prev) => prev.filter((p) => p.id !== id));
-    }
-
-    setErroPagamentoFatura("");
-    setSucessoPagamentoFatura("Pagamento removido.");
+function removerPagamentoFatura(id: string) {
+  if (onRemoverPagamentoFatura) {
+    onRemoverPagamentoFatura(id);
+  } else {
+    setPagamentosFaturaLocal((prev) => prev.filter((p) => p.id !== id));
   }
+
+  setErroPagamentoFatura("");
+  setSucessoPagamentoFatura("Pagamento removido.");
+}
 
   // Conteúdo COMPLETO que vai para o MODAL
   const renderPagamentoFaturaModalContent = () => (
@@ -591,7 +593,7 @@ const contaPagamentoOptions = useMemo(() => {
 
                     <button
                       type="button"
-                      onClick={() => removerPagamentoFatura(p.id)}
+                      onClick={() => setConfirmExcluirPagamentoId(p.id)}
                       className="h-8 w-8 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white/70"
                       title="Remover pagamento"
                       aria-label="Remover pagamento"
@@ -951,10 +953,60 @@ const contaPagamentoOptions = useMemo(() => {
 
             <div className="max-h-[75vh] overflow-y-auto p-4 pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.18)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/15 hover:[&::-webkit-scrollbar-thumb]:bg-white/25">
               {renderPagamentoFaturaModalContent()}
+              {/* Ações do modal */}
+<div className="border-t border-white/10 px-4 py-3 flex items-center justify-end gap-2">
+  <button
+    type="button"
+    onClick={registrarPagamentoFatura}
+    className="px-4 py-2 rounded-lg bg-violet-600/80 hover:bg-violet-600 text-white text-sm font-semibold"
+  >
+    Registrar pagamento
+  </button>
+</div>
             </div>
           </div>
         </div>
       ) : null}
+      {confirmExcluirPagamentoId && (
+  <div
+    className="fixed inset-0 z-[95] bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4"
+    onClick={() => setConfirmExcluirPagamentoId(null)}
+  >
+    <div
+      className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#071235] shadow-2xl overflow-hidden"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="p-4 border-b border-white/10">
+        <div className="text-white font-semibold">Excluir pagamento?</div>
+        <div className="text-white/70 text-sm mt-1">
+          Excluir este pagamento da fatura? Isso também removerá a transação relacionada.
+        </div>
+      </div>
+
+      <div className="p-4 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setConfirmExcluirPagamentoId(null)}
+          className="px-4 py-2 rounded-lg border border-white/10 bg-white/5 text-white/90 hover:bg-white/10 text-sm font-semibold"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const id = confirmExcluirPagamentoId;
+            setConfirmExcluirPagamentoId(null);
+            removerPagamentoFatura(id);
+          }}
+          className="px-4 py-2 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-sm font-semibold"
+        >
+          Excluir
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </>
   );
 }

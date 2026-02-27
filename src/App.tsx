@@ -1676,6 +1676,47 @@ const togglePago = (payload: any) => {
     if (!deletingTransaction) return;
 
     const desc = deletingTransaction.descricao;
+    // --- sync: se essa transação for pagamento de fatura, remove também o registro do modal ---
+try {
+  const tx: any = deletingTransaction;
+
+  const pagamentoId =
+    tx?.pagamentoFaturaId ??
+    tx?.faturaPaymentId ??
+    tx?.meta?.pagamentoFaturaId ??
+    tx?.meta?.faturaPaymentId ??
+    null;
+
+  const raw = localStorage.getItem(FATURA_PAYMENTS_LS_KEY);
+  const lista = raw ? JSON.parse(raw) : [];
+  if (Array.isArray(lista) && lista.length) {
+    const txIdStr = String(tx?.id ?? "");
+
+    const nextLista = lista.filter((p: any) => {
+      const pId = String(p?.id ?? "");
+      const pTxId =
+        String(
+          p?.transacaoId ??
+            p?.transactionId ??
+            p?.txId ??
+            p?.idTransacao ??
+            ""
+        );
+
+      if (pagamentoId && pId === String(pagamentoId)) return false;
+      if (txIdStr && pTxId === txIdStr) return false;
+
+      return true;
+    });
+
+if (nextLista.length !== lista.length) {
+  setPagamentosFatura(nextLista);
+  salvarPagamentosFatura(nextLista); // persistência imediata (e mantém tudo consistente)
+}
+  }
+} catch (e) {
+  console.warn("[FATURA] falha ao sincronizar exclusão do pagamento no LS", e);
+}
 
     if (apagarTodas && deletingTransaction.recorrenciaId) {
       setTransacoes((prev) =>
@@ -3416,7 +3457,25 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
     <span className="font-black text-slate-800 dark:text-slate-100">
       "{deletingTransaction.descricao}"
     </span>
-    .
+    {(() => {
+  const tx: any = deletingTransaction;
+  const isPagamentoFatura =
+    String(tx?.descricao ?? "").toLowerCase().includes("pagamento fatura") ||
+    !!tx?.pagamentoFaturaId ||
+    !!tx?.faturaPaymentId ||
+    !!tx?.meta?.pagamentoFaturaId ||
+    !!tx?.meta?.faturaPaymentId;
+
+  if (!isPagamentoFatura) return null;
+
+  return (
+    <div className="mt-2 text-slate-700 dark:text-slate-200 text-sm">
+      <span className="font-bold">Atenção:</span> isso também apagará o{" "}
+      <span className="font-bold">registro do pagamento</span> da fatura.
+    </div>
+  );
+})()}
+  
   </>
 )}
 

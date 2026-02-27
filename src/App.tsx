@@ -788,6 +788,10 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [editDescInput, setEditDescInput] = useState("");
   const [applyToAllRelated, setApplyToAllRelated] = useState(false);
 
+  const [editContaId, setEditContaId] = useState<string>("");
+  const [editDataInput, setEditDataInput] = useState<string>("");
+  const [editCategoriaInput, setEditCategoriaInput] = useState<string>("");
+
   // --- Inputs Modais ---
   const [inputNovaCat, setInputNovaCat] = useState("");
   const [inputNovoCartao, setInputNovoCartao] = useState("");
@@ -1645,10 +1649,20 @@ const handleEditClick = (t: Transaction) => {
   setEditingTransaction(t);
   setEditValueInput(centsDigitsFromAny(t.valor));
   setEditDescInput(t.descricao);
+  setEditContaId(String((t as any).contaId ?? (t as any).conta ?? ""));
+setEditDataInput(String((t as any).data ?? ""));
+setEditCategoriaInput(
+  typeof (t as any).categoria === "string"
+    ? (t as any).categoria
+    : String((t as any).categoria?.nome ?? "")
+);
   setApplyToAllRelated(false);
 };
+const inputModalClass =
+  "w-full p-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500";
 
 const salvarEdicao = () => {
+
   if (!editingTransaction) return;
 
   const novoValorAbs = extrairValorMoeda(editValueInput);
@@ -1657,7 +1671,16 @@ const salvarEdicao = () => {
   const sign = editingTransaction.tipo === "receita" ? 1 : -1;
 
   setTransacoes((prev) =>
-    applyEditToTransactions(prev, editingTransaction, novoValorAbs, novaDesc, applyToAllRelated)
+    applyEditToTransactions(
+  prev,
+  editingTransaction,
+  novoValorAbs,
+  novaDesc,
+  applyToAllRelated,
+  editContaId,
+  editDataInput,
+  editCategoriaInput
+)
   );
 
   setEditingTransaction(null);
@@ -3376,7 +3399,7 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
               if (e.key === "Enter") salvarEdicao();
               if (e.key === "Escape") setEditingTransaction(null);
             }}
-            className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 transition-colors"
+            className={inputModalClass}
           />
         </div>
 
@@ -3420,9 +3443,90 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
                 e.preventDefault();
               }
             }}
-            className="w-full p-5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl font-black text-2xl text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 transition-colors"
+           className={inputModalClass}
           />
         </div>
+
+{/* ===================== */}
+{/* DEPOIS DO VALOR (R$)  */}
+{/* ===================== */}
+
+{/* --- Campos extras (compactos e com dropdown do app) --- */}
+{editingTransaction &&
+  (editingTransaction.tipo === "despesa" ||
+    editingTransaction.tipo === "receita") && (
+    <div className="space-y-4">
+      {/* Conta (despesa + receita) */}
+      <div className="text-xs">
+        <CustomDropdown
+          label="Conta"
+          value={editContaId || ""}
+          options={[
+            { label: "Sem conta", value: "" },
+            ...profiles.map((p) => ({
+              label: p.banco || (p as any).name || "Conta",
+              value: p.id,
+            })),
+          ]}
+          onSelect={(v: any) => setEditContaId(String(v))}
+        />
+      </div>
+
+      {/* Data + Categoria (só despesa) */}
+      {editingTransaction.tipo === "despesa" && (
+        <>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+              Data
+            </label>
+
+            <input
+              type="date"
+              value={editDataInput}
+              onChange={(e) => setEditDataInput(e.target.value)}
+              className={inputModalClass}
+            />
+          </div>
+
+          <div className="text-xs">
+            <CustomDropdown
+              label="Categoria"
+              value={editCategoriaInput || ""}
+              options={[
+                { label: "Sem categoria", value: "" },
+                ...categoriasFiltradasTransacoes.map((c) => ({
+                  label: c,
+                  value: c,
+                })),
+              ]}
+              onSelect={(v: any) => setEditCategoriaInput(String(v))}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  )}
+
+{/* --- mantém seu bloco de recorrência exatamente como está --- */}
+{editingTransaction.recorrenciaId && (
+  <label className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 cursor-pointer hover:bg-indigo-100/50">
+    <input
+      type="checkbox"
+      checked={applyToAllRelated}
+      onChange={(e) => setApplyToAllRelated(e.target.checked)}
+      className="w-6 h-6 rounded-lg text-indigo-600 dark:bg-slate-800"
+    />
+
+    <div className="flex flex-col">
+      <span className="text-sm font-black text-indigo-900 dark:text-indigo-300">
+        Atualizar todas as parcelas
+      </span>
+      <span className="text-[10px] font-bold text-indigo-400 dark:text-indigo-500 uppercase">
+        Aplicar mudança em toda a série
+      </span>
+    </div>
+  </label>
+)}
 
         {editingTransaction.recorrenciaId && (
           <label className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 cursor-pointer hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30 transition-colors">

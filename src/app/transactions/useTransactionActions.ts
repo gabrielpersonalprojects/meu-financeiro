@@ -84,7 +84,10 @@ export function applyEditToTransactions(
   editingTransaction: Transaction,
   novoValorAbs: number,
   novaDesc: string,
-  applyToAllRelated: boolean
+  applyToAllRelated: boolean,
+  editContaId: string,
+  editDataInput: string,
+  editCategoriaInput: string
 ): Transaction[] {
   const normTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
   const getTransferId = (x: any) => normTid(x?.transferId ?? x?.transferID ?? x?.transfer_id);

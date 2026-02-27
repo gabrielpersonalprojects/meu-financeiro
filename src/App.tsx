@@ -382,6 +382,28 @@ const [profiles, setProfiles] = useState<Profile[]>(() => {
 
 const [editingContaId, setEditingContaId] = useState<string | null>(null);
 const LABEL_TODAS_CONTAS = "Todas as Contas";
+const isEditingAccount = editingContaId !== null;
+const handleEditConta = (id: string) => {
+  const conta = profiles.find((p) => p.id === id);
+  if (!conta) return;
+
+  setEditingContaId(id);
+  setAccTab("novo");
+
+  setAccPerfilConta((conta as any).perfil ?? "PF");
+  setAccTipoConta((conta as any).tipo ?? TIPOS_CONTA[0]);
+
+  setAccBanco((conta as any).banco ?? "");
+  setAccNumeroConta((conta as any).numeroConta ?? "");
+  setAccNumeroAgencia((conta as any).numeroAgencia ?? "");
+
+  setAccPossuiCC(!!(conta as any).possuiCC);
+  setAccLimiteCC(formatBRLFromAnyInput(String((conta as any).limiteCC ?? 0)));
+  setAccFechamentoCC(Number((conta as any).fechamentoCC ?? 1));
+  setAccVencimentoCC(Number((conta as any).vencimentoCC ?? 10));
+
+  setAccSaldoInicial(formatBRLFromAnyInput(String((conta as any).saldoInicial ?? 0)));
+};
 
 const bancosOptions = useMemo(() => {
   return [LABEL_TODAS_CONTAS, ...profiles.map((p) => p.name)];
@@ -412,6 +434,7 @@ const TIPOS_CONTA = [
 
 const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
 const [accTab, setAccTab] = useState<"novo" | "gerenciar">("novo");
+const [accEditingId, setAccEditingId] = useState<string | null>(null);
 
 const [accPerfilConta, setAccPerfilConta] = useState<"PF" | "PJ">("PF");
 const [accTipoConta, setAccTipoConta] = useState<string>(TIPOS_CONTA[0]);
@@ -545,7 +568,7 @@ if (!banco) {
 
   // não pode duplicar nome de conta (mas ao editar ignora a própria)
   const existe = profiles.some((p) => {
-  if (p.id === editingProfileId) return false;
+  if (p.id === editingContaId) return false;
 
   const mesmoBanco = (p.banco || p.name || "").trim().toLowerCase() === banco.trim().toLowerCase();
 
@@ -3866,16 +3889,19 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
                     <input
                       value={accSaldoInicial}
                       onChange={(e) => setAccSaldoInicial(formatBRLFromAnyInput(e.target.value))}
-                      onFocus={(e) => e.currentTarget.select()}
-                      onClick={(e) => e.currentTarget.select()}
+                      onFocus={(e) => !isEditingAccount && e.currentTarget.select()}
+                      onClick={(e) => !isEditingAccount && e.currentTarget.select()}
                       placeholder="R$ 0,00"
                       inputMode="numeric"
-                      className="w-full p-2.5 bg-slate-900/40 border border-slate-700 rounded-xl text-slate-100"
+                      readOnly={isEditingAccount}
+                      className={
+                        "w-full p-2.5 bg-slate-900/40 border border-slate-700 rounded-xl text-slate-100" +
+                        (isEditingAccount ? " opacity-80 cursor-not-allowed" : "")
+                      }
                     />
-
                     </div>
 
-                   
+                  
           </div>
 
           </div>
@@ -3908,15 +3934,25 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
               </div>
             </div>
 
-            <button
-  type="button"
- onClick={() => confirmDeleteAccount(p.id)}
-  className="p-1.5 text-rose-600 hover:text-rose-700
-    dark:text-rose-500 dark:hover:text-rose-400"
-  title="Excluir conta"
->
-  <TrashIcon />
-</button>
+<div className="flex items-center gap-2">
+  <button
+    type="button"
+    onClick={() => handleEditConta(p.id)}
+    className="p-1.5 text-slate-300 hover:text-indigo-400 transition"
+    title="Editar conta"
+  >
+    <EditIcon />
+  </button>
+
+  <button
+    type="button"
+    onClick={() => confirmDeleteAccount(p.id)}
+    className="p-1.5 text-rose-600 hover:text-rose-700 dark:text-rose-500 dark:hover:text-rose-400"
+    title="Excluir conta"
+  >
+    <TrashIcon />
+  </button>
+</div>
           </div>
         ))
       )}
@@ -3928,22 +3964,26 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
   </div>
 )}
 
-        <div className="p-4 border-t border-slate-200/10 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setIsAddAccountOpen(false)}
-            className="flex-1 py-2.5 rounded-xl border border-slate-700 bg-slate-800/60 text-slate-200 font-bold hover:bg-slate-800 transition"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirmAddAccount}
-            className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-extrabold hover:bg-indigo-500 transition"
-          >
-            {editingProfileId ? "Editar Conta" : "Adicionar"}
-          </button>
-        </div>
+<div className="p-4 border-t border-slate-200/10 flex gap-2">
+  <button
+    type="button"
+    onClick={() => {
+      setIsAddAccountOpen(false);
+      setEditingContaId(null);
+    }}
+    className="flex-1 py-2.5 rounded-xl border border-slate-700 bg-slate-800/60 text-slate-200 font-bold hover:bg-slate-800 transition"
+  >
+    Cancelar
+  </button>
+
+  <button
+    type="button"
+    onClick={handleConfirmAddAccount}
+    className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-extrabold hover:bg-indigo-500 transition"
+  >
+    {editingContaId ? "Editar" : "Adicionar"}
+  </button>
+</div>
       </div>
     </div>
   </div>

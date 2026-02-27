@@ -2055,6 +2055,7 @@ const handleAddTransaction = () => {
           novos.push({
             id: makeId(String(i)),
             tipo: "cartao_credito",
+            criadoEm: Date.now(),
             descricao: `${descBase} (${i + 1}/${parcelas})`,
             valor: -Math.abs(valorParcela),
             data: d.toISOString().split("T")[0],
@@ -2090,6 +2091,7 @@ const handleAddTransaction = () => {
           novos.push({
             id: makeId(`fixo_${i}`),
             tipo: "cartao_credito",
+            criadoEm: Date.now(),
             descricao: descBase,
             valor: -Math.abs(total),
             data: d.toISOString().split("T")[0],
@@ -2110,6 +2112,7 @@ const handleAddTransaction = () => {
         novos.push({
           id: makeId("avista"),
           tipo: "cartao_credito",
+          criadoEm: Date.now(),
           descricao: descBase,
           valor: -Math.abs(total),
           data: baseDate.toISOString().split("T")[0],

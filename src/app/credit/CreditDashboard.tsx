@@ -66,6 +66,7 @@ type Props = {
     valor: number;
     contaId: string;
     contaLabel: string;
+    criadoEm?: number;
   }) => void;
   onRemoverPagamentoFatura?: (pagamentoId: string) => void;
   onOpenInvoiceModal?: () => void;
@@ -415,6 +416,7 @@ const contaPagamentoOptions = useMemo(() => {
         valor: valorAplicado,
         contaId: contaPagamentoFatura,
         contaLabel: contaSelecionadaLabel,
+        criadoEm: Date.now(),
       });
     } else {
       setPagamentosFaturaLocal((prev) => [novo, ...prev]);
@@ -853,6 +855,22 @@ function removerPagamentoFatura(id: string) {
 
                 const catLabel = categoriaToLabel(t.categoria);
 
+const ultimoPgtoTs = (() => {
+  const ts = (pagamentosDoCiclo ?? [])
+    .map((p: any) => Number(p?.criadoEm ?? 0))
+    .filter((n: number) => Number.isFinite(n) && n > 0)
+    .sort((a: number, b: number) => a - b);
+
+  return ts.length ? ts[ts.length - 1] : null;
+})();
+
+const podeExcluirCompra = (tx: any) => {
+  if (!ultimoPgtoTs) return true;
+  const txTs = Number(tx?.criadoEm ?? 0);
+  if (!Number.isFinite(txTs) || txTs <= 0) return false;
+  return txTs > Number(ultimoPgtoTs);
+};
+
                 return (
                   <li
                     key={t.id}
@@ -899,17 +917,34 @@ function removerPagamentoFatura(id: string) {
                           })}
                         </div>
 
-                        {onDeleteTransacao ? (
-                          <button
-                            type="button"
-                            onClick={() => onDeleteTransacao(t.id)}
-                            className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/80"
-                            title="Excluir transação"
-                            aria-label="Excluir transação"
-                          >
-                            🗑
-                          </button>
-                        ) : null}
+{onDeleteTransacao && podeExcluirCompra(t) ? (
+  <button
+    type="button"
+    onClick={() => {
+      if (!podeExcluirCompra(t)) return;
+      onDeleteTransacao(t.id);
+    }}
+    className="h-8 w-8 inline-flex items-center justify-center text-white/55 hover:text-white/90 transition"
+    title="Excluir transação"
+    aria-label="Excluir transação"
+  >
+<svg
+  viewBox="0 0 24 24"
+  className="h-4 w-4"
+  fill="none"
+  stroke="currentColor"
+  strokeWidth="1.8"
+  strokeLinecap="round"
+  strokeLinejoin="round"
+>
+  <path d="M3 6h18" />
+  <path d="M8 6V4h8v2" />
+  <path d="M6 6l1 16h10l1-16" />
+  <path d="M10 11v6" />
+  <path d="M14 11v6" />
+</svg>
+  </button>
+) : null}
                       </div>
                     </div>
                   </li>

@@ -307,7 +307,7 @@ export function CreditDashboard({
   const [pagamentosFaturaLocal, setPagamentosFaturaLocal] = useState<PagamentoFaturaUI[]>([]);
   const pagamentosFatura =
     (pagamentosFaturaProp as PagamentoFaturaUI[] | undefined) ?? pagamentosFaturaLocal;
-
+    
   const [contaPagamentoFatura, setContaPagamentoFatura] = useState<string>("");
   const [valorPagamentoInput, setValorPagamentoInput] = useState<string>("");
   const [dataPagamentoFatura, setDataPagamentoFatura] = useState<string>(todayISO());
@@ -471,110 +471,104 @@ const contaPagamentoOptions = useMemo(() => {
           </span>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-            <div className="text-white/50 text-[11px] leading-none">Valor da fatura</div>
-            <div className="mt-2 text-red-300 text-[13px] font-semibold leading-none">
-              {moedaBR(valorFaturaTotal)}
-            </div>
-          </div>
+<div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+  {/* COLUNA ESQUERDA */}
+<div className="space-y-3">
+  {/* Valor da fatura (label fora + campo igual aos da direita) */}
+  <div>
+    <div className="text-white/50 text-[11px] leading-none">Valor da fatura</div>
+    <input
+      type="text"
+      readOnly
+      value={moedaBR(valorFaturaTotal)}
+      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+        bg-transparent
+        border border-white/10
+        text-red-300 font-semibold
+        outline-none"
+    />
+  </div>
 
-          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-            <div className="text-white/50 text-[11px] leading-none">Saldo pendente</div>
-            <div
-              className={`mt-2 text-[13px] font-semibold leading-none ${
-                saldoRestanteFatura > 0 ? "text-amber-300" : "text-emerald-300"
-              }`}
-            >
-              {moedaBR(saldoRestanteFatura)}
-            </div>
-          </div>
+  {/* Valor já pago */}
+<div>
+  <div className="text-white/50 text-[11px] leading-none">Valor já pago</div>
+  <input
+    type="text"
+    readOnly
+    value={moedaBR(valorPagoFatura)}
+    className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+      bg-transparent
+      border border-white/10
+      text-emerald-300 font-semibold
+      outline-none"
+  />
+</div>
 
-          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-            <div className="text-white/50 text-[11px] leading-none">Valor já pago</div>
-            <div className="mt-2 text-emerald-300 text-[13px] font-semibold leading-none">
-              {moedaBR(valorPagoFatura)}
-            </div>
-          </div>
-<div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-  <div className="text-white/50 text-[11px] leading-none">Conta p/ pgto</div>
-  <div className="mt-2 text-white/85 text-[13px] font-semibold leading-none truncate">
-    {contaSelecionadaLabel}
+{/* Saldo pendente */}
+<div>
+  <div className="text-white/50 text-[11px] leading-none">Saldo pendente</div>
+  <input
+    type="text"
+    readOnly
+    value={moedaBR(saldoRestanteFatura)}
+    className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+  bg-transparent
+  border border-white/10
+  text-white/90 font-semibold
+  outline-none"
+  />
+</div>
+</div>
+
+  {/* COLUNA DIREITA */}
+<div className="space-y-3">
+  {/* Conta p/ pgto (sem card) */}
+  <div>
+    <div className="text-white/50 text-[11px] leading-none">Conta p/ pgto</div>
+    <div className="mt-2">
+      <CustomDropdown
+        value={contaPagamentoFatura}
+        options={contaPagamentoOptions}
+        onSelect={(v) => setContaPagamentoFatura(v)}
+      />
+    </div>
+  </div>
+
+  {/* Data do pagamento (sem card) */}
+  <div>
+    <div className="text-white/50 text-[11px] leading-none">Data do pagamento</div>
+    <input
+      type="date"
+      value={dataPagamentoFatura}
+      onChange={(e) => setDataPagamentoFatura(e.target.value)}
+      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+        bg-white dark:bg-slate-900
+        border border-slate-200 dark:border-slate-700
+        text-slate-900 dark:text-slate-100
+        hover:bg-slate-50 dark:hover:bg-slate-800/60"
+    />
+  </div>
+
+  {/* Valor a pagar (sem card) */}
+  <div>
+    <div className="text-white/50 text-[11px] leading-none">Valor a pagar</div>
+    <input
+      type="text"
+      inputMode="decimal"
+      value={valorPagamentoInput}
+      onChange={(e) => setValorPagamentoInput(e.target.value)}
+      placeholder="0,00"
+      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+        bg-white dark:bg-slate-900
+        border border-slate-200 dark:border-slate-700
+        text-slate-900 dark:text-slate-100
+        hover:bg-slate-50 dark:hover:bg-slate-800/60"
+    />
   </div>
 </div>
-        </div>
+</div>
 
         <div className="mt-3 h-px bg-white/10" />
-
-        <div className="mt-3 space-y-3 max-w-[760px]">
-        
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <div className="text-white/50 text-[11px] mb-1">Valor a pagar</div>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={valorPagamentoInput}
-                onChange={(e) => setValorPagamentoInput(e.target.value)}
-                placeholder={
-                  saldoRestanteFatura > 0
-                    ? saldoRestanteFatura.toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })
-                    : "0,00"
-                }
-                className="h-10 w-full rounded-xl px-3 text-[13px]
-                  bg-white dark:bg-slate-900
-                  border border-slate-200 dark:border-slate-700
-                  text-slate-900 dark:text-slate-100
-                  hover:bg-slate-50 dark:hover:bg-slate-800/60"
-              />
-              <div className="mt-1 text-white/35 text-[10px] leading-none">
-                Pagamento parcial é permitido (adiantamento também).
-              </div>
-            </div>
-
-            <div>
-              <div className="text-white/50 text-[11px] mb-1">Data do pagamento</div>
-              <input
-                type="date"
-                value={dataPagamentoFatura}
-                onChange={(e) => setDataPagamentoFatura(e.target.value)}
-                className="h-10 w-full rounded-xl px-3 text-[13px]
-                  bg-white dark:bg-slate-900
-                  border border-slate-200 dark:border-slate-700
-                  text-slate-900 dark:text-slate-100
-                  hover:bg-slate-50 dark:hover:bg-slate-800/60"
-              />
-            </div>
-          </div>
-
-          {erroPagamentoFatura ? (
-            <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-rose-200 text-[11px]">
-              {erroPagamentoFatura}
-            </div>
-          ) : null}
-
-          {sucessoPagamentoFatura ? (
-            <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-emerald-200 text-[11px]">
-              {sucessoPagamentoFatura}
-            </div>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={registrarPagamentoFatura}
-            disabled={valorFaturaTotal <= 0}
-            className={`h-10 w-full rounded-xl border text-sm font-semibold transition ${
-              valorFaturaTotal <= 0
-                ? "border-white/10 bg-white/5 text-white/40 cursor-not-allowed"
-                : "border-white/10 bg-white/5 text-white/90 hover:bg-white/10"
-            }`}
-          >
-            Registrar pagamento
-          </button>
-        </div>
       </div>
 
       <div className="rounded-2xl bg-white/5 shadow-sm border border-white/10 p-4">

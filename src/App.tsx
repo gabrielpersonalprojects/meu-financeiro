@@ -1947,14 +1947,6 @@ const handleAddTransaction = () => {
           ""
         ).trim();
 
-      if (!contaIdDoCartao) {
-        toastCompact(
-          "Esse cartão não tem uma conta vinculada. Vincule uma conta ao cartão antes de lançar.",
-          "error"
-        );
-        return;
-      }
-
       // helper: soma meses sem “pular” mês quando o dia não existe (ex: 31)
       const addMonthsSafe = (date: Date, monthsToAdd: number) => {
         const y = date.getFullYear();

@@ -3958,12 +3958,9 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
       )}
     </div>
 
-    <div className="text-slate-400 text-xs">
-      Para excluir uma conta, clique na lixeira. Você pode recriar depois.
-    </div>
   </div>
 )}
-
+{accTab === "novo" && (
 <div className="p-4 border-t border-slate-200/10 flex gap-2">
   <button
     type="button"
@@ -3984,6 +3981,7 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
     {editingContaId ? "Editar" : "Adicionar"}
   </button>
 </div>
+)}
       </div>
     </div>
   </div>

@@ -65,14 +65,25 @@ export const computeProjection12Months = (params: {
   .filter((t) => String((t as any).data || "").startsWith(targetMonthStr))
   .filter((t) => !isTransfer(t));
 
-
+const isPgtoFatura = (t: any) =>
+  String((t as any)?.descricao ?? "")
+    .toLowerCase()
+    .trim()
+    .startsWith("fatura:");
     const fixas = monthTransactions
       .filter((t) => (t as any).tipo === "despesa" && (t as any).tipoGasto === "Fixo")
       .reduce((s, t) => s + Math.abs(Number((t as any).valor) || 0), 0);
 
-    const variaveis = monthTransactions
-      .filter((t) => (t as any).tipo === "despesa" && (t as any).tipoGasto === "Variável")
-      .reduce((s, t) => s + Math.abs(Number((t as any).valor) || 0), 0);
+const variaveis = monthTransactions
+  .filter((t) => {
+    const tipo = String((t as any).tipo ?? "").toLowerCase();
+    const tipoGasto = String((t as any).tipoGasto ?? "");
+    return (
+      tipo === "despesa" &&
+      (tipoGasto === "Variável" || isPgtoFatura(t))
+    );
+  })
+  .reduce((s, t) => s + Math.abs(Number((t as any).valor) || 0), 0);
 
     const receitas = monthTransactions
       .filter((t) => (t as any).tipo === "receita")

@@ -70,6 +70,12 @@ const metodoPgto = String(
     (t as any).paymentMethod ??
     ""
 ).trim();
+
+const isTransacaoFatura = String((t as any)?.descricao ?? "")
+  .toLowerCase()
+  .trim()
+  .startsWith("fatura:");
+
   return (
     <div
       key={t.id}
@@ -124,6 +130,8 @@ const metodoPgto = String(
                     const info = getContaPartsById(String(t.qualCartao), profiles);
                     if (!info) return <span className="normal-case">Conta</span>;
 
+                    
+
                     return (
                       <span className="inline-flex items-center gap-2 normal-case">
                         <span
@@ -166,20 +174,21 @@ const metodoPgto = String(
         {(onEdit || onDelete) && (
           <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
 {onEdit &&
-  !((t as any)?.transferId) &&
+  !isTransacaoFatura &&
+  !(t as any)?.transferId &&
   !String((t as any)?.categoria ?? "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .includes("transfer") && (
-  <button
-    type="button"
-    onClick={() => onEdit(t)}
-    className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
-    title="Editar"
-  >
-    <EditIcon className="w-4 h-4" />
-  </button>
+    <button
+      type="button"
+      onClick={() => onEdit(t)}
+      className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+      title="Editar"
+    >
+      <EditIcon className="w-4 h-4" />
+    </button>
 )}
 
             {onDelete && (

@@ -450,14 +450,21 @@ if (!saidaInList && entradaInList) {
       <div className="flex flex-col items-end shrink-0">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-            <button
-              type="button"
-              onClick={() => handleEditClick(saida)}
-              className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
-              title="Editar"
-            >
-              <EditIcon className="w-4 h-4" />
-            </button>
+        {!(saida as any)?.transferId &&
+  !String((saida as any)?.categoria ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .includes("transfer") && (
+    <button
+      type="button"
+      onClick={() => handleEditClick(saida)}
+      className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+      title="Editar"
+    >
+      <EditIcon className="w-4 h-4" />
+    </button>
+  )}
 
             <button
               type="button"

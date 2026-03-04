@@ -1705,16 +1705,6 @@ const confirmDelete = (t: Transaction) => {
 
   const isTransfer = catNorm === "transferencia" || catNorm.includes("transfer");
 
-  if (isTransfer && transferGroupId) {
-    setTransacoes((prev: any[]) =>
-      prev.filter((tx: any) => normTid((tx as any).transferId) !== normTid(transferGroupId))
-    );
-
-    setDeletingTransaction(null);
-    toastCompact("Transferência excluída (entrada e saída).", "success");
-    return;
-  }
-
   // fallback: se por algum motivo não tiver transferId, segue fluxo padrão
   confirmarExclusao(false);
 };
@@ -1733,7 +1723,24 @@ const togglePago = (payload: any) => {
     // --- sync: se essa transação for pagamento de fatura, remove também o registro do modal ---
 try {
   const tx: any = deletingTransaction;
+// --- Transferência: apagar entrada e saída pelo transferId ---
+const catNorm = String(tx?.categoria ?? "")
+  .toLowerCase()
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "");
 
+const isTransfer = catNorm === "transferencia" || catNorm.includes("transfer");
+const transferId = (tx as any)?.transferId;
+
+if (isTransfer && transferId) {
+  setTransacoes((prev: any[]) =>
+    prev.filter((t: any) => String((t as any)?.transferId) !== String(transferId))
+  );
+
+  setDeletingTransaction(null);
+  toastCompact("Transferência excluída (entrada e saída).", "success");
+  return;
+}
   const pagamentoId =
     tx?.pagamentoFaturaId ??
     tx?.faturaPaymentId ??
@@ -2712,6 +2719,19 @@ if (sessionLoading) {
     onRemoverPagamentoFatura={handleRemoverPagamentoFatura}
 
     onDeleteTransacao={(id: string) => {
+      alert("DELETE App.tsx onDeleteTransacao");
+      const target = transacoes.find((t) => String(t.id) === String(id));
+
+const isTransfer =
+  !!(target as any)?.transferId ||
+  String((target as any)?.categoria ?? "").toLowerCase().includes("transfer");
+
+if (isTransfer) {
+  const ok = window.confirm(
+    "Tem certeza que deseja excluir esta transferência?\n\nIsso vai apagar a ENTRADA e a SAÍDA vinculadas."
+  );
+  if (!ok) return;
+}
       confirmToast({
         title: "Excluir transação",
         message: "Tem certeza que deseja excluir esta transação?",
@@ -2721,7 +2741,12 @@ if (sessionLoading) {
           setTransacoes((prev) => {
             const target = prev.find((t) => String(t.id) === String(id));
             if (!target) return prev;
+            // --- TRANSFERÊNCIA: remove as 2 pernas pelo transferId ---
+const transferId = (target as any)?.transferId;
 
+if (transferId) {
+  return prev.filter((t) => String((t as any)?.transferId) !== String(transferId));
+}
             // se for parcela de cartão e tiver recorrenciaId, remove o grupo inteiro
             const isCC = target.tipo === "cartao_credito";
             const rid = (target as any).recorrenciaId;
@@ -3507,27 +3532,6 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
     </div>
   )}
 
-{/* --- mantém seu bloco de recorrência exatamente como está --- */}
-{editingTransaction.recorrenciaId && (
-  <label className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 cursor-pointer hover:bg-indigo-100/50">
-    <input
-      type="checkbox"
-      checked={applyToAllRelated}
-      onChange={(e) => setApplyToAllRelated(e.target.checked)}
-      className="w-6 h-6 rounded-lg text-indigo-600 dark:bg-slate-800"
-    />
-
-    <div className="flex flex-col">
-      <span className="text-sm font-black text-indigo-900 dark:text-indigo-300">
-        Atualizar todas as parcelas
-      </span>
-      <span className="text-[10px] font-bold text-indigo-400 dark:text-indigo-500 uppercase">
-        Aplicar mudança em toda a série
-      </span>
-    </div>
-  </label>
-)}
-
         {editingTransaction.recorrenciaId && (
           <label className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 cursor-pointer hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30 transition-colors">
             <input
@@ -3576,29 +3580,23 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
 
             <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium leading-relaxed">
              {deletingTransaction.categoria === "Transferência" ? (
-  <>
-    Tem certeza que quer excluir esta transferência? Isso vai remover <span className="font-black text-slate-800 dark:text-slate-100"> (saída e entrada) </span>vinculados.
-    <br />
-    
-  </>
+<>
+  Tem certeza que quer excluir esta transferência?
+  Você está apagando{" "}
+  <span className="font-black text-slate-800 dark:text-slate-100">
+    "{deletingTransaction.descricao}"
+  </span>
+</>
 ) : deletingTransaction.recorrenciaId ? (
   <>
     Você está apagando{" "}
     <span className="font-black text-slate-800 dark:text-slate-100">
       "{deletingTransaction.descricao}"
     </span>
-    . Como deseja prosseguir?
-  </>
-) : (
-  <>
-    Tem certeza que quer excluir este lançamento? Você está apagando{" "}
-    <span className="font-black text-slate-800 dark:text-slate-100">
-      "{deletingTransaction.descricao}"
-    </span>
-    {(() => {
+        {(() => {
   const tx: any = deletingTransaction;
   const isPagamentoFatura =
-    String(tx?.descricao ?? "").toLowerCase().includes("pagamento fatura") ||
+    /(pagamento\s*fatura|^fatura\s*:)/i.test(String(tx?.descricao ?? "")) ||
     !!tx?.pagamentoFaturaId ||
     !!tx?.faturaPaymentId ||
     !!tx?.meta?.pagamentoFaturaId ||
@@ -3613,6 +3611,19 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
     </div>
   );
 })()}
+    . Como deseja prosseguir?
+  </>
+) : (
+  <>
+    Tem certeza que quer excluir este lançamento? Você está apagando{" "}
+    <span className="font-black text-slate-800 dark:text-slate-100">
+      "{deletingTransaction.descricao}"
+    </span>
+{/^fatura\s*:/i.test(String(deletingTransaction?.descricao ?? "")) && (
+  <span className="block mt-2 text-sm text-slate-700 dark:text-slate-200">
+    Atenção: ao excluir esta fatura, o registro de pagamento do cartão relacionado a ela também será apagado.
+  </span>
+)}
   
   </>
 )}

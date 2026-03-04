@@ -29,7 +29,31 @@ export const getMesAnoExtenso = (dataStr: string): string => {
 };
 
 export const extrairValorMoeda = (valor: string): number => {
-  if (!valor) return 0;
-  const cleanValue = valor.replace(/\./g, '').replace(',', '.');
-  return parseFloat(cleanValue) || 0;
+  const s = String(valor ?? "").trim();
+  if (!s) return 0;
+
+  // mantém só dígitos, ponto, vírgula e sinal
+  const cleaned = s.replace(/[^\d.,-]/g, "");
+  const sign = cleaned.startsWith("-") ? -1 : 1;
+
+  const hasSep = cleaned.includes(",") || cleaned.includes(".");
+
+  // Caso 1: veio só dígitos (máscara) -> "13" = 0.13, "1400" = 14.00
+  if (!hasSep) {
+    const digits = cleaned.replace(/\D/g, "");
+    const cents = Number(digits || "0");
+    return sign * (cents / 100);
+  }
+
+  // Caso 2: veio formatado -> usa o último separador como decimal
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  const lastSep = Math.max(lastComma, lastDot);
+
+  const intPart = cleaned.slice(0, lastSep).replace(/\D/g, "");
+  const decPart = cleaned.slice(lastSep + 1).replace(/\D/g, "").slice(0, 2);
+
+  const numStr = `${sign < 0 ? "-" : ""}${intPart || "0"}.${(decPart || "0").padEnd(2, "0")}`;
+  const n = Number(numStr);
+  return Number.isFinite(n) ? n : 0;
 };

@@ -62,7 +62,14 @@ export default function TransactionItem({
 
     onDelete(t);
   };
-
+const metodoPgto = String(
+  (t as any).metodoPagamento ??
+    (t as any).formaPagamento ??
+    (t as any).metodo ??
+    (t as any).pagamento ??
+    (t as any).paymentMethod ??
+    ""
+).trim();
   return (
     <div
       key={t.id}
@@ -104,6 +111,12 @@ export default function TransactionItem({
 
             <span className="text-slate-500 dark:text-slate-400 uppercase font-bold">
               {formatarData(t.data)} <span className="mx-1">•</span> {t.categoria}
+              {metodoPgto ? (
+  <>
+    <span className="mx-1">•</span>
+    <span>{metodoPgto}</span>
+  </>
+) : null}
               {t.qualCartao && (
                 <>
                   <span className="mx-1">•</span>

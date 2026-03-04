@@ -1664,7 +1664,12 @@ const inputModalClass =
 const salvarEdicao = () => {
 
   if (!editingTransaction) return;
+  const tipo = editingTransaction.tipo;
 
+if ((tipo === "despesa" || tipo === "receita") && (!editContaId || String(editContaId).trim() === "")) {
+  toastCompact("Selecione uma conta.", "error");
+  return;
+}
   const novoValorAbs = extrairValorMoeda(editValueInput);
   const novaDesc = editDescInput.trim() || editingTransaction.descricao;
 
@@ -2719,7 +2724,6 @@ if (sessionLoading) {
     onRemoverPagamentoFatura={handleRemoverPagamentoFatura}
 
     onDeleteTransacao={(id: string) => {
-      alert("DELETE App.tsx onDeleteTransacao");
       const target = transacoes.find((t) => String(t.id) === String(id));
 
 const isTransfer =
@@ -3487,7 +3491,6 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
           label="Conta"
           value={editContaId || ""}
           options={[
-            { label: "Sem conta", value: "" },
             ...profiles.map((p) => ({
               label: p.banco || (p as any).name || "Conta",
               value: p.id,

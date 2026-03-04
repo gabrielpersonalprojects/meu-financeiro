@@ -361,7 +361,14 @@ const contaPagamentoOptions = useMemo(() => {
   const saldoRestanteFatura = Math.max(0, valorFaturaTotal - valorPagoFatura);
 
 // ===== STATUS DA FATURA (badge) - calculado no lugar certo =====
-type FaturaStatus = "PAGA" | "FUTURA" | "EM_ABERTO" | "PENDENTE" | "ATRASADA";
+type FaturaStatus =
+  | "PAGA"
+  | "ZERADA"
+  | "FECHADA"
+  | "FUTURA"
+  | "EM_ABERTO"
+  | "PENDENTE"
+  | "ATRASADA";
 
 const valorFaturaNum = Math.abs(Number(valorFaturaTotal || 0));
 const valorJaPagoNum = Math.abs(Number(valorPagoFatura || 0));
@@ -384,10 +391,26 @@ const cicloFimEOD = endOfDayLocal(cicloFim);
 const venc0 = startOfDayLocal(vencimentoFaturaAtual);
 
 const getFaturaStatus = (): FaturaStatus => {
-  if (valorFaturaNum > 0 && saldoPendenteNum <= 0) return "PAGA";
+  // Pago (verde) - mantém como você pediu
+  if (valorFaturaNum > 0 && saldoPendenteNum <= 0 && valorJaPagoNum > 0) return "PAGA";
+
+  // Zerada (cinza) - independe de data/ciclo/vencimento
+  if (valorFaturaNum <= 0 && saldoPendenteNum <= 0) return "ZERADA";
+
+  // Fechada (cinza) - ciclo já fechou e não há pendência (mas não é zerada e nem paga)
+  if (now0 > cicloFimEOD && saldoPendenteNum <= 0) return "FECHADA";
+
+  // A partir daqui: só faz sentido se tem valor pendente (>0)
   if (now0 < cicloIni0) return "FUTURA";
+
+  // Dentro do ciclo (aberto)
   if (now0 <= cicloFimEOD) return "EM_ABERTO";
+
+  // Ciclo fechou e tem pendência:
+  // Se ainda está dentro do vencimento => pendente
   if (now0 <= venc0) return "PENDENTE";
+
+  // Passou do vencimento => atrasada
   return "ATRASADA";
 };
 
@@ -399,8 +422,18 @@ const faturaStatusLabel: Record<FaturaStatus, string> = {
   EM_ABERTO: "Em aberto",
   PENDENTE: "Pendente",
   ATRASADA: "Atrasada",
+  ZERADA: "Zerada",
+  FECHADA: "Fechada",
 };
-
+const faturaStatusClass: Record<FaturaStatus, string> = {
+  PAGA: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
+  ZERADA: "border-white/15 bg-white/5 text-slate-200",
+  FECHADA: "border-white/15 bg-white/5 text-slate-200",
+  FUTURA: "border-white/15 bg-white/5 text-slate-200",
+  EM_ABERTO: "border-sky-400/20 bg-sky-500/10 text-sky-300",
+  PENDENTE: "border-amber-400/20 bg-amber-500/10 text-amber-300",
+  ATRASADA: "border-rose-400/20 bg-rose-500/10 text-rose-300",
+};
   const statusFaturaDerivado: "pendente" | "parcial" | "pago" =
     valorFaturaTotal <= 0
       ? "pendente"
@@ -763,42 +796,8 @@ function removerPagamentoFatura(id: string) {
                 <div className="text-white font-semibold text-sm">Resumo da fatura</div>
               </div>
 
-<span
-  className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${(() => {
-    // Paga
-    if (saldoRestanteFatura <= 0 && valorFaturaTotal > 0)
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-300";
-
-    const now = new Date();
-    const fim = new Date(cicloFim);
-    fim.setHours(23, 59, 59, 999);
-
-    // Em aberto (azul)
-    if (now <= fim) return "border-sky-400/20 bg-sky-500/10 text-sky-300";
-
-    // Pendente (amarelo)
-    const venc = new Date(vencimentoFaturaAtual);
-    venc.setHours(23, 59, 59, 999);
-    if (now <= venc) return "border-amber-400/20 bg-amber-500/10 text-amber-300";
-
-    // Atrasada (vermelho)
-    return "border-rose-400/20 bg-rose-500/10 text-rose-300";
-  })()}`}
->
-  {(() => {
-    if (saldoRestanteFatura <= 0 && valorFaturaTotal > 0) return "Paga";
-
-    const now = new Date();
-    const fim = new Date(cicloFim);
-    fim.setHours(23, 59, 59, 999);
-    if (now <= fim) return "Em aberto";
-
-    const venc = new Date(vencimentoFaturaAtual);
-    venc.setHours(23, 59, 59, 999);
-    if (now <= venc) return "Pendente";
-
-    return "Atrasada";
-  })()}
+<span className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${faturaStatusClass[faturaStatus]}`}>
+  {faturaStatusLabel[faturaStatus]}
 </span>
             </div>
 

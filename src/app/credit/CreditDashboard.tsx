@@ -1,6 +1,7 @@
 import { CreditCardVisual } from "./CreditCardVisual";
 import { useEffect, useMemo, useState } from "react";
 import CustomDropdown from "../../components/CustomDropdown";
+import { shiftYm } from "../../utils/dateMonth";
 
 type CartaoUI = {
   id: string;
@@ -220,11 +221,12 @@ export function CreditDashboard({
   const cicloInicio = new Date(fechamentoMesAnterior);
   cicloInicio.setDate(cicloInicio.getDate() + 1);
 
-  const vencimentoFaturaAtual = makeDate(
-    baseMonth.getFullYear(),
-    baseMonth.getMonth(),
-    diaVencimento
-  );
+// Vencimento da fatura do ciclo atual acontece no mês seguinte ao fechamento
+const vencimentoFaturaAtual = makeDate(
+  baseMonth.getFullYear(),
+  baseMonth.getMonth() + 1,
+  diaVencimento
+);
 
   const cicloLabel = `${formatBRDate(formatDateOnlyISO(cicloInicio))} até ${formatBRDate(
     formatDateOnlyISO(cicloFim)
@@ -247,12 +249,30 @@ export function CreditDashboard({
     0
   );
 
-  // Exibir valor de fatura como positivo (derivado das transações do mês visual)
-  // Obs: somamos o valor absoluto de cada item para não depender de sinal.
-  const valorFaturaTotal = txMes.reduce((acc, t) => {
-    const v = Number((t as any).valor) || 0;
-    return acc + Math.abs(v);
-  }, 0);
+// Exibir valor de fatura como positivo (somamos o valor abs de cada item)
+const valorFaturaTotal = txFaturaCiclo.reduce((acc, t) => {
+  // =========================
+// STATUS DA FATURA (badge)
+// =========================
+const startOfDay = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+
+const endOfDay = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+};
+
+const valorFaturaNum = Math.abs(
+  txFaturaCiclo.reduce((acc, t) => acc + (Number((t as any)?.valor) || 0), 0)
+);
+
+  const v = Number((t as any).valor) || 0;
+  return acc + Math.abs(v);
+}, 0);
 
   // --- Filtros da lista de TRANSAÇÕES do CARTÃO (somente lista à direita) ---
   const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
@@ -339,6 +359,47 @@ const contaPagamentoOptions = useMemo(() => {
 
   const valorPagoFatura = pagamentosDoCiclo.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
   const saldoRestanteFatura = Math.max(0, valorFaturaTotal - valorPagoFatura);
+
+// ===== STATUS DA FATURA (badge) - calculado no lugar certo =====
+type FaturaStatus = "PAGA" | "FUTURA" | "EM_ABERTO" | "PENDENTE" | "ATRASADA";
+
+const valorFaturaNum = Math.abs(Number(valorFaturaTotal || 0));
+const valorJaPagoNum = Math.abs(Number(valorPagoFatura || 0));
+const saldoPendenteNum = Math.max(0, valorFaturaNum - valorJaPagoNum);
+
+const startOfDayLocal = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+const endOfDayLocal = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+};
+
+const now0 = startOfDayLocal(new Date());
+const cicloIni0 = startOfDayLocal(cicloInicio);
+const cicloFimEOD = endOfDayLocal(cicloFim);
+const venc0 = startOfDayLocal(vencimentoFaturaAtual);
+
+const getFaturaStatus = (): FaturaStatus => {
+  if (valorFaturaNum > 0 && saldoPendenteNum <= 0) return "PAGA";
+  if (now0 < cicloIni0) return "FUTURA";
+  if (now0 <= cicloFimEOD) return "EM_ABERTO";
+  if (now0 <= venc0) return "PENDENTE";
+  return "ATRASADA";
+};
+
+const faturaStatus = getFaturaStatus();
+
+const faturaStatusLabel: Record<FaturaStatus, string> = {
+  PAGA: "Paga",
+  FUTURA: "Futura",
+  EM_ABERTO: "Em aberto",
+  PENDENTE: "Pendente",
+  ATRASADA: "Atrasada",
+};
 
   const statusFaturaDerivado: "pendente" | "parcial" | "pago" =
     valorFaturaTotal <= 0
@@ -702,21 +763,43 @@ function removerPagamentoFatura(id: string) {
                 <div className="text-white font-semibold text-sm">Resumo da fatura</div>
               </div>
 
-              <span
-                className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${
-                  saldoRestanteFatura <= 0 && valorFaturaTotal > 0
-                    ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
-                    : valorPagoFatura > 0
-                    ? "border-amber-400/20 bg-amber-500/10 text-amber-300"
-                    : "border-rose-400/20 bg-rose-500/10 text-rose-300"
-                }`}
-              >
-                {saldoRestanteFatura <= 0 && valorFaturaTotal > 0
-                  ? "Pago"
-                  : valorPagoFatura > 0
-                  ? "Parcial"
-                  : "Pendente"}
-              </span>
+<span
+  className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${(() => {
+    // Paga
+    if (saldoRestanteFatura <= 0 && valorFaturaTotal > 0)
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-300";
+
+    const now = new Date();
+    const fim = new Date(cicloFim);
+    fim.setHours(23, 59, 59, 999);
+
+    // Em aberto (azul)
+    if (now <= fim) return "border-sky-400/20 bg-sky-500/10 text-sky-300";
+
+    // Pendente (amarelo)
+    const venc = new Date(vencimentoFaturaAtual);
+    venc.setHours(23, 59, 59, 999);
+    if (now <= venc) return "border-amber-400/20 bg-amber-500/10 text-amber-300";
+
+    // Atrasada (vermelho)
+    return "border-rose-400/20 bg-rose-500/10 text-rose-300";
+  })()}`}
+>
+  {(() => {
+    if (saldoRestanteFatura <= 0 && valorFaturaTotal > 0) return "Paga";
+
+    const now = new Date();
+    const fim = new Date(cicloFim);
+    fim.setHours(23, 59, 59, 999);
+    if (now <= fim) return "Em aberto";
+
+    const venc = new Date(vencimentoFaturaAtual);
+    venc.setHours(23, 59, 59, 999);
+    if (now <= venc) return "Pendente";
+
+    return "Atrasada";
+  })()}
+</span>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-2">

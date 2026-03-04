@@ -3,7 +3,7 @@ import CustomDateInput from "../CustomDateInput";
 import { getMesAnoExtenso, formatarMoeda } from "../../utils/formatters";
 import { getHojeLocal } from "../../domain/date";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-
+import { shiftYm } from "../../utils/dateMonth";
 
 const COLORS = [
   "#6366f1",
@@ -140,7 +140,7 @@ export default function GastosTab({
             Sem despesas registradas em {getMesAnoExtenso(filtroMes)}.
           </p>
           <button
-            onClick={() => setFiltroMes(getHojeLocal().substring(0, 7))}
+            onClick={() => setFiltroMes(shiftYm(filtroMes, -1))}
             className="text-indigo-600 dark:text-indigo-400 font-bold text-sm transition-colors"
           >
             Voltar para o mês atual

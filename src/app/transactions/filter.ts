@@ -110,7 +110,7 @@ export function limparFiltros(setters: {
     setFiltroTipoGasto,
   } = setters;
 
-  setFiltroMes(getHojeLocal().substring(0, 7));
+  setFiltroMes(getHojeLocal().slice(0, 7));
   setFiltroLancamento("todos");
   setFiltroCategoria("");
   setFiltroMetodo("");

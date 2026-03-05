@@ -5,6 +5,7 @@ import { PlusIcon } from "./LucideIcons";
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect } from "react";
+import { toast } from "react-hot-toast";
 
 type PrazoMode = "com_prazo" | "sem_prazo" | null;
 
@@ -741,55 +742,80 @@ onClick={() => {
           </div>
         )}
 
-        {/* Categoria + Método/Conta (apenas fora do cartão e fora da transferência) */}
-        {formTipo !== "transferencia" && !isCC && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <CustomDropdown
-              label="Categoria"
-              value={formCat}
-              options={(formTipo === "receita" ? (categorias as any).receita : (categorias as any).despesa) as any}
-              onSelect={(val) => setFormCat(normalizeCategory(val))}
-              onDelete={(idx) => removerCategoria(formTipo === "receita" ? "receita" : "despesa", idx)}
-              onAddNew={onOpenCategoriaModal}
-            />
+{/* Categoria + Método/Conta (apenas fora do cartão e fora da transferência) */}
+{formTipo !== "transferencia" && !isCC && (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    {/* DESPESA: Conta no lugar da Categoria | RECEITA: Categoria normal */}
+    {formTipo === "despesa" ? (
+      <CustomDropdown
+        label="Conta"
+        value={formQualCartao}
+        options={profiles.map((p) => ({ label: p.name, value: p.id })) as any}
+        onSelect={(val) => setFormQualCartao(String(val))}
+        onAddNew={() => {
+          setEditingProfileId(null);
+          setAccBanco("");
+          setAccNumeroConta("");
+          setAccNumeroAgencia("");
+          setAccPerfilConta("PF");
+          setAccTipoConta(tiposConta[0]);
+          setAccSaldoInicial("");
+          setAccPossuiCC(false);
+          setAccLimiteCC("");
+          setAccFechamentoCC(1);
+          setAccVencimentoCC(10);
+          setIsAddAccountOpen(true);
+        }}
+      />
+    ) : (
+      <CustomDropdown
+        label="Categoria"
+        value={formCat}
+        options={(categorias as any).receita as any}
+        onSelect={(val) => setFormCat(normalizeCategory(val))}
+        onDelete={(idx) => removerCategoria("receita", idx)}
+        onAddNew={onOpenCategoriaModal}
+      />
+    )}
 
-            {formTipo === "despesa" ? (
-              <CustomDropdown
-                label="Método de Pagamento"
-                value={formMetodo}
-                options={[
-                  { label: "Pix", value: "pix" },
-                  { label: "Transferência bancária", value: "transferencia_bancaria" },
-                  { label: "Débito/Conta", value: "debito_conta" },
-                  { label: "Boleto", value: "boleto" },
-                  { label: "Dinheiro", value: "dinheiro" },
-                ]}
-                onSelect={(val) => setFormMetodo(val as PaymentMethod)}
-              />
-            ) : (
-              <CustomDropdown
-                label="Conta"
-                value={formQualCartao}
-                options={profiles.map((p) => ({ label: p.name, value: p.id })) as any}
-                onSelect={(val) => setFormQualCartao(String(val))}
-                onAddNew={() => {
-                  setEditingProfileId(null);
-                  setAccBanco("");
-                  setAccNumeroConta("");
-                  setAccNumeroAgencia("");
-                  setAccPerfilConta("PF");
-                  setAccTipoConta(tiposConta[0]);
-                  setAccSaldoInicial("");
-                  setAccPossuiCC(false);
-                  setAccLimiteCC("");
-                  setAccFechamentoCC(1);
-                  setAccVencimentoCC(10);
-                  setIsAddAccountOpen(true);
-                }}
-              />
-            )}
-          </div>
-        )}
+    {/* Direita: Despesa = Método | Receita = Conta */}
+    {formTipo === "despesa" ? (
+      <CustomDropdown
+        label="Método de Pagamento"
+        value={formMetodo}
+        options={[
+          { label: "Pix", value: "pix" },
+          { label: "Transferência bancária", value: "transferencia_bancaria" },
+          { label: "Débito/Conta", value: "debito_conta" },
+          { label: "Boleto", value: "boleto" },
+          { label: "Dinheiro", value: "dinheiro" },
+        ]}
+        onSelect={(val) => setFormMetodo(val as PaymentMethod)}
+      />
+    ) : (
+      <CustomDropdown
+        label="Conta"
+        value={formQualCartao}
+        options={profiles.map((p) => ({ label: p.name, value: p.id })) as any}
+        onSelect={(val) => setFormQualCartao(String(val))}
+        onAddNew={() => {
+          setEditingProfileId(null);
+          setAccBanco("");
+          setAccNumeroConta("");
+          setAccNumeroAgencia("");
+          setAccPerfilConta("PF");
+          setAccTipoConta(tiposConta[0]);
+          setAccSaldoInicial("");
+          setAccPossuiCC(false);
+          setAccLimiteCC("");
+          setAccFechamentoCC(1);
+          setAccVencimentoCC(10);
+          setIsAddAccountOpen(true);
+        }}
+      />
+    )}
+  </div>
+)}
 
         {/* Despesa: Parcelado + Tipo de Gasto + Conta */}
         {formTipo === "despesa" && (
@@ -870,27 +896,14 @@ onClick={() => {
                   />
                 )}
 
-                <CustomDropdown
-                  label="Conta"
-                  value={formQualCartao}
-                  options={profiles.map((p) => ({ label: p.name, value: p.id })) as any}
-                  onSelect={(val) => setFormQualCartao(String(val))}
-                
-                  onAddNew={() => {
-                    setEditingProfileId(null);
-                    setAccBanco("");
-                    setAccNumeroConta("");
-                    setAccNumeroAgencia("");
-                    setAccPerfilConta("PF");
-                    setAccTipoConta(tiposConta[0]);
-                    setAccSaldoInicial("");
-                    setAccPossuiCC(false);
-                    setAccLimiteCC("");
-                    setAccFechamentoCC(1);
-                    setAccVencimentoCC(10);
-                    setIsAddAccountOpen(true);
-                  }}
-                />
+<CustomDropdown
+  label="Categoria"
+  value={formCat}
+  options={(categorias as any).despesa as any}
+  onSelect={(val) => setFormCat(normalizeCategory(val))}
+  onDelete={(idx) => removerCategoria("despesa", idx)}
+  onAddNew={onOpenCategoriaModal}
+/>
               </div>
             )}
           </div>
@@ -1003,40 +1016,23 @@ onClick={() => {
 
 <button
   type="button"
-  disabled={!canSubmit || !hasAccounts}
   onClick={() => {
-    // 0) sem contas (primeiro uso)
-    if (!hasAccounts) {
-      openAddAccountModal();
-      return;
-    }
-
-    // 1) cartão sem cartão selecionado
-    if (isCC && !ccHasCardSelected) {
-      openAddAccountModal();
-      return;
-    }
-
-    // 2) transferência sem origem/destino (ou iguais)
-    if (formTipo === "transferencia" && !transferenciaOk) {
-      alert("Selecione conta de ORIGEM e DESTINO (e elas não podem ser iguais).");
-      setAccountPickerOpen("origem");
-      return;
-    }
-
-    // 3) despesa/receita sem conta
-    if (!isCC && formTipo !== "transferencia" && !contaNormalSelecionada) {
-      if ((profiles || []).length === 0) openAddAccountModal();
-      else alert("Selecione uma conta para salvar o lançamento.");
+    // Bloqueia mas MOSTRA mensagem
+    if (!canSubmit) {
+      toast.error("Antes de lançar é preciso escolher qual conta.");
       return;
     }
 
     handleAddTransaction();
   }}
-  className={`mt-4 w-full h-12 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac]
-    text-white font-black tracking-wide shadow-lg shadow-violet-900/20
-    hover:brightness-110 active:scale-[0.99] transition
-    ${!canSubmit ? "opacity-60 cursor-not-allowed" : ""}`}
+  className={[
+    "mt-4 w-full h-12 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac]",
+    "text-white font-black tracking-wide shadow-lg shadow-violet-900/20",
+    "hover:brightness-110 active:scale-[0.99] transition",
+    // visual quando não pode (SEM opacidade)
+    !canSubmit ? "cursor-not-allowed" : "",
+  ].join(" ")}
+  aria-disabled={!canSubmit}
 >
   Efetuar Lançamento
 </button>

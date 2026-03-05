@@ -799,7 +799,9 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   // --- Filtros ---
   const [filtroMesTransacoes, setFiltroMesTransacoes] = useState(getHojeLocal().substring(0, 7));
   const [filtroMesAnalise, setFiltroMesAnalise] = useState(getHojeLocal().substring(0, 7));
-  const [filtroLancamento, setFiltroLancamento] = useState<"todos" | "receita" | "despesa">("todos");
+  const [filtroLancamento, setFiltroLancamento] = useState<
+  "despesa" | "receita" | "todos" | "transferencia"
+>("todos");
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroMetodo, setFiltroMetodo] = useState("");
   const [filtroTipoGasto, setFiltroTipoGasto] = useState("");
@@ -1541,10 +1543,13 @@ const handleLimparFiltros = () => {
   limparFiltros({
     setFiltroMes: setFiltroMesTransacoes,
     setFiltroLancamento,
+    setFiltroConta,
     setFiltroCategoria,
-    setFiltroMetodo,
     setFiltroTipoGasto,
-   });
+  });
+
+  // ✅ garante que a conta volta pro padrão
+  setFiltroConta("todas");
 };
 
 
@@ -2882,9 +2887,6 @@ if (transferId) {
         filtroCategoria={filtroCategoria}
         setFiltroCategoria={setFiltroCategoria}
         categoriasFiltradasTransacoes={categoriasFiltradasTransacoes}
-        filtroMetodo={filtroMetodo}
-        setFiltroMetodo={setFiltroMetodo}
-        metodosCredito={metodosPagamento.credito}
         filtroTipoGasto={filtroTipoGasto}
         setFiltroTipoGasto={setFiltroTipoGasto}
         handleLimparFiltros={handleLimparFiltros}

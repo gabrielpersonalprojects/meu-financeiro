@@ -97,23 +97,21 @@ export const buildFilteredTransactionsByYear = (
 
 export function limparFiltros(setters: {
   setFiltroMes: Dispatch<SetStateAction<string>>;
-  setFiltroLancamento: Dispatch<SetStateAction<"despesa" | "receita" | "todos">>;
+  setFiltroLancamento: Dispatch<SetStateAction<"despesa" | "receita" | "todos" | "transferencia">>;
+  setFiltroConta?: Dispatch<SetStateAction<string>>;
   setFiltroCategoria: Dispatch<SetStateAction<string>>;
-  setFiltroMetodo: Dispatch<SetStateAction<string>>;
   setFiltroTipoGasto: Dispatch<SetStateAction<string>>;
 }) {
   const {
     setFiltroMes,
     setFiltroLancamento,
     setFiltroCategoria,
-    setFiltroMetodo,
     setFiltroTipoGasto,
   } = setters;
 
   setFiltroMes(getHojeLocal().slice(0, 7));
   setFiltroLancamento("todos");
   setFiltroCategoria("");
-  setFiltroMetodo("");
   setFiltroTipoGasto("");
 }
 

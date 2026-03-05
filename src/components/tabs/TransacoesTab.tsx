@@ -30,11 +30,6 @@ type Props = {
 
   categoriasFiltradasTransacoes: string[];
 
-  filtroMetodo: string;
-  setFiltroMetodo: (v: string) => void;
-
-  metodosCredito: string[];
-
   filtroTipoGasto: string;
   setFiltroTipoGasto: (v: string) => void;
 
@@ -78,11 +73,6 @@ export default function TransacoesTab({
 
   categoriasFiltradasTransacoes,
 
-  filtroMetodo,
-  setFiltroMetodo,
-
-  metodosCredito,
-
   filtroTipoGasto,
   setFiltroTipoGasto,
 
@@ -109,9 +99,34 @@ export default function TransacoesTab({
   handleEditClick,
   confirmDelete,
 }: Props) {
-  const getFilteredTransactions = (itemsFiltrados || []).filter(
-  (t: any) => String(t?.tipo) !== "cartao_credito"
-);
+const getFilteredTransactions = (itemsFiltrados || []).filter((t: any) => {
+  const tipo = String(t?.tipo ?? "").toLowerCase();
+
+  // mantém: não mostrar transações internas de cartão nessa lista
+  if (tipo === "cartao_credito") return false;
+
+  // novo: filtro do dropdown (Entradas/Saídas/Transferências/Todos)
+  if (filtroLancamento === "todos") return true;
+
+  if (filtroLancamento === "receita") return tipo === "receita";
+
+  if (filtroLancamento === "despesa") return tipo === "despesa";
+
+  if (filtroLancamento === "transferencia") {
+    // cobre modelos antigos e novos
+    return (
+      tipo === "transferencia" ||
+      Boolean(t?.transferId) ||
+      Boolean(t?.transferenciaId) ||
+      Boolean(t?.transfer_id) ||
+      Boolean(t?.transferencia_id)
+    );
+  }
+
+  return true;
+});
+
+const isFiltroTransferencias = filtroLancamento === "transferencia";
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
@@ -124,23 +139,27 @@ export default function TransacoesTab({
           <div className="w-full lg:col-span-3">
             <CustomDropdown
               placeholder="Lançamento"
-              value={
-                filtroLancamento === "todos"
-                  ? "Entradas + Saídas"
-                  : filtroLancamento === "receita"
-                  ? "Entradas"
-                  : "Saídas"
-              }
-              options={["Entradas + Saídas", "Entradas", "Saídas"]}
-              onSelect={(val) => {
-                if (val === "Entradas") setFiltroLancamento("receita");
-                else if (val === "Saídas") setFiltroLancamento("despesa");
-                else setFiltroLancamento("todos");
-              }}
+value={
+  filtroLancamento === "todos"
+    ? "Entradas + Saídas"
+    : filtroLancamento === "receita"
+    ? "Somente Entradas"
+    : filtroLancamento === "despesa"
+    ? "Somente Saídas"
+    : "Transferências"
+}
+              options={["Entradas + Saídas", "Somente Entradas", "Somente Saídas", "Transferências"]}
+onSelect={(val) => {
+  if (val === "Somente Entradas") setFiltroLancamento("receita");
+  else if (val === "Somente Saídas") setFiltroLancamento("despesa");
+  else if (val === "Transferências") setFiltroLancamento("transferencia");
+  else setFiltroLancamento("todos");
+}}
               className="w-full"
             />
           </div>
-
+{!isFiltroTransferencias && (
+  <>
           <div className="w-full lg:col-span-3">
             <CustomDropdown
               placeholder="Conta"
@@ -176,18 +195,6 @@ export default function TransacoesTab({
             </div>
           )}
 
-          {filtroLancamento !== "todos" && (
-            <div className="w-full lg:col-span-3">
-              <CustomDropdown
-                placeholder="Banco / Cartão"
-                value={filtroMetodo}
-                options={["Todos", ...metodosCredito]}
-                onSelect={(val) => setFiltroMetodo(val === "Todos" ? "" : val)}
-                className="w-full"
-              />
-            </div>
-          )}
-
           {filtroLancamento === "despesa" && (
             <div className="w-full lg:col-span-2">
               <CustomDropdown
@@ -199,7 +206,8 @@ export default function TransacoesTab({
               />
             </div>
           )}
-
+  </>
+)}
           <div className="w-full lg:col-span-2 lg:justify-self-end">
             <button
               type="button"

@@ -2420,7 +2420,25 @@ if (sessionLoading) {
   }}
   toastOptions={{
     duration: 3000,
-    style: { maxWidth: "420px", pointerEvents: "auto" },
+    style: {
+      maxWidth: "420px",
+      pointerEvents: "auto",
+
+      // 👇 melhora MUITO no modo claro
+      background: "#ffffff",
+      color: "#0f172a", // slate-900
+      border: "1px solid #e2e8f0", // slate-200
+      boxShadow:
+        "0 12px 30px rgba(2,6,23,0.12), 0 6px 12px rgba(2,6,23,0.08)",
+    },
+
+    // 👇 separa erro/sucesso para ficarem bem visíveis no claro
+    success: {
+      iconTheme: { primary: "#16a34a", secondary: "#ffffff" },
+    },
+    error: {
+      iconTheme: { primary: "#ef4444", secondary: "#ffffff" },
+    },
   }}
 />
 
@@ -2812,92 +2830,39 @@ if (transferId) {
 )}
 
           <>
-{modoCentro !== "credito" && (
-  <>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {/* Saldo */}
-      <div className="relative overflow-hidden rounded-2xl p-8 shadow-xl flex flex-col justify-center min-h-[160px] text-white bg-gradient-to-r from-[#220055] to-[#5A00D8] shadow-[0_18px_50px_-35px_rgba(70,0,172,0.9)]">
-        <div className="pointer-events-none absolute inset-0 bg-black/45" />
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-xl" />
-        <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/12 blur-3xl" />
 
-        <div className="relative">
-          <p className="text-[10px] font-black text-white/80 uppercase tracking-[0.25em] mb-4">
-            Saldo Disponível
-          </p>
-          <p className="text-4xl font-black text-white tracking-tight">
-            {formatarMoeda(stats.saldoTotal)}
-          </p>
-        </div>
-      </div>
-
-      {/* Entradas */}
-      <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px] transition-colors">
-        <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
-        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
-          Entradas (Mês)
-        </p>
-        <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-          {formatarMoeda(stats.receitasMes)}
-        </p>
-        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
-          Pendente:{" "}
-          <span className="text-emerald-600 dark:text-emerald-400">
-            {formatarMoeda(stats.pendenteReceita)}
-          </span>
-        </p>
-      </div>
-
-      {/* Saídas */}
-      <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px] transition-colors">
-        <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-rose-500/10 blur-3xl" />
-        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
-          Saídas (Mês)
-        </p>
-        <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-          {formatarMoeda(stats.despesasMes)}
-        </p>
-        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
-          Pendente:{" "}
-          <span className="text-rose-600 dark:text-rose-400">
-            {formatarMoeda(stats.pendenteDespesa)}
-          </span>
-        </p>
-      </div>
-    </div>
-
-    {/* Tabs */}
-    <div className="px-0 pt-2 pb-0">
-      <div className="grid grid-cols-3 gap-4">
-        {(["transacoes", "gastos", "projecao"] as TabType[]).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className={`h-14 px-5 rounded-2xl transition-all whitespace-nowrap
-              ${
-                activeTab === tab
-                  ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"
-                  : "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
-              }`}
-          >
-            {tab === "transacoes"
-              ? "Transações"
-              : tab === "gastos"
-              ? "Análise"
-              : "Projeção"}
-          </button>
-        ))}
-      </div>
-    </div>
-  </>
-)}
 
 
 {/* Conteúdo */}
 {modoCentro !== "credito" && (
   <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 min-h-[550px] transition-colors">
     {/* TRANSACOES */}
+{/* Tabs */}
+<div className="px-0 pt-2 pb-3">
+ <div className="grid grid-cols-3 gap-3">
+    {(["transacoes", "gastos", "projecao"] as TabType[]).map((tab) => (
+      <button
+        key={tab}
+        type="button"
+        onClick={() => setActiveTab(tab)}
+        className={`h-14 px-5 rounded-2xl transition-all whitespace-nowrap
+          ${
+            activeTab === tab
+              ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"
+              : "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
+          }`}
+      >
+        {tab === "transacoes"
+          ? "Transações"
+          : tab === "gastos"
+          ? "Análise"
+          : "Projeção"}
+      </button>
+    ))}
+  </div>
+</div>
+<div className="mt-3" />
+
     {activeTab === "transacoes" && (
       <TransacoesTab
         filtroMes={filtroMesTransacoes}
@@ -2927,6 +2892,7 @@ if (transferId) {
         togglePago={togglePago}
         handleEditClick={handleEditClick}
         confirmDelete={confirmDelete}
+        stats={stats}
       />
     )}
 

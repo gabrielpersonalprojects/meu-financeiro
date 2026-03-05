@@ -822,7 +822,7 @@ onClick={() => {
           <div className="mt-2 space-y-3">
             <div>
               <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                Parcelado?
+                Modelo de pagamento
               </label>
 
               <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">

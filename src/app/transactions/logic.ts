@@ -139,12 +139,19 @@ export const mergeTransfers = (list: Transaction[]) => {
       categoria: "Transferência",
       transferId: tid,
 
-      contaOrigemId: String(
-        (saida as any).contaOrigemId ?? (saida as any).profileId ?? ""
-      ),
-      contaDestinoId: String(
-        (entrada as any).contaDestinoId ?? (entrada as any).profileId ?? ""
-      ),
+contaOrigemId: String(
+  (saida as any).contaOrigemId ??
+  (saida as any).transferFromId ??
+  (saida as any).contaId ??
+  ""
+),
+
+contaDestinoId: String(
+  (entrada as any).contaDestinoId ??
+  (entrada as any).transferToId ??
+  (entrada as any).contaId ??
+  ""
+),
 
       valor: abs,
       valorSaida: -abs,

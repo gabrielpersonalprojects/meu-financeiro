@@ -167,7 +167,7 @@ export function loadAllToTransacoesKey(): Transaction[] {
     allRaw.push(...safeParseArray(localStorage.getItem(k)));
   }
 
-  const all = allRaw.map(normalizeTx).filter(Boolean) as Transaction[];
+  const all = allRaw.filter(Boolean) as Transaction[];
 
   const seen = new Set<string>();
   const unique: Transaction[] = [];
@@ -189,8 +189,7 @@ export function loadAllToTransacoesKey(): Transaction[] {
 }
 
 export function persistTransacoes(list: Transaction[]) {
-  const normalized = (list ?? []).map(normalizeTx).filter(Boolean) as Transaction[];
-  localStorage.setItem(KEY, JSON.stringify(normalized));
+  localStorage.setItem(KEY, JSON.stringify(list ?? []));
 }
 
 export { loadAllToTransacoesKey as loadOrMigrateTransacoes };

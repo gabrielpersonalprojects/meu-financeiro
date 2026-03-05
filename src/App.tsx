@@ -2525,11 +2525,17 @@ if (sessionLoading) {
             "min-h-[160px]",
           ].join(" ")}
         >
-          <div className="w-12 h-12 rounded-full border border-slate-200/20 flex items-center justify-center text-slate-100">
-            +
-          </div>
-          <p className="text-slate-200 font-semibold">Novo cartão</p>
-          <p className="text-slate-400 text-sm">Adicionar cartão de crédito</p>
+<div className="w-12 h-12 rounded-full border border-slate-300/70 bg-slate-100 text-slate-900
+                dark:border-slate-200/20 dark:bg-transparent dark:text-slate-100
+                flex items-center justify-center font-bold">
+  +
+</div>
+
+<p className="text-slate-900 font-extrabold dark:text-slate-200">Novo cartão</p>
+
+<p className="text-slate-500 text-sm dark:text-slate-400">
+  Adicionar cartão de crédito
+</p>
         </button>
 
         {/* cartões cadastrados */}
@@ -2795,7 +2801,6 @@ if (transferId) {
       });
     }}
   />
-) : null
 </div>
 ) : null}
 

@@ -540,7 +540,13 @@ className="h-9 px-2 rounded-xl text-[15px] font-bold
             type="text"
             value={formDesc}
             onChange={(e) => setFormDesc(e.target.value)}
-            placeholder={formTipo === "transferencia" ? "Ex: Valor poupança, Reembolso..." : "Ex: Mercado, Aluguel..."}
+            placeholder={
+  formTipo === "transferencia"
+    ? "Ex: Reembolso, Reserva, Poupança..."
+    : formTipo === "receita"
+      ? "Ex: Salário, Freelance, Comissão..."
+      : "Ex: Mercado, Aluguel..."
+}
             className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-medium text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900"
           />
         </div>

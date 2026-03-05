@@ -112,7 +112,7 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
                   : "bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
               }`}
             >
-              {paid ? "Pago" : atrasada ? "Atrasada" : "Pendente"}
+              {paid ? "Pago" : atrasada ? "Em Atraso" : "Pendente"}
             </span>
 
             <span className="text-slate-500 dark:text-slate-400 uppercase font-bold">

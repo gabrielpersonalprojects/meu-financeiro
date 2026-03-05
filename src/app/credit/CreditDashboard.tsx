@@ -44,7 +44,7 @@ type Props = {
   transacoes: TransacaoCCUI[];
   onPickOtherCard?: () => void;
   onDeleteTransacao?: (id: string) => void;
-
+  onSaldoRestanteChange?: (value: number) => void;
   // contas reais vindas do App (para pagar a fatura)
   contaPagamentoOptions?: Array<{ value: string; label: string }>;
 
@@ -104,6 +104,7 @@ export function CreditDashboard({
   onOpenInvoiceModal,
   isInvoiceModalOpen,
   onCloseInvoiceModal,
+  onSaldoRestanteChange
 }: Props) {
   function pad2(n: number) {
     return String(n).padStart(2, "0");
@@ -359,7 +360,9 @@ const contaPagamentoOptions = useMemo(() => {
 
   const valorPagoFatura = pagamentosDoCiclo.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
   const saldoRestanteFatura = Math.max(0, valorFaturaTotal - valorPagoFatura);
-
+useEffect(() => {
+  onSaldoRestanteChange?.(Number(saldoRestanteFatura ?? 0));
+}, [saldoRestanteFatura, onSaldoRestanteChange, cartao?.id]);
 // ===== STATUS DA FATURA (badge) - calculado no lugar certo =====
 type FaturaStatus =
   | "PAGA"

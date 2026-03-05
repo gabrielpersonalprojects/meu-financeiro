@@ -887,7 +887,7 @@ const [creditCards, setCreditCards] = useState<CreditCard[]>(() => {
 });
 
 const [selectedCreditCardId, setSelectedCreditCardId] = useState<string>("");
-
+const [saldoRestanteAtual, setSaldoRestanteAtual] = useState<number>(0);
 const [isCcExpanded, setIsCcExpanded] = useState(false);
 
 useEffect(() => {
@@ -2535,7 +2535,20 @@ if (sessionLoading) {
         {/* cartões cadastrados */}
         {creditCards.map((c) => {
           const isSelected = c.id === selectedCreditCardId;
+const totalFatura = transacoes
+  .filter(
+    (t: any) =>
+      t?.tipo === "cartao_credito" &&
+      String((t as any).qualCartao ?? "") === String(c.id)
+  )
+  .reduce((acc: number, t: any) => acc + Math.abs(Number((t as any)?.valor ?? 0)), 0);
 
+// pagamentos feitos pra esse cartão (tira do em aberto)
+const totalPago = (pagamentosFatura ?? [])
+  .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
+  .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor ?? 0)), 0);
+
+const emAberto = Math.max(0, totalFatura - totalPago);
           return (
             <div key={c.id} className="relative group w-full max-w-[360px]">
               {/* CARTÃO (clicável) */}
@@ -2565,6 +2578,7 @@ if (sessionLoading) {
                   limite={c.limite ?? 0}
                   fechamentoDia={c.diaFechamento ?? 1}
                   vencimentoDia={c.diaVencimento ?? 10}
+                  emAberto={emAberto}
                   design={{
                     from: c.gradientFrom ?? "#220055",
                     to: c.gradientTo ?? "#4600ac",
@@ -2688,7 +2702,8 @@ if (sessionLoading) {
         })()}
 
 {/* DETALHES (renderiza só quando estiver expandido e com cartão selecionado) */}
-{isCcExpanded && selectedCcCard ? (
+{selectedCcCard ? (
+  <div className={isCcExpanded ? "" : "hidden"}>
   <CreditDashboard
     cartao={{
       id: selectedCcCard.id ?? "",
@@ -2720,6 +2735,7 @@ if (sessionLoading) {
     })}
 
     onPickOtherCard={toggleCcExpanded}
+    onSaldoRestanteChange={setSaldoRestanteAtual}
     onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
     isInvoiceModalOpen={isInvoiceModalOpen}
     onCloseInvoiceModal={() => setIsInvoiceModalOpen(false)}
@@ -2779,8 +2795,9 @@ if (transferId) {
       });
     }}
   />
+) : null
+</div>
 ) : null}
-
 
       </div>
     )}

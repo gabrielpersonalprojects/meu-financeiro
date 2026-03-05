@@ -48,6 +48,18 @@ export default function GastosTab({
     });
   }, [spendingByCategoryData]);
 
+const chartData = useMemo(() => {
+  const total = (filteredData ?? []).reduce(
+    (acc: number, e: any) => acc + Number(e?.value ?? 0),
+    0
+  );
+
+  return (filteredData ?? []).map((e: any) => ({
+    ...e,
+    percentage: total > 0 ? ((Number(e?.value ?? 0) / total) * 100).toFixed(1) : "0.0",
+  }));
+}, [filteredData]);
+
   return (
     <div className="animate-in fade-in py-4 space-y-6">
       <div className="flex flex-col items-center gap-4 mb-10">
@@ -78,7 +90,7 @@ export default function GastosTab({
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={filteredData}
+                  data={chartData}
                   cx="50%"
                   cy="50%"
                   innerRadius={80}
@@ -87,7 +99,7 @@ export default function GastosTab({
                   dataKey="value"
                   stroke="none"
                 >
-                  {filteredData.map((_, index) => (
+                  {chartData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -107,7 +119,7 @@ export default function GastosTab({
           </div>
 
           <div className="flex-1 space-y-3 w-full">
-            {filteredData.map((entry, index) => (
+            {chartData.map((entry, index) => (
               <div
                 key={entry.name}
                 className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700"

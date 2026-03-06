@@ -32,6 +32,7 @@ export interface Transaction {
   valor: number;
   data: string; // YYYY-MM-DD
   categoria: string;
+  qualConta?: string;
 
   // conta/banco (id da conta/profile)
   contaId?: string;

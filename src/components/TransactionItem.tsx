@@ -1,4 +1,4 @@
-import { EditIcon, TrashIcon } from "./LucideIcons";
+import { CreditCardIcon, EditIcon, TrashIcon } from "./LucideIcons";
 
 type ContaParts = {
   banco?: string;
@@ -77,119 +77,164 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
   .startsWith("fatura:");
 
   return (
-    <div
-      key={t.id}
-      className={`group flex items-center justify-between p-4 rounded-2xl border transition-all ${baseBg} ${
-        paid ? "opacity-80" : ""
-      } ${glowAtraso}`}
-    >
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => togglePago(t)}
-          className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold transition-all ${
-            paid
-              ? "bg-indigo-600 border-indigo-600 text-white"
-              : "border-slate-300 dark:border-slate-700 text-slate-400"
-          }`}
-          title={paid ? "Marcar como não pago" : "Marcar como pago"}
-        >
-          {paid ? "✓" : ""}
-        </button>
+  <div
+    key={t.id}
+    className={`group rounded-2xl border transition-all ${baseBg} ${
+      paid ? "opacity-80" : ""
+    } ${glowAtraso}`}
+  >
+    <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* ESQUERDA */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => togglePago(t)}
+            className={`mt-0.5 h-8 w-8 shrink-0 rounded-full border-2 flex items-center justify-center font-bold transition-all ${
+              paid
+                ? "bg-indigo-600 border-indigo-600 text-white"
+                : "border-slate-300 dark:border-slate-700 text-slate-400"
+            }`}
+            title={paid ? "Marcar como não pago" : "Marcar como pago"}
+          >
+            {paid ? "✓" : ""}
+          </button>
 
-        <div>
-          <p className="font-bold text-slate-800 dark:text-slate-100 leading-none mb-1.5">
-            {t.descricao}
-          </p>
+          <div className="min-w-0 flex-1">
+            <p className="mb-1.5 flex items-start gap-2 font-bold leading-tight text-slate-800 dark:text-slate-100">
+              {isTransacaoFatura && (
+                <span className="mt-0.5 inline-flex shrink-0 items-center text-indigo-500 dark:text-indigo-300">
+                  <CreditCardIcon className="h-4 w-4" />
+                </span>
+              )}
+              <span className="break-words">{t.descricao}</span>
+            </p>
 
-          <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide">
-            <span
-              className={`px-2 py-0.5 rounded-full font-black ${
-                paid
-                  ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
-                  : atrasada
-                  ? "bg-rose-100/80 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300"
-                  : "bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-              }`}
-            >
-              {paid ? "Pago" : atrasada ? "Em Atraso" : "Pendente"}
-            </span>
+            <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide">
+              <span
+                className={`px-2 py-0.5 rounded-full font-black ${
+                  paid
+                    ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+                    : atrasada
+                    ? "bg-rose-100/80 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300"
+                    : "bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                }`}
+              >
+                {paid ? "Pago" : atrasada ? "Em Atraso" : "Pendente"}
+              </span>
 
-            <span className="text-slate-500 dark:text-slate-400 uppercase font-bold">
-              {formatarData(t.data)} <span className="mx-1">•</span> {t.categoria}
+              <span className="text-slate-500 dark:text-slate-400 font-bold">
+                {formatarData(t.data)}
+              </span>
+
+              <span className="text-slate-500 dark:text-slate-400">•</span>
+
+              <span className="text-slate-500 dark:text-slate-400 font-bold break-words">
+                {t.categoria}
+              </span>
+
               {metodoPgto ? (
-  <>
-    <span className="mx-1">•</span>
-    <span>{metodoPgto}</span>
-  </>
-) : null}
-              {t.qualCartao && (
                 <>
-                  <span className="mx-1">•</span>
-                  {(() => {
-                    const info = getContaPartsById(String(t.qualCartao), profiles);
-                    if (!info) return <span className="normal-case">Conta</span>;
+                  <span className="text-slate-500 dark:text-slate-400">•</span>
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">
+                    {metodoPgto}
+                  </span>
+                </>
+              ) : null}
 
-                    
+              {isTransacaoFatura && t.qualConta && (
+                <>
+                  <span className="text-slate-500 dark:text-slate-400">•</span>
+                  {(() => {
+                    const infoContaPagante = getContaPartsById(String(t.qualConta), profiles);
+                    const nomeContaPagante =
+                      infoContaPagante?.banco || infoContaPagante?.perfil || "Conta";
 
                     return (
-                      <span className="inline-flex items-center gap-2 normal-case">
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-300">
+                        Pago por {nomeContaPagante}
+                      </span>
+                    );
+                  })()}
+                </>
+              )}
+
+              {t.qualCartao && (
+                <>
+                  <span className="text-slate-500 dark:text-slate-400">•</span>
+                  {(() => {
+                    const info = getContaPartsById(String(t.qualCartao), profiles);
+                    if (!info) {
+                      return (
+                        <span className="normal-case text-slate-500 dark:text-slate-400">
+                          Conta
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <span className="inline-flex flex-wrap items-center gap-2 normal-case">
                         <span
-                          className="text-[10px] px-2 py-0.5 rounded-full font-bold tracking-wider uppercase
-                                     bg-indigo-600/15 text-indigo-600
+                          className="rounded-full bg-indigo-600/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600
                                      dark:bg-indigo-400/15 dark:text-indigo-300"
                         >
                           {info.banco}
                         </span>
 
                         {!!info.perfil && (
-                          <span className="text-indigo-600 dark:text-indigo-300 font-semibold uppercase">
+                          <span className="font-semibold uppercase text-indigo-600 dark:text-indigo-300">
                             {info.perfil}
                           </span>
                         )}
 
                         {!!info.tipo && (
-                          <span className="text-slate-500 dark:text-slate-400 uppercase">
+                          <span className="uppercase text-slate-500 dark:text-slate-400">
                             {info.tipo}
                           </span>
                         )}
 
                         {info.numero && (
-                          <span className="text-slate-500 dark:text-slate-400">- {info.numero}</span>
+                          <span className="text-slate-500 dark:text-slate-400">
+                            - {info.numero}
+                          </span>
                         )}
+
                         {info.agencia && (
-                          <span className="text-slate-500 dark:text-slate-400">- {info.agencia}</span>
+                          <span className="text-slate-500 dark:text-slate-400">
+                            - {info.agencia}
+                          </span>
                         )}
                       </span>
                     );
                   })()}
                 </>
               )}
-            </span>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* DIREITA */}
+      <div className="flex items-center justify-between gap-3 border-t border-slate-200/10 pt-3 sm:justify-end sm:border-t-0 sm:pt-0">
         {(onEdit || onDelete) && (
           <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-{onEdit &&
-  !isTransacaoFatura &&
-  !(t as any)?.transferId &&
-  !String((t as any)?.categoria ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .includes("transfer") && (
-    <button
-      type="button"
-      onClick={() => onEdit(t)}
-      className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
-      title="Editar"
-    >
-      <EditIcon className="w-4 h-4" />
-    </button>
-)}
+            {onEdit &&
+              !isTransacaoFatura &&
+              !(t as any)?.transferId &&
+              !String((t as any)?.categoria ?? "")
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .includes("transfer") && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(t)}
+                  className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+                  title="Editar"
+                >
+                  <EditIcon className="w-4 h-4" />
+                </button>
+              )}
 
             {onDelete && (
               <button
@@ -205,13 +250,15 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
         )}
 
         <p
-          className={`font-black text-lg ${
-            isReceita ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+          className={`shrink-0 text-right font-black text-xl sm:text-lg ${
+            isReceita
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-rose-600 dark:text-rose-400"
           }`}
         >
           {formatarMoeda(t.valor)}
         </p>
       </div>
     </div>
-  );
-}
+  </div>
+  )}

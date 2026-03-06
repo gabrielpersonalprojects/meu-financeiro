@@ -352,9 +352,9 @@ const canSubmit =
   const ccCategoryOptions = (categorias as any).despesa as any; // gasto no cartão é despesa
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6">
-     <div className="flex items-center justify-between mb-4">
-  <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 lg:p-5">
+     <div className="flex items-center justify-between mb-3">
+  <h2 className="text-lg lg:text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
     <PlusIcon /> Novo Lançamento
   </h2>
 

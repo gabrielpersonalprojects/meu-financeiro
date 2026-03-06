@@ -289,9 +289,9 @@ export default function TransacoesTab({
               </div>
 
               {/* Badge fora do fluxo do conteúdo (não quebra alinhamento) */}
-<div className="absolute bottom-4 left-8 z-10 translate-y-1">
-  <ContaBadge label={badgeLabel} />
-</div>
+              <div className="absolute bottom-4 left-8 z-10 translate-y-1">
+                <ContaBadge label={badgeLabel} />
+              </div>
             </div>
 
             {/* Entradas */}
@@ -417,6 +417,7 @@ export default function TransacoesTab({
                   if (!legs || legs.length < 2) {
                     return (
                       <TransactionItem
+                        key={String((t as any)?.id ?? "")}
                         t={t}
                         profiles={profiles}
                         hojeStr={hojeStr}
@@ -590,6 +591,7 @@ export default function TransacoesTab({
 
                 return (
                   <TransactionItem
+                    key={String((t as any)?.id ?? "")}
                     t={t}
                     profiles={profiles}
                     hojeStr={hojeStr}

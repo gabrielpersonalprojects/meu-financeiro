@@ -269,6 +269,7 @@ descricao: `Fatura: ${(() => {
     categoria: "Cartão de Crédito",
     tipoGasto: "",
     metodoPagamento: undefined,
+    qualConta: payload.contaId,
     qualCartao: "", // pagamento da fatura não é compra no cartão
     pago: true,
     contaId: payload.contaId,
@@ -2414,15 +2415,18 @@ if (sessionLoading) {
   }}
 />
 
-        <AppHeader
-  onOpenSettings={() => setSettingsOpen(true)}
-  settingsIcon={<SettingsIcon />}
-/>
+<div className="w-full xl:w-[125%] origin-top-left xl:scale-[0.8]">
+<div className="mx-auto w-full max-w-[1480px] px-3 lg:px-4">
+  <AppHeader
+    onOpenSettings={() => setSettingsOpen(true)}
+    settingsIcon={<SettingsIcon />}
+  />
+</div>
 
-    {/* --- DEBUG: CreditDashboard (REMOVER DEPOIS) --- */}
-    <main className="container mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-5">
+  <div className="mx-auto w-full max-w-[1480px] px-3 lg:px-4">
+    <main className="w-full mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
       {/* COLUNA ESQUERDA */}
-      <div className="lg:col-span-4 space-y-6">
+      <div className="lg:col-span-4 space-y-5">
         {/* Card Novo lançamento */}
         <NewTransactionCard
           formTipo={formTipo}
@@ -2493,9 +2497,9 @@ if (sessionLoading) {
 
      {/* COLUNA DIREITA */}
       <div
-  className={`lg:col-span-8 space-y-6 ${
-    modoCentro === "credito" ? "lg:-ml-2" : ""
-  }`}
+className={`lg:col-span-8 space-y-6 ${
+  modoCentro === "credito" ? "lg:-ml-2" : ""
+}`}
 >
   {modoCentro === "credito" ? (
   <div className="space-y-4">
@@ -3186,7 +3190,8 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
         </div>
       )}
     </main>
-
+    </div>
+</div>
 
       {/* SETTINGS MODAL */}
       {settingsOpen && (
@@ -3821,249 +3826,255 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
       onClick={() => setIsAddAccountOpen(false)}
     />
 
-    {/* modal */}
-    <div className="absolute inset-0 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200/10 bg-slate-900/90 shadow-2xl">
-        <div className="p-4 border-b border-slate-200/10">
-       <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-            {editingProfileId ? "Editar conta" : "Nova conta"}
-          </p>
-          <h3 className="text-lg font-extrabold text-slate-100">
-            {editingProfileId ? "Editar Conta" : "Adicionar Conta"}
-          </h3>
-        </div>
-<div className="mt-4 px-4">
-  <div className="flex items-end gap-2 border-b border-white/10">
-    <button
-      type="button"
-      onClick={() => setAccTab("novo")}
-      className={`relative -mb-px px-4 py-2 text-sm font-semibold transition
-        ${
-          accTab === "novo"
-            ? "text-white border-b-2 border-indigo-500"
-            : "text-white/60 hover:text-white"
-        }`}
-    >
-      Nova conta
-    </button>
-
-    <button
-      type="button"
-      onClick={() => setAccTab("gerenciar")}
-      className={`relative -mb-px px-4 py-2 text-sm font-semibold transition
-        ${
-          accTab === "gerenciar"
-            ? "text-white border-b-2 border-indigo-500"
-            : "text-white/60 hover:text-white"
-        }`}
-    >
-      Minhas contas
-    </button>
-  </div>
-</div>
-{accTab === "novo" && (
-        <div className="p-4 space-y-4">
-          {/* Perfil PF/PJ */}
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-2">
-              Perfil de conta
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setAccPerfilConta("PF")}
-                className={`py-2 rounded-xl border text-sm font-bold transition
-                  ${accPerfilConta === "PF"
-                    ? "bg-indigo-600 border-indigo-500 text-white"
-                    : "bg-slate-800/60 border-slate-700 text-slate-200 hover:bg-slate-800"
-                  }`}
-              >
-                PF
-              </button>
-              <button
-                type="button"
-                onClick={() => setAccPerfilConta("PJ")}
-                className={`py-2 rounded-xl border text-sm font-bold transition
-                  ${accPerfilConta === "PJ"
-                    ? "bg-indigo-600 border-indigo-500 text-white"
-                    : "bg-slate-800/60 border-slate-700 text-slate-200 hover:bg-slate-800"
-                  }`}
-              >
-                PJ
-              </button>
-            </div>
-          </div>
-
-{/* Tipo de conta */}
-<div>
-  <CustomDropdown
-    label="Tipo de conta"
-    placeholder="Selecione"
-    value={accTipoConta}
-    options={TIPOS_CONTA.map((t) => ({
-      value: t,
-      label: (
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-semibold text-slate-900 dark:text-slate-100">
-            {t}
-          </span>
-
-          {/* detalhe visual discreto (sem texto) */}
-          </div>
-      ),
-    }))}
-    onSelect={(val) => setAccTipoConta(String(val))}
-    className="w-full"
-  />
-</div>
-
-
-          {/* Banco / Conta / Agência */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <div className="md:col-span-1">
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">
-                Banco
-              </label>
-              <input
-                value={accBanco}
-                onChange={(e) => setAccBanco(e.target.value.replace(/[^a-zA-Z0-9À-ÿ\s]/g, ""))}
-                placeholder="Ex: Nubank"
-                className="w-full p-2.5 bg-slate-800/60 rounded-xl border border-slate-700 text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="md:col-span-1">
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">
-                Nº Conta
-              </label>
-              <input
-                value={accNumeroConta}
-                onChange={(e) => setAccNumeroConta(e.target.value.replace(/\D/g, ""))}
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="12345-6"
-                className="w-full p-2.5 bg-slate-800/60 rounded-xl border border-slate-700 text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="md:col-span-1">
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">
-                Nº Agência
-              </label>
-              <input
-                value={accNumeroAgencia}
-                onChange={(e) => setAccNumeroAgencia(e.target.value.replace(/\D/g, ""))}
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="0001"
-                className="w-full p-2.5 bg-slate-800/60 rounded-xl border border-slate-700 text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          
-                     {/* Saldo inicial */}
-                    <div className="mt-3">
-                      <label className="block text-xs font-bold text-slate-400 uppercase mb-2">
-                        Saldo inicial
-                      </label>
-
-                    <input
-                      value={accSaldoInicial}
-                      onChange={(e) => setAccSaldoInicial(formatBRLFromAnyInput(e.target.value))}
-                      onFocus={(e) => !isEditingAccount && e.currentTarget.select()}
-                      onClick={(e) => !isEditingAccount && e.currentTarget.select()}
-                      placeholder="R$ 0,00"
-                      inputMode="numeric"
-                      readOnly={isEditingAccount}
-                      className={
-                        "w-full p-2.5 bg-slate-900/40 border border-slate-700 rounded-xl text-slate-100" +
-                        (isEditingAccount ? " opacity-80 cursor-not-allowed" : "")
-                      }
-                    />
-                    </div>
-
-                  
-          </div>
-
-          </div>
-)}
-
-{accTab === "gerenciar" && (
-  <div className="p-4 space-y-3">
-    <div className="text-[11px] font-bold text-slate-400 uppercase">
-      Contas cadastradas
+{/* modal */}
+<div className="absolute inset-0 flex items-center justify-center p-4">
+  <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-200/10 dark:bg-slate-900/90">
+    <div className="p-4 border-b border-slate-200 dark:border-slate-200/10">
+      <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest dark:text-slate-400">
+        {editingProfileId ? "Editar conta" : "Nova conta"}
+      </p>
+      <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100">
+        {editingProfileId ? "Editar Conta" : "Adicionar Conta"}
+      </h3>
     </div>
 
-    <div className="max-h-[320px] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/40">
-      {profiles.length === 0 ? (
-        <div className="p-4 text-slate-300 text-sm">Nenhuma conta cadastrada.</div>
-      ) : (
-        profiles.map((p) => (
-          <div
-            key={p.id}
-            className="px-3 py-2 flex items-center justify-between gap-3 border-b border-slate-700 last:border-b-0"
-          >
-            <div className="min-w-0">
-              <div className="text-slate-100 text-sm font-semibold truncate">
-                {p.banco || p.name || "Conta"}
-              </div>
+    <div className="mt-4 px-4">
+      <div className="flex items-end gap-2 border-b border-slate-200 dark:border-white/10">
+        <button
+          type="button"
+          onClick={() => setAccTab("novo")}
+          className={`relative -mb-px px-4 py-2 text-sm font-semibold transition ${
+            accTab === "novo"
+              ? "text-slate-900 border-b-2 border-indigo-500 dark:text-white"
+              : "text-slate-500 hover:text-slate-900 dark:text-white/60 dark:hover:text-white"
+          }`}
+        >
+          Nova conta
+        </button>
 
-              <div className="text-slate-400 text-xs">
-                {String(p.perfilConta || "").toUpperCase()}
-                {" • "}
-                {String(p.tipoConta || "")}
-              </div>
-            </div>
-
-<div className="flex items-center gap-2">
-  <button
-    type="button"
-    onClick={() => handleEditConta(p.id)}
-    className="p-1.5 text-slate-300 hover:text-indigo-400 transition"
-    title="Editar conta"
-  >
-    <EditIcon />
-  </button>
-
-  <button
-    type="button"
-    onClick={() => confirmDeleteAccount(p.id)}
-    className="p-1.5 text-rose-600 hover:text-rose-700 dark:text-rose-500 dark:hover:text-rose-400"
-    title="Excluir conta"
-  >
-    <TrashIcon />
-  </button>
-</div>
-          </div>
-        ))
-      )}
-    </div>
-
-  </div>
-)}
-{accTab === "novo" && (
-<div className="p-4 border-t border-slate-200/10 flex gap-2">
-  <button
-    type="button"
-    onClick={() => {
-      setIsAddAccountOpen(false);
-      setEditingContaId(null);
-    }}
-    className="flex-1 py-2.5 rounded-xl border border-slate-700 bg-slate-800/60 text-slate-200 font-bold hover:bg-slate-800 transition"
-  >
-    Cancelar
-  </button>
-
-  <button
-    type="button"
-    onClick={handleConfirmAddAccount}
-    className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-extrabold hover:bg-indigo-500 transition"
-  >
-    {editingContaId ? "Editar" : "Adicionar"}
-  </button>
-</div>
-)}
+        <button
+          type="button"
+          onClick={() => setAccTab("gerenciar")}
+          className={`relative -mb-px px-4 py-2 text-sm font-semibold transition ${
+            accTab === "gerenciar"
+              ? "text-slate-900 border-b-2 border-indigo-500 dark:text-white"
+              : "text-slate-500 hover:text-slate-900 dark:text-white/60 dark:hover:text-white"
+          }`}
+        >
+          Minhas contas
+        </button>
       </div>
     </div>
+
+    {accTab === "novo" && (
+      <div className="p-4 space-y-4">
+        {/* Perfil PF/PJ */}
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-2 dark:text-slate-400">
+            Perfil de conta
+          </label>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setAccPerfilConta("PF")}
+              className={`py-2 rounded-xl border text-sm font-bold transition ${
+                accPerfilConta === "PF"
+                  ? "bg-indigo-600 border-indigo-500 text-white"
+                  : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              }`}
+            >
+              PF
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAccPerfilConta("PJ")}
+              className={`py-2 rounded-xl border text-sm font-bold transition ${
+                accPerfilConta === "PJ"
+                  ? "bg-indigo-600 border-indigo-500 text-white"
+                  : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              }`}
+            >
+              PJ
+            </button>
+          </div>
+        </div>
+
+        {/* Tipo de conta */}
+        <div>
+          <CustomDropdown
+            label="Tipo de conta"
+            placeholder="Selecione"
+            value={accTipoConta}
+            options={TIPOS_CONTA.map((t) => ({
+              value: t,
+              label: (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">
+                    {t}
+                  </span>
+                </div>
+              ),
+            }))}
+            onSelect={(val) => setAccTipoConta(String(val))}
+            className="w-full"
+          />
+        </div>
+
+        {/* Banco / Conta / Agência */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <div className="md:col-span-1">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 dark:text-slate-400">
+              Banco
+            </label>
+            <input
+              value={accBanco}
+              onChange={(e) =>
+                setAccBanco(e.target.value.replace(/[^a-zA-Z0-9À-ÿ\s]/g, ""))
+              }
+              placeholder="Ex: Nubank"
+              className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-100"
+            />
+          </div>
+
+          <div className="md:col-span-1">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 dark:text-slate-400">
+              Nº Conta
+            </label>
+            <input
+              value={accNumeroConta}
+              onChange={(e) => setAccNumeroConta(e.target.value.replace(/\D/g, ""))}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="12345-6"
+              className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-100"
+            />
+          </div>
+
+          <div className="md:col-span-1">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 dark:text-slate-400">
+              Nº Agência
+            </label>
+            <input
+              value={accNumeroAgencia}
+              onChange={(e) => setAccNumeroAgencia(e.target.value.replace(/\D/g, ""))}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="0001"
+              className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-100"
+            />
+          </div>
+
+          {/* Saldo inicial */}
+          <div className="mt-3 md:col-span-1">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 dark:text-slate-400">
+              Saldo inicial
+            </label>
+
+            <input
+              value={accSaldoInicial}
+              onChange={(e) =>
+                setAccSaldoInicial(formatBRLFromAnyInput(e.target.value))
+              }
+              onFocus={(e) => !isEditingAccount && e.currentTarget.select()}
+              onClick={(e) => !isEditingAccount && e.currentTarget.select()}
+              placeholder="R$ 0,00"
+              inputMode="numeric"
+              readOnly={isEditingAccount}
+              className={
+                "w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900/40 dark:border-slate-700 dark:text-slate-100" +
+                (isEditingAccount ? " opacity-80 cursor-not-allowed" : "")
+              }
+            />
+
+           <p className="mt-1.5 text-[11px] leading-tight text-rose-600 dark:text-rose-400">
+              Este saldo inicial não poderá ser editado depois.
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {accTab === "gerenciar" && (
+      <div className="p-4 space-y-3">
+        <div className="text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400">
+          Contas cadastradas
+        </div>
+
+        <div className="max-h-[320px] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40">
+          {profiles.length === 0 ? (
+            <div className="p-4 text-sm text-slate-600 dark:text-slate-300">
+              Nenhuma conta cadastrada.
+            </div>
+          ) : (
+            profiles.map((p) => (
+              <div
+                key={p.id}
+                className="px-3 py-2 flex items-center justify-between gap-3 border-b border-slate-200 last:border-b-0 dark:border-slate-700"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold truncate text-slate-900 dark:text-slate-100">
+                    {p.banco || p.name || "Conta"}
+                  </div>
+
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {String(p.perfilConta || "").toUpperCase()}
+                    {" • "}
+                    {String(p.tipoConta || "")}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleEditConta(p.id)}
+                    className="p-1.5 text-slate-500 hover:text-indigo-500 dark:text-slate-300 dark:hover:text-indigo-400 transition"
+                    title="Editar conta"
+                  >
+                    <EditIcon />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => confirmDeleteAccount(p.id)}
+                    className="p-1.5 text-rose-600 hover:text-rose-700 dark:text-rose-500 dark:hover:text-rose-400"
+                    title="Excluir conta"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    )}
+
+    {accTab === "novo" && (
+      <div className="p-4 border-t border-slate-200 flex gap-2 dark:border-slate-200/10">
+        <button
+          type="button"
+          onClick={() => {
+            setIsAddAccountOpen(false);
+            setEditingContaId(null);
+          }}
+          className="flex-1 py-2.5 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          onClick={handleConfirmAddAccount}
+          className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-extrabold hover:bg-indigo-500 transition"
+        >
+          {editingContaId ? "Editar" : "Adicionar"}
+        </button>
+      </div>
+    )}
+  </div>
+</div>
   </div>
 )}
 

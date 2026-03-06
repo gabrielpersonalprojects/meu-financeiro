@@ -47,10 +47,8 @@ type Props = {
   onDeleteTransacao?: (id: string) => void;
   onSaldoRestanteChange?: (value: number) => void;
 
-  // contas reais vindas do App (para pagar a fatura)
   contaPagamentoOptions?: Array<{ value: string; label: string }>;
 
-  // integração real de pagamento de fatura (App)
   pagamentosFatura?: Array<{
     id: string;
     cartaoId: string;
@@ -82,7 +80,7 @@ type PagamentoFaturaUI = {
   id: string;
   cartaoId: string;
   cicloKey: string;
-  dataPagamento: string; // YYYY-MM-DD
+  dataPagamento: string;
   valor: number;
   contaId: string;
   contaLabel: string;
@@ -104,6 +102,8 @@ function categoriaToLabel(cat: CategoriaLike) {
   return cat.nome ?? cat.label ?? cat.value ?? "";
 }
 
+const ITENS_POR_PAGINA = 10;
+
 export function CreditDashboard({
   cartao,
   transacoes,
@@ -118,9 +118,6 @@ export function CreditDashboard({
   onCloseInvoiceModal,
   onSaldoRestanteChange,
 }: Props) {
-  // -----------------------
-  // helpers
-  // -----------------------
   const pad2 = (n: number) => String(n).padStart(2, "0");
 
   const formatBRDate = (iso: string) => {
@@ -199,11 +196,9 @@ export function CreditDashboard({
     return x;
   };
 
-  // -----------------------
-  // month navigation
-  // -----------------------
   const now = new Date();
   const [invoiceMonthOffset, setInvoiceMonthOffset] = useState(0);
+  const [paginaAtual, setPaginaAtual] = useState(1);
 
   const baseMonth = addMonths(now, invoiceMonthOffset);
   const baseMonthKey = `${baseMonth.getFullYear()}-${pad2(baseMonth.getMonth() + 1)}`;
@@ -211,12 +206,8 @@ export function CreditDashboard({
   const labelPrev = monthLabelPT(addMonths(baseMonth, -1));
   const labelNext = monthLabelPT(addMonths(baseMonth, +1));
 
-  // Lista por mês calendário (usada na LISTA visual da direita)
   const txMes = (transacoes || []).filter((t) => monthKey(t.data) === baseMonthKey);
 
-  // -----------------------
-  // ciclo da fatura (fecha no dia X do mês)
-  // -----------------------
   const diaFechamento = Number(cartao.diaFechamento || 1);
   const diaVencimento = Number(cartao.diaVencimento || 1);
 
@@ -232,7 +223,6 @@ export function CreditDashboard({
   const cicloInicio = new Date(fechamentoMesAnterior);
   cicloInicio.setDate(cicloInicio.getDate() + 1);
 
-  // Vencimento da fatura do ciclo atual acontece no mês seguinte ao fechamento
   const vencimentoFaturaAtual = makeDate(
     baseMonth.getFullYear(),
     baseMonth.getMonth() + 1,
@@ -254,12 +244,8 @@ export function CreditDashboard({
     return t.tipo === "cartao_credito";
   });
 
-  // Exibir valor de fatura como positivo (somamos o abs de cada item)
   const valorFaturaTotal = txFaturaCiclo.reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
 
-  // -----------------------
-  // filtros (lista do mês)
-  // -----------------------
   const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
   const [filtroTagCC, setFiltroTagCC] = useState<string>("todas");
 
@@ -307,6 +293,38 @@ export function CreditDashboard({
     });
   }, [txMes, filtroCategoriaCC, filtroTagCC]);
 
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [baseMonthKey, filtroCategoriaCC, filtroTagCC, cartao.id]);
+
+  const totalPaginas = Math.max(1, Math.ceil(txMesFiltradas.length / ITENS_POR_PAGINA));
+
+  useEffect(() => {
+    if (paginaAtual > totalPaginas) {
+      setPaginaAtual(totalPaginas);
+    }
+  }, [paginaAtual, totalPaginas]);
+
+  const indiceInicial = (paginaAtual - 1) * ITENS_POR_PAGINA;
+  const indiceFinal = indiceInicial + ITENS_POR_PAGINA;
+  const txMesPaginadas = txMesFiltradas.slice(indiceInicial, indiceFinal);
+
+  const paginasVisiveis = useMemo(() => {
+    const paginas: number[] = [];
+
+    if (totalPaginas <= 5) {
+      for (let i = 1; i <= totalPaginas; i++) paginas.push(i);
+      return paginas;
+    }
+
+    const inicio = Math.max(1, paginaAtual - 2);
+    const fim = Math.min(totalPaginas, paginaAtual + 2);
+
+    for (let i = inicio; i <= fim; i++) paginas.push(i);
+
+    return paginas;
+  }, [paginaAtual, totalPaginas]);
+
   const totalFiltradoCC = txMesFiltradas.reduce(
     (acc, t) => acc + (Number((t as any).valor) || 0),
     0
@@ -319,12 +337,8 @@ export function CreditDashboard({
     if (filtroTagCC !== "todas" && !tagsCC.includes(filtroTagCC)) {
       setFiltroTagCC("todas");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseMonthKey, categoriasCC.join("|"), tagsCC.join("|")]);
+  }, [baseMonthKey, categoriasCC.join("|"), tagsCC.join("|"), filtroCategoriaCC, filtroTagCC]);
 
-  // -----------------------
-  // pagamentos (local ou App)
-  // -----------------------
   const [pagamentosFaturaLocal, setPagamentosFaturaLocal] = useState<PagamentoFaturaUI[]>([]);
   const pagamentosFatura =
     (pagamentosFaturaProp as PagamentoFaturaUI[] | undefined) ?? pagamentosFaturaLocal;
@@ -367,9 +381,6 @@ export function CreditDashboard({
     setDataPagamentoFatura(todayISO());
   }, [cicloKeyFatura]);
 
-  // -----------------------
-  // status da fatura (badge)
-  // -----------------------
   const valorFaturaNum = Math.abs(Number(valorFaturaTotal || 0));
   const valorJaPagoNum = Math.abs(Number(valorPagoFatura || 0));
   const saldoPendenteNum = Math.max(0, valorFaturaNum - valorJaPagoNum);
@@ -401,7 +412,6 @@ export function CreditDashboard({
     FECHADA: "Fechada",
   };
 
-  // classes que funcionam no claro e no escuro
   const faturaStatusClass: Record<FaturaStatus, string> = {
     PAGA:
       "border-emerald-300/50 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-300",
@@ -419,7 +429,6 @@ export function CreditDashboard({
       "border-rose-300/70 bg-rose-50 text-rose-800 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-300",
   };
 
-  // (mantive seu status derivado de 3 estados pro modal simplificado, mas agora baseado no saldo real)
   const statusFaturaDerivado: "pendente" | "parcial" | "pago" =
     valorFaturaTotal <= 0
       ? "pendente"
@@ -429,9 +438,6 @@ export function CreditDashboard({
       ? "parcial"
       : "pendente";
 
-  // -----------------------
-  // registrar/remover pagamento
-  // -----------------------
   function registrarPagamentoFatura() {
     setErroPagamentoFatura("");
     setSucessoPagamentoFatura("");
@@ -511,9 +517,6 @@ export function CreditDashboard({
     setSucessoPagamentoFatura("Pagamento removido.");
   }
 
-  // -----------------------
-  // modal content (agora OK no claro e no dark)
-  // -----------------------
   const renderPagamentoFaturaModalContent = () => (
     <div className="space-y-4">
       <div className="rounded-2xl bg-white shadow-sm border border-slate-200/70 p-4 text-slate-900 dark:bg-white/5 dark:border-white/10 dark:text-white">
@@ -548,7 +551,6 @@ export function CreditDashboard({
         </div>
 
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* COLUNA ESQUERDA */}
           <div className="space-y-3">
             <div>
               <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
@@ -593,7 +595,6 @@ export function CreditDashboard({
             </div>
           </div>
 
-          {/* COLUNA DIREITA */}
           <div className="space-y-3">
             <div>
               <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
@@ -705,21 +706,14 @@ export function CreditDashboard({
     </div>
   );
 
-  // -----------------------
-  // UI classes (light/dark)
-  // -----------------------
   const softCard =
     "rounded-2xl border border-slate-200/70 bg-white p-4 text-slate-900 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white";
   const softCardLite =
     "rounded-2xl border border-slate-200/70 bg-white p-3 text-slate-900 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white";
 
-  // -----------------------
-  // render
-  // -----------------------
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start text-slate-900 dark:text-white">
-        {/* COLUNA ESQUERDA */}
         <div className="w-full max-w-[320px] justify-self-start space-y-6">
           {onPickOtherCard ? (
             <button type="button" onClick={onPickOtherCard} className="w-full text-left">
@@ -751,7 +745,6 @@ export function CreditDashboard({
             />
           )}
 
-          {/* Detalhes do cartão */}
           <div className={softCard}>
             <div className="text-slate-700 text-sm font-medium dark:text-white/70">
               Detalhes do cartão
@@ -798,7 +791,6 @@ export function CreditDashboard({
             </div>
           </div>
 
-          {/* Resumo da fatura */}
           <div className={softCardLite}>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -848,7 +840,6 @@ export function CreditDashboard({
           </div>
         </div>
 
-        {/* COLUNA DIREITA */}
         <div className="w-full space-y-3">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -885,7 +876,6 @@ export function CreditDashboard({
             </button>
           </div>
 
-          {/* Filtros da lista (mês calendário) */}
           {txMes.length ? (
             <div className="mb-3 flex flex-col gap-2">
               <div className="flex flex-col gap-2 md:flex-row md:items-end">
@@ -955,116 +945,202 @@ export function CreditDashboard({
           ) : null}
 
           {txMes.length ? (
-            <ul className="space-y-2">
-              {txMesFiltradas.map((t) => {
-                const valor = Number(t.valor) || 0;
-                const isNeg = valor < 0;
+            <>
+              <ul className="space-y-2">
+                {txMesPaginadas.map((t) => {
+                  const valor = Number(t.valor) || 0;
+                  const isNeg = valor < 0;
 
-                const parcelasTotal = (t as any).parcelasTotal ?? (t as any).totalParcelas ?? null;
-                const parcelaAtual = (t as any).parcelaAtual ?? (t as any).parcelaN ?? null;
-                const isParcelado = Boolean(parcelasTotal && parcelaAtual);
+                  const parcelasTotal = (t as any).parcelasTotal ?? (t as any).totalParcelas ?? null;
+                  const parcelaAtual = (t as any).parcelaAtual ?? (t as any).parcelaN ?? null;
+                  const isParcelado = Boolean(parcelasTotal && parcelaAtual);
 
-                const catLabel = categoriaToLabel(t.categoria);
+                  const catLabel = categoriaToLabel(t.categoria);
 
-                const ultimoPgtoTs = (() => {
-                  const ts = (pagamentosDoCiclo ?? [])
-                    .map((p: any) => Number(p?.criadoEm ?? 0))
-                    .filter((n: number) => Number.isFinite(n) && n > 0)
-                    .sort((a: number, b: number) => a - b);
-                  return ts.length ? ts[ts.length - 1] : null;
-                })();
+                  const ultimoPgtoTs = (() => {
+                    const ts = (pagamentosDoCiclo ?? [])
+                      .map((p: any) => Number(p?.criadoEm ?? 0))
+                      .filter((n: number) => Number.isFinite(n) && n > 0)
+                      .sort((a: number, b: number) => a - b);
+                    return ts.length ? ts[ts.length - 1] : null;
+                  })();
 
-                const podeExcluirCompra = (tx: any) => {
-                  if (!ultimoPgtoTs) return true;
-                  const txTs = Number(tx?.criadoEm ?? 0);
-                  if (!Number.isFinite(txTs) || txTs <= 0) return false;
-                  return txTs > Number(ultimoPgtoTs);
-                };
+                  const podeExcluirCompra = (tx: any) => {
+                    if (!ultimoPgtoTs) return true;
+                    const txTs = Number(tx?.criadoEm ?? 0);
+                    if (!Number.isFinite(txTs) || txTs <= 0) return false;
+                    return txTs > Number(ultimoPgtoTs);
+                  };
 
-                return (
-                  <li
-                    key={t.id}
-                    className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition px-3 py-2
-                      dark:border-white/10 dark:bg-black/20 dark:hover:bg-black/25"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-slate-900 text-sm font-medium truncate dark:text-white/90">
-                          {t.descricao || "—"}
+                  return (
+                    <li
+                      key={t.id}
+                      className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition px-3 py-2
+                        dark:border-white/10 dark:bg-black/20 dark:hover:bg-black/25"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-slate-900 text-sm font-medium truncate dark:text-white/90">
+                            {t.descricao || "—"}
+                          </div>
+
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className="text-slate-500 text-xs dark:text-white/60">
+                              {formatBRDate(t.data)}
+                            </span>
+
+                            {catLabel ? (
+                              <span className="text-slate-700 text-xs px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200
+                                dark:text-white/70 dark:bg-white/5 dark:border-white/10">
+                                {catLabel}
+                              </span>
+                            ) : null}
+
+                            {t.tag ? (
+                              <span className="text-violet-700 text-xs px-2 py-0.5 rounded-lg bg-violet-50 border border-violet-200
+                                dark:text-white/80 dark:bg-violet-500/10 dark:border-violet-400/20">
+                                {t.tag}
+                              </span>
+                            ) : null}
+
+                            {isParcelado ? (
+                              <span className="text-purple-700 text-xs px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200
+                                dark:text-white/80 dark:bg-purple-500/10 dark:border-purple-400/20">
+                                Parcelado {parcelaAtual}/{parcelasTotal}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
 
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          <span className="text-slate-500 text-xs dark:text-white/60">
-                            {formatBRDate(t.data)}
-                          </span>
-
-                          {catLabel ? (
-                            <span className="text-slate-700 text-xs px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200
-                              dark:text-white/70 dark:bg-white/5 dark:border-white/10">
-                              {catLabel}
-                            </span>
-                          ) : null}
-
-                          {t.tag ? (
-                            <span className="text-violet-700 text-xs px-2 py-0.5 rounded-lg bg-violet-50 border border-violet-200
-                              dark:text-white/80 dark:bg-violet-500/10 dark:border-violet-400/20">
-                              {t.tag}
-                            </span>
-                          ) : null}
-
-                          {isParcelado ? (
-                            <span className="text-purple-700 text-xs px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200
-                              dark:text-white/80 dark:bg-purple-500/10 dark:border-purple-400/20">
-                              Parcelado {parcelaAtual}/{parcelasTotal}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0 flex items-center gap-2">
-                        <div
-                          className={`text-sm font-semibold ${
-                            isNeg ? "text-rose-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"
-                          }`}
-                        >
-                          {valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                        </div>
-
-                        {onDeleteTransacao && podeExcluirCompra(t) ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!podeExcluirCompra(t)) return;
-                              onDeleteTransacao(t.id);
-                            }}
-                            className="h-8 w-8 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 transition
-                              dark:text-white/55 dark:hover:text-white/90"
-                            title="Excluir transação"
-                            aria-label="Excluir transação"
+                        <div className="text-right shrink-0 flex items-center gap-2">
+                          <div
+                            className={`text-sm font-semibold ${
+                              isNeg ? "text-rose-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"
+                            }`}
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="h-4 w-4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                            {valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                          </div>
+
+                          {onDeleteTransacao && podeExcluirCompra(t) ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!podeExcluirCompra(t)) return;
+                                onDeleteTransacao(t.id);
+                              }}
+                              className="h-8 w-8 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 transition
+                                dark:text-white/55 dark:hover:text-white/90"
+                              title="Excluir transação"
+                              aria-label="Excluir transação"
                             >
-                              <path d="M3 6h18" />
-                              <path d="M8 6V4h8v2" />
-                              <path d="M6 6l1 16h10l1-16" />
-                              <path d="M10 11v6" />
-                              <path d="M14 11v6" />
-                            </svg>
-                          </button>
-                        ) : null}
+                              <svg
+                                viewBox="0 0 24 24"
+                                className="h-4 w-4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M3 6h18" />
+                                <path d="M8 6V4h8v2" />
+                                <path d="M6 6l1 16h10l1-16" />
+                                <path d="M10 11v6" />
+                                <path d="M14 11v6" />
+                              </svg>
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {totalPaginas > 1 && (
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    Mostrando{" "}
+                    <span className="text-slate-700 dark:text-slate-200">
+                      {indiceInicial + 1}
+                    </span>{" "}
+                    a{" "}
+                    <span className="text-slate-700 dark:text-slate-200">
+                      {Math.min(indiceFinal, txMesFiltradas.length)}
+                    </span>{" "}
+                    de{" "}
+                    <span className="text-slate-700 dark:text-slate-200">
+                      {txMesFiltradas.length}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setPaginaAtual((prev) => Math.max(1, prev - 1))}
+                      disabled={paginaAtual === 1}
+                      className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                    >
+                      Anterior
+                    </button>
+
+                    {paginasVisiveis[0] > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setPaginaAtual(1)}
+                          className="h-9 min-w-[36px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                        >
+                          1
+                        </button>
+                        {paginasVisiveis[0] > 2 && (
+                          <span className="px-1 text-slate-400 dark:text-slate-500">...</span>
+                        )}
+                      </>
+                    )}
+
+                    {paginasVisiveis.map((pagina) => (
+                      <button
+                        key={pagina}
+                        type="button"
+                        onClick={() => setPaginaAtual(pagina)}
+                        className={`h-9 min-w-[36px] px-3 rounded-xl border text-sm font-bold transition ${
+                          paginaAtual === pagina
+                            ? "border-indigo-500 bg-indigo-600 text-white shadow-sm"
+                            : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        {pagina}
+                      </button>
+                    ))}
+
+                    {paginasVisiveis[paginasVisiveis.length - 1] < totalPaginas && (
+                      <>
+                        {paginasVisiveis[paginasVisiveis.length - 1] < totalPaginas - 1 && (
+                          <span className="px-1 text-slate-400 dark:text-slate-500">...</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setPaginaAtual(totalPaginas)}
+                          className="h-9 min-w-[36px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                        >
+                          {totalPaginas}
+                        </button>
+                      </>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setPaginaAtual((prev) => Math.min(totalPaginas, prev + 1))}
+                      disabled={paginaAtual === totalPaginas}
+                      className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div className="min-h-[160px] flex items-center justify-center">
               <div className="text-slate-600 text-sm text-center dark:text-white/60">
@@ -1075,7 +1151,6 @@ export function CreditDashboard({
         </div>
       </div>
 
-      {/* MODAL REAL DA FATURA */}
       {isInvoiceModalOpen ? (
         <div
           className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4"

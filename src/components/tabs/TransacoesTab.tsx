@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import CustomDateInput from "../CustomDateInput";
 import CustomDropdown from "../CustomDropdown";
 import { TransactionsList } from "../TransactionsList";
@@ -14,6 +14,8 @@ const isPaid = (v: any) => {
   const s = String(v ?? "").toLowerCase();
   return v === true || v === 1 || s === "1" || s === "true" || s === "pago";
 };
+
+const ITENS_POR_PAGINA = 10;
 
 type Props = {
   filtroMes: string;
@@ -56,7 +58,6 @@ type Props = {
   handleEditClick: (t: any) => void;
   confirmDelete: (t: any) => void;
 
-  // ✅ NOVO: cards de resumo abaixo dos filtros (opcional)
   stats?: {
     saldoTotal: number;
     receitasMes: number;
@@ -109,32 +110,72 @@ export default function TransacoesTab({
 
   stats,
 }: Props) {
-  const getFilteredTransactions = (itemsFiltrados || []).filter((t: any) => {
-    const tipo = String(t?.tipo ?? "").toLowerCase();
+  const [paginaAtual, setPaginaAtual] = useState(1);
 
-    // mantém: não mostrar transações internas de cartão nessa lista
-    if (tipo === "cartao_credito") return false;
+  const getFilteredTransactions = useMemo(() => {
+    return (itemsFiltrados || []).filter((t: any) => {
+      const tipo = String(t?.tipo ?? "").toLowerCase();
 
-    // novo: filtro do dropdown (Entradas/Saídas/Transferências/Todos)
-    if (filtroLancamento === "todos") return true;
+      if (tipo === "cartao_credito") return false;
 
-    if (filtroLancamento === "receita") return tipo === "receita";
+      if (filtroLancamento === "todos") return true;
 
-    if (filtroLancamento === "despesa") return tipo === "despesa";
+      if (filtroLancamento === "receita") return tipo === "receita";
 
-    if (filtroLancamento === "transferencia") {
-      // cobre modelos antigos e novos
-      return (
-        tipo === "transferencia" ||
-        Boolean(t?.transferId) ||
-        Boolean(t?.transferenciaId) ||
-        Boolean(t?.transfer_id) ||
-        Boolean(t?.transferencia_id)
-      );
+      if (filtroLancamento === "despesa") return tipo === "despesa";
+
+      if (filtroLancamento === "transferencia") {
+        return (
+          tipo === "transferencia" ||
+          Boolean(t?.transferId) ||
+          Boolean(t?.transferenciaId) ||
+          Boolean(t?.transfer_id) ||
+          Boolean(t?.transferencia_id)
+        );
+      }
+
+      return true;
+    });
+  }, [itemsFiltrados, filtroLancamento]);
+
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [
+    filtroMes,
+    filtroLancamento,
+    filtroConta,
+    filtroCategoria,
+    filtroTipoGasto,
+    itemsFiltrados,
+  ]);
+
+  const totalPaginas = Math.max(1, Math.ceil(getFilteredTransactions.length / ITENS_POR_PAGINA));
+
+  useEffect(() => {
+    if (paginaAtual > totalPaginas) {
+      setPaginaAtual(totalPaginas);
+    }
+  }, [paginaAtual, totalPaginas]);
+
+  const indiceInicial = (paginaAtual - 1) * ITENS_POR_PAGINA;
+  const indiceFinal = indiceInicial + ITENS_POR_PAGINA;
+  const transacoesPaginadas = getFilteredTransactions.slice(indiceInicial, indiceFinal);
+
+  const paginasVisiveis = useMemo(() => {
+    const paginas: number[] = [];
+
+    if (totalPaginas <= 5) {
+      for (let i = 1; i <= totalPaginas; i++) paginas.push(i);
+      return paginas;
     }
 
-    return true;
-  });
+    const inicio = Math.max(1, paginaAtual - 2);
+    const fim = Math.min(totalPaginas, paginaAtual + 2);
+
+    for (let i = inicio; i <= fim; i++) paginas.push(i);
+
+    return paginas;
+  }, [paginaAtual, totalPaginas]);
 
   const isFiltroTransferencias = filtroLancamento === "transferencia";
   const isGeral = !filtroConta || String(filtroConta).toLowerCase() === "todas";
@@ -165,7 +206,6 @@ export default function TransacoesTab({
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       <div className="flex flex-col gap-4 pb-6 border-b border-slate-50 dark:border-slate-800">
-        {/* Barra de filtros */}
         <div className="w-full overflow-visible grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
           <div className="w-full lg:col-span-3">
             <CustomDateInput type="month" value={filtroMes} onChange={setFiltroMes} className="w-full" />
@@ -261,10 +301,8 @@ export default function TransacoesTab({
           </div>
         </div>
 
-        {/* ✅ Cards abaixo dos filtros (somente se stats vier do App) */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-            {/* Saldo */}
             <div
               className="
                 relative overflow-hidden rounded-2xl
@@ -288,13 +326,11 @@ export default function TransacoesTab({
                 </p>
               </div>
 
-              {/* Badge fora do fluxo do conteúdo (não quebra alinhamento) */}
               <div className="absolute bottom-4 left-8 z-10 translate-y-1">
                 <ContaBadge label={badgeLabel} />
               </div>
             </div>
 
-            {/* Entradas */}
             <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px]">
               <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
@@ -311,7 +347,6 @@ export default function TransacoesTab({
               </p>
             </div>
 
-            {/* Saídas */}
             <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px]">
               <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-rose-500/10 blur-3xl" />
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
@@ -330,7 +365,6 @@ export default function TransacoesTab({
           </div>
         )}
 
-        {/* Resumo mensal/anual */}
         <div className="flex flex-col gap-2 mt-4">
           <div className="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-wider">
             <span className="text-slate-400/80 dark:text-slate-500/80">Mensal</span>
@@ -372,240 +406,325 @@ export default function TransacoesTab({
 
       <div className="space-y-3">
         {getFilteredTransactions.length > 0 ? (
-          <div className="space-y-3">
-            <TransactionsList
-              items={getFilteredTransactions}
-              renderItem={(t) => {
-                const paidRaw = (t as any)?.pago;
-                const paidStr = String(paidRaw ?? "").toLowerCase();
+          <>
+            <div className="space-y-3">
+              <TransactionsList
+                items={transacoesPaginadas}
+                renderItem={(t) => {
+                  const paidRaw = (t as any)?.pago;
+                  const paidStr = String(paidRaw ?? "").toLowerCase();
 
-                const paid =
-                  paidRaw === true ||
-                  paidRaw === 1 ||
-                  paidStr === "1" ||
-                  paidStr === "true" ||
-                  paidStr === "pago";
+                  const paid =
+                    paidRaw === true ||
+                    paidRaw === 1 ||
+                    paidStr === "1" ||
+                    paidStr === "true" ||
+                    paidStr === "pago";
 
-                const atrasada = !paid && t.data < hojeStr;
+                  const atrasada = !paid && t.data < hojeStr;
 
-                const isReceita = t.tipo === "receita";
-                const baseBg = isReceita
-                  ? "bg-emerald-50/20 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-700/20"
-                  : "bg-rose-50/20 dark:bg-rose-900/10 border-rose-100 dark:border-rose-700/20";
+                  const isReceita = t.tipo === "receita";
+                  const baseBg = isReceita
+                    ? "bg-emerald-50/20 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-700/20"
+                    : "bg-rose-50/20 dark:bg-rose-900/10 border-rose-100 dark:border-rose-700/20";
 
-                const glowAtraso = atrasada
-                  ? "ring-2 ring-rose-400/60 dark:ring-rose-500/30 bg-rose-50/25 dark:bg-rose-500/10 shadow-[0_0_26px_rgba(244,63,94,0.28)]"
-                  : "";
+                  const glowAtraso = atrasada
+                    ? "ring-2 ring-rose-400/60 dark:ring-rose-500/30 bg-rose-50/25 dark:bg-rose-500/10 shadow-[0_0_26px_rgba(244,63,94,0.28)]"
+                    : "";
 
-                // ===== FUSÃO VISUAL DE TRANSFERÊNCIA (1 card só) =====
-                const transferId = (t as any).transferId as string | undefined;
-                const isTransfer =
-                  Boolean(transferId) ||
-                  String((t as any).categoria || "").toLowerCase().includes("transfer");
+                  const transferId = (t as any).transferId as string | undefined;
+                  const isTransfer =
+                    Boolean(transferId) ||
+                    String((t as any).categoria || "").toLowerCase().includes("transfer");
 
-                let origemLabel = "";
-                let destinoLabel = "";
-                let origemBadge = "";
-                let destinoBadge = "";
-                let valorAbs = 0;
+                  let origemLabel = "";
+                  let destinoLabel = "";
+                  let origemBadge = "";
+                  let destinoBadge = "";
+                  let valorAbs = 0;
 
-                if (isTransfer) {
-                  const legs = (transactions || []).filter(
-                    (x: any) => String(x?.transferId ?? "") === String(transferId ?? "")
-                  ) as any[];
+                  if (isTransfer) {
+                    const legs = (transactions || []).filter(
+                      (x: any) => String(x?.transferId ?? "") === String(transferId ?? "")
+                    ) as any[];
 
-                  if (!legs || legs.length < 2) {
+                    if (!legs || legs.length < 2) {
+                      return (
+                        <TransactionItem
+                          key={String((t as any)?.id ?? "")}
+                          t={t}
+                          profiles={profiles}
+                          hojeStr={hojeStr}
+                          togglePago={togglePago}
+                          formatarData={formatarData}
+                          formatarMoeda={formatarMoeda}
+                          getContaPartsById={getContaPartsById}
+                          onEdit={handleEditClick}
+                          onDelete={confirmDelete}
+                        />
+                      );
+                    }
+
+                    const saida =
+                      legs.find((x: any) => String(x?.tipo) === "despesa") ??
+                      legs.find((x: any) => Number(x?.valor ?? 0) < 0) ??
+                      legs[0];
+
+                    const entrada =
+                      legs.find((x: any) => String(x?.tipo) === "receita") ??
+                      legs.find((x: any) => Number(x?.valor ?? 0) > 0 && String(x?.id) !== String(saida?.id)) ??
+                      legs.find((x: any) => String(x?.id) !== String(saida?.id)) ??
+                      legs[1];
+
+                    const saidaId = String(saida?.id ?? "");
+                    const entradaId = String(entrada?.id ?? "");
+                    const tId = String((t as any)?.id ?? "");
+
+                    const saidaInList = transacoesPaginadas.some((x: any) => String(x?.id) === saidaId);
+                    const entradaInList = transacoesPaginadas.some((x: any) => String(x?.id) === entradaId);
+
+                    if (saidaInList && entradaInList) {
+                      if (tId !== saidaId) return null;
+                    }
+
+                    if (saidaInList && !entradaInList) {
+                      if (tId !== saidaId) return null;
+                    }
+                    if (!saidaInList && entradaInList) {
+                      if (tId !== entradaId) return null;
+                    }
+
+                    const sourceIds = [saida?.id, entrada?.id].filter(Boolean).map((x) => String(x));
+
+                    const paidTransfer = isPaid(saida?.pago) && isPaid(entrada?.pago);
+
+                    const fromId = asId(
+                      (saida as any).contaOrigemId ??
+                        (saida as any).transferFromId ??
+                        (saida as any).profileId ??
+                        ""
+                    );
+
+                    const toId = asId(
+                      (saida as any).contaDestinoId ??
+                        (saida as any).transferToId ??
+                        (entrada as any)?.profileId ??
+                        ""
+                    );
+
+                    const contaOrigem = profiles.find((p: any) => asId(p.id) === fromId);
+                    const contaDestino = profiles.find((p: any) => asId(p.id) === toId);
+
+                    origemLabel = contaOrigem ? getContaLabel(contaOrigem) : "Origem";
+                    destinoLabel = contaDestino ? getContaLabel(contaDestino) : "Destino";
+                    origemBadge = contaOrigem ? getContaBadge(contaOrigem) : "";
+                    destinoBadge = contaDestino ? getContaBadge(contaDestino) : "";
+
+                    valorAbs = Math.abs(Number((saida as any).valor ?? 0));
+
                     return (
-                      <TransactionItem
-                        key={String((t as any)?.id ?? "")}
-                        t={t}
-                        profiles={profiles}
-                        hojeStr={hojeStr}
-                        togglePago={togglePago}
-                        formatarData={formatarData}
-                        formatarMoeda={formatarMoeda}
-                        getContaPartsById={getContaPartsById}
-                        onEdit={handleEditClick}
-                        onDelete={confirmDelete}
-                      />
+                      <div
+                        key={`tr-${transferId}`}
+                        className="
+                          group flex items-center justify-between p-4 rounded-2xl border transition-all
+                          bg-white/70 border-slate-200/70 shadow-sm
+                          dark:bg-slate-900/40 dark:border-violet-500/20 dark:shadow-lg dark:shadow-black/20
+                          hover:bg-white/90 dark:hover:bg-slate-900/55
+                        "
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => togglePago({ _sourceIds: sourceIds })}
+                            className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold transition-all ${
+                              paidTransfer
+                                ? "bg-indigo-600 border-indigo-600 text-white shadow-[0_10px_30px_-18px_rgba(79,70,229,0.85)]"
+                                : "bg-transparent border-slate-300 dark:border-slate-700 text-slate-400"
+                            }`}
+                            title={paidTransfer ? "Marcar como pendente" : "Marcar como pago"}
+                          >
+                            {paidTransfer ? "✓" : ""}
+                          </button>
+
+                          <div className="min-w-0">
+                            <p className="font-bold leading-none text-slate-900 dark:text-slate-100">
+                              {(saida as any).descricao || "Transferência"}
+                            </p>
+
+                            <div className="mt-1 flex items-center gap-2 flex-wrap text-[12px]">
+                              <span
+                                className="
+                                  px-2 py-1 rounded-full font-semibold
+                                  bg-rose-500/10 text-rose-700 border border-rose-500/15
+                                  dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20
+                                "
+                              >
+                                {origemBadge ? `${origemBadge} · ` : ""}
+                                {origemLabel}
+                              </span>
+
+                              <span className="font-bold text-slate-500 dark:text-violet-300">↔</span>
+
+                              <span
+                                className="
+                                  px-2 py-1 rounded-full font-semibold
+                                  bg-emerald-500/10 text-emerald-700 border border-emerald-500/15
+                                  dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20
+                                "
+                              >
+                                {destinoBadge ? `${destinoBadge} · ` : ""}
+                                {destinoLabel}
+                              </span>
+                            </div>
+
+                            <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              <span>{formatarData((saida as any).data ?? t.data)}</span>
+                              <span className="text-slate-300 dark:text-slate-600">•</span>
+                              <span>Transferência</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end shrink-0">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                              {!(saida as any)?.transferId &&
+                                !String((saida as any)?.categoria ?? "")
+                                  .toLowerCase()
+                                  .normalize("NFD")
+                                  .replace(/[\u0300-\u036f]/g, "")
+                                  .includes("transfer") && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditClick(saida)}
+                                    className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+                                    title="Editar"
+                                  >
+                                    <EditIcon className="w-4 h-4" />
+                                  </button>
+                                )}
+
+                              <button
+                                type="button"
+                                onClick={() => confirmDelete(saida)}
+                                className="p-1.5 rounded-lg text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                title="Excluir"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            <p className="font-bold text-slate-900 dark:text-slate-100">
+                              {formatarMoeda(valorAbs)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     );
                   }
 
-                  const saida =
-                    legs.find((x: any) => String(x?.tipo) === "despesa") ??
-                    legs.find((x: any) => Number(x?.valor ?? 0) < 0) ??
-                    legs[0];
-
-                  const entrada =
-                    legs.find((x: any) => String(x?.tipo) === "receita") ??
-                    legs.find((x: any) => Number(x?.valor ?? 0) > 0 && String(x?.id) !== String(saida?.id)) ??
-                    legs.find((x: any) => String(x?.id) !== String(saida?.id)) ??
-                    legs[1];
-
-                  const saidaId = String(saida?.id ?? "");
-                  const entradaId = String(entrada?.id ?? "");
-                  const tId = String((t as any)?.id ?? "");
-
-                  const saidaInList = getFilteredTransactions.some((x: any) => String(x?.id) === saidaId);
-                  const entradaInList = getFilteredTransactions.some((x: any) => String(x?.id) === entradaId);
-
-                  if (saidaInList && entradaInList) {
-                    if (tId !== saidaId) return null;
-                  }
-
-                  if (saidaInList && !entradaInList) {
-                    if (tId !== saidaId) return null;
-                  }
-                  if (!saidaInList && entradaInList) {
-                    if (tId !== entradaId) return null;
-                  }
-
-                  const sourceIds = [saida?.id, entrada?.id].filter(Boolean).map((x) => String(x));
-
-                  const paidTransfer = isPaid(saida?.pago) && isPaid(entrada?.pago);
-
-                  const fromId = asId(
-                    (saida as any).contaOrigemId ??
-                      (saida as any).transferFromId ??
-                      (saida as any).profileId ??
-                      ""
-                  );
-
-                  const toId = asId(
-                    (saida as any).contaDestinoId ??
-                      (saida as any).transferToId ??
-                      (entrada as any)?.profileId ??
-                      ""
-                  );
-
-                  const contaOrigem = profiles.find((p: any) => asId(p.id) === fromId);
-                  const contaDestino = profiles.find((p: any) => asId(p.id) === toId);
-
-                  origemLabel = contaOrigem ? getContaLabel(contaOrigem) : "Origem";
-                  destinoLabel = contaDestino ? getContaLabel(contaDestino) : "Destino";
-                  origemBadge = contaOrigem ? getContaBadge(contaOrigem) : "";
-                  destinoBadge = contaDestino ? getContaBadge(contaDestino) : "";
-
-                  valorAbs = Math.abs(Number((saida as any).valor ?? 0));
-
                   return (
-                    <div
-                      key={`tr-${transferId}`}
-                      className="
-                        group flex items-center justify-between p-4 rounded-2xl border transition-all
-                        bg-white/70 border-slate-200/70 shadow-sm
-                        dark:bg-slate-900/40 dark:border-violet-500/20 dark:shadow-lg dark:shadow-black/20
-                        hover:bg-white/90 dark:hover:bg-slate-900/55
-                      "
-                    >
-                      <div className="flex items-center gap-4 min-w-0">
-                        <button
-                          type="button"
-                          onClick={() => togglePago({ _sourceIds: sourceIds })}
-                          className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold transition-all ${
-                            paidTransfer
-                              ? "bg-indigo-600 border-indigo-600 text-white shadow-[0_10px_30px_-18px_rgba(79,70,229,0.85)]"
-                              : "bg-transparent border-slate-300 dark:border-slate-700 text-slate-400"
-                          }`}
-                          title={paidTransfer ? "Marcar como pendente" : "Marcar como pago"}
-                        >
-                          {paidTransfer ? "✓" : ""}
-                        </button>
-
-                        <div className="min-w-0">
-                          <p className="font-bold leading-none text-slate-900 dark:text-slate-100">
-                            {(saida as any).descricao || "Transferência"}
-                          </p>
-
-                          <div className="mt-1 flex items-center gap-2 flex-wrap text-[12px]">
-                            <span
-                              className="
-                                px-2 py-1 rounded-full font-semibold
-                                bg-rose-500/10 text-rose-700 border border-rose-500/15
-                                dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20
-                              "
-                            >
-                              {origemBadge ? `${origemBadge} · ` : ""}
-                              {origemLabel}
-                            </span>
-
-                            <span className="font-bold text-slate-500 dark:text-violet-300">↔</span>
-
-                            <span
-                              className="
-                                px-2 py-1 rounded-full font-semibold
-                                bg-emerald-500/10 text-emerald-700 border border-emerald-500/15
-                                dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20
-                              "
-                            >
-                              {destinoBadge ? `${destinoBadge} · ` : ""}
-                              {destinoLabel}
-                            </span>
-                          </div>
-
-                          <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                            <span>{formatarData((saida as any).data ?? t.data)}</span>
-                            <span className="text-slate-300 dark:text-slate-600">•</span>
-                            <span>Transferência</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-end shrink-0">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                            {!(saida as any)?.transferId &&
-                              !String((saida as any)?.categoria ?? "")
-                                .toLowerCase()
-                                .normalize("NFD")
-                                .replace(/[\u0300-\u036f]/g, "")
-                                .includes("transfer") && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditClick(saida)}
-                                  className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
-                                  title="Editar"
-                                >
-                                  <EditIcon className="w-4 h-4" />
-                                </button>
-                              )}
-
-                            <button
-                              type="button"
-                              onClick={() => confirmDelete(saida)}
-                              className="p-1.5 rounded-lg text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                              title="Excluir"
-                            >
-                              <TrashIcon className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          <p className="font-bold text-slate-900 dark:text-slate-100">
-                            {formatarMoeda(valorAbs)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                    <TransactionItem
+                      key={String((t as any)?.id ?? "")}
+                      t={t}
+                      profiles={profiles}
+                      hojeStr={hojeStr}
+                      togglePago={togglePago}
+                      formatarData={formatarData}
+                      formatarMoeda={formatarMoeda}
+                      getContaPartsById={getContaPartsById}
+                      onEdit={handleEditClick}
+                      onDelete={confirmDelete}
+                    />
                   );
-                }
+                }}
+              />
+            </div>
 
-                return (
-                  <TransactionItem
-                    key={String((t as any)?.id ?? "")}
-                    t={t}
-                    profiles={profiles}
-                    hojeStr={hojeStr}
-                    togglePago={togglePago}
-                    formatarData={formatarData}
-                    formatarMoeda={formatarMoeda}
-                    getContaPartsById={getContaPartsById}
-                    onEdit={handleEditClick}
-                    onDelete={confirmDelete}
-                  />
-                );
-              }}
-            />
-          </div>
+            {totalPaginas > 1 && (
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  Mostrando{" "}
+                  <span className="text-slate-700 dark:text-slate-200">
+                    {indiceInicial + 1}
+                  </span>{" "}
+                  a{" "}
+                  <span className="text-slate-700 dark:text-slate-200">
+                    {Math.min(indiceFinal, getFilteredTransactions.length)}
+                  </span>{" "}
+                  de{" "}
+                  <span className="text-slate-700 dark:text-slate-200">
+                    {getFilteredTransactions.length}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setPaginaAtual((prev) => Math.max(1, prev - 1))}
+                    disabled={paginaAtual === 1}
+                    className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                  >
+                    Anterior
+                  </button>
+
+                  {paginasVisiveis[0] > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPaginaAtual(1)}
+                        className="h-9 min-w-[36px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                      >
+                        1
+                      </button>
+                      {paginasVisiveis[0] > 2 && (
+                        <span className="px-1 text-slate-400 dark:text-slate-500">...</span>
+                      )}
+                    </>
+                  )}
+
+                  {paginasVisiveis.map((pagina) => (
+                    <button
+                      key={pagina}
+                      type="button"
+                      onClick={() => setPaginaAtual(pagina)}
+                      className={`h-9 min-w-[36px] px-3 rounded-xl border text-sm font-bold transition ${
+                        paginaAtual === pagina
+                          ? "border-indigo-500 bg-indigo-600 text-white shadow-sm"
+                          : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {pagina}
+                    </button>
+                  ))}
+
+                  {paginasVisiveis[paginasVisiveis.length - 1] < totalPaginas && (
+                    <>
+                      {paginasVisiveis[paginasVisiveis.length - 1] < totalPaginas - 1 && (
+                        <span className="px-1 text-slate-400 dark:text-slate-500">...</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPaginaAtual(totalPaginas)}
+                        className="h-9 min-w-[36px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                      >
+                        {totalPaginas}
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setPaginaAtual((prev) => Math.min(totalPaginas, prev + 1))}
+                    disabled={paginaAtual === totalPaginas}
+                    className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                  >
+                    Próxima
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="py-20 text-center space-y-2">
             <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">

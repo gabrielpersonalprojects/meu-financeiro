@@ -251,46 +251,18 @@ useEffect(() => {
     throw new Error("Valor de pagamento inválido.");
   }
 const cartaoRef = creditCards.find((c: any) => String(c.id) === String(payload.cartaoId));
+
   // cria despesa real na lista de transações
   const nextTxId = Date.now(); // compatível com Transaction.id:number
   const novaTransacao: Transaction = {
     id: nextTxId,
     tipo: "despesa",
 descricao: `Fatura: ${(() => {
-  const banco = String(
-    (cartaoRef as any)?.bankText ??
-      (cartaoRef as any)?.banco ??
-      (cartaoRef as any)?.nomeBanco ??
-      (cartaoRef as any)?.bank ??
-      (cartaoRef as any)?.issuer ??
-      ""
-  ).trim();
-
+  const emissor = String((cartaoRef as any)?.emissor ?? "").trim();
   const categoria = String((cartaoRef as any)?.categoria ?? "").trim();
 
-  const bruto = String(payload?.cartaoNome ?? "").trim();
-
-// pega só a parte antes do hífen e remove (PF)/(PJ)
-const primeiraParte = bruto
-  .split(/[-–—|]/)[0]
-  .replace(/\s*\(.*?\)\s*/g, " ")
-  .trim();
-
-// evita cair no nome do titular: só aceita se bater em bancos conhecidos
-const bancosConhecidos = ["itau", "itaú", "nubank", "bradesco", "santander", "inter", "caixa", "bb", "banco do brasil"];
-
-const candidatoDoNome = bancosConhecidos.some((b) =>
-  primeiraParte.toLowerCase().includes(b)
-)
-  ? primeiraParte
-  : "";
-
-const bancoFinal = banco || candidatoDoNome || "Itaú";
-  const categoriaFinal = categoria || "Platinum";
-
-return `${bancoFinal} ${categoriaFinal}`.replace(/\s+/g, " ").trim();
-
-  return `${bancoFinal} — ${categoriaFinal}`;
+  const bancoFinal = emissor || "Cartão";
+  return categoria ? `${bancoFinal} ${categoria}` : bancoFinal;
 })()}`,
     valor: -Math.abs(Number(payload.valor || 0)),
     data: payload.dataPagamento,

@@ -137,6 +137,30 @@ export default function TransacoesTab({
   });
 
   const isFiltroTransferencias = filtroLancamento === "transferencia";
+  const isGeral = !filtroConta || String(filtroConta).toLowerCase() === "todas";
+  const contaSelecionada = isGeral
+    ? "Geral"
+    : profiles.find((p: any) => String(p?.id) === String(filtroConta))?.name ?? "Conta";
+
+  const badgeLabel = contaSelecionada;
+
+  const ContaBadge = ({ label }: { label: string }) => (
+    <span
+      className="
+        inline-flex items-center gap-2
+        px-2.5 py-1 rounded-full
+        text-[10px] font-extrabold uppercase tracking-wider
+        border border-slate-200/80
+        bg-white text-slate-900
+        dark:border-white/15 dark:bg-black/25 dark:text-white
+        backdrop-blur-xl shadow-sm
+      "
+      title={`Filtro de conta: ${label}`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-violet-600 dark:bg-violet-300" />
+      {label}
+    </span>
+  );
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
@@ -241,7 +265,15 @@ export default function TransacoesTab({
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
             {/* Saldo */}
-            <div className="relative overflow-hidden rounded-2xl p-8 shadow-xl flex flex-col justify-center min-h-[160px] text-white bg-gradient-to-r from-[#220055] to-[#4600ac] shadow-[0_18px_50px_-35px_rgba(70,0,172,0.9)]">
+            <div
+              className="
+                relative overflow-hidden rounded-2xl
+                pt-8 px-8 pb-12
+                shadow-xl flex flex-col justify-center min-h-[160px]
+                text-white bg-gradient-to-r from-[#220055] to-[#4600ac]
+                shadow-[0_18px_50px_-35px_rgba(70,0,172,0.9)]
+              "
+            >
               <div className="pointer-events-none absolute inset-0 bg-black/45" />
               <div className="pointer-events-none absolute inset-0 bg-black/20 backdrop-blur-xl" />
               <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-white/12 blur-3xl" />
@@ -250,10 +282,16 @@ export default function TransacoesTab({
                 <p className="text-[10px] font-black text-white/80 uppercase tracking-[0.25em] mb-4">
                   Saldo Disponível
                 </p>
+
                 <p className="text-4xl font-black text-white tracking-tight">
                   {formatarMoeda(stats.saldoTotal)}
                 </p>
               </div>
+
+              {/* Badge fora do fluxo do conteúdo (não quebra alinhamento) */}
+<div className="absolute bottom-4 left-8 z-10 translate-y-1">
+  <ContaBadge label={badgeLabel} />
+</div>
             </div>
 
             {/* Entradas */}
@@ -292,7 +330,7 @@ export default function TransacoesTab({
           </div>
         )}
 
-        {/* Resumo mensal/anual (mantive como está) */}
+        {/* Resumo mensal/anual */}
         <div className="flex flex-col gap-2 mt-4">
           <div className="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-wider">
             <span className="text-slate-400/80 dark:text-slate-500/80">Mensal</span>
@@ -372,12 +410,10 @@ export default function TransacoesTab({
                 let valorAbs = 0;
 
                 if (isTransfer) {
-                  // pega as DUAS pernas reais pelo transferId (não usa o "t" mesclado como perna)
                   const legs = (transactions || []).filter(
                     (x: any) => String(x?.transferId ?? "") === String(transferId ?? "")
                   ) as any[];
 
-                  // fallback: se não achou as duas pernas, cai pro TransactionItem normal
                   if (!legs || legs.length < 2) {
                     return (
                       <TransactionItem
@@ -409,16 +445,13 @@ export default function TransacoesTab({
                   const entradaId = String(entrada?.id ?? "");
                   const tId = String((t as any)?.id ?? "");
 
-                  // quais pernas estão na lista filtrada
                   const saidaInList = getFilteredTransactions.some((x: any) => String(x?.id) === saidaId);
                   const entradaInList = getFilteredTransactions.some((x: any) => String(x?.id) === entradaId);
 
-                  // se as DUAS estão visíveis, renderiza só uma vez (na perna de SAÍDA)
                   if (saidaInList && entradaInList) {
                     if (tId !== saidaId) return null;
                   }
 
-                  // se só UMA está visível, renderiza apenas a perna visível
                   if (saidaInList && !entradaInList) {
                     if (tId !== saidaId) return null;
                   }
@@ -426,9 +459,7 @@ export default function TransacoesTab({
                     if (tId !== entradaId) return null;
                   }
 
-                  const sourceIds = [saida?.id, entrada?.id]
-                    .filter(Boolean)
-                    .map((x) => String(x));
+                  const sourceIds = [saida?.id, entrada?.id].filter(Boolean).map((x) => String(x));
 
                   const paidTransfer = isPaid(saida?.pago) && isPaid(entrada?.pago);
 
@@ -460,11 +491,11 @@ export default function TransacoesTab({
                     <div
                       key={`tr-${transferId}`}
                       className="
-        group flex items-center justify-between p-4 rounded-2xl border transition-all
-        bg-white/70 border-slate-200/70 shadow-sm
-        dark:bg-slate-900/40 dark:border-violet-500/20 dark:shadow-lg dark:shadow-black/20
-        hover:bg-white/90 dark:hover:bg-slate-900/55
-      "
+                        group flex items-center justify-between p-4 rounded-2xl border transition-all
+                        bg-white/70 border-slate-200/70 shadow-sm
+                        dark:bg-slate-900/40 dark:border-violet-500/20 dark:shadow-lg dark:shadow-black/20
+                        hover:bg-white/90 dark:hover:bg-slate-900/55
+                      "
                     >
                       <div className="flex items-center gap-4 min-w-0">
                         <button
@@ -488,10 +519,10 @@ export default function TransacoesTab({
                           <div className="mt-1 flex items-center gap-2 flex-wrap text-[12px]">
                             <span
                               className="
-                px-2 py-1 rounded-full font-semibold
-                bg-rose-500/10 text-rose-700 border border-rose-500/15
-                dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20
-              "
+                                px-2 py-1 rounded-full font-semibold
+                                bg-rose-500/10 text-rose-700 border border-rose-500/15
+                                dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20
+                              "
                             >
                               {origemBadge ? `${origemBadge} · ` : ""}
                               {origemLabel}
@@ -501,10 +532,10 @@ export default function TransacoesTab({
 
                             <span
                               className="
-                px-2 py-1 rounded-full font-semibold
-                bg-emerald-500/10 text-emerald-700 border border-emerald-500/15
-                dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20
-              "
+                                px-2 py-1 rounded-full font-semibold
+                                bg-emerald-500/10 text-emerald-700 border border-emerald-500/15
+                                dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20
+                              "
                             >
                               {destinoBadge ? `${destinoBadge} · ` : ""}
                               {destinoLabel}
@@ -556,8 +587,6 @@ export default function TransacoesTab({
                     </div>
                   );
                 }
-
-                // ====== fim fusão ======
 
                 return (
                   <TransactionItem

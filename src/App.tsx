@@ -2382,7 +2382,7 @@ if (sessionLoading) {
 
   return (
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-   ...
+   
 
 <Toaster
   position="bottom-center"

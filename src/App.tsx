@@ -2386,31 +2386,25 @@ if (sessionLoading) {
 
 <Toaster
   position="bottom-center"
+  gutter={8}
   containerStyle={{
-    inset: 0,
-    zIndex: 999999,
-    pointerEvents: "none",
+    bottom: 56,
+    left: 0,
+    right: 0,
   }}
   toastOptions={{
-    duration: 3000,
+    duration: 2600,
     style: {
-      maxWidth: "420px",
-      pointerEvents: "auto",
-
-      // 👇 melhora MUITO no modo claro
-      background: "#ffffff",
-      color: "#0f172a", // slate-900
-      border: "1px solid #e2e8f0", // slate-200
-      boxShadow:
-        "0 12px 30px rgba(2,6,23,0.12), 0 6px 12px rgba(2,6,23,0.08)",
-    },
-
-    // 👇 separa erro/sucesso para ficarem bem visíveis no claro
-    success: {
-      iconTheme: { primary: "#16a34a", secondary: "#ffffff" },
-    },
-    error: {
-      iconTheme: { primary: "#ef4444", secondary: "#ffffff" },
+      maxWidth: "320px",
+      minWidth: "260px",
+      padding: "8px 12px",
+      borderRadius: "14px",
+      fontSize: "13px",
+      lineHeight: "18px",
+      background: "#eef2f7",
+      color: "#0f172a",
+      border: "1px solid #cbd5e1",
+      boxShadow: "0 12px 28px rgba(15, 23, 42, 0.18)",
     },
   }}
 />

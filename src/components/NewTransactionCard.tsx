@@ -6,6 +6,7 @@ import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect } from "react";
 import { toast } from "react-hot-toast";
+import { toastCompact } from "../services/toast";
 
 type PrazoMode = "com_prazo" | "sem_prazo" | null;
 
@@ -1019,7 +1020,7 @@ onClick={() => {
   onClick={() => {
     // Bloqueia mas MOSTRA mensagem
     if (!canSubmit) {
-      toast.error("Antes de lançar é preciso escolher qual conta.");
+      toastCompact("Antes de lançar é preciso selecionar a conta", "error");
       return;
     }
 

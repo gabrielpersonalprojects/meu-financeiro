@@ -308,12 +308,12 @@ export default function TransacoesTab({
                 relative overflow-hidden rounded-2xl
                 pt-8 px-8 pb-12
                 shadow-xl flex flex-col justify-center min-h-[160px]
-                text-white bg-gradient-to-r from-[#220055] to-[#4600ac]
+                text-white bg-gradient-to-r from-[#220055] via-[#32007a] to-[#4600ac]
                 shadow-[0_18px_50px_-35px_rgba(70,0,172,0.9)]
               "
             >
-              <div className="pointer-events-none absolute inset-0 bg-black/45" />
-              <div className="pointer-events-none absolute inset-0 bg-black/20 backdrop-blur-xl" />
+              <div className="pointer-events-none absolute inset-0 bg-black/12" />
+              <div className="pointer-events-none absolute inset-0 bg-black/6 backdrop-blur-[1px]" />
               <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-white/12 blur-3xl" />
 
               <div className="relative">

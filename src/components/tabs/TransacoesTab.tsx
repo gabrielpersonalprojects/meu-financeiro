@@ -10,6 +10,7 @@ import { getContaBadge, getContaLabel } from "../../domain";
 import { asId } from "../../utils/asId";
 import { getContaPartsById } from "../../app/transactions/logic";
 
+import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 const isPaid = (v: any) => {
   const s = String(v ?? "").toLowerCase();
   return v === true || v === 1 || s === "1" || s === "true" || s === "pago";
@@ -333,9 +334,10 @@ export default function TransacoesTab({
 
             <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px]">
               <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
-              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
-                Entradas (mês)
-              </p>
+<p className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
+  <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" strokeWidth={2.2} />
+  <span>Entradas (mês)</span>
+</p>
               <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                 {formatarMoeda(stats.receitasMes)}
               </p>
@@ -349,9 +351,10 @@ export default function TransacoesTab({
 
             <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px]">
               <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-rose-500/10 blur-3xl" />
-              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
-                Saídas (mês)
-              </p>
+<p className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
+  <ArrowDownRight className="h-3.5 w-3.5 text-rose-500" strokeWidth={2.2} />
+  <span>Saídas (mês)</span>
+</p>
               <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                 {formatarMoeda(stats.despesasMes)}
               </p>

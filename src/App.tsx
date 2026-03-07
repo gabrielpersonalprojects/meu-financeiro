@@ -42,7 +42,7 @@ import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
 import { Pencil, Trash2 } from "lucide-react";
-
+import { PencilLine } from "lucide-react";
 
 
 
@@ -424,6 +424,14 @@ const [accSaldoInicial, setAccSaldoInicial] = useState("");
 const [modoCentro, setModoCentro] = useState<"normal" | "credito">("normal");
 const hojeStr = getHojeLocal();
 
+const [displayName, setDisplayName] = useState(() => {
+  return localStorage.getItem("fluxmoney_display_name") || "";
+});
+const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
+
+useEffect(() => {
+  localStorage.setItem("fluxmoney_display_name", displayName);
+}, [displayName]);
 
 const resetAddAccountForm = () => {
   setAccPerfilConta("PF");
@@ -2380,6 +2388,17 @@ if (sessionLoading) {
   const selectedCcCard =
   creditCards.find((c) => c.id === selectedCreditCardId) ?? null;
 
+
+
+const currentHour = new Date().getHours();
+
+const greetingText =
+  currentHour < 12
+    ? "Bom dia"
+    : currentHour < 18
+    ? "Boa tarde"
+    : "Boa noite";
+
   return (
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
    
@@ -2420,9 +2439,63 @@ if (sessionLoading) {
   <div className="mx-auto w-full max-w-[1480px] px-3 lg:px-4">
     <main className="w-full mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
       {/* COLUNA ESQUERDA */}
-      <div className="lg:col-span-4 space-y-5">
-        {/* Card Novo lançamento */}
-        <NewTransactionCard
+<div className="lg:col-span-4 space-y-5">
+  <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm dark:border-slate-800/70 dark:bg-slate-900/90">
+  <div className="flex items-center justify-between gap-3">
+    <div className="min-w-0">
+    
+
+<div className="mt-1">
+  {!isEditingDisplayName ? (
+    <div className="flex items-center gap-2">
+      <h3 className="text-[28px] font-black tracking-tight text-slate-800 dark:text-slate-100">
+        {displayName ? `${greetingText}, ${displayName}` : greetingText}
+      </h3>
+
+      <button
+        type="button"
+        onClick={() => setIsEditingDisplayName(true)}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-violet-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-violet-300"
+        aria-label="Editar nome exibido"
+        title="Editar nome exibido"
+      >
+        <PencilLine className="h-3.5 w-3.5" strokeWidth={2.2} />
+      </button>
+    </div>
+  ) : (
+<input
+  type="text"
+  value={displayName}
+  onChange={(e) => setDisplayName(e.target.value)}
+  onBlur={() => setIsEditingDisplayName(false)}
+  onKeyDown={(e) => {
+    if (e.key === "Enter") {
+      setIsEditingDisplayName(false);
+    }
+  }}
+  placeholder="Insira seu nome aqui"
+  autoFocus
+  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-base font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-violet-300 focus:ring-2 focus:ring-violet-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-violet-500/50 dark:focus:ring-violet-500/20"
+/>
+  )}
+</div>
+
+    </div>
+
+<div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 via-white to-amber-50 ring-1 ring-slate-200/70 dark:from-slate-800 dark:via-slate-850 dark:to-slate-700 dark:ring-slate-700/70">
+  <div className="absolute right-3 top-2 h-8 w-8 rounded-full bg-gradient-to-br from-amber-300 via-amber-400 to-orange-400 opacity-95 blur-[0.2px]" />
+
+  <div className="absolute right-2 top-1 h-10 w-10 rounded-full bg-amber-200/40 blur-md" />
+
+  <div className="absolute bottom-3 left-3 h-5 w-10 rounded-full bg-white/80 shadow-[0_4px_18px_rgba(255,255,255,0.55)] backdrop-blur-sm dark:bg-white/10" />
+
+  <div className="absolute bottom-4 left-7 h-4 w-6 rounded-full bg-white/70 backdrop-blur-sm dark:bg-white/10" />
+</div>
+  </div>
+</div>
+
+  {/* Card Novo lançamento */}
+  <NewTransactionCard
           formTipo={formTipo}
           setFormTipo={setFormTipo}
           creditCards={creditCards}

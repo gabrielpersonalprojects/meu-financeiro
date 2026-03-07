@@ -714,7 +714,8 @@ export function CreditDashboard({
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start text-slate-900 dark:text-white">
-        <div className="w-full max-w-[320px] justify-self-start space-y-6">
+        <div className="w-full max-w-[320px] justify-self-start">
+          <div>
           {onPickOtherCard ? (
             <button type="button" onClick={onPickOtherCard} className="w-full text-left">
               <CreditCardVisual
@@ -744,11 +745,11 @@ export function CreditDashboard({
               }}
             />
           )}
-
-          <div className={softCard}>
-            <div className="text-slate-700 text-sm font-medium dark:text-white/70">
-              Detalhes do cartão
-            </div>
+<div className="mt-2 space-y-3"></div>
+<div className={softCard}>
+  <div className="text-slate-700 text-sm font-medium dark:text-white/70">
+    Detalhes do cartão
+  </div>
 
             <div className="mt-3 grid grid-cols-2 items-center gap-2">
               <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">Limite</div>
@@ -791,7 +792,7 @@ export function CreditDashboard({
             </div>
           </div>
 
-          <div className={softCardLite}>
+        <div className={`${softCardLite} mt-4`}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-slate-600 text-[11px] dark:text-white/70">Pagamento da fatura</div>
@@ -839,7 +840,7 @@ export function CreditDashboard({
             </button>
           </div>
         </div>
-
+</div>
         <div className="w-full space-y-3">
           <div className="flex items-center justify-between gap-3">
             <button

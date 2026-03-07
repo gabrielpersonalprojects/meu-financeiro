@@ -732,16 +732,16 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
 
   // --- Tema ---
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem("theme");
-      if (saved === "dark") return true;
-      if (saved === "light") return false;
-      return true; // default escuro
-    } catch {
-      return true;
-    }
-  });
+const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  try {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark") return true;
+    if (saved === "light") return false;
+    return false; // default claro
+  } catch {
+    return false;
+  }
+});
 
   useEffect(() => {
     if (isDarkMode) {
@@ -2429,12 +2429,14 @@ const greetingText =
 />
 
 <div className="w-full xl:w-[125%] origin-top-left xl:scale-[0.8]">
-<div className="mx-auto w-full max-w-[1480px] px-3 lg:px-4">
-  <AppHeader
-    onOpenSettings={() => setSettingsOpen(true)}
-    settingsIcon={<SettingsIcon />}
-  />
-</div>
+  <div className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/55">
+    <div className="mx-auto w-full max-w-[1480px] px-3 py-3 lg:px-4 lg:py-4">
+      <AppHeader
+        onOpenSettings={() => setSettingsOpen(true)}
+        settingsIcon={<SettingsIcon />}
+      />
+    </div>
+  </div>
 
   <div className="mx-auto w-full max-w-[1480px] px-3 lg:px-4">
     <main className="w-full mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -2448,7 +2450,7 @@ const greetingText =
 <div className="mt-1">
   {!isEditingDisplayName ? (
     <div className="flex items-center gap-2">
-      <h3 className="text-[28px] font-black tracking-tight text-slate-800 dark:text-slate-100">
+      <h3 className="text-[24px] font-black tracking-tight text-slate-800 dark:text-slate-100">
         {displayName ? `${greetingText}, ${displayName}` : greetingText}
       </h3>
 
@@ -2482,7 +2484,7 @@ const greetingText =
 
     </div>
 
-<div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 via-white to-amber-50 ring-1 ring-slate-200/70 dark:from-slate-800 dark:via-slate-850 dark:to-slate-700 dark:ring-slate-700/70">
+<div className="relative h-16 w-20 shrink-0">
   <div className="absolute right-3 top-2 h-8 w-8 rounded-full bg-gradient-to-br from-amber-300 via-amber-400 to-orange-400 opacity-95 blur-[0.2px]" />
 
   <div className="absolute right-2 top-1 h-10 w-10 rounded-full bg-amber-200/40 blur-md" />

@@ -43,7 +43,7 @@ import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
 import { Pencil, Trash2 } from "lucide-react";
 import { PencilLine } from "lucide-react";
-
+import { Moon } from "lucide-react";
 
 
 import { asId } from "./utils/asId";
@@ -2388,8 +2388,6 @@ if (sessionLoading) {
   const selectedCcCard =
   creditCards.find((c) => c.id === selectedCreditCardId) ?? null;
 
-
-
 const currentHour = new Date().getHours();
 
 const greetingText =
@@ -2398,6 +2396,13 @@ const greetingText =
     : currentHour < 18
     ? "Boa tarde"
     : "Boa noite";
+
+const periodOfDay =
+  currentHour < 12
+    ? "morning"
+    : currentHour < 18
+    ? "afternoon"
+    : "night";
 
   return (
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
@@ -2448,7 +2453,7 @@ const greetingText =
     
 
 <div className="mt-1">
-  {!isEditingDisplayName ? (
+ {displayName?.trim() && !isEditingDisplayName ? (
     <div className="flex items-center gap-2">
       <h3 className="text-[24px] font-black tracking-tight text-slate-800 dark:text-slate-100">
         {displayName ? `${greetingText}, ${displayName}` : greetingText}
@@ -2469,7 +2474,6 @@ const greetingText =
   type="text"
   value={displayName}
   onChange={(e) => setDisplayName(e.target.value)}
-  onBlur={() => setIsEditingDisplayName(false)}
   onKeyDown={(e) => {
     if (e.key === "Enter") {
       setIsEditingDisplayName(false);
@@ -2485,17 +2489,9 @@ const greetingText =
     </div>
 
 <div className="relative h-16 w-20 shrink-0">
-  <div className="absolute right-3 top-2 h-8 w-8 rounded-full bg-gradient-to-br from-amber-300 via-amber-400 to-orange-400 opacity-95 blur-[0.2px]" />
-
-  <div className="absolute right-2 top-1 h-10 w-10 rounded-full bg-amber-200/40 blur-md" />
-
-  <div className="absolute bottom-3 left-3 h-5 w-10 rounded-full bg-white/80 shadow-[0_4px_18px_rgba(255,255,255,0.55)] backdrop-blur-sm dark:bg-white/10" />
-
-  <div className="absolute bottom-4 left-7 h-4 w-6 rounded-full bg-white/70 backdrop-blur-sm dark:bg-white/10" />
 </div>
-  </div>
 </div>
-
+</div>
   {/* Card Novo lançamento */}
   <NewTransactionCard
           formTipo={formTipo}

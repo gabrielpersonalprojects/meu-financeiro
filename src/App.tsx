@@ -2499,10 +2499,147 @@ const periodOfDay =
       {/* COLUNA ESQUERDA */}
 {/* COLUNA ESQUERDA */}
 <div className="lg:col-span-4 space-y-5">
-  <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm dark:border-slate-800/70 dark:bg-slate-900/90">
+ <div className="relative rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm overflow-hidden dark:border-slate-800/70 dark:bg-slate-900/90">
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
     
+<div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
+  {periodOfDay === "morning" || periodOfDay === "afternoon" ? (
+    <>
+      <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-300/10 blur-3xl" />
+
+      <div className="absolute right-4 top-2">
+        <svg
+          width="96"
+          height="96"
+          viewBox="0 0 96 96"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="drop-shadow-[0_0_28px_rgba(251,191,36,0.22)]"
+        >
+          <defs>
+            <radialGradient id="sunCore" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(48 42) rotate(90) scale(22)">
+              <stop stopColor="#FFF7CC" />
+              <stop offset="0.6" stopColor="#FDE68A" />
+              <stop offset="1" stopColor="#F59E0B" />
+            </radialGradient>
+            <linearGradient id="cloudFill" x1="20" y1="0" x2="64" y2="40" gradientUnits="userSpaceOnUse">
+              <stop stopColor="rgba(255,255,255,0.95)" />
+              <stop offset="1" stopColor="rgba(255,255,255,0.68)" />
+            </linearGradient>
+          </defs>
+
+          <g opacity="0.9">
+            <path d="M48 11V19" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
+            <path d="M48 65V73" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
+            <path d="M17 42H25" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
+            <path d="M71 42H79" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
+            <path d="M26.5 20.5L32 26" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
+            <path d="M64 58L69.5 63.5" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
+            <path d="M26.5 63.5L32 58" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
+            <path d="M64 26L69.5 20.5" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
+          </g>
+
+          <circle cx="48" cy="42" r="16" fill="url(#sunCore)" />
+
+          <g transform="translate(32 44)">
+            <path
+              d="M10 20C4.8 20 1 16.7 1 12.2C1 8.3 3.9 5.2 8 4.7C9.4 1.9 12.4 0 15.8 0C20.2 0 23.8 3.1 24.6 7.3C25.2 7.1 25.9 7 26.6 7C31.2 7 35 10.3 35 14.8C35 17.7 33.5 20 28.5 20H10Z"
+              fill="url(#cloudFill)"
+            />
+          </g>
+        </svg>
+      </div>
+    </>
+  ) : (
+    <>
+      <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-indigo-400/20 dark:bg-violet-500/10 blur-3xl" />
+
+<div className="absolute right-5 top-1">
+  <svg
+    width="92"
+    height="92"
+    viewBox="0 0 92 92"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className="drop-shadow-[0_0_10px_rgba(99,102,241,0.18)] dark:drop-shadow-[0_0_24px_rgba(255,255,255,0.16)]"
+  >
+          <defs>
+<linearGradient id="moonFillReal" x1="28" y1="12" x2="56" y2="74" gradientUnits="userSpaceOnUse">
+  <stop stopColor="#C7D2FE" />
+  <stop offset="0.45" stopColor="#E0E7FF" />
+  <stop offset="1" stopColor="#A5B4FC" />
+</linearGradient>
+
+            <mask id="moonMaskReal">
+              <rect width="92" height="92" fill="black" />
+              <circle cx="49" cy="42" r="24" fill="white" />
+              <circle cx="61" cy="39" r="22" fill="black" />
+            </mask>
+
+            <clipPath id="moonClipReal">
+              <circle cx="49" cy="42" r="24" />
+            </clipPath>
+          </defs>
+
+          <circle
+            cx="49"
+            cy="42"
+            r="24"
+            fill="url(#moonFillReal)"
+            mask="url(#moonMaskReal)"
+          />
+
+          <g clipPath="url(#moonClipReal)" mask="url(#moonMaskReal)">
+            <circle cx="39" cy="31" r="4.2" fill="#D7DEE8" fillOpacity="0.55" />
+            <circle cx="38.7" cy="31.2" r="2.2" fill="#BEC8D4" fillOpacity="0.45" />
+
+            <circle cx="41" cy="46" r="5.8" fill="#D7DEE8" fillOpacity="0.5" />
+            <circle cx="40.8" cy="46.1" r="3" fill="#BEC8D4" fillOpacity="0.38" />
+
+            <circle cx="47" cy="58" r="3.8" fill="#D7DEE8" fillOpacity="0.45" />
+            <circle cx="46.8" cy="58.1" r="1.9" fill="#BEC8D4" fillOpacity="0.32" />
+          </g>
+        </svg>
+      </div>
+<div className="absolute right-[86px] top-[20px] opacity-95 dark:opacity-90">
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 14 14"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className="drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]"
+  >
+    <path
+      d="M7 1.6L8.1 5.9L12.4 7L8.1 8.1L7 12.4L5.9 8.1L1.6 7L5.9 5.9L7 1.6Z"
+      fill="white"
+      fillOpacity="0.95"
+    />
+  </svg>
+</div>
+
+<div className="absolute right-[70px] top-[46px] opacity-90 dark:opacity-75">
+  <svg
+    width="10"
+    height="10"
+    viewBox="0 0 10 10"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className="drop-shadow-[0_0_6px_rgba(255,255,255,0.35)]"
+  >
+    <path
+      d="M5 1.2L5.7 4.3L8.8 5L5.7 5.7L5 8.8L4.3 5.7L1.2 5L4.3 4.3L5 1.2Z"
+      fill="white"
+      fillOpacity="0.85"
+    />
+  </svg>
+</div>
+    </>
+  )}
+
+  <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-violet-200/40 to-transparent dark:via-violet-400/20" />
+</div>
 
 <div className="mt-1">
  {displayName?.trim() && !isEditingDisplayName && onboardingStep !== "nome" ? (

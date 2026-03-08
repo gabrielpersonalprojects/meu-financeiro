@@ -375,7 +375,12 @@ const handleEditConta = (id: string) => {
   setAccFechamentoCC(Number((conta as any).fechamentoCC ?? 1));
   setAccVencimentoCC(Number((conta as any).vencimentoCC ?? 10));
 
-  setAccSaldoInicial(formatBRLFromAnyInput(String((conta as any).saldoInicial ?? 0)));
+  setAccSaldoInicial(
+  ((Number((conta as any).initialBalanceCents ?? 0) / 100) || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  })
+);
 };
 
 const bancosOptions = useMemo(() => {
@@ -427,7 +432,12 @@ const hojeStr = getHojeLocal();
 const [displayName, setDisplayName] = useState(() => {
   return localStorage.getItem("fluxmoney_display_name") || "";
 });
-const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
+const [confirmedDisplayName, setConfirmedDisplayName] = useState(
+  String(displayName ?? "").trim()
+);
+const [isEditingDisplayName, setIsEditingDisplayName] = useState(
+  !String(displayName ?? "").trim()
+);
 
 useEffect(() => {
   localStorage.setItem("fluxmoney_display_name", displayName);
@@ -443,14 +453,15 @@ const resetAddAccountForm = () => {
   setAccLimiteCC("");
   setAccFechamentoCC(1);
   setAccVencimentoCC(10);
+  setAccSaldoInicial("");
 };
 
 const openAddAccountModal = () => {
   setEditingProfileId(null); // <<< ADD AQUI (novo cadastro)
+  
 
-  // limite 50 
-if (profiles.length >= 50) {
-  toastCompact("Limite de 50 contas atingido.", "info");
+if (profiles.length >= 15) {
+  toastCompact("Você atingiu o limite de 15 contas cadastradas.", "info");
   return;
 }
 
@@ -459,6 +470,12 @@ if (profiles.length >= 50) {
   setAccTab("novo");
   setIsAddAccountOpen(true);
   setShowProfileMenu(false); // fecha o menu de contas
+};
+
+const openManageAccountsModal = () => {
+  setAccTab("gerenciar");
+  setIsAddAccountOpen(true);
+  setShowProfileMenu(false);
 };
 
   const formatBRLFromAnyInput = (raw: string) => {
@@ -473,7 +490,7 @@ if (profiles.length >= 50) {
   const openEditAccountModal = (profileId: string) => {
   const p = profiles.find((x) => x.id === profileId);
   if (!p) return;
-
+console.log("CONTA EM EDICAO >>>", JSON.stringify(p, null, 2));
   setEditingProfileId(profileId);
 
   // Preenche o modal inteiro com os dados
@@ -485,7 +502,7 @@ if (profiles.length >= 50) {
   setAccNumeroConta(p.numeroConta ?? "");
   setAccNumeroAgencia(p.numeroAgencia ?? "");
   
-  setAccSaldoInicial(formatarMoeda(p.initialBalanceCents ?? 0));
+  setAccSaldoInicial(String(p.initialBalanceCents ?? 0));
 
 
   const possuiCC = !!p.possuiCartaoCredito;
@@ -512,7 +529,7 @@ const handleOpenEditAccount = (id: string) => {
   setAccNumeroConta(conta.numeroConta ?? "");
   setAccNumeroAgencia(conta.numeroAgencia ?? "");
   
-  setAccSaldoInicial(formatarMoeda(conta.initialBalanceCents ?? 0));
+  setAccSaldoInicial(formatBRLFromAnyInput(String(conta.initialBalanceCents ?? 0)));
 
   setAccPerfilConta(conta.perfilConta ?? "PF");
   setAccTipoConta(conta.tipoConta ?? "");
@@ -536,7 +553,10 @@ const handleConfirmAddAccount = () => {
  const banco = accBanco.trim();
   const numeroConta = accNumeroConta.trim();
   const numeroAgencia = accNumeroAgencia.trim();
-
+if (!isEditingAccount && profiles.length >= 15) {
+  toastCompact("Você atingiu o limite de 15 contas cadastradas.", "info");
+  return;
+}
   const initialBalanceCents =
   Number(String(accSaldoInicial || "").replace(/\D/g, "")) || 0;
 
@@ -693,6 +713,7 @@ const handleEditAccount = (idOrName: string) => {
   setAccNumeroAgencia(p.numeroAgencia ?? "");
   setAccPerfilConta(p.perfilConta ?? "PF");
   setAccTipoConta(p.tipoConta ?? TIPOS_CONTA[0]);
+  setAccSaldoInicial(formatBRLFromCentsDigits(String((p as any).initialBalanceCents ?? 0)));
 
   // cartão de crédito (os campos podem não estar tipados no Profile)
   const anyP = p as any;
@@ -898,6 +919,16 @@ const selectedCard = creditCards.find((c) => c.id === selectedCreditCardId) ?? n
 const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
 
 const [ccNome, setCcNome] = useState("");
+const nomePreenchido = String(confirmedDisplayName ?? "").trim().length > 0;
+const temContas = Array.isArray(profiles) && profiles.length > 0;
+
+const onboardingStep = !temContas
+  ? !nomePreenchido
+    ? "nome"
+    : "conta"
+  : "ok";
+
+const appBloqueado = !temContas;
 const [ccEmissor, setCcEmissor] = useState("");
 const [ccCategoria, setCcCategoria] = useState("");
 const [ccValidade, setCcValidade] = useState("");
@@ -1017,8 +1048,8 @@ const resetAddCardModal = () => {
 
 const openAddCardModal = () => {
   //console.log("openAddCardModal", creditCards.length);
-  if (creditCards.length >= 30) {
-  toastCompact("Limite de 30 cartões atingido.", "info");
+if (creditCards.length >= 20) {
+  toastCompact("Você atingiu o limite de 20 cartões cadastrados.", "info");
   return;
 }
   resetAddCardModal();
@@ -1143,7 +1174,10 @@ const handleSaveNewCreditCard = () => {
 
   const limiteNum = Math.max(0, Number(ccLimiteRaw || "0"));
 
-
+if (!isEditingLimite && creditCards.length >= 20) {
+  toastCompact("Você atingiu o limite de 20 cartões cadastrados.", "info");
+  return;
+}
   const id = isEditingLimite ? selectedCreditCardId : `cc_${Date.now()}`;
 
   const card: CreditCard = {
@@ -2446,14 +2480,15 @@ const periodOfDay =
   <div className="mx-auto w-full max-w-[1480px] px-3 lg:px-4">
     <main className="w-full mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
       {/* COLUNA ESQUERDA */}
+{/* COLUNA ESQUERDA */}
 <div className="lg:col-span-4 space-y-5">
   <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm dark:border-slate-800/70 dark:bg-slate-900/90">
-  <div className="flex items-center justify-between gap-3">
-    <div className="min-w-0">
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
     
 
 <div className="mt-1">
- {displayName?.trim() && !isEditingDisplayName ? (
+ {displayName?.trim() && !isEditingDisplayName && onboardingStep !== "nome" ? (
     <div className="flex items-center gap-2">
       <h3 className="text-[24px] font-black tracking-tight text-slate-800 dark:text-slate-100">
         {displayName ? `${greetingText}, ${displayName}` : greetingText}
@@ -2474,14 +2509,22 @@ const periodOfDay =
   type="text"
   value={displayName}
   onChange={(e) => setDisplayName(e.target.value)}
-  onKeyDown={(e) => {
-    if (e.key === "Enter") {
-      setIsEditingDisplayName(false);
-    }
-  }}
+onKeyDown={(e) => {
+  if (e.key === "Enter") {
+    const finalName = String(displayName ?? "").trim();
+    setDisplayName(finalName);
+    setConfirmedDisplayName(finalName);
+    setIsEditingDisplayName(false);
+  }
+}}
+  //onBlur={() => setIsEditingDisplayName(false)}
   placeholder="Insira seu nome aqui"
   autoFocus
-  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-base font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-violet-300 focus:ring-2 focus:ring-violet-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-violet-500/50 dark:focus:ring-violet-500/20"
+  className={`h-11 w-full rounded-2xl border bg-white px-4 text-base font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+  onboardingStep === "nome"
+    ? "animate-[pulse_1.4s_ease-in-out_infinite] border-violet-500 bg-white ring-4 ring-violet-300 shadow-[0_0_0_4px_rgba(139,92,246,0.16),0_0_24px_rgba(139,92,246,0.30)] focus:border-violet-600 focus:ring-4 focus:ring-violet-300 dark:border-violet-400 dark:bg-slate-800 dark:ring-violet-500/30 dark:shadow-[0_0_0_4px_rgba(139,92,246,0.18),0_0_28px_rgba(139,92,246,0.32)] dark:focus:border-violet-300 dark:focus:ring-violet-500/35"
+    : "border-slate-200 focus:border-violet-300 focus:ring-2 focus:ring-violet-200 dark:border-slate-700 dark:focus:border-violet-500/50 dark:focus:ring-violet-500/20"
+}`}
 />
   )}
 </div>
@@ -2492,78 +2535,90 @@ const periodOfDay =
 </div>
 </div>
 </div>
-  {/* Card Novo lançamento */}
+{/* Card Novo lançamento */}
+<div
+  className={
+    onboardingStep === "nome"
+      ? "opacity-35 blur-[2px] pointer-events-none select-none transition-all duration-300"
+      : "opacity-100 blur-0 transition-all duration-300"
+  }
+>
   <NewTransactionCard
-          formTipo={formTipo}
-          setFormTipo={setFormTipo}
-          creditCards={creditCards}
-          selectedCreditCardId={selectedCreditCardId}
-          setSelectedCreditCardId={setSelectedCreditCardId}
-          openAddAccountModal={openAddAccountModal}
-          openAddCreditCardModal={openAddCardModal}
-          ccIsParceladoMode={ccIsParceladoMode}
-          setCcIsParceladoMode={setCcIsParceladoMode}
-          isParceladoMode={isParceladoMode}
-          setIsParceladoMode={setIsParceladoMode}
-          formParcelas={formParcelas}
-          setFormParcelas={setFormParcelas}
-          formTipoGasto={formTipoGasto}
-          setFormTipoGasto={setFormTipoGasto}
-          formDesc={formDesc}
-          setFormDesc={setFormDesc}
-          formValor={formValor}
-          setFormValor={setFormValor}
-          formData={formData}
-          setFormData={setFormData}
-          formPago={formPago}
-          setFormPago={setFormPago}
-          handleFormatCurrencyInput={handleFormatCurrencyInput}
-          categorias={categorias}
-          formCat={formCat}
-          setFormCat={setFormCat}
-          removerCategoria={removerCategoria}
-          onOpenCategoriaModal={() => setShowModalCategoria(true)}
-          formMetodo={formMetodo}
-          setFormMetodo={setFormMetodo}
-          profiles={profiles}
-          formQualCartao={formQualCartao}
-          setFormQualCartao={setFormQualCartao}
-          handleDeleteAccount={handleDeleteAccount}
-          tiposConta={TIPOS_CONTA}
-          setEditingProfileId={setEditingProfileId}
-          setAccBanco={setAccBanco}
-          setAccNumeroConta={setAccNumeroConta}
-          setAccNumeroAgencia={setAccNumeroAgencia}
-          setAccPerfilConta={setAccPerfilConta}
-          setAccTipoConta={setAccTipoConta}
-          setAccSaldoInicial={setAccSaldoInicial}
-          setAccPossuiCC={setAccPossuiCC}
-          setAccLimiteCC={setAccLimiteCC}
-          setAccFechamentoCC={setAccFechamentoCC}
-          setAccVencimentoCC={setAccVencimentoCC}
-          setIsAddAccountOpen={setIsAddAccountOpen}
-          formContaOrigem={formContaOrigem}
-          formContaDestino={formContaDestino}
-          inverterContas={inverterContas}
-          setAccountPickerOpen={setAccountPickerOpen}
-          prazoMode={prazoMode}
-          setPrazoMode={setPrazoMode}
-          formDataTerminoFixa={formDataTerminoFixa}
-          setFormDataTerminoFixa={setFormDataTerminoFixa}
-          SEM_PRAZO_MESES={SEM_PRAZO_MESES}
-          handleAddTransaction={handleAddTransaction}
-          setModoCentro={setModoCentro}
-          formTagCC={formTagCC}
-          setFormTagCC={setFormTagCC}
-          ccTags={ccTags}
-          onRemoveCCTag={removeCCTag}
-        />
-      </div>
+    onboardingStep={onboardingStep}
+    formTipo={formTipo}
+    setFormTipo={setFormTipo}
+    creditCards={creditCards}
+    selectedCreditCardId={selectedCreditCardId}
+    setSelectedCreditCardId={setSelectedCreditCardId}
+    openAddAccountModal={openAddAccountModal}
+    onOpenManageAccounts={openManageAccountsModal}
+    openAddCreditCardModal={openAddCardModal}
+    ccIsParceladoMode={ccIsParceladoMode}
+    setCcIsParceladoMode={setCcIsParceladoMode}
+    isParceladoMode={isParceladoMode}
+    setIsParceladoMode={setIsParceladoMode}
+    formParcelas={formParcelas}
+    setFormParcelas={setFormParcelas}
+    formTipoGasto={formTipoGasto}
+    setFormTipoGasto={setFormTipoGasto}
+    formDesc={formDesc}
+    setFormDesc={setFormDesc}
+    formValor={formValor}
+    setFormValor={setFormValor}
+    formData={formData}
+    setFormData={setFormData}
+    formPago={formPago}
+    setFormPago={setFormPago}
+    handleFormatCurrencyInput={handleFormatCurrencyInput}
+    categorias={categorias}
+    formCat={formCat}
+    setFormCat={setFormCat}
+    removerCategoria={removerCategoria}
+    onOpenCategoriaModal={() => setShowModalCategoria(true)}
+    formMetodo={formMetodo}
+    setFormMetodo={setFormMetodo}
+    profiles={profiles}
+    formQualCartao={formQualCartao}
+    setFormQualCartao={setFormQualCartao}
+    handleDeleteAccount={handleDeleteAccount}
+    tiposConta={TIPOS_CONTA}
+    setEditingProfileId={setEditingProfileId}
+    setAccBanco={setAccBanco}
+    setAccNumeroConta={setAccNumeroConta}
+    setAccNumeroAgencia={setAccNumeroAgencia}
+    setAccPerfilConta={setAccPerfilConta}
+    setAccTipoConta={setAccTipoConta}
+    setAccSaldoInicial={setAccSaldoInicial}
+    setAccPossuiCC={setAccPossuiCC}
+    setAccLimiteCC={setAccLimiteCC}
+    setAccFechamentoCC={setAccFechamentoCC}
+    setAccVencimentoCC={setAccVencimentoCC}
+    setIsAddAccountOpen={setIsAddAccountOpen}
+    formContaOrigem={formContaOrigem}
+    formContaDestino={formContaDestino}
+    inverterContas={inverterContas}
+    setAccountPickerOpen={setAccountPickerOpen}
+    prazoMode={prazoMode}
+    setPrazoMode={setPrazoMode}
+    formDataTerminoFixa={formDataTerminoFixa}
+    setFormDataTerminoFixa={setFormDataTerminoFixa}
+    SEM_PRAZO_MESES={SEM_PRAZO_MESES}
+    handleAddTransaction={handleAddTransaction}
+    setModoCentro={setModoCentro}
+    formTagCC={formTagCC}
+    setFormTagCC={setFormTagCC}
+    ccTags={ccTags}
+    onRemoveCCTag={removeCCTag}
+  />
+  </div>
+</div>
 
      {/* COLUNA DIREITA */}
       <div
 className={`lg:col-span-8 space-y-6 ${
   modoCentro === "credito" ? "lg:-ml-2" : ""
+} ${
+  appBloqueado ? "opacity-35 pointer-events-none select-none transition-all duration-300" : "opacity-100 transition-all duration-300"
 }`}
 >
   {modoCentro === "credito" ? (
@@ -4053,9 +4108,11 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
               }
             />
 
-           <p className="mt-1.5 text-[11px] leading-tight text-rose-600 dark:text-rose-400">
-              Este saldo inicial não poderá ser editado depois.
-            </p>
+{!isEditingAccount && (
+  <p className="text-[12px] leading-4 text-rose-500">
+    Este saldo inicial não poderá ser editado depois.
+  </p>
+)}
           </div>
         </div>
       </div>

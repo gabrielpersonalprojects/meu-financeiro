@@ -11,6 +11,7 @@ import { toastCompact } from "../services/toast";
 type PrazoMode = "com_prazo" | "sem_prazo" | null;
 
 type Props = {
+  onboardingStep: "nome" | "conta" | "ok";
   openAddCreditCardModal: () => void;
   // tipo
   formTipo: TransactionType;
@@ -21,6 +22,7 @@ type Props = {
   selectedCreditCardId: string;
   setSelectedCreditCardId: (v: string) => void;
   openAddAccountModal: () => void;
+  onOpenManageAccounts: () => void;
 
   ccIsParceladoMode: boolean | null;
   setCcIsParceladoMode: (v: boolean | null) => void;
@@ -154,6 +156,7 @@ function normalizeCategory(val: any): string {
 }
 
 export default function NewTransactionCard({
+  onboardingStep,
   openAddCreditCardModal,
   formTipo,
   setFormTipo,
@@ -162,6 +165,7 @@ export default function NewTransactionCard({
   selectedCreditCardId,
   setSelectedCreditCardId,
   openAddAccountModal,
+  onOpenManageAccounts,
 
   ccIsParceladoMode,
   setCcIsParceladoMode,
@@ -361,10 +365,12 @@ const canSubmit =
 
   <button
     type="button"
-    onClick={openAddAccountModal}
-className="h-9 px-2 rounded-xl text-[15px] font-bold
-           text-[#5752ea] hover:text-[#7b76fc]
-           transition"
+    onClick={onOpenManageAccounts}
+className={`h-9 px-2 rounded-xl text-[15px] font-bold transition ${
+  onboardingStep === "conta"
+    ? "animate-[pulse_1.4s_ease-in-out_infinite] text-violet-700 bg-violet-100/90 ring-2 ring-violet-300 shadow-[0_0_0_4px_rgba(139,92,246,0.14),0_0_24px_rgba(139,92,246,0.22)] hover:text-violet-800 dark:text-violet-200 dark:bg-violet-500/10 dark:ring-violet-500/30"
+    : "text-[#5752ea] hover:text-[#7b76fc]"
+}`}
   >
     + Gerenciar Contas
   </button>

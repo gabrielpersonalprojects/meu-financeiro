@@ -920,6 +920,20 @@ const closeCcDetails = () => setIsCcExpanded(false);
 const selectedCard = creditCards.find((c) => c.id === selectedCreditCardId) ?? null;
 
 const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
+useEffect(() => {
+  if (!isAddCardModalOpen) return;
+
+  const originalBodyOverflow = document.body.style.overflow;
+  const originalHtmlOverflow = document.documentElement.style.overflow;
+
+  document.body.style.overflow = "hidden";
+  document.documentElement.style.overflow = "hidden";
+
+  return () => {
+    document.body.style.overflow = originalBodyOverflow;
+    document.documentElement.style.overflow = originalHtmlOverflow;
+  };
+}, [isAddCardModalOpen]);
 
 const [ccNome, setCcNome] = useState("");
 const nomePreenchido = String(confirmedDisplayName ?? "").trim().length > 0;
@@ -2440,7 +2454,7 @@ const periodOfDay =
     : currentHour < 18
     ? "afternoon"
     : "night";
-
+    
   return (
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
    
@@ -3020,303 +3034,298 @@ if (transferId) {
           </>
         </div>
 
-      {isAddCardModalOpen && (
-        <div className="fixed inset-0 z-[95]">
-          {/* backdrop */}
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            onClick={closeAddCardModal}
-            aria-label="Fechar modal"
+{isAddCardModalOpen &&
+  createPortal(
+    <div className="fixed inset-0 z-[9999]">
+      {/* backdrop */}
+      <button
+        type="button"
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+        onClick={closeAddCardModal}
+        aria-label="Fechar modal"
+      />
+
+{/* modal */}
+<div className="absolute inset-0 overflow-y-auto">
+  <div className="min-h-full flex items-start justify-center p-2 pt-3 md:items-center md:pt-2">
+    <div className="w-full max-w-[430px] max-h-[calc(100vh-16px)] overflow-y-auto rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/90 shadow-2xl p-3">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <h3 className="text-[15px] font-black text-slate-900 dark:text-white">
+          Novo cartão de crédito
+        </h3>
+
+        <button
+          type="button"
+          onClick={closeAddCardModal}
+          aria-label="Fechar modal"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+        >
+          <span className="text-lg leading-none">&times;</span>
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+            Nome impresso no cartão
+          </label>
+          <input
+            value={ccNome}
+            onChange={(e) => setCcNome(e.target.value)}
+            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 font-bold outline-none"
           />
+        </div>
 
-          {/* modal */}
-          <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="w-full max-w-lg rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/90 shadow-2xl p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                  Novo cartão de crédito
-                </h3>
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+            Perfil do cartão
+          </label>
 
-                <button
-                  type="button"
-                  onClick={closeAddCardModal}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                >
-                  Fechar
-                </button>
-              </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setCcPerfil("pf")}
+              className={`h-9 rounded-lg border transition text-sm font-semibold ${
+                ccPerfil === "pf"
+                  ? "bg-purple-600 text-white border-purple-500 shadow-[0_10px_25px_rgba(88,28,135,0.35)]"
+                  : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+              }`}
+            >
+              PF
+            </button>
 
-              <div className="space-y-3">
-                {/* Nome */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                    Nome impresso no cartão
-                  </label>
-                  <input
-                    value={ccNome}
-                    onChange={(e) => setCcNome(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-                  />
-                </div>
-
-                {/* Perfil do cartão (PF/PJ) */}
-<div>
-  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-    Perfil do cartão
-  </label>
-
-  <div className="grid grid-cols-2 gap-2">
-    <button
-      type="button"
-      onClick={() => setCcPerfil("pf")}
-      className={`h-10 rounded-xl border transition text-sm font-semibold ${
-        ccPerfil === "pf"
-          ? "bg-purple-600 text-white border-purple-500 shadow-[0_10px_25px_rgba(88,28,135,0.35)]"
-          : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
-      }`}
-    >
-      PF
-    </button>
-
-    <button
-      type="button"
-      onClick={() => setCcPerfil("pj")}
-      className={`h-10 rounded-xl border transition text-sm font-semibold ${
-        ccPerfil === "pj"
-          ? "bg-purple-600 text-white border-purple-500 shadow-[0_10px_25px_rgba(88,28,135,0.35)]"
-          : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
-      }`}
-    >
-      PJ
-    </button>
-  </div>
-</div>
-
-<div className="mt-3">
- <button
-  type="button"
-  onClick={() => setCcDesignOpen((v) => !v)}
-  className="w-full flex items-center justify-between rounded-xl border border-slate-200/70 dark:border-slate-700/60
-             bg-white/60 dark:bg-slate-900/40 px-3 py-2 hover:bg-white/80 dark:hover:bg-slate-800/40 transition"
->
-  <div className="text-left">
-    <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
-      Escolha o design do cartão
-    </p>
-  </div>
-
-  <div className="flex items-center gap-2">
-    <div
-      className="h-9 w-14 rounded-xl"
-      style={{
-        backgroundImage: `linear-gradient(90deg, ${
-          (CC_DESIGNS.find((d) => d.id === ccDesignId) ?? CC_DESIGNS[0]).from
-        }, ${(CC_DESIGNS.find((d) => d.id === ccDesignId) ?? CC_DESIGNS[0]).to})`,
-      }}
-      title="Preview"
-    />
-    <span className="text-[12px] font-extrabold text-slate-800 dark:text-slate-100">
-      {CC_DESIGNS.find((d) => d.id === ccDesignId)?.label || "Selecionar"}
-    </span>
-  </div>
-</button>
-
-
-  {ccDesignOpen && (
-    <div className="mt-2 grid grid-cols-3 gap-2">
-      {CC_DESIGNS.map((d) => {
-        const active = ccDesignId === d.id;
-        return (
-          <button
-            key={d.id}
-            type="button"
-            onClick={() => {
-              setCcDesignId(d.id);
-              setCcDesignOpen(false);
-            }}
-className={`h-12 rounded-2xl transition-all flex items-center justify-center
-  ring-1 ring-inset ring-white/15 hover:ring-white/25
-  ${active ? "ring-2 ring-inset ring-white/60" : ""}
-`}
-            style={{ backgroundImage: `linear-gradient(90deg, ${d.from}, ${d.to})` }}
-            title={d.label}
-          >
-            <span className={`text-[12px] font-black ${active ? "text-white" : "text-white/90"}`}>
-              {d.label}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  )}
-</div>
-
-                {/* Emissor / Validade */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                      Banco emissor
-                    </label>
-                    <input
-                      value={ccEmissor}
-                      onChange={(e) => setCcEmissor(e.target.value)}
-                      placeholder="Ex.: Nubank, Itaú, Inter..."
-                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-                    />
-                  </div>
-                  <div>
-
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                      Validade
-                    </label>
-                    <input
-                      value={ccValidade}
-                      onChange={(e) => setCcValidade(maskValidadeMMYY(e.target.value))}
-                      placeholder="00/00"
-                      inputMode="numeric"
-                      maxLength={5}
-                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-                    />
-                  </div>
-                </div>
-{/* Categoria */}
-<div>
-  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-    Categoria
-  </label>
-  <input
-    value={ccCategoria}
-    onChange={(e) => setCcCategoria(e.target.value)}
-    placeholder="Ex.: Platinum, Uniclass, Visa..."
-    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-  />
-</div>
-                {/* Fechamento / Vencimento */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                      Dia de fechamento
-                    </label>
-                    <input
-                      type="text"
-                      value={ccFechamento}
-                      onChange={(e) => setCcFechamento(maskDiaMes(e.target.value))}
-                      onBlur={() => ccFechamento && setCcFechamento(maskDiaMes(ccFechamento))}
-                      inputMode="numeric"
-                      maxLength={2}
-                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                      Dia de vencimento
-                    </label>
-                    <input
-                      type="text"
-                      value={ccVencimento}
-                      onChange={(e) => setCcVencimento(maskDiaMes(e.target.value))}
-                      onBlur={() => ccVencimento && setCcVencimento(maskDiaMes(ccVencimento))}
-                      inputMode="numeric"
-                      maxLength={2}
-                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Limite */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                    Limite do cartão
-                  </label>
-
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={ccLimiteRaw ? formatBRLFromIntegers(ccLimiteRaw) : ""}
-                    placeholder="R$ 0,00"
-                    onFocus={(e) => {
-                      const el = e.target as HTMLInputElement;
-                      requestAnimationFrame(() => {
-                        const len = el.value.length;
-                        el.setSelectionRange(len, len);
-                      });
-                    }}
-                    onKeyDown={(e) => {
-                      const key = e.key;
-
-                      if (
-                        e.ctrlKey ||
-                        e.metaKey ||
-                        key === "Tab" ||
-                        key === "ArrowLeft" ||
-                        key === "ArrowRight"
-                      ) {
-                        return;
-                      }
-
-                      if (key === "Backspace") {
-                        e.preventDefault();
-                        setCcLimiteRaw((prev) => prev.slice(0, -1));
-                        return;
-                      }
-
-                      if (key === "Delete") {
-                        e.preventDefault();
-                        setCcLimiteRaw("");
-                        return;
-                      }
-
-                      if (/^\d$/.test(key)) {
-                        e.preventDefault();
-                        setCcLimiteRaw((prev) => {
-                          const next = (prev + key).replace(/\D/g, "").slice(0, 12);
-                          return next;
-                        });
-                        return;
-                      }
-
-                      e.preventDefault();
-                    }}
-                    onPaste={(e) => {
-                      e.preventDefault();
-                      const text = e.clipboardData.getData("text");
-                      const digits = (text || "").replace(/\D/g, "").slice(0, 12);
-                      setCcLimiteRaw(digits);
-                    }}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* ações */}
-              <div className="mt-5 flex gap-2 justify-end">
-                <button
-                  type="button"
-                  onClick={closeAddCardModal}
-                  className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm font-bold"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveNewCreditCard}
-                  className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold"
-                >
-                  Salvar
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setCcPerfil("pj")}
+              className={`h-9 rounded-lg border transition text-sm font-semibold ${
+                ccPerfil === "pj"
+                  ? "bg-purple-600 text-white border-purple-500 shadow-[0_10px_25px_rgba(88,28,135,0.35)]"
+                  : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+              }`}
+            >
+              PJ
+            </button>
           </div>
         </div>
-      )}
-    </main>
-    </div>
-</div>
 
-      {/* SETTINGS MODAL */}
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setCcDesignOpen((v) => !v)}
+            className="w-full flex items-center justify-between rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-3 py-2 hover:bg-white/80 dark:hover:bg-slate-800/40 transition"
+          >
+            <div className="text-left">
+              <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                Escolha o design do cartão
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div
+                className="h-8 w-12 rounded-lg"
+                style={{
+                  backgroundImage: `linear-gradient(90deg, ${
+                    (CC_DESIGNS.find((d) => d.id === ccDesignId) ?? CC_DESIGNS[0]).from
+                  }, ${(CC_DESIGNS.find((d) => d.id === ccDesignId) ?? CC_DESIGNS[0]).to})`,
+                }}
+                title="Preview"
+              />
+              <span className="text-[11px] font-extrabold text-slate-800 dark:text-slate-100">
+                {CC_DESIGNS.find((d) => d.id === ccDesignId)?.label || "Selecionar"}
+              </span>
+            </div>
+          </button>
+
+          {ccDesignOpen && (
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {CC_DESIGNS.map((d) => {
+                const active = ccDesignId === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => {
+                      setCcDesignId(d.id);
+                      setCcDesignOpen(false);
+                    }}
+                    className={`h-10 rounded-xl transition-all flex items-center justify-center ring-1 ring-inset ring-white/15 hover:ring-white/25 ${
+                      active ? "ring-2 ring-inset ring-white/60" : ""
+                    }`}
+                    style={{ backgroundImage: `linear-gradient(90deg, ${d.from}, ${d.to})` }}
+                    title={d.label}
+                  >
+                    <span className={`text-[11px] font-black ${active ? "text-white" : "text-white/90"}`}>
+                      {d.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+              Banco emissor
+            </label>
+            <input
+              value={ccEmissor}
+              onChange={(e) => setCcEmissor(e.target.value)}
+              placeholder="Ex.: Nubank, Itaú, Inter..."
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 font-bold outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+              Validade
+            </label>
+            <input
+              value={ccValidade}
+              onChange={(e) => setCcValidade(maskValidadeMMYY(e.target.value))}
+              placeholder="00/00"
+              inputMode="numeric"
+              maxLength={5}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 font-bold outline-none"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+            Categoria
+          </label>
+          <input
+            value={ccCategoria}
+            onChange={(e) => setCcCategoria(e.target.value)}
+            placeholder="Ex.: Platinum, Uniclass, Visa..."
+            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 font-bold outline-none"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+              Dia de fechamento
+            </label>
+            <input
+              type="text"
+              value={ccFechamento}
+              onChange={(e) => setCcFechamento(maskDiaMes(e.target.value))}
+              onBlur={() => ccFechamento && setCcFechamento(maskDiaMes(ccFechamento))}
+              inputMode="numeric"
+              maxLength={2}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 font-bold outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+              Dia de vencimento
+            </label>
+            <input
+              type="text"
+              value={ccVencimento}
+              onChange={(e) => setCcVencimento(maskDiaMes(e.target.value))}
+              onBlur={() => ccVencimento && setCcVencimento(maskDiaMes(ccVencimento))}
+              inputMode="numeric"
+              maxLength={2}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 font-bold outline-none"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+            Limite do cartão
+          </label>
+
+          <input
+            type="text"
+            inputMode="numeric"
+            value={ccLimiteRaw ? formatBRLFromIntegers(ccLimiteRaw) : ""}
+            placeholder="R$ 0,00"
+            onFocus={(e) => {
+              const el = e.target as HTMLInputElement;
+              requestAnimationFrame(() => {
+                const len = el.value.length;
+                el.setSelectionRange(len, len);
+              });
+            }}
+            onKeyDown={(e) => {
+              const key = e.key;
+
+              if (
+                e.ctrlKey ||
+                e.metaKey ||
+                key === "Tab" ||
+                key === "ArrowLeft" ||
+                key === "ArrowRight"
+              ) {
+                return;
+              }
+
+              if (key === "Backspace") {
+                e.preventDefault();
+                setCcLimiteRaw((prev) => prev.slice(0, -1));
+                return;
+              }
+
+              if (key === "Delete") {
+                e.preventDefault();
+                setCcLimiteRaw("");
+                return;
+              }
+
+              if (/^\d$/.test(key)) {
+                e.preventDefault();
+                setCcLimiteRaw((prev) => {
+                  const next = (prev + key).replace(/\D/g, "").slice(0, 12);
+                  return next;
+                });
+                return;
+              }
+
+              e.preventDefault();
+            }}
+            onPaste={(e) => {
+              e.preventDefault();
+              const text = e.clipboardData.getData("text");
+              const digits = (text || "").replace(/\D/g, "").slice(0, 12);
+              setCcLimiteRaw(digits);
+            }}
+            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 font-bold outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="mt-3 flex gap-2 justify-end">
+        <button
+          type="button"
+          onClick={closeAddCardModal}
+          className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm font-bold"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          onClick={handleSaveNewCreditCard}
+          className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold"
+        >
+          Salvar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+    </div>,
+    document.body
+  )}
+      </main>
+    </div>
+  </div>
       {settingsOpen && (
         <>
           <button
@@ -3490,9 +3499,8 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
 {/* EDIT MODAL */}
 {editingTransaction && (
   <div
-    className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+    className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 py-3"
     onMouseDown={(e) => {
-      // fecha ao clicar fora do card
       if (e.target === e.currentTarget) setEditingTransaction(null);
     }}
     onKeyDown={(e) => {
@@ -3500,12 +3508,14 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
     }}
     tabIndex={-1}
   >
-    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
-      <h3 className="text-2xl font-black mb-6 text-slate-800 dark:text-white">
-        Editar Lançamento
-      </h3>
+    <div className="w-full max-w-[460px] rounded-[28px] bg-white dark:bg-slate-900 shadow-2xl animate-in zoom-in-95 border border-slate-200/70 dark:border-white/10 overflow-hidden">
+      <div className="px-5 pt-5 pb-4 border-b border-slate-200/70 dark:border-white/10">
+        <h3 className="text-[20px] leading-tight font-bold text-slate-800 dark:text-white">
+          Editar Lançamento
+        </h3>
+      </div>
 
-      <div className="space-y-6">
+      <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
         <div>
           <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
             Descrição
@@ -3535,7 +3545,6 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
               setEditValueInput(digitsOnly(e.target.value));
             }}
             onPaste={(e) => {
-              // cola qualquer coisa (ex: "150,25" / "R$ 150,25" / "15025") e normaliza
               e.preventDefault();
               const text = e.clipboardData.getData("text");
               setEditValueInput(digitsOnly(text));
@@ -3544,7 +3553,6 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
               if (e.key === "Enter") salvarEdicao();
               if (e.key === "Escape") setEditingTransaction(null);
 
-              // permite atalhos e navegação
               if (e.ctrlKey || e.metaKey) return;
               const allowed = [
                 "Backspace",
@@ -3557,121 +3565,114 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
               ];
               if (allowed.includes(e.key)) return;
 
-              // bloqueia qualquer coisa que não seja dígito
               if (!/^\d$/.test(e.key)) {
                 e.preventDefault();
               }
             }}
-           className={inputModalClass}
+            className={inputModalClass}
           />
         </div>
 
-{/* ===================== */}
-{/* DEPOIS DO VALOR (R$)  */}
-{/* ===================== */}
+        {editingTransaction &&
+          (editingTransaction.tipo === "despesa" ||
+            editingTransaction.tipo === "receita") && (
+            <div className="space-y-3">
+              <div className="text-xs">
+                <CustomDropdown
+                  label="Conta"
+                  value={editContaId || ""}
+                  options={[
+                    ...profiles.map((p) => ({
+                      label: p.banco || (p as any).name || "Conta",
+                      value: p.id,
+                    })),
+                  ]}
+                  onSelect={(v: any) => setEditContaId(String(v))}
+                />
+              </div>
 
-{/* --- Campos extras (compactos e com dropdown do app) --- */}
-{editingTransaction &&
-  (editingTransaction.tipo === "despesa" ||
-    editingTransaction.tipo === "receita") && (
-    <div className="space-y-4">
-      {/* Conta (despesa + receita) */}
-      <div className="text-xs">
-        <CustomDropdown
-          label="Conta"
-          value={editContaId || ""}
-          options={[
-            ...profiles.map((p) => ({
-              label: p.banco || (p as any).name || "Conta",
-              value: p.id,
-            })),
-          ]}
-          onSelect={(v: any) => setEditContaId(String(v))}
-        />
-      </div>
+              {editingTransaction.tipo === "despesa" && (
+                <>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                      Data
+                    </label>
 
-      {/* Data + Categoria (só despesa) */}
-      {editingTransaction.tipo === "despesa" && (
-        <>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-              Data
-            </label>
+                    <input
+                      type="date"
+                      value={editDataInput}
+                      onChange={(e) => setEditDataInput(e.target.value)}
+                      className={inputModalClass}
+                    />
+                  </div>
 
-            <input
-              type="date"
-              value={editDataInput}
-              onChange={(e) => setEditDataInput(e.target.value)}
-              className={inputModalClass}
-            />
-          </div>
-
-          <div className="text-xs">
-            <CustomDropdown
-              label="Categoria"
-              value={editCategoriaInput || ""}
-              options={[
-                { label: "Sem categoria", value: "" },
-                ...categoriasFiltradasTransacoes.map((c) => ({
-                  label: c,
-                  value: c,
-                })),
-              ]}
-              onSelect={(v: any) => setEditCategoriaInput(String(v))}
-            />
-          </div>
-        </>
-      )}
-    </div>
-  )}
+                  <div className="text-xs">
+                    <CustomDropdown
+                      label="Categoria"
+                      value={editCategoriaInput || ""}
+                      options={[
+                        { label: "Sem categoria", value: "" },
+                        ...categoriasFiltradasTransacoes.map((c) => ({
+                          label: c,
+                          value: c,
+                        })),
+                      ]}
+                      onSelect={(v: any) => setEditCategoriaInput(String(v))}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
         {editingTransaction.recorrenciaId && (
-          <label className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 cursor-pointer hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30 transition-colors">
+          <label className="flex items-center gap-3 p-3 rounded-2xl border border-indigo-100 bg-indigo-50 dark:border-indigo-900/40 dark:bg-indigo-900/20 cursor-pointer hover:bg-indigo-100/60 dark:hover:bg-indigo-900/30 transition-colors">
             <input
               type="checkbox"
               checked={applyToAllRelated}
               onChange={(e) => setApplyToAllRelated(e.target.checked)}
-              className="w-6 h-6 rounded-lg text-indigo-600 dark:bg-slate-800"
+              className="w-5 h-5 rounded-lg text-indigo-600 dark:bg-slate-800"
             />
-            <div className="flex flex-col">
-              <span className="text-sm font-black text-indigo-900 dark:text-indigo-300">
+            <div className="flex flex-col leading-tight">
+              <span className="text-[15px] font-bold text-indigo-900 dark:text-indigo-300">
                 Atualizar todas as parcelas
               </span>
-              <span className="text-[10px] font-bold text-indigo-400 dark:text-indigo-500 uppercase">
+              <span className="mt-1 text-[10px] font-bold uppercase text-indigo-400 dark:text-indigo-500">
                 Aplicar mudança em toda a série
               </span>
             </div>
           </label>
         )}
+      </div>
 
-        <div className="flex gap-4 pt-4">
-          <button
-            onClick={() => setEditingTransaction(null)}
-            className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-black text-slate-500 dark:text-slate-400 transition-colors"
-          >
-            Cancelar
-          </button>
+      <div className="px-5 py-4 border-t border-slate-200/70 dark:border-white/10 flex gap-3">
+        <button
+          onClick={() => setEditingTransaction(null)}
+          className="flex-1 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
+        >
+          Cancelar
+        </button>
 
-          <button
-            onClick={salvarEdicao}
-            className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 dark:shadow-none transition-all hover:bg-indigo-700"
-          >
-            Salvar Alteração
-          </button>
-        </div>
+        <button
+          onClick={salvarEdicao}
+          className="flex-1 h-12 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition-all hover:bg-indigo-700"
+        >
+          Salvar Alteração
+        </button>
       </div>
     </div>
   </div>
 )}
 
-
       {/* DELETE MODAL */}
       {deletingTransaction && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
-            <h3 className="text-2xl font-black mb-4 text-slate-800 dark:text-white">Confirmar Exclusão</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 max-w-[420px] w-full shadow-2xl animate-in zoom-in-95">
+            <h3 className="text-[22px] leading-tight font-bold mb-3 text-slate-800 dark:text-white">
+  Confirmar Exclusão
+</h3>
 
-            <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium leading-relaxed">
+           <div className="text-slate-500 dark:text-slate-400 mb-5 text-[15px] leading-7">
              {deletingTransaction.categoria === "Transferência" ? (
 <>
   Tem certeza que quer excluir esta transferência?
@@ -3721,9 +3722,9 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
   </>
 )}
 
-            </p>
+           </div>
 
-            <div className="space-y-3">
+           <div className="space-y-2.5">
               <button
                 onClick={() => confirmarExclusao(false)}
                 className={`w-full py-4 rounded-2xl font-black transition-colors ${

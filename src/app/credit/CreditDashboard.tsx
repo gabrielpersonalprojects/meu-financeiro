@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CustomDropdown from "../../components/CustomDropdown";
 import { CreditCardVisual } from "./CreditCardVisual";
 
@@ -129,12 +129,6 @@ export function CreditDashboard({
   const moedaBR = (v: number) =>
     (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-  const monthKey = (dateIso: string) => {
-    const [y, m] = String(dateIso || "").split("-");
-    if (!y || !m) return "";
-    return `${y}-${m}`;
-  };
-
   const addMonths = (base: Date, delta: number) => {
     const d = new Date(base);
     d.setDate(1);
@@ -199,35 +193,47 @@ export function CreditDashboard({
   const now = new Date();
   const [invoiceMonthOffset, setInvoiceMonthOffset] = useState(0);
   const [paginaAtual, setPaginaAtual] = useState(1);
+  const autoJumpRef = useRef<string>("");
 
   const baseMonth = addMonths(now, invoiceMonthOffset);
   const baseMonthKey = `${baseMonth.getFullYear()}-${pad2(baseMonth.getMonth() + 1)}`;
+  const nextBaseMonth = addMonths(baseMonth, 1);
+  const nextBaseMonthKey = `${nextBaseMonth.getFullYear()}-${pad2(nextBaseMonth.getMonth() + 1)}`;
+
   const labelAtual = monthLabelPT(baseMonth);
   const labelPrev = monthLabelPT(addMonths(baseMonth, -1));
   const labelNext = monthLabelPT(addMonths(baseMonth, +1));
 
-  const txMes = (transacoes || []).filter((t) => monthKey(t.data) === baseMonthKey);
-
   const diaFechamento = Number(cartao.diaFechamento || 1);
   const diaVencimento = Number(cartao.diaVencimento || 1);
 
-  const cicloFim = makeDate(baseMonth.getFullYear(), baseMonth.getMonth(), diaFechamento);
+  // A fatura exibida no dashboard/modal é a do mês atualmente selecionado (baseMonth)
+  const vencimentoFaturaAtual = makeDate(
+    baseMonth.getFullYear(),
+    baseMonth.getMonth(),
+    diaVencimento
+  );
+  vencimentoFaturaAtual.setHours(0, 0, 0, 0);
 
-  const mesAnterior = addMonths(baseMonth, -1);
-  const fechamentoMesAnterior = makeDate(
-    mesAnterior.getFullYear(),
-    mesAnterior.getMonth(),
+  // O ciclo dessa fatura termina no dia de fechamento do próprio mês selecionado
+  const cicloFim = makeDate(
+    baseMonth.getFullYear(),
+    baseMonth.getMonth(),
     diaFechamento
   );
+  cicloFim.setHours(0, 0, 0, 0);
+
+  // O início do ciclo é o dia seguinte ao fechamento do mês anterior
+  const fechamentoMesAnterior = makeDate(
+    baseMonth.getFullYear(),
+    baseMonth.getMonth() - 1,
+    diaFechamento
+  );
+  fechamentoMesAnterior.setHours(0, 0, 0, 0);
 
   const cicloInicio = new Date(fechamentoMesAnterior);
   cicloInicio.setDate(cicloInicio.getDate() + 1);
-
-  const vencimentoFaturaAtual = makeDate(
-    baseMonth.getFullYear(),
-    baseMonth.getMonth() + 1,
-    diaVencimento
-  );
+  cicloInicio.setHours(0, 0, 0, 0);
 
   const cicloLabel = `${formatBRDate(formatDateOnlyISO(cicloInicio))} até ${formatBRDate(
     formatDateOnlyISO(cicloFim)
@@ -237,12 +243,61 @@ export function CreditDashboard({
     cicloFim
   )}`;
 
-  const txFaturaCiclo = (transacoes || []).filter((t) => {
+  const getInvoiceMonthKeyForTransaction = (iso: string) => {
+    const dt = parseISODateLocal(iso);
+    if (Number.isNaN(dt.getTime())) return "";
+    const fechamentoAtualDaData = makeDate(dt.getFullYear(), dt.getMonth(), diaFechamento);
+    const invoiceMonth =
+      dt.getTime() > fechamentoAtualDaData.getTime()
+        ? addMonths(new Date(dt.getFullYear(), dt.getMonth(), 1), 1)
+        : new Date(dt.getFullYear(), dt.getMonth(), 1);
+
+    return `${invoiceMonth.getFullYear()}-${pad2(invoiceMonth.getMonth() + 1)}`;
+  };
+
+  const txMes = (transacoes || []).filter((t) => {
+    if (t.tipo !== "cartao_credito") return false;
     const dt = parseISODateLocal(t.data);
     if (Number.isNaN(dt.getTime())) return false;
-    if (dt < cicloInicio || dt > cicloFim) return false;
-    return t.tipo === "cartao_credito";
+    return dt >= cicloInicio && dt <= cicloFim;
   });
+
+  // Se o usuário estiver no mês atual e o ciclo já tiver fechado,
+  // uma nova compra deve empurrar a visualização para o próximo ciclo.
+useEffect(() => {
+  if (!transacoes?.length) return;
+  if (invoiceMonthOffset !== 0) return;
+  if (startOfDay(now).getTime() <= endOfDay(cicloFim).getTime()) return;
+
+  const ultimasDoCartao = [...transacoes]
+    .filter((t) => t.tipo === "cartao_credito")
+    .sort((a, b) => {
+      const aStamp = Number(a.criadoEm ?? 0);
+      const bStamp = Number(b.criadoEm ?? 0);
+      if (aStamp !== bStamp) return bStamp - aStamp;
+      return String(b.data).localeCompare(String(a.data));
+    });
+
+  const ultima = ultimasDoCartao[0];
+  if (!ultima) return;
+
+  const invoiceKeyDaUltima = getInvoiceMonthKeyForTransaction(ultima.data);
+  const jumpKey = `${cartao.id}__${ultima.id}__${Number(ultima.criadoEm ?? 0)}`;
+
+  if (invoiceKeyDaUltima === nextBaseMonthKey && autoJumpRef.current !== jumpKey) {
+    autoJumpRef.current = jumpKey;
+    setInvoiceMonthOffset(1);
+  }
+}, [
+  transacoes,
+  invoiceMonthOffset,
+  nextBaseMonthKey,
+  now,
+  cicloFim,
+  cartao.id,
+]);
+
+  const txFaturaCiclo = txMes;
 
   const valorFaturaTotal = txFaturaCiclo.reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
 
@@ -381,6 +436,21 @@ export function CreditDashboard({
     setDataPagamentoFatura(todayISO());
   }, [cicloKeyFatura]);
 
+  useEffect(() => {
+  if (!isInvoiceModalOpen) return;
+
+  const originalBodyOverflow = document.body.style.overflow;
+  const originalHtmlOverflow = document.documentElement.style.overflow;
+
+  document.body.style.overflow = "hidden";
+  document.documentElement.style.overflow = "hidden";
+
+  return () => {
+    document.body.style.overflow = originalBodyOverflow;
+    document.documentElement.style.overflow = originalHtmlOverflow;
+  };
+}, [isInvoiceModalOpen]);
+
   const valorFaturaNum = Math.abs(Number(valorFaturaTotal || 0));
   const valorJaPagoNum = Math.abs(Number(valorPagoFatura || 0));
   const saldoPendenteNum = Math.max(0, valorFaturaNum - valorJaPagoNum);
@@ -518,7 +588,7 @@ export function CreditDashboard({
   }
 
   const renderPagamentoFaturaModalContent = () => (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="rounded-2xl bg-white shadow-sm border border-slate-200/70 p-4 text-slate-900 dark:bg-white/5 dark:border-white/10 dark:text-white">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -697,8 +767,10 @@ export function CreditDashboard({
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-[11px]
-            dark:border-white/10 dark:bg-black/10 dark:text-white/50">
+          <div
+            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-[11px]
+            dark:border-white/10 dark:bg-black/10 dark:text-white/50"
+          >
             Nenhum pagamento registrado para esta fatura.
           </div>
         )}
@@ -716,131 +788,138 @@ export function CreditDashboard({
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start text-slate-900 dark:text-white">
         <div className="w-full max-w-[320px] justify-self-start">
           <div>
-          {onPickOtherCard ? (
-            <button type="button" onClick={onPickOtherCard} className="w-full text-left">
+            {onPickOtherCard ? (
+              <button type="button" onClick={onPickOtherCard} className="w-full text-left">
+                <CreditCardVisual
+                  nome={cartao.nome}
+                  limite={cartao.limiteTotal}
+                  fechamentoDia={cartao.diaFechamento}
+                  vencimentoDia={cartao.diaVencimento}
+                  emissor={cartao.bankText ?? ""}
+                  categoria={cartao.categoria ?? ""}
+                  design={{
+                    from: cartao.gradientFrom ?? "#220055",
+                    to: cartao.gradientTo ?? "#4600ac",
+                  }}
+                />
+              </button>
+            ) : (
               <CreditCardVisual
                 nome={cartao.nome}
+                categoria={cartao.categoria ?? ""}
                 limite={cartao.limiteTotal}
                 fechamentoDia={cartao.diaFechamento}
                 vencimentoDia={cartao.diaVencimento}
                 emissor={cartao.bankText ?? ""}
-                categoria={cartao.categoria ?? ""}
                 design={{
                   from: cartao.gradientFrom ?? "#220055",
                   to: cartao.gradientTo ?? "#4600ac",
                 }}
               />
-            </button>
-          ) : (
-            <CreditCardVisual
-              nome={cartao.nome}
-              categoria={cartao.categoria ?? ""}
-              limite={cartao.limiteTotal}
-              fechamentoDia={cartao.diaFechamento}
-              vencimentoDia={cartao.diaVencimento}
-              emissor={cartao.bankText ?? ""}
-              design={{
-                from: cartao.gradientFrom ?? "#220055",
-                to: cartao.gradientTo ?? "#4600ac",
-              }}
-            />
-          )}
-<div className="mt-2 space-y-3"></div>
-<div className={softCard}>
-  <div className="text-slate-700 text-sm font-medium dark:text-white/70">
-    Detalhes do cartão
-  </div>
+            )}
 
-            <div className="mt-3 grid grid-cols-2 items-center gap-2">
-              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">Limite</div>
-              <div className="text-right text-slate-900 text-[13px] font-semibold leading-none dark:text-white/85">
-                {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                })}
-              </div>
-            </div>
+            <div className="mt-2 space-y-3"></div>
 
-            <div className="mt-3 flex items-center justify-between">
-              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                Fechamento{" "}
-                <span className="ml-2 text-slate-900 text-[13px] font-semibold dark:text-white/85">
-                  {String(cartao.diaFechamento ?? "").padStart(2, "0")}
-                </span>
+            <div className={softCard}>
+              <div className="text-slate-700 text-sm font-medium dark:text-white/70">
+                Detalhes do cartão
               </div>
 
-              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                Vencimento{" "}
-                <span className="ml-2 text-slate-900 text-[13px] font-semibold dark:text-white/85">
-                  {String(cartao.diaVencimento ?? "").padStart(2, "0")}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-3 h-px bg-slate-200/70 dark:bg-white/10" />
-
-            <div className="mt-3">
-              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                Valor fatura anterior
-              </div>
-              <div className="mt-1 text-slate-400 text-[10px] leading-none dark:text-white/35">
-                último pagamento efetuado
-              </div>
-              <div className="mt-2 text-emerald-700 text-[12px] font-semibold leading-none dark:text-emerald-400">
-                - R$ 0,00
-              </div>
-            </div>
-          </div>
-
-        <div className={`${softCardLite} mt-4`}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-slate-600 text-[11px] dark:text-white/70">Pagamento da fatura</div>
-                <div className="text-slate-900 font-semibold text-sm dark:text-white">
-                  Resumo da fatura
+              <div className="mt-3 grid grid-cols-2 items-center gap-2">
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Limite
+                </div>
+                <div className="text-right text-slate-900 text-[13px] font-semibold leading-none dark:text-white/85">
+                  {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  })}
                 </div>
               </div>
 
-              <span
-                className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${faturaStatusClass[faturaStatus]}`}
-              >
-                {faturaStatusLabel[faturaStatus]}
-              </span>
-            </div>
+              <div className="mt-3 flex items-center justify-between">
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Fechamento{" "}
+                  <span className="ml-2 text-slate-900 text-[13px] font-semibold dark:text-white/85">
+                    {String(cartao.diaFechamento ?? "").padStart(2, "0")}
+                  </span>
+                </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-black/20">
-                <div className="text-[11px] text-slate-600 dark:text-white/60">Valor da fatura</div>
-                <div className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {moedaBR(valorFaturaTotal)}
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Vencimento{" "}
+                  <span className="ml-2 text-slate-900 text-[13px] font-semibold dark:text-white/85">
+                    {String(cartao.diaVencimento ?? "").padStart(2, "0")}
+                  </span>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-black/20">
-                <div className="text-[11px] text-slate-600 dark:text-white/60">Saldo pendente</div>
-                <div
-                  className={`text-sm font-semibold ${
-                    saldoRestanteFatura <= 0
-                      ? "text-emerald-700 dark:text-emerald-300"
-                      : "text-slate-900 dark:text-white"
-                  }`}
+              <div className="mt-3 h-px bg-slate-200/70 dark:bg-white/10" />
+
+              <div className="mt-3">
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Valor fatura anterior
+                </div>
+                <div className="mt-1 text-slate-400 text-[10px] leading-none dark:text-white/35">
+                  último pagamento efetuado
+                </div>
+                <div className="mt-2 text-emerald-700 text-[12px] font-semibold leading-none dark:text-emerald-400">
+                  - R$ 0,00
+                </div>
+              </div>
+            </div>
+
+            <div className={`${softCardLite} mt-4`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-slate-600 text-[11px] dark:text-white/70">
+                    Pagamento da fatura
+                  </div>
+                  <div className="text-slate-900 font-semibold text-sm dark:text-white">
+                    Resumo da fatura
+                  </div>
+                </div>
+
+                <span
+                  className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${faturaStatusClass[faturaStatus]}`}
                 >
-                  {moedaBR(saldoRestanteFatura)}
+                  {faturaStatusLabel[faturaStatus]}
+                </span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-black/20">
+                  <div className="text-[11px] text-slate-600 dark:text-white/60">Valor da fatura</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {moedaBR(valorFaturaTotal)}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-black/20">
+                  <div className="text-[11px] text-slate-600 dark:text-white/60">Saldo pendente</div>
+                  <div
+                    className={`text-sm font-semibold ${
+                      saldoRestanteFatura <= 0
+                        ? "text-emerald-700 dark:text-emerald-300"
+                        : "text-slate-900 dark:text-white"
+                    }`}
+                  >
+                    {moedaBR(saldoRestanteFatura)}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <button
-              type="button"
-              onClick={onOpenInvoiceModal}
-              className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50
+              <button
+                type="button"
+                onClick={onOpenInvoiceModal}
+                className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50
                 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-            >
-              Acessar fatura
-            </button>
+              >
+                Acessar fatura
+              </button>
+            </div>
           </div>
         </div>
-</div>
+
         <div className="w-full space-y-3">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -857,8 +936,10 @@ export function CreditDashboard({
             <div className="flex-1 overflow-x-auto">
               <div className="min-w-max mx-auto flex items-center justify-center gap-3 px-2">
                 <span className="text-slate-500 text-sm dark:text-white/50">{labelPrev}</span>
-                <span className="text-slate-900 text-sm font-semibold px-3 py-1 rounded-xl bg-slate-50 border border-slate-200
-                  dark:text-white/90 dark:bg-white/5 dark:border-white/10">
+                <span
+                  className="text-slate-900 text-sm font-semibold px-3 py-1 rounded-xl bg-slate-50 border border-slate-200
+                  dark:text-white/90 dark:bg-white/5 dark:border-white/10"
+                >
                   {labelAtual}
                 </span>
                 <span className="text-slate-500 text-sm dark:text-white/50">{labelNext}</span>
@@ -991,22 +1072,28 @@ export function CreditDashboard({
                             </span>
 
                             {catLabel ? (
-                              <span className="text-slate-700 text-xs px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200
-                                dark:text-white/70 dark:bg-white/5 dark:border-white/10">
+                              <span
+                                className="text-slate-700 text-xs px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200
+                                dark:text-white/70 dark:bg-white/5 dark:border-white/10"
+                              >
                                 {catLabel}
                               </span>
                             ) : null}
 
                             {t.tag ? (
-                              <span className="text-violet-700 text-xs px-2 py-0.5 rounded-lg bg-violet-50 border border-violet-200
-                                dark:text-white/80 dark:bg-violet-500/10 dark:border-violet-400/20">
+                              <span
+                                className="text-violet-700 text-xs px-2 py-0.5 rounded-lg bg-violet-50 border border-violet-200
+                                dark:text-white/80 dark:bg-violet-500/10 dark:border-violet-400/20"
+                              >
                                 {t.tag}
                               </span>
                             ) : null}
 
                             {isParcelado ? (
-                              <span className="text-purple-700 text-xs px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200
-                                dark:text-white/80 dark:bg-purple-500/10 dark:border-purple-400/20">
+                              <span
+                                className="text-purple-700 text-xs px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200
+                                dark:text-white/80 dark:bg-purple-500/10 dark:border-purple-400/20"
+                              >
                                 Parcelado {parcelaAtual}/{parcelasTotal}
                               </span>
                             ) : null}
@@ -1062,17 +1149,12 @@ export function CreditDashboard({
                 <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                     Mostrando{" "}
-                    <span className="text-slate-700 dark:text-slate-200">
-                      {indiceInicial + 1}
-                    </span>{" "}
-                    a{" "}
+                    <span className="text-slate-700 dark:text-slate-200">{indiceInicial + 1}</span> a{" "}
                     <span className="text-slate-700 dark:text-slate-200">
                       {Math.min(indiceFinal, txMesFiltradas.length)}
                     </span>{" "}
                     de{" "}
-                    <span className="text-slate-700 dark:text-slate-200">
-                      {txMesFiltradas.length}
-                    </span>
+                    <span className="text-slate-700 dark:text-slate-200">{txMesFiltradas.length}</span>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap justify-center">
@@ -1152,18 +1234,19 @@ export function CreditDashboard({
         </div>
       </div>
 
-      {isInvoiceModalOpen ? (
-        <div
-          className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4"
-          onClick={onCloseInvoiceModal}
-        >
-          <div
-            className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden
-              dark:border-white/10 dark:bg-[#071235] dark:text-white"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3
-              dark:border-white/10">
+{isInvoiceModalOpen ? (
+<div
+  className="fixed inset-0 z-[80] overflow-hidden bg-black/70 backdrop-blur-[2px] flex items-center justify-center px-4 py-2"
+  onClick={onCloseInvoiceModal}
+>
+    <div
+className="w-full max-w-[540px] max-h-[92vh] rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl flex flex-col dark:border-white/10 dark:bg-[#071235] dark:text-white"
+      onClick={(e) => e.stopPropagation()}
+    >
+            <div
+              className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3
+              dark:border-white/10"
+            >
               <div className="min-w-0">
                 <div className="text-slate-600 text-[11px] dark:text-white/60">Pagamento da fatura</div>
                 <div className="text-slate-900 font-semibold text-base dark:text-white">Acessar fatura</div>
@@ -1181,18 +1264,18 @@ export function CreditDashboard({
               </button>
             </div>
 
-            <div className="max-h-[75vh] overflow-y-auto p-4 pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(0,0,0,0.20)_transparent] dark:[scrollbar-color:rgba(255,255,255,0.18)_transparent]">
-              {renderPagamentoFaturaModalContent()}
+<div className="p-4 overflow-y-auto max-h-[calc(92vh-140px)]">
+  {renderPagamentoFaturaModalContent()}
+</div>
 
-              <div className="border-t border-slate-200 px-4 py-3 flex items-center justify-end gap-2 dark:border-white/10">
-                <button
-                  type="button"
-                  onClick={registrarPagamentoFatura}
-                  className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold"
-                >
-                  Registrar pagamento
-                </button>
-              </div>
+<div className="border-t border-slate-200 px-4 py-3 flex items-center justify-end gap-2 dark:border-white/10">
+              <button
+                type="button"
+                onClick={registrarPagamentoFatura}
+                className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold"
+              >
+                Registrar pagamento
+              </button>
             </div>
           </div>
         </div>

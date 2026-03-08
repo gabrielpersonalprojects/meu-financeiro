@@ -47,8 +47,7 @@ function clampDay(day: number) {
   return Math.min(28, Math.max(1, Math.trunc(d)));
 }
 
-function getInvoiceDueDate(fechamentoDia: number, vencimentoDia: number, now = new Date()) {
-  const closeDay = clampDay(fechamentoDia);
+function getNextDueDate(vencimentoDia: number, now = new Date()) {
   const dueDay = clampDay(vencimentoDia);
 
   const y = now.getFullYear();
@@ -57,15 +56,19 @@ function getInvoiceDueDate(fechamentoDia: number, vencimentoDia: number, now = n
   const today = new Date(y, m, now.getDate());
   today.setHours(0, 0, 0, 0);
 
-  const closeThisMonth = new Date(y, m, closeDay);
-  closeThisMonth.setHours(0, 0, 0, 0);
+  const dueThisMonth = new Date(y, m, dueDay);
+  dueThisMonth.setHours(0, 0, 0, 0);
 
-  // Se já passou do fechamento, vencimento vai 2 meses à frente; se não passou, 1 mês à frente.
-  const dueMonthOffset = today.getTime() > closeThisMonth.getTime() ? 2 : 1;
+  // Próximo vencimento a pagar:
+  // - se ainda não chegou/passou do vencimento deste mês, é neste mês
+  // - se já passou, vai para o próximo mês
+  if (today.getTime() <= dueThisMonth.getTime()) {
+    return dueThisMonth;
+  }
 
-  const due = new Date(y, m + dueMonthOffset, dueDay);
-  due.setHours(0, 0, 0, 0);
-  return due;
+  const dueNextMonth = new Date(y, m + 1, dueDay);
+  dueNextMonth.setHours(0, 0, 0, 0);
+  return dueNextMonth;
 }
 
 function formatDateDDMM(d: Date) {
@@ -96,14 +99,19 @@ export function CreditCardVisual({
 
   const labelPerfil = String(perfil || "PF").toUpperCase();
 
-  const due = getInvoiceDueDate(fechamentoDia, vencimentoDia);
+  // "Próx. venc." deve refletir a próxima fatura a pagar,
+  // e não o vencimento do ciclo recém-fechado.
+  const due = getNextDueDate(vencimentoDia);
   const dueLabel = formatDateDDMM(due);
 
   const openNum = Number(emAberto);
   const open = Number.isFinite(openNum) ? Math.max(0, openNum) : 0;
+
   const today0 = new Date();
   today0.setHours(0, 0, 0, 0);
+
   const isOverdue = open > 0 && today0.getTime() > due.getTime();
+
   return (
     <div
       className="relative w-full max-w-[320px] mx-auto overflow-hidden rounded-[28px] border border-white/10 shadow-sm"
@@ -139,29 +147,29 @@ export function CreditCardVisual({
           <ContactlessIcon className="h-6 w-6 text-white/85" />
         </div>
 
-<div className="mb-2 flex items-center gap-2 text-[11px] text-white/70 whitespace-nowrap">
-  <span className="text-white/80">Próx. venc.: {dueLabel}</span>
+        <div className="mb-2 flex items-center gap-2 text-[11px] text-white/70 whitespace-nowrap">
+          <span className="text-white/80">Próx. venc.: {dueLabel}</span>
 
-  {isOverdue && (
-    <span className="ml-1 rounded-full border border-white/20 bg-white/10 px-2 py-[2px] text-[10px] font-extrabold text-white drop-shadow-sm">
-      Em Atraso
-    </span>
-  )}
+          {isOverdue && (
+            <span className="ml-1 rounded-full border border-white/20 bg-white/10 px-2 py-[2px] text-[10px] font-extrabold text-white drop-shadow-sm">
+              Em Atraso
+            </span>
+          )}
 
-  {open > 0 && (
-    <>
-      <span className="opacity-50">|</span>
-      <span className="font-extrabold text-white drop-shadow-sm">
-        Em aberto: {formatBRL(open)}
-      </span>
-    </>
-  )}
-</div>
+          {open > 0 && (
+            <>
+              <span className="opacity-50">|</span>
+              <span className="font-extrabold text-white drop-shadow-sm">
+                Em aberto: {formatBRL(open)}
+              </span>
+            </>
+          )}
+        </div>
 
-          <div className="text-white/90 text-sm font-semibold tracking-wide">
-            {nome || "Titular"}
-          </div>
+        <div className="text-white/90 text-sm font-semibold tracking-wide">
+          {nome || "Titular"}
         </div>
       </div>
+    </div>
   );
 }

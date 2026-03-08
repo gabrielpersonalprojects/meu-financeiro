@@ -457,22 +457,25 @@ const resetAddAccountForm = () => {
 };
 
 const openAddAccountModal = () => {
-  setEditingProfileId(null); // <<< ADD AQUI (novo cadastro)
-  
+  if (profiles.length >= 15) {
+    toastCompact("Você atingiu o limite de 15 contas cadastradas.", "info");
+    return;
+  }
 
-if (profiles.length >= 15) {
-  toastCompact("Você atingiu o limite de 15 contas cadastradas.", "info");
-  return;
-}
-
-
+  setEditingProfileId(null);
   resetAddAccountForm();
   setAccTab("novo");
-  setIsAddAccountOpen(true);
-  setShowProfileMenu(false); // fecha o menu de contas
+  setIsAddAccountOpen(false);
+
+  requestAnimationFrame(() => {
+    setIsAddAccountOpen(true);
+    setShowProfileMenu(false); // fecha o menu de contas
+  });
 };
 
 const openManageAccountsModal = () => {
+  setEditingProfileId(null);
+  resetAddAccountForm();
   setAccTab("gerenciar");
   setIsAddAccountOpen(true);
   setShowProfileMenu(false);
@@ -3948,22 +3951,33 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
 
 {/* modal */}
 <div className="absolute inset-0 flex items-center justify-center p-4">
-  <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-200/10 dark:bg-slate-900/90">
-    <div className="p-4 border-b border-slate-200 dark:border-slate-200/10">
-      <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest dark:text-slate-400">
-        {editingProfileId ? "Editar conta" : "Nova conta"}
-      </p>
-      <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100">
-        {editingProfileId ? "Editar Conta" : "Adicionar Conta"}
-      </h3>
-    </div>
+  <div className="w-full max-w-[460px] rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-200/10 dark:bg-slate-900/90">
+<div className="px-4 py-3 border-b border-slate-200 dark:border-slate-200/10 flex items-start justify-between gap-3">
+  <div>
+    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.18em] dark:text-slate-400">
+      {editingProfileId ? "Editar conta" : "Nova conta"}
+    </p>
+   <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+      {editingProfileId ? "Editar Conta" : "Adicionar Conta"}
+    </h3>
+  </div>
+
+  <button
+    type="button"
+    onClick={() => setIsAddAccountOpen(false)}
+    aria-label="Fechar modal"
+    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+  >
+    <span className="text-lg leading-none">&times;</span>
+  </button>
+</div>
 
     <div className="mt-4 px-4">
       <div className="flex items-end gap-2 border-b border-slate-200 dark:border-white/10">
         <button
           type="button"
           onClick={() => setAccTab("novo")}
-          className={`relative -mb-px px-4 py-2 text-sm font-semibold transition ${
+          className={`relative -mb-px px-3 py-1.5 text-sm font-semibold transition ${
             accTab === "novo"
               ? "text-slate-900 border-b-2 border-indigo-500 dark:text-white"
               : "text-slate-500 hover:text-slate-900 dark:text-white/60 dark:hover:text-white"
@@ -3975,7 +3989,7 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
         <button
           type="button"
           onClick={() => setAccTab("gerenciar")}
-          className={`relative -mb-px px-4 py-2 text-sm font-semibold transition ${
+          className={`relative -mb-px px-3 py-1.5 text-sm font-semibold transition ${
             accTab === "gerenciar"
               ? "text-slate-900 border-b-2 border-indigo-500 dark:text-white"
               : "text-slate-500 hover:text-slate-900 dark:text-white/60 dark:hover:text-white"
@@ -3987,7 +4001,7 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
     </div>
 
     {accTab === "novo" && (
-      <div className="p-4 space-y-4">
+      <div className="p-3 space-y-3">
         {/* Perfil PF/PJ */}
         <div>
           <label className="block text-xs font-bold text-slate-500 uppercase mb-2 dark:text-slate-400">
@@ -3998,7 +4012,7 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
             <button
               type="button"
               onClick={() => setAccPerfilConta("PF")}
-              className={`py-2 rounded-xl border text-sm font-bold transition ${
+              className={`py-1.5 rounded-lg border text-sm font-bold transition ${
                 accPerfilConta === "PF"
                   ? "bg-indigo-600 border-indigo-500 text-white"
                   : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
@@ -4010,7 +4024,7 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
             <button
               type="button"
               onClick={() => setAccPerfilConta("PJ")}
-              className={`py-2 rounded-xl border text-sm font-bold transition ${
+              className={`py-1.5 rounded-lg border text-sm font-bold transition ${
                 accPerfilConta === "PJ"
                   ? "bg-indigo-600 border-indigo-500 text-white"
                   : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
@@ -4054,7 +4068,7 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
                 setAccBanco(e.target.value.replace(/[^a-zA-Z0-9À-ÿ\s]/g, ""))
               }
               placeholder="Ex: Nubank"
-              className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-100"
+              className="w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
 
@@ -4068,11 +4082,11 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
               inputMode="numeric"
               pattern="[0-9]*"
               placeholder="12345-6"
-              className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-100"
+              className="w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
 
-          <div className="md:col-span-1">
+          <div className="md:col-span-1 max-w-[170px]">
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 dark:text-slate-400">
               Nº Agência
             </label>
@@ -4082,12 +4096,12 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
               inputMode="numeric"
               pattern="[0-9]*"
               placeholder="0001"
-              className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-100"
+              className="w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
 
           {/* Saldo inicial */}
-          <div className="mt-3 md:col-span-1">
+          <div className="mt-2 md:col-span-1 max-w-[160px]">
             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 dark:text-slate-400">
               Saldo inicial
             </label>
@@ -4102,15 +4116,14 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
               placeholder="R$ 0,00"
               inputMode="numeric"
               readOnly={isEditingAccount}
-              className={
-                "w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900/40 dark:border-slate-700 dark:text-slate-100" +
-                (isEditingAccount ? " opacity-80 cursor-not-allowed" : "")
-              }
+className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900/40 dark:border-slate-700 ${
+  isEditingAccount ? "opacity-80 cursor-not-allowed" : ""
+}`}
             />
 
 {!isEditingAccount && (
-  <p className="text-[12px] leading-4 text-rose-500">
-    Este saldo inicial não poderá ser editado depois.
+  <p className="mt-1.5 text-[12px] leading-4 text-rose-500 whitespace-nowrap">
+    Este "Saldo Inicial" não poderá ser editado depois.
   </p>
 )}
           </div>
@@ -4174,14 +4187,14 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
     )}
 
     {accTab === "novo" && (
-      <div className="p-4 border-t border-slate-200 flex gap-2 dark:border-slate-200/10">
+      <div className="p-3 border-t border-slate-200 flex gap-2 dark:border-slate-200/10">
         <button
           type="button"
           onClick={() => {
             setIsAddAccountOpen(false);
             setEditingContaId(null);
           }}
-          className="flex-1 py-2.5 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-800"
+         className="flex-1 py-2 rounded-lg border border-slate-300 bg-slate-100 text-sm text-slate-700 font-bold hover:bg-slate-200 transition dark:border-slate-700 dark:bg-slate-800/60"
         >
           Cancelar
         </button>
@@ -4189,7 +4202,7 @@ className={`h-12 rounded-2xl transition-all flex items-center justify-center
         <button
           type="button"
           onClick={handleConfirmAddAccount}
-          className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-extrabold hover:bg-indigo-500 transition"
+          className="flex-1 py-2 rounded-lg bg-indigo-600 text-sm text-white font-extrabold hover:bg-indigo-500 transition"
         >
           {editingContaId ? "Editar" : "Adicionar"}
         </button>

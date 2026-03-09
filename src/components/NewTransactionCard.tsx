@@ -432,7 +432,7 @@ className={`h-9 px-2 rounded-xl text-[15px] font-bold transition ${
                     : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
                 }`}
             >
-              Cartão de Crédito
+              Sessão Cartões
             </button>
           </div>
         </div>

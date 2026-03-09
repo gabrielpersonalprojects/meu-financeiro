@@ -159,56 +159,69 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
                 </>
               )}
 
-              {t.qualCartao && (
-                <>
-                  <span className="text-slate-500 dark:text-slate-400">•</span>
-                  {(() => {
-                    const info = getContaPartsById(String(t.qualCartao), profiles);
-                    if (!info) {
-                      return (
-                        <span className="normal-case text-slate-500 dark:text-slate-400">
-                          Conta
-                        </span>
-                      );
-                    }
+{(() => {
+  const contaRef = String(
+    (t as any).contaId ??
+      (t as any).profileId ??
+      (t as any).qualConta ??
+      (t as any).conta ??
+      ""
+  ).trim();
 
-                    return (
-                      <span className="inline-flex flex-wrap items-center gap-2 normal-case">
-                        <span
-                          className="rounded-full bg-indigo-600/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600
-                                     dark:bg-indigo-400/15 dark:text-indigo-300"
-                        >
-                          {info.banco}
-                        </span>
+  const cartaoRef = String((t as any).qualCartao ?? "").trim();
 
-                        {!!info.perfil && (
-                          <span className="font-semibold uppercase text-indigo-600 dark:text-indigo-300">
-                            {info.perfil}
-                          </span>
-                        )}
+  const refParaExibir =
+    (t as any).tipo === "cartao_credito" ? cartaoRef || contaRef : contaRef || cartaoRef;
 
-                        {!!info.tipo && (
-                          <span className="uppercase text-slate-500 dark:text-slate-400">
-                            {info.tipo}
-                          </span>
-                        )}
+  if (!refParaExibir || isTransacaoFatura) return null;
 
-                        {info.numero && (
-                          <span className="text-slate-500 dark:text-slate-400">
-                            - {info.numero}
-                          </span>
-                        )}
+  const info = getContaPartsById(refParaExibir, profiles);
 
-                        {info.agencia && (
-                          <span className="text-slate-500 dark:text-slate-400">
-                            - {info.agencia}
-                          </span>
-                        )}
-                      </span>
-                    );
-                  })()}
-                </>
-              )}
+  return (
+    <>
+      <span className="text-slate-500 dark:text-slate-400">•</span>
+
+      {!info ? (
+        <span className="normal-case text-slate-500 dark:text-slate-400">
+          Conta
+        </span>
+      ) : (
+        <span className="inline-flex flex-wrap items-center gap-2 normal-case">
+          <span
+            className="rounded-full bg-indigo-600/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600
+                       dark:bg-indigo-400/15 dark:text-indigo-300"
+          >
+            {info.banco}
+          </span>
+
+          {!!info.tipo && (
+            <span className="uppercase text-slate-500 dark:text-slate-400">
+              {info.tipo}
+            </span>
+          )}
+
+          {!!info.perfil && (
+            <span className="font-semibold uppercase text-slate-500 dark:text-slate-400">
+              {info.perfil}
+            </span>
+          )}
+
+          {info.numero && (
+            <span className="text-slate-500 dark:text-slate-400">
+              - {info.numero}
+            </span>
+          )}
+
+          {info.agencia && (
+            <span className="text-slate-500 dark:text-slate-400">
+              - {info.agencia}
+            </span>
+          )}
+        </span>
+      )}
+    </>
+  );
+})()}
             </div>
           </div>
         </div>

@@ -10,7 +10,8 @@ import { getContaBadge, getContaLabel } from "../../domain";
 import { asId } from "../../utils/asId";
 import { getContaPartsById } from "../../app/transactions/logic";
 
-import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Eye, EyeOff } from "lucide-react";
+
 const isPaid = (v: any) => {
   const s = String(v ?? "").toLowerCase();
   return v === true || v === 1 || s === "1" || s === "true" || s === "pago";
@@ -112,6 +113,7 @@ export default function TransacoesTab({
   stats,
 }: Props) {
   const [paginaAtual, setPaginaAtual] = useState(1);
+  const [mostrarValoresResumo, setMostrarValoresResumo] = useState(true);
 
   const getFilteredTransactions = useMemo(() => {
     return (itemsFiltrados || []).filter((t: any) => {
@@ -203,6 +205,14 @@ export default function TransacoesTab({
       {label}
     </span>
   );
+
+  const toggleResumoPrivacidade = () => {
+    setMostrarValoresResumo((prev) => !prev);
+  };
+
+  const valorOuOculto = (valor: number) => {
+    return mostrarValoresResumo ? formatarMoeda(valor) : "••••••";
+  };
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
@@ -317,13 +327,22 @@ export default function TransacoesTab({
               <div className="pointer-events-none absolute inset-0 bg-black/6 backdrop-blur-[1px]" />
               <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-white/12 blur-3xl" />
 
+              <button
+                type="button"
+                onClick={toggleResumoPrivacidade}
+                className="absolute top-4 right-4 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/90 backdrop-blur-xl transition hover:bg-white/15"
+                title={mostrarValoresResumo ? "Ocultar valores" : "Mostrar valores"}
+              >
+                {mostrarValoresResumo ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              </button>
+
               <div className="relative">
                 <p className="text-[10px] font-black text-white/80 uppercase tracking-[0.25em] mb-4">
                   Saldo Disponível
                 </p>
 
                 <p className="text-4xl font-black text-white tracking-tight">
-                  {formatarMoeda(stats.saldoTotal)}
+                  {valorOuOculto(stats.saldoTotal)}
                 </p>
               </div>
 
@@ -334,34 +353,58 @@ export default function TransacoesTab({
 
             <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px]">
               <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
-<p className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
-  <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" strokeWidth={2.2} />
-  <span>Entradas (mês)</span>
-</p>
-              <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                {formatarMoeda(stats.receitasMes)}
+
+              <button
+                type="button"
+                onClick={toggleResumoPrivacidade}
+                className="absolute top-4 right-4 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-600 backdrop-blur-xl transition hover:bg-white dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-900"
+                title={mostrarValoresResumo ? "Ocultar valores" : "Mostrar valores"}
+              >
+                {mostrarValoresResumo ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              </button>
+
+              <p className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
+                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" strokeWidth={2.2} />
+                <span>Entradas (mês)</span>
               </p>
+
+              <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                {valorOuOculto(stats.receitasMes)}
+              </p>
+
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
                 Pendente:{" "}
                 <span className="text-emerald-600 dark:text-emerald-400">
-                  {formatarMoeda(stats.pendenteReceita)}
+                  {valorOuOculto(stats.pendenteReceita)}
                 </span>
               </p>
             </div>
 
             <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px]">
               <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-rose-500/10 blur-3xl" />
-<p className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
-  <ArrowDownRight className="h-3.5 w-3.5 text-rose-500" strokeWidth={2.2} />
-  <span>Saídas (mês)</span>
-</p>
-              <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                {formatarMoeda(stats.despesasMes)}
+
+              <button
+                type="button"
+                onClick={toggleResumoPrivacidade}
+                className="absolute top-4 right-4 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-600 backdrop-blur-xl transition hover:bg-white dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-900"
+                title={mostrarValoresResumo ? "Ocultar valores" : "Mostrar valores"}
+              >
+                {mostrarValoresResumo ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              </button>
+
+              <p className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
+                <ArrowDownRight className="h-3.5 w-3.5 text-rose-500" strokeWidth={2.2} />
+                <span>Saídas (mês)</span>
               </p>
+
+              <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                {valorOuOculto(stats.despesasMes)}
+              </p>
+
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
                 Pendente:{" "}
                 <span className="text-rose-600 dark:text-rose-400">
-                  {formatarMoeda(stats.pendenteDespesa)}
+                  {valorOuOculto(stats.pendenteDespesa)}
                 </span>
               </p>
             </div>

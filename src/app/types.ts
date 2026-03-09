@@ -4,16 +4,16 @@ export type TransactionType =
   | "transferencia"
   | "cartao_credito";
 
-export type SpendingType = "Fixo" | "Variável";
+export type SpendingType = "normal" | "fixo" | "parcelado";
 
 export type TabType = "transacoes" | "gastos" | "projecao" | "ajustes";
 
 export type PaymentMethod =
   | "pix"
-  | "transferencia_bancaria"
-  | "debito_conta"
   | "boleto"
-  | "dinheiro";
+  | "dinheiro"
+  | "debito"
+  | "credito";
 
 export type Categories = {
   despesa: string[];
@@ -26,7 +26,7 @@ export type PaymentMethods = {
 };
 
 export interface Transaction {
-  id: number;
+  id: string | number;
   tipo: TransactionType;
   descricao: string;
   valor: number;
@@ -39,14 +39,19 @@ export interface Transaction {
   profileId?: string;
 
   tipoGasto: SpendingType | "";
+  paymentMethod?: PaymentMethod;
   metodoPagamento?: PaymentMethod;
+  tag?: string;
 
   qualCartao: string;
   pago: boolean;
+  paid?: boolean;
 
   // opcionais
   recorrenciaId?: string;
   isRecorrente?: boolean;
+  recorrente?: boolean;
+  createdAt?: number;
 }
 
 export type PagamentoFaturaApp = {

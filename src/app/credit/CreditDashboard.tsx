@@ -269,8 +269,28 @@ useEffect(() => {
   if (invoiceMonthOffset !== 0) return;
   if (startOfDay(now).getTime() <= endOfDay(cicloFim).getTime()) return;
 
+  const isTxFromThisCard = (t: any) => {
+    const ref = String(
+      t?.cartaoId ??
+      t?.selectedCreditCardId ??
+      t?.qualCartao ??
+      ""
+    ).trim();
+
+    return t?.tipo === "cartao_credito" && ref === String(cartao.id);
+  };
+
+  const hoje = startOfDay(now).getTime();
+
   const ultimasDoCartao = [...transacoes]
-    .filter((t) => t.tipo === "cartao_credito")
+    .filter(isTxFromThisCard)
+    .filter((t) => {
+      const dt = parseISODateLocal(t.data);
+      if (Number.isNaN(dt.getTime())) return false;
+
+      // não deixa compra futura forçar jump de mês
+      return startOfDay(dt).getTime() <= hoje;
+    })
     .sort((a, b) => {
       const aStamp = Number(a.criadoEm ?? 0);
       const bStamp = Number(b.criadoEm ?? 0);
@@ -284,6 +304,7 @@ useEffect(() => {
   const invoiceKeyDaUltima = getInvoiceMonthKeyForTransaction(ultima.data);
   const jumpKey = `${cartao.id}__${ultima.id}__${Number(ultima.criadoEm ?? 0)}`;
 
+  // aqui o jump é só para o próximo ciclo imediato
   if (invoiceKeyDaUltima === nextBaseMonthKey && autoJumpRef.current !== jumpKey) {
     autoJumpRef.current = jumpKey;
     setInvoiceMonthOffset(1);

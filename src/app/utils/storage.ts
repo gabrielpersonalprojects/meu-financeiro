@@ -1,7 +1,8 @@
 // src/app/utils/storage.ts
 import type { Transaction } from "../types";
 
-const KEY = "transacoes";
+import { STORAGE_KEYS } from "../constants";
+const KEY = STORAGE_KEYS.TRANSACOES;
 
 function safeParseArray(raw: string | null): any[] {
   if (!raw) return [];

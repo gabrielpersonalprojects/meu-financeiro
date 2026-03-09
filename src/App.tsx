@@ -44,7 +44,13 @@ import { CreditCardVisual } from "./app/credit/CreditCardVisual";
 import { Pencil, Trash2 } from "lucide-react";
 import { PencilLine } from "lucide-react";
 import { Moon } from "lucide-react";
-
+import {
+  STORAGE_KEYS,
+  PROFILE_KEYS,
+  buildProfilePrefix,
+  buildProfileStorageKey,
+  normalizeFiltroContaValue,
+} from "./app/constants";
 
 import { asId } from "./utils/asId";
 
@@ -100,7 +106,7 @@ const hojeStr = getHojeLocal();
     const addTxLockRef = useRef(false);
     const [ccTags, setCcTags] = useState<string[]>(() => {
   try {
-    const raw = localStorage.getItem("fluxmoney_cc_tags");
+    const raw = localStorage.getItem(STORAGE_KEYS.CC_TAGS);
     const arr = raw ? JSON.parse(raw) : [];
     return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
   } catch {
@@ -126,7 +132,7 @@ const removeCCTag = (tag: string) => {
 
 const persistCCTags = (tags: string[]) => {
   try {
-    localStorage.setItem("fluxmoney_cc_tags", JSON.stringify(tags));
+    localStorage.setItem(STORAGE_KEYS.CC_TAGS, JSON.stringify(tags));
   } catch {}
 };
 type ConfirmState = {
@@ -173,15 +179,14 @@ function confirmToast(opts: ConfirmState) {
 
   const ui = useUI();
  
-const FATURA_PAYMENTS_LS_KEY = "fluxmoney:fatura_payments:v1";
 const salvarPagamentosFatura = (lista: PagamentoFaturaApp[]) => {
   try {
     console.log("[FATURA][SALVAR] qtd:", Array.isArray(lista) ? lista.length : "nao-array");
     console.log("[FATURA][SALVAR] lista:", lista);
 
-    localStorage.setItem(FATURA_PAYMENTS_LS_KEY, JSON.stringify(lista));
+    localStorage.setItem(STORAGE_KEYS.FATURA_PAYMENTS, JSON.stringify(lista));
 
-    console.log("[FATURA][SALVAR] LS bruto:", localStorage.getItem(FATURA_PAYMENTS_LS_KEY));
+    console.log("[FATURA][SALVAR] LS bruto:", localStorage.getItem(STORAGE_KEYS.FATURA_PAYMENTS));
   } catch (e) {
     console.error("[FATURA] erro ao salvar pagamentos", e);
   }
@@ -189,7 +194,7 @@ const salvarPagamentosFatura = (lista: PagamentoFaturaApp[]) => {
 
 function loadPagamentosFatura(): PagamentoFaturaApp[] {
   try {
-    const raw = localStorage.getItem(FATURA_PAYMENTS_LS_KEY);
+    const raw = localStorage.getItem(STORAGE_KEYS.FATURA_PAYMENTS);
     console.log("[FATURA][LOAD] raw:", raw);
 
     if (!raw) return [];
@@ -211,7 +216,7 @@ const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>((
 
 useEffect(() => {
   try {
-    localStorage.setItem(FATURA_PAYMENTS_LS_KEY, JSON.stringify(pagamentosFatura));
+    localStorage.setItem(STORAGE_KEYS.FATURA_PAYMENTS, JSON.stringify(pagamentosFatura));
   } catch {}
 }, [pagamentosFatura]);
 
@@ -324,7 +329,6 @@ return next;
 };
 
   // --- Perfis ---
- const PROFILES_LS_KEY = "accounts_list_v1";
 
 const [profiles, setProfiles] = useState<Profile[]>(() => {
   const isLegacySeed = (p: any) => {
@@ -339,7 +343,7 @@ const [profiles, setProfiles] = useState<Profile[]>(() => {
   };
 
   try {
-    const raw = localStorage.getItem(PROFILES_LS_KEY);
+    const raw = localStorage.getItem(STORAGE_KEYS.PROFILES);
     const parsed = raw ? JSON.parse(raw) : null;
 
     if (Array.isArray(parsed)) {
@@ -353,35 +357,7 @@ const [profiles, setProfiles] = useState<Profile[]>(() => {
 });
 
 
-const [editingContaId, setEditingContaId] = useState<string | null>(null);
 const LABEL_TODAS_CONTAS = "Todas as Contas";
-const isEditingAccount = editingContaId !== null;
-const handleEditConta = (id: string) => {
-  const conta = profiles.find((p) => p.id === id);
-  if (!conta) return;
-
-  setEditingContaId(id);
-  setAccTab("novo");
-
-  setAccPerfilConta((conta as any).perfil ?? "PF");
-  setAccTipoConta((conta as any).tipo ?? TIPOS_CONTA[0]);
-
-  setAccBanco((conta as any).banco ?? "");
-  setAccNumeroConta((conta as any).numeroConta ?? "");
-  setAccNumeroAgencia((conta as any).numeroAgencia ?? "");
-
-  setAccPossuiCC(!!(conta as any).possuiCC);
-  setAccLimiteCC(formatBRLFromAnyInput(String((conta as any).limiteCC ?? 0)));
-  setAccFechamentoCC(Number((conta as any).fechamentoCC ?? 1));
-  setAccVencimentoCC(Number((conta as any).vencimentoCC ?? 10));
-
-  setAccSaldoInicial(
-  ((Number((conta as any).initialBalanceCents ?? 0) / 100) || 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  })
-);
-};
 
 const bancosOptions = useMemo(() => {
   return [LABEL_TODAS_CONTAS, ...profiles.map((p) => p.name)];
@@ -395,7 +371,7 @@ const cartoesDisponiveis = useMemo(() => {
 // persiste lista de contas
 useEffect(() => {
   try {
-    localStorage.setItem(PROFILES_LS_KEY, JSON.stringify(profiles));
+    localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(profiles));
   } catch {}
 }, [profiles]);
 
@@ -412,7 +388,6 @@ const TIPOS_CONTA = [
 
 const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
 const [accTab, setAccTab] = useState<"novo" | "gerenciar">("novo");
-const [accEditingId, setAccEditingId] = useState<string | null>(null);
 
 const [accPerfilConta, setAccPerfilConta] = useState<"PF" | "PJ">("PF");
 const [accTipoConta, setAccTipoConta] = useState<string>(TIPOS_CONTA[0]);
@@ -430,7 +405,7 @@ const [modoCentro, setModoCentro] = useState<"normal" | "credito">("normal");
 const hojeStr = getHojeLocal();
 
 const [displayName, setDisplayName] = useState(() => {
-  return localStorage.getItem("fluxmoney_display_name") || "";
+  return localStorage.getItem(STORAGE_KEYS.DISPLAY_NAME) || "";
 });
 const [confirmedDisplayName, setConfirmedDisplayName] = useState(
   String(displayName ?? "").trim()
@@ -440,7 +415,7 @@ const [isEditingDisplayName, setIsEditingDisplayName] = useState(
 );
 
 useEffect(() => {
-  localStorage.setItem("fluxmoney_display_name", displayName);
+  localStorage.setItem(STORAGE_KEYS.DISPLAY_NAME, displayName);
 }, [displayName]);
 
 const resetAddAccountForm = () => {
@@ -556,7 +531,7 @@ const handleConfirmAddAccount = () => {
  const banco = accBanco.trim();
   const numeroConta = accNumeroConta.trim();
   const numeroAgencia = accNumeroAgencia.trim();
-if (!isEditingAccount && profiles.length >= 15) {
+if (!editingProfileId && profiles.length >= 15) {
   toastCompact("Você atingiu o limite de 15 contas cadastradas.", "info");
   return;
 }
@@ -572,7 +547,7 @@ if (!banco) {
 
   // não pode duplicar nome de conta (mas ao editar ignora a própria)
   const existe = profiles.some((p) => {
-  if (p.id === editingContaId) return false;
+  if (p.id === editingProfileId) return false;
 
   const mesmoBanco = (p.banco || p.name || "").trim().toLowerCase() === banco.trim().toLowerCase();
 
@@ -676,7 +651,7 @@ if ((profiles || []).length <= 1) {
   activeProfileId === idOrName ||
   prev.some((p) => p.id === activeProfileId && (p.name === idOrName || p.banco === idOrName))
 ) {
-  setActiveProfileId(LABEL_TODAS_CONTAS);
+  setActiveProfileId("");
 }
 
     return next;
@@ -727,8 +702,9 @@ const handleEditAccount = (idOrName: string) => {
 
 
 
-  // abre modal
-  setIsAddAccountOpen(true);
+// abre o formulário em modo edição
+setAccTab("novo");
+setIsAddAccountOpen(true);
 };
 
 const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -758,7 +734,7 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   // --- Tema ---
 const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
   try {
-    const saved = localStorage.getItem("theme");
+    const saved = localStorage.getItem(STORAGE_KEYS.THEME);
     if (saved === "dark") return true;
     if (saved === "light") return false;
     return false; // default claro
@@ -770,10 +746,10 @@ const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
+      localStorage.setItem(STORAGE_KEYS.THEME, "dark");
     } else {
       document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
+      localStorage.setItem(STORAGE_KEYS.THEME, "light");
     }
   }, [isDarkMode]);
 
@@ -793,7 +769,6 @@ const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
   const [editDescInput, setEditDescInput] = useState("");
   const [applyToAllRelated, setApplyToAllRelated] = useState(false);
 
-  const [editContaId, setEditContaId] = useState<string>("");
   const [editDataInput, setEditDataInput] = useState<string>("");
   const [editCategoriaInput, setEditCategoriaInput] = useState<string>("");
 
@@ -810,42 +785,33 @@ const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroMetodo, setFiltroMetodo] = useState("");
   const [filtroTipoGasto, setFiltroTipoGasto] = useState("");
-  const normalizeFiltroConta = (v: any) => {
-  const s = String(v ?? "").trim().toLowerCase();
-  if (!s) return "todas";
-  if (s === "sem_conta" || s === "sem conta" || s === "sem contas" || s === "semconta") return "todas";
-  return String(v);
-};
   const [filtroConta, setFiltroConta] = useState<string>(() => {
-  const saved = localStorage.getItem("filtroConta");
-  return normalizeFiltroConta(saved);
+  const saved = localStorage.getItem(STORAGE_KEYS.FILTRO_CONTA);
+  return normalizeFiltroContaValue(saved);
 });
 
 // helpers p/ mexer no localStorage de OUTRA conta (sem precisar trocar a conta ativa)
-const getPrefixByProfileId = (pid: string) => (pid === "default" ? "" : `${pid}_`);
 
 const loadTransacoesByProfile = (pid: string): Transaction[] => {
   try {
-    const prefix = getPrefixByProfileId(pid);
-    const keyNew = `${prefix}transacoes`;
 
     const candidates = [
-      keyNew,
-      `${prefix}transactions`,
+      buildProfileStorageKey(pid, "transacoes"),
+      buildProfileStorageKey(pid, "transactions"),
       "transactions",
       "transacoes",
     ];
 
     for (const k of candidates) {
-      const raw = localStorage.getItem(k);
+      const raw = localStorage.getItem(k === "transacoes" ? STORAGE_KEYS.TRANSACOES : k);
       if (!raw) continue;
 
       const parsed = JSON.parse(raw);
       const list = Array.isArray(parsed) ? (parsed as Transaction[]) : [];
 
       // migra para a chave nova, se veio de outra
-      if (k !== keyNew) {
-        localStorage.setItem(keyNew, JSON.stringify(list));
+     if (k !== buildProfileStorageKey(pid, "transacoes")) {
+        localStorage.setItem(buildProfileStorageKey(pid, "transacoes"), JSON.stringify(list));
       }
 
       return list;
@@ -858,10 +824,10 @@ const loadTransacoesByProfile = (pid: string): Transaction[] => {
 };
 
 
-const saveTransacoesByProfile = (pid: string, list: Transaction[]) => {
+const saveTransacoesByProfile = (_pid: string, list: Transaction[]) => {
   try {
-    const prefix = getPrefixByProfileId(pid);
-    } catch {}
+    persistTransacoes(list);
+  } catch {}
 };
 
   // --- Form ---
@@ -880,11 +846,9 @@ const saveTransacoesByProfile = (pid: string, list: Transaction[]) => {
   const [formContaDestino, setFormContaDestino] = useState("");
   const [formBancoId, setFormBancoId] = useState<string>("");
 
-const LS_CREDIT_CARDS_KEY = "fluxmoney_creditCards";
-
 const [creditCards, setCreditCards] = useState<CreditCard[]>(() => {
   try {
-    const raw = localStorage.getItem(LS_CREDIT_CARDS_KEY);
+    const raw = localStorage.getItem(STORAGE_KEYS.CREDIT_CARDS);
     return raw ? (JSON.parse(raw) as CreditCard[]) : [];
   } catch {
     return [];
@@ -897,7 +861,7 @@ const [isCcExpanded, setIsCcExpanded] = useState(false);
 
 useEffect(() => {
   try {
-    localStorage.setItem(LS_CREDIT_CARDS_KEY, JSON.stringify(creditCards));
+    localStorage.setItem(STORAGE_KEYS.CREDIT_CARDS, JSON.stringify(creditCards));
   } catch {
     // ignora
   }
@@ -975,10 +939,6 @@ type CreditCard = {
   perfil: "pf" | "pj";
 };
 
-
-
-const CREDIT_CARDS_LS_KEY = "CREDIT_CARDS_V1";
-
 // helper id seguro
 const makeId = () =>
   (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`);
@@ -986,19 +946,27 @@ const makeId = () =>
 // carregar/persistir cartões
 useEffect(() => {
   try {
-    const raw = localStorage.getItem(CREDIT_CARDS_LS_KEY);
+    const rawCurrent = localStorage.getItem(STORAGE_KEYS.CREDIT_CARDS);
+    const rawLegacy = localStorage.getItem(STORAGE_KEYS.CREDIT_CARDS_LEGACY);
+    const raw = rawCurrent || rawLegacy;
+
     if (raw) {
-const parsed = JSON.parse(raw) as any[];
+      const parsed = JSON.parse(raw) as any[];
 
-if (Array.isArray(parsed)) {
-  const normalized = parsed.map((c) => ({
-    ...c,
-    perfil: c?.perfil === "pj" ? "pj" : "pf",
-  })) as CreditCard[];
+      if (Array.isArray(parsed)) {
+        const normalized = parsed.map((c) => ({
+          ...c,
+          perfil: c?.perfil === "pj" ? "pj" : "pf",
+        })) as CreditCard[];
 
-  setCreditCards(normalized);
-}
+        setCreditCards(normalized);
 
+        // migra legado para a chave nova
+        if (!rawCurrent && rawLegacy) {
+          localStorage.setItem(STORAGE_KEYS.CREDIT_CARDS, JSON.stringify(normalized));
+          localStorage.removeItem(STORAGE_KEYS.CREDIT_CARDS_LEGACY);
+        }
+      }
     }
   } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1006,7 +974,8 @@ if (Array.isArray(parsed)) {
 
 useEffect(() => {
   try {
-    localStorage.setItem(CREDIT_CARDS_LS_KEY, JSON.stringify(creditCards));
+    localStorage.setItem(STORAGE_KEYS.CREDIT_CARDS, JSON.stringify(creditCards));
+    localStorage.removeItem(STORAGE_KEYS.CREDIT_CARDS_LEGACY);
   } catch {}
 }, [creditCards]);
 
@@ -1249,7 +1218,10 @@ useEffect(() => {
 };
 
 
-  const [activeProfileId, setActiveProfileId] = useState<string>("default");
+  const [activeProfileId, setActiveProfileId] = useState<string>(() => {
+  const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_PROFILE_ID)?.trim();
+  return saved || "";
+});
   const [isParceladoMode, setIsParceladoMode] = useState<boolean | null>(null);
   
   
@@ -1284,7 +1256,7 @@ if (!ok) return;
 
     // se deletou a conta ativa, joga para a primeira que sobrar
     if (activeProfileId === id) {
-      setActiveProfileId(next[0]?.id ?? "default");
+      setActiveProfileId(next[0]?.id ?? "");
     }
     return next;
   });
@@ -1330,14 +1302,21 @@ useEffect(() => {
   useEffect(() => {
     isDataLoadedRef.current = false;
 
-    const prefix = activeProfileId === "default" ? "" : `${activeProfileId}_`;
+const safeProfileId = activeProfileId?.trim();
 
-    const savedTrans = localStorage.getItem(`${prefix}transacoes`);
-    const savedCats = localStorage.getItem(`${prefix}categorias`);
-    const savedMetodos = localStorage.getItem(`${prefix}metodosPagamento`);
-    const savedName = localStorage.getItem(`${prefix}userName`);
+const savedCats = safeProfileId
+  ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "categorias"))
+  : null;
 
-    setTransacoes(savedTrans ? JSON.parse(savedTrans) : []);
+const savedMetodos = safeProfileId
+  ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "metodosPagamento"))
+  : null;
+
+const savedName = safeProfileId
+  ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "userName"))
+  : null;
+
+setTransacoes(loadOrMigrateTransacoes());
 
     const parsedCats = savedCats ? JSON.parse(savedCats) : null;
     const catsOk = parsedCats && Array.isArray(parsedCats.despesa) && Array.isArray(parsedCats.receita);
@@ -1351,22 +1330,29 @@ useEffect(() => {
     setNameInput(savedName === null ? "" : savedName);
     setIsEditingName(savedName === null);
 
-    localStorage.setItem("activeProfileId", activeProfileId);
+   if (safeProfileId) {
+  localStorage.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, safeProfileId);
+} else {
+  localStorage.removeItem(STORAGE_KEYS.ACTIVE_PROFILE_ID);
+}
 
     setTimeout(() => {
       isDataLoadedRef.current = true;
     }, 0);
   }, [activeProfileId]);
 
-  useEffect(() => {
-    if (isClearingRef.current || isClearing || !isDataLoadedRef.current) return;
+useEffect(() => {
+  if (isClearingRef.current || isClearing || !isDataLoadedRef.current) return;
 
-    const prefix = activeProfileId === "default" ? "" : `${activeProfileId}_`;
+  persistTransacoes(transacoes);
 
-    localStorage.setItem(`${prefix}categorias`, JSON.stringify(categorias));
-    localStorage.setItem(`${prefix}metodosPagamento`, JSON.stringify(metodosPagamento));
-    localStorage.setItem(`${prefix}userName`, userName);
-  }, [transacoes, categorias, metodosPagamento, userName, activeProfileId, isClearing]);
+  const safeProfileId = activeProfileId?.trim();
+  if (!safeProfileId) return;
+
+  localStorage.setItem(buildProfileStorageKey(safeProfileId, "categorias"), JSON.stringify(categorias));
+  localStorage.setItem(buildProfileStorageKey(safeProfileId, "metodosPagamento"), JSON.stringify(metodosPagamento));
+  localStorage.setItem(buildProfileStorageKey(safeProfileId, "userName"), userName);
+}, [transacoes, categorias, metodosPagamento, userName, activeProfileId, isClearing]);
 
   // --- Helpers ---
 
@@ -1686,9 +1672,8 @@ const handleEditClick = (t: Transaction) => {
   setEditingTransaction(t);
   setEditValueInput(centsDigitsFromAny(t.valor));
   setEditDescInput(t.descricao);
-  setEditContaId(String((t as any).contaId ?? (t as any).conta ?? ""));
-setEditDataInput(String((t as any).data ?? ""));
-setEditCategoriaInput(
+  setEditDataInput(String((t as any).data ?? ""));
+  setEditCategoriaInput(
   typeof (t as any).categoria === "string"
     ? (t as any).categoria
     : String((t as any).categoria?.nome ?? "")
@@ -1703,23 +1688,18 @@ const salvarEdicao = () => {
   if (!editingTransaction) return;
   const tipo = editingTransaction.tipo;
 
-if ((tipo === "despesa" || tipo === "receita") && (!editContaId || String(editContaId).trim() === "")) {
-  toastCompact("Selecione uma conta.", "error");
-  return;
-}
   const novoValorAbs = extrairValorMoeda(editValueInput);
   const novaDesc = editDescInput.trim() || editingTransaction.descricao;
 
   const sign = editingTransaction.tipo === "receita" ? 1 : -1;
 
   setTransacoes((prev) =>
-    applyEditToTransactions(
+applyEditToTransactions(
   prev,
   editingTransaction,
   novoValorAbs,
   novaDesc,
   applyToAllRelated,
-  editContaId,
   editDataInput,
   editCategoriaInput
 )
@@ -1790,7 +1770,7 @@ if (isTransfer && transferId) {
     tx?.meta?.faturaPaymentId ??
     null;
 
-  const raw = localStorage.getItem(FATURA_PAYMENTS_LS_KEY);
+  const raw = localStorage.getItem(STORAGE_KEYS.FATURA_PAYMENTS);
   const lista = raw ? JSON.parse(raw) : [];
   if (Array.isArray(lista) && lista.length) {
     const txIdStr = String(tx?.id ?? "");
@@ -2156,7 +2136,7 @@ const handleAddTransaction = () => {
             data: d.toISOString().split("T")[0],
             categoria: categoriaBase || undefined,
             tag: tagCC || undefined,
-            tipoGasto: "Fixo",
+            tipoGasto: "fixo",
             qualCartao: selectedCreditCardId,
             contaId: contaIdDoCartao,
             pago: i === 0 ? formPago : false,
@@ -2192,7 +2172,7 @@ const handleAddTransaction = () => {
             data: d.toISOString().split("T")[0],
             categoria: categoriaBase || undefined,
             tag: tagCC || undefined,
-            tipoGasto: "Fixo",
+            tipoGasto: "fixo",
             qualCartao: selectedCreditCardId,
             contaId: contaIdDoCartao,
             pago: i === 0 ? formPago : false,
@@ -2272,8 +2252,8 @@ const handleAddTransaction = () => {
     }
 
     const precisaEscolherPrazo =
-      (formTipo === "despesa" && isParceladoMode === false && formTipoGasto === "Fixo") ||
-      (formTipo === "receita" && formTipoGasto === "Fixo");
+      (formTipo === "despesa" && isParceladoMode === false && formTipoGasto === "fixo") ||
+      (formTipo === "receita" && formTipoGasto === "fixo");
 
     if (precisaEscolherPrazo && prazoMode === null) {
       toastCompact("Selecione 'Com prazo' ou 'Sem prazo' para continuar.", "error");
@@ -2300,7 +2280,7 @@ const handleAddTransaction = () => {
           valor: -valorParcela,
           data: d.toISOString().split("T")[0],
           categoria: formCat,
-          tipoGasto: "Fixo",
+          tipoGasto: "fixo",
           metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
           qualCartao: formQualCartao,
           contaId: formQualCartao,
@@ -2311,7 +2291,7 @@ const handleAddTransaction = () => {
     }
 
     // recorrente fixo
-    else if (formTipoGasto === "Fixo") {
+    else if (formTipoGasto === "fixo") {
       const dataInicio = new Date(formData + "T12:00:00");
       let mesesParaGerar = 12;
 
@@ -2337,7 +2317,7 @@ const handleAddTransaction = () => {
           valor: sign * valorNum,
           data: d.toISOString().split("T")[0],
           categoria: formCat,
-          tipoGasto: "Fixo",
+          tipoGasto: "fixo",
           metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
           qualCartao: formQualCartao,
           contaId: formQualCartao,
@@ -2359,7 +2339,7 @@ const handleAddTransaction = () => {
         valor: sign * valorNum,
         data: formData,
         categoria: formCat,
-        tipoGasto: formTipo === "despesa" ? (formTipoGasto || "Variável") : "",
+        tipoGasto: formTipo === "despesa" ? (formTipoGasto || "normal") : "",
         metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
         qualCartao: formQualCartao,
         contaId: formQualCartao,
@@ -3714,19 +3694,6 @@ if (transferId) {
           (editingTransaction.tipo === "despesa" ||
             editingTransaction.tipo === "receita") && (
             <div className="space-y-3">
-              <div className="text-xs">
-                <CustomDropdown
-                  label="Conta"
-                  value={editContaId || ""}
-                  options={[
-                    ...profiles.map((p) => ({
-                      label: p.banco || (p as any).name || "Conta",
-                      value: p.id,
-                    })),
-                  ]}
-                  onSelect={(v: any) => setEditContaId(String(v))}
-                />
-              </div>
 
               {editingTransaction.tipo === "despesa" && (
                 <>
@@ -4249,17 +4216,17 @@ if (transferId) {
               onChange={(e) =>
                 setAccSaldoInicial(formatBRLFromAnyInput(e.target.value))
               }
-              onFocus={(e) => !isEditingAccount && e.currentTarget.select()}
-              onClick={(e) => !isEditingAccount && e.currentTarget.select()}
+              onFocus={(e) => !!!editingProfileId && e.currentTarget.select()}
+              onClick={(e) => !!!editingProfileId && e.currentTarget.select()}
               placeholder="R$ 0,00"
               inputMode="numeric"
-              readOnly={isEditingAccount}
+              readOnly={!!editingProfileId}
 className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900/40 dark:border-slate-700 ${
-  isEditingAccount ? "opacity-80 cursor-not-allowed" : ""
+  !!editingProfileId ? "opacity-80 cursor-not-allowed" : ""
 }`}
             />
 
-{!isEditingAccount && (
+{!!!editingProfileId && (
   <p className="mt-1.5 text-[12px] leading-4 text-rose-500 whitespace-nowrap">
     Este "Saldo Inicial" não poderá ser editado depois.
   </p>
@@ -4301,7 +4268,7 @@ className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => handleEditConta(p.id)}
+                    onClick={() => handleEditAccount(p.id)}
                     className="p-1.5 text-slate-500 hover:text-indigo-500 dark:text-slate-300 dark:hover:text-indigo-400 transition"
                     title="Editar conta"
                   >
@@ -4330,7 +4297,7 @@ className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate
           type="button"
           onClick={() => {
             setIsAddAccountOpen(false);
-            setEditingContaId(null);
+            setEditingProfileId(null);
           }}
          className="flex-1 py-2 rounded-lg border border-slate-300 bg-slate-100 text-sm text-slate-700 font-bold hover:bg-slate-200 transition dark:border-slate-700 dark:bg-slate-800/60"
         >
@@ -4342,7 +4309,7 @@ className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate
           onClick={handleConfirmAddAccount}
           className="flex-1 py-2 rounded-lg bg-indigo-600 text-sm text-white font-extrabold hover:bg-indigo-500 transition"
         >
-          {editingContaId ? "Editar" : "Adicionar"}
+          {editingProfileId ? "Editar" : "Adicionar"}
         </button>
       </div>
     )}

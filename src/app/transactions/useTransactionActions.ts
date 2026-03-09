@@ -85,14 +85,25 @@ export function applyEditToTransactions(
   novoValorAbs: number,
   novaDesc: string,
   applyToAllRelated: boolean,
-  editContaId: string,
   editDataInput: string,
   editCategoriaInput: string
 ): Transaction[] {
   const normTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
   const getTransferId = (x: any) => normTid(x?.transferId ?? x?.transferID ?? x?.transfer_id);
 
-  // ✅ 0) se for transferência mesclada, aplica nas DUAS pernas
+  const nextDesc = String(novaDesc ?? "").trim();
+  const nextData = String(editDataInput ?? "").trim();
+  const nextCategoria = String(editCategoriaInput ?? "").trim();
+
+const applyCommonFields = (t: Transaction, signedValue: number): Transaction => ({
+  ...t,
+  valor: signedValue,
+  descricao: nextDesc,
+  data: nextData || t.data,
+  categoria: nextCategoria || t.categoria,
+});
+
+  // ✅ se for transferência mesclada, aplica nas duas pernas
   const tid =
     getTransferId(editingTransaction as any) ||
     (String((editingTransaction as any)?.id ?? "").startsWith("tr_")
@@ -108,16 +119,15 @@ export function applyEditToTransactions(
       const tipo = String(t?.tipo ?? "");
       const curr = Number(t?.valor ?? 0);
 
-      // define sinal correto por tipo; fallback pelo sinal atual
       let signed = curr < 0 ? -abs : abs;
       if (tipo === "despesa") signed = -abs;
       if (tipo === "receita") signed = abs;
 
-      return { ...t, valor: signed, descricao: novaDesc };
+      return applyCommonFields(t as Transaction, signed);
     });
   }
 
-  // ===== comportamento atual para não-transferências =====
+  // comportamento para não-transferências
   const sign = (editingTransaction as any).tipo === "receita" ? 1 : -1;
   const valor = sign * novoValorAbs;
 
@@ -128,14 +138,13 @@ export function applyEditToTransactions(
       (editingTransaction as any).recorrenciaId &&
       t.recorrenciaId === (editingTransaction as any).recorrenciaId
     ) {
-      return { ...t, valor, descricao: novaDesc };
+      return applyCommonFields(t as Transaction, valor);
     }
 
     if (String(t?.id) === String((editingTransaction as any).id)) {
-      return { ...t, valor, descricao: novaDesc };
+      return applyCommonFields(t as Transaction, valor);
     }
 
     return t;
   });
 }
-

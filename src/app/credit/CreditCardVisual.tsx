@@ -8,10 +8,12 @@ type Props = {
   design?: CardDesign;
 
   limite: number;
+  limiteDisponivel?: number;
   fechamentoDia: number;
   vencimentoDia: number;
 
   emAberto?: number;
+  statusMiniCard?: "normal" | "atrasada" | "zerada";
 };
 
 function ContactlessIcon({ className = "" }: { className?: string }) {
@@ -59,9 +61,6 @@ function getNextDueDate(vencimentoDia: number, now = new Date()) {
   const dueThisMonth = new Date(y, m, dueDay);
   dueThisMonth.setHours(0, 0, 0, 0);
 
-  // Próximo vencimento a pagar:
-  // - se ainda não chegou/passou do vencimento deste mês, é neste mês
-  // - se já passou, vai para o próximo mês
   if (today.getTime() <= dueThisMonth.getTime()) {
     return dueThisMonth;
   }
@@ -90,27 +89,27 @@ export function CreditCardVisual({
   categoria,
   perfil,
   design,
-  fechamentoDia,
+  limiteDisponivel,
   vencimentoDia,
   emAberto,
+  statusMiniCard = "normal",
 }: Props) {
   const fallback: CardDesign = { from: "#220055", to: "#4600ac" };
   const d = design?.from && design?.to ? design : fallback;
 
   const labelPerfil = String(perfil || "PF").toUpperCase();
 
-  // "Próx. venc." deve refletir a próxima fatura a pagar,
-  // e não o vencimento do ciclo recém-fechado.
   const due = getNextDueDate(vencimentoDia);
   const dueLabel = formatDateDDMM(due);
 
-  const openNum = Number(emAberto);
-  const open = Number.isFinite(openNum) ? Math.max(0, openNum) : 0;
+const openNum = Number(emAberto);
+const open = Number.isFinite(openNum) ? Math.max(0, openNum) : 0;
 
-  const today0 = new Date();
-  today0.setHours(0, 0, 0, 0);
+const availableNum = Number(limiteDisponivel);
+const available = Number.isFinite(availableNum) ? Math.max(0, availableNum) : 0;
 
-  const isOverdue = open > 0 && today0.getTime() > due.getTime();
+const mostrarSaldo = statusMiniCard === "normal" && open > 0;
+const mostrarAtraso = statusMiniCard === "atrasada";
 
   return (
     <div
@@ -147,24 +146,23 @@ export function CreditCardVisual({
           <ContactlessIcon className="h-6 w-6 text-white/85" />
         </div>
 
-        <div className="mb-2 flex items-center gap-2 text-[11px] text-white/70 whitespace-nowrap">
-          <span className="text-white/80">Próx. venc.: {dueLabel}</span>
+<div className="mb-2 flex items-center gap-2 text-[11px] text-white/70 whitespace-nowrap flex-wrap">
+  {mostrarAtraso && (
+    <span className="inline-flex items-center rounded-full border border-rose-300/40 bg-rose-500/18 px-2 py-[3px] text-[10px] font-bold leading-none text-rose-100 backdrop-blur-sm">
+      Em atraso
+    </span>
+  )}
 
-          {isOverdue && (
-            <span className="ml-1 rounded-full border border-white/20 bg-white/10 px-2 py-[2px] text-[10px] font-extrabold text-white drop-shadow-sm">
-              Em Atraso
-            </span>
-          )}
+  {mostrarSaldo && (
+    <span className="font-extrabold text-white drop-shadow-sm">
+      Em aberto: {formatBRL(open)}
+    </span>
+  )}
 
-          {open > 0 && (
-            <>
-              <span className="opacity-50">|</span>
-              <span className="font-extrabold text-white drop-shadow-sm">
-                Em aberto: {formatBRL(open)}
-              </span>
-            </>
-          )}
-        </div>
+  <span className="text-white/80">
+    Próx. venc.: {dueLabel}
+  </span>
+</div>
 
         <div className="text-white/90 text-sm font-semibold tracking-wide">
           {nome || "Titular"}

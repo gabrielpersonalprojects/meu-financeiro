@@ -52,6 +52,14 @@ export interface Transaction {
   isRecorrente?: boolean;
   recorrente?: boolean;
   createdAt?: number;
+
+  // cartão / parcelamento
+  cartaoId?: string;
+  parcelaAtual?: number;
+  totalParcelas?: number;
+  origemLancamento?: "manual" | "compra_parcelada" | "parcelamento_fatura";
+  parcelamentoFaturaId?: string;
+  faturaOrigemCicloKey?: string;
 }
 
 export type PagamentoFaturaApp = {
@@ -64,6 +72,34 @@ export type PagamentoFaturaApp = {
   contaLabel: string;
   criadoEm: number;
   transacaoId?: number;
+};
+
+export type ParcelamentoFaturaApp = {
+  id: string;
+  cartaoId: string;
+  cicloKeyOrigem: string;
+  dataAcordo: string; // YYYY-MM-DD
+
+  valorOriginal: number;
+  valorEntrada: number;
+  saldoParcelado: number;
+
+  quantidadeParcelas: number;
+  valorParcela: number;
+  valorTotalFinal: number;
+  jurosTotal: number;
+
+  criadoEm: number;
+  status: "ativo" | "quitado";
+};
+
+export type FaturaStatusManualApp = {
+  id: string;
+  cartaoId: string;
+  cicloKey: string;
+  statusManual: "parcelada";
+  parcelamentoFaturaId: string;
+  criadoEm: number;
 };
 
 export type Profile = {
@@ -83,4 +119,3 @@ export type Profile = {
   diaFechamento?: number;
   diaVencimento?: number;
 };
-

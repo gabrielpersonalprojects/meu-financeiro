@@ -38,42 +38,14 @@ type TransacaoCCUI = {
   tag?: string;
   criadoEm?: number;
   pago?: boolean;
-};
-
-type Props = {
-  cartao: CartaoUI;
-  transacoes: TransacaoCCUI[];
-  onPickOtherCard?: () => void;
-  onDeleteTransacao?: (id: string) => void;
-  onSaldoRestanteChange?: (value: number) => void;
-
-  contaPagamentoOptions?: Array<{ value: string; label: string }>;
-
-  pagamentosFatura?: Array<{
-    id: string;
-    cartaoId: string;
-    cicloKey: string;
-    dataPagamento: string;
-    valor: number;
-    contaId: string;
-    contaLabel: string;
-    criadoEm: number;
-  }>;
-  onRegistrarPagamentoFatura?: (payload: {
-    cartaoId: string;
-    cartaoNome: string;
-    cicloKey: string;
-    dataPagamento: string;
-    valor: number;
-    contaId: string;
-    contaLabel: string;
-    criadoEm?: number;
-  }) => void;
-  onRemoverPagamentoFatura?: (pagamentoId: string) => void;
-
-  onOpenInvoiceModal?: () => void;
-  isInvoiceModalOpen?: boolean;
-  onCloseInvoiceModal?: () => void;
+  cartaoId?: string;
+  qualCartao?: string;
+  parcelaAtual?: number;
+  totalParcelas?: number;
+  parcelasTotal?: number;
+  origemLancamento?: "manual" | "compra_parcelada" | "parcelamento_fatura";
+  parcelamentoFaturaId?: string;
+  faturaOrigemCicloKey?: string;
 };
 
 type PagamentoFaturaUI = {
@@ -85,6 +57,81 @@ type PagamentoFaturaUI = {
   contaId: string;
   contaLabel: string;
   criadoEm: number;
+};
+
+type FaturaStatusManualUI = {
+  id: string;
+  cartaoId: string;
+  cicloKey: string;
+  statusManual: "parcelada";
+  parcelamentoFaturaId: string;
+  criadoEm: number;
+};
+
+type ParcelamentoFaturaUI = {
+  id: string;
+  cartaoId: string;
+  cicloKeyOrigem: string;
+  dataAcordo: string;
+  valorOriginal: number;
+  valorEntrada: number;
+  saldoParcelado: number;
+  quantidadeParcelas: number;
+  valorParcela: number;
+  valorTotalFinal: number;
+  jurosTotal: number;
+  criadoEm: number;
+  status: "ativo" | "quitado";
+};
+
+type Props = {
+  cartao: CartaoUI;
+  transacoes: TransacaoCCUI[];
+  onPickOtherCard?: () => void;
+  onDeleteTransacao?: (id: string) => void;
+  onSaldoRestanteChange?: (value: number) => void;
+
+  contaPagamentoOptions?: Array<{ value: string; label: string }>;
+
+  pagamentosFatura?: PagamentoFaturaUI[];
+  onRegistrarPagamentoFatura?: (payload: {
+    cartaoId: string;
+    cartaoNome: string;
+    cicloKey: string;
+    dataPagamento: string;
+    valor: number;
+    contaId: string;
+    contaLabel: string;
+    criadoEm?: number;
+  }) => void;
+
+onRegistrarParcelamentoFatura: (payload: {
+  cartaoId: string;
+  cicloKey: string;
+  dataAcordo: string;
+  valorOriginal: number;
+  valorEntrada: number;
+  saldoParcelado: number;
+  quantidadeParcelas: number;
+  valorParcela: number;
+}) => void;
+
+onCancelarParcelamentoFatura?: (payload: {
+  cartaoId: string;
+  cicloKey: string;
+  parcelamentoFaturaId: string;
+}) => void;
+
+onRemoverPagamentoFatura?: (pagamentoId: string) => void;
+
+  onOpenInvoiceModal?: () => void;
+  isInvoiceModalOpen?: boolean;
+  onCloseInvoiceModal?: () => void;
+
+  faturasStatusManual?: FaturaStatusManualUI[];
+  parcelamentosFatura?: ParcelamentoFaturaUI[];
+  limiteDisponivelReal?: number;
+  initialMonth?: string;
 };
 
 type FaturaStatus =
@@ -112,11 +159,17 @@ export function CreditDashboard({
   contaPagamentoOptions: contaPagamentoOptionsProp,
   pagamentosFatura: pagamentosFaturaProp,
   onRegistrarPagamentoFatura,
+  onRegistrarParcelamentoFatura,
+  onCancelarParcelamentoFatura,
   onRemoverPagamentoFatura,
   onOpenInvoiceModal,
   isInvoiceModalOpen,
   onCloseInvoiceModal,
+  faturasStatusManual = [],
+  parcelamentosFatura = [],
   onSaldoRestanteChange,
+  limiteDisponivelReal,
+  initialMonth,
 }: Props) {
   const pad2 = (n: number) => String(n).padStart(2, "0");
 
@@ -190,12 +243,69 @@ export function CreditDashboard({
     return x;
   };
 
-  const now = new Date();
-  const [invoiceMonthOffset, setInvoiceMonthOffset] = useState(0);
-  const [paginaAtual, setPaginaAtual] = useState(1);
-  const autoJumpRef = useRef<string>("");
+const now = new Date();
 
-  const baseMonth = addMonths(now, invoiceMonthOffset);
+const diaFechamento = Number(cartao.diaFechamento || 1);
+const diaVencimento = Number(cartao.diaVencimento || 1);
+
+const getInitialInvoiceOffset = () => {
+  if (!initialMonth || !/^\d{4}-\d{2}$/.test(initialMonth)) return 0;
+
+  const [anoStr, mesStr] = initialMonth.split("-");
+  const ano = Number(anoStr);
+  const mes = Number(mesStr);
+
+  if (!ano || !mes) return 0;
+
+  const fechamentoAtualHoje = makeDate(now.getFullYear(), now.getMonth(), diaFechamento);
+
+  const mesFechamentoAtualBase =
+    now.getTime() > fechamentoAtualHoje.getTime()
+      ? addMonths(new Date(now.getFullYear(), now.getMonth(), 1), 1)
+      : new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const baseMonthInicialBase = addMonths(mesFechamentoAtualBase, 1);
+
+  return (ano - baseMonthInicialBase.getFullYear()) * 12 + (mes - 1 - baseMonthInicialBase.getMonth());
+};
+
+const [invoiceMonthOffset, setInvoiceMonthOffset] = useState(getInitialInvoiceOffset);
+const [paginaAtual, setPaginaAtual] = useState(1);
+const autoJumpRef = useRef<string>("");
+
+useEffect(() => {
+  if (!initialMonth || !/^\d{4}-\d{2}$/.test(initialMonth)) return;
+
+  const [anoStr, mesStr] = initialMonth.split("-");
+  const ano = Number(anoStr);
+  const mes = Number(mesStr);
+
+  if (!ano || !mes) return;
+
+  const fechamentoAtualHoje = makeDate(now.getFullYear(), now.getMonth(), diaFechamento);
+
+  const mesFechamentoAtualBase =
+    now.getTime() > fechamentoAtualHoje.getTime()
+      ? addMonths(new Date(now.getFullYear(), now.getMonth(), 1), 1)
+      : new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const baseMonthInicialBase = addMonths(mesFechamentoAtualBase, 1);
+
+  const novoOffset =
+    (ano - baseMonthInicialBase.getFullYear()) * 12 +
+    (mes - 1 - baseMonthInicialBase.getMonth());
+
+  setInvoiceMonthOffset(novoOffset);
+}, [initialMonth, diaFechamento]);
+const fechamentoAtualHoje = makeDate(now.getFullYear(), now.getMonth(), diaFechamento);
+
+const mesFechamentoAtual =
+  now.getTime() > fechamentoAtualHoje.getTime()
+    ? addMonths(new Date(now.getFullYear(), now.getMonth(), 1), 1)
+    : new Date(now.getFullYear(), now.getMonth(), 1);
+
+const baseMonthInicial = addMonths(mesFechamentoAtual, 1);
+const baseMonth = addMonths(baseMonthInicial, invoiceMonthOffset);
   const baseMonthKey = `${baseMonth.getFullYear()}-${pad2(baseMonth.getMonth() + 1)}`;
   const nextBaseMonth = addMonths(baseMonth, 1);
   const nextBaseMonthKey = `${nextBaseMonth.getFullYear()}-${pad2(nextBaseMonth.getMonth() + 1)}`;
@@ -204,10 +314,7 @@ export function CreditDashboard({
   const labelPrev = monthLabelPT(addMonths(baseMonth, -1));
   const labelNext = monthLabelPT(addMonths(baseMonth, +1));
 
-  const diaFechamento = Number(cartao.diaFechamento || 1);
-  const diaVencimento = Number(cartao.diaVencimento || 1);
 
-  // A fatura exibida no dashboard/modal é a do mês atualmente selecionado (baseMonth)
   const vencimentoFaturaAtual = makeDate(
     baseMonth.getFullYear(),
     baseMonth.getMonth(),
@@ -215,23 +322,21 @@ export function CreditDashboard({
   );
   vencimentoFaturaAtual.setHours(0, 0, 0, 0);
 
-  // O ciclo dessa fatura termina no dia de fechamento do próprio mês selecionado
   const cicloFim = makeDate(
-    baseMonth.getFullYear(),
-    baseMonth.getMonth(),
-    diaFechamento
-  );
-  cicloFim.setHours(0, 0, 0, 0);
-
-  // O início do ciclo é o dia seguinte ao fechamento do mês anterior
-  const fechamentoMesAnterior = makeDate(
     baseMonth.getFullYear(),
     baseMonth.getMonth() - 1,
     diaFechamento
   );
-  fechamentoMesAnterior.setHours(0, 0, 0, 0);
+  cicloFim.setHours(0, 0, 0, 0);
 
-  const cicloInicio = new Date(fechamentoMesAnterior);
+  const fechamentoDoisMesesAntes = makeDate(
+    baseMonth.getFullYear(),
+    baseMonth.getMonth() - 2,
+    diaFechamento
+  );
+  fechamentoDoisMesesAntes.setHours(0, 0, 0, 0);
+
+  const cicloInicio = new Date(fechamentoDoisMesesAntes);
   cicloInicio.setDate(cicloInicio.getDate() + 1);
   cicloInicio.setHours(0, 0, 0, 0);
 
@@ -246,13 +351,17 @@ export function CreditDashboard({
   const getInvoiceMonthKeyForTransaction = (iso: string) => {
     const dt = parseISODateLocal(iso);
     if (Number.isNaN(dt.getTime())) return "";
+
     const fechamentoAtualDaData = makeDate(dt.getFullYear(), dt.getMonth(), diaFechamento);
-    const invoiceMonth =
+
+    const mesFechamento =
       dt.getTime() > fechamentoAtualDaData.getTime()
         ? addMonths(new Date(dt.getFullYear(), dt.getMonth(), 1), 1)
         : new Date(dt.getFullYear(), dt.getMonth(), 1);
 
-    return `${invoiceMonth.getFullYear()}-${pad2(invoiceMonth.getMonth() + 1)}`;
+    const mesVencimento = addMonths(mesFechamento, 1);
+
+    return `${mesVencimento.getFullYear()}-${pad2(mesVencimento.getMonth() + 1)}`;
   };
 
   const txMes = (transacoes || []).filter((t) => {
@@ -262,64 +371,54 @@ export function CreditDashboard({
     return dt >= cicloInicio && dt <= cicloFim;
   });
 
-  // Se o usuário estiver no mês atual e o ciclo já tiver fechado,
-  // uma nova compra deve empurrar a visualização para o próximo ciclo.
-useEffect(() => {
-  if (!transacoes?.length) return;
-  if (invoiceMonthOffset !== 0) return;
-  if (startOfDay(now).getTime() <= endOfDay(cicloFim).getTime()) return;
-
-  const isTxFromThisCard = (t: any) => {
-    const ref = String(
-      t?.cartaoId ??
-      t?.selectedCreditCardId ??
-      t?.qualCartao ??
-      ""
-    ).trim();
-
-    return t?.tipo === "cartao_credito" && ref === String(cartao.id);
-  };
-
-  const hoje = startOfDay(now).getTime();
-
-  const ultimasDoCartao = [...transacoes]
-    .filter(isTxFromThisCard)
-    .filter((t) => {
-      const dt = parseISODateLocal(t.data);
-      if (Number.isNaN(dt.getTime())) return false;
-
-      // não deixa compra futura forçar jump de mês
-      return startOfDay(dt).getTime() <= hoje;
-    })
-    .sort((a, b) => {
-      const aStamp = Number(a.criadoEm ?? 0);
-      const bStamp = Number(b.criadoEm ?? 0);
-      if (aStamp !== bStamp) return bStamp - aStamp;
-      return String(b.data).localeCompare(String(a.data));
+  const txDoCartao = useMemo(() => {
+    return (transacoes || []).filter((t) => {
+      if (t.tipo !== "cartao_credito") return false;
+      const refCartaoId = String((t as any).cartaoId ?? "").trim();
+      const refQualCartao = String((t as any).qualCartao ?? "").trim();
+      return refCartaoId === String(cartao.id) || refQualCartao === String(cartao.id);
     });
+  }, [transacoes, cartao.id]);
 
-  const ultima = ultimasDoCartao[0];
-  if (!ultima) return;
+  useEffect(() => {
+    if (!transacoes?.length) return;
+    if (invoiceMonthOffset !== 0) return;
+    if (startOfDay(now).getTime() <= endOfDay(cicloFim).getTime()) return;
 
-  const invoiceKeyDaUltima = getInvoiceMonthKeyForTransaction(ultima.data);
-  const jumpKey = `${cartao.id}__${ultima.id}__${Number(ultima.criadoEm ?? 0)}`;
+    const isTxFromThisCard = (t: any) => {
+      const ref = String(t?.cartaoId ?? t?.selectedCreditCardId ?? t?.qualCartao ?? "").trim();
+      return t?.tipo === "cartao_credito" && ref === String(cartao.id);
+    };
 
-  // aqui o jump é só para o próximo ciclo imediato
-  if (invoiceKeyDaUltima === nextBaseMonthKey && autoJumpRef.current !== jumpKey) {
-    autoJumpRef.current = jumpKey;
-    setInvoiceMonthOffset(1);
-  }
-}, [
-  transacoes,
-  invoiceMonthOffset,
-  nextBaseMonthKey,
-  now,
-  cicloFim,
-  cartao.id,
-]);
+    const hoje = startOfDay(now).getTime();
+
+    const ultimasDoCartao = [...transacoes]
+      .filter(isTxFromThisCard)
+      .filter((t) => {
+        const dt = parseISODateLocal(t.data);
+        if (Number.isNaN(dt.getTime())) return false;
+        return startOfDay(dt).getTime() <= hoje;
+      })
+      .sort((a, b) => {
+        const aStamp = Number(a.criadoEm ?? 0);
+        const bStamp = Number(b.criadoEm ?? 0);
+        if (aStamp !== bStamp) return bStamp - aStamp;
+        return String(b.data).localeCompare(String(a.data));
+      });
+
+    const ultima = ultimasDoCartao[0];
+    if (!ultima) return;
+
+    const invoiceKeyDaUltima = getInvoiceMonthKeyForTransaction(ultima.data);
+    const jumpKey = `${cartao.id}__${ultima.id}__${Number(ultima.criadoEm ?? 0)}`;
+
+    if (invoiceKeyDaUltima === nextBaseMonthKey && autoJumpRef.current !== jumpKey) {
+      autoJumpRef.current = jumpKey;
+      setInvoiceMonthOffset(1);
+    }
+  }, [transacoes, invoiceMonthOffset, nextBaseMonthKey, now, cicloFim, cartao.id]);
 
   const txFaturaCiclo = txMes;
-
   const valorFaturaTotal = txFaturaCiclo.reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
 
   const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
@@ -376,9 +475,7 @@ useEffect(() => {
   const totalPaginas = Math.max(1, Math.ceil(txMesFiltradas.length / ITENS_POR_PAGINA));
 
   useEffect(() => {
-    if (paginaAtual > totalPaginas) {
-      setPaginaAtual(totalPaginas);
-    }
+    if (paginaAtual > totalPaginas) setPaginaAtual(totalPaginas);
   }, [paginaAtual, totalPaginas]);
 
   const indiceInicial = (paginaAtual - 1) * ITENS_POR_PAGINA;
@@ -397,7 +494,6 @@ useEffect(() => {
     const fim = Math.min(totalPaginas, paginaAtual + 2);
 
     for (let i = inicio; i <= fim; i++) paginas.push(i);
-
     return paginas;
   }, [paginaAtual, totalPaginas]);
 
@@ -426,9 +522,17 @@ useEffect(() => {
   const [contaPagamentoFatura, setContaPagamentoFatura] = useState<string>("");
   const [valorPagamentoInput, setValorPagamentoInput] = useState<string>("");
   const [dataPagamentoFatura, setDataPagamentoFatura] = useState<string>(todayISO());
-  const [erroPagamentoFatura, setErroPagamentoFatura] = useState<string>("");
-  const [sucessoPagamentoFatura, setSucessoPagamentoFatura] = useState<string>("");
-  const [confirmExcluirPagamentoId, setConfirmExcluirPagamentoId] = useState<string | null>(null);
+
+const [erroPagamentoFatura, setErroPagamentoFatura] = useState<string>("");
+const [sucessoPagamentoFatura, setSucessoPagamentoFatura] = useState<string>("");
+const [confirmExcluirPagamentoId, setConfirmExcluirPagamentoId] = useState<string | null>(null);
+const [confirmCancelarNegociacao, setConfirmCancelarNegociacao] = useState(false);
+
+const [invoiceActionMode, setInvoiceActionMode] = useState<"pagamento" | "parcelamento">("pagamento");
+const [invoiceParcelamentoQtd, setInvoiceParcelamentoQtd] = useState("2");
+const [invoiceParcelamentoValorOriginal, setInvoiceParcelamentoValorOriginal] = useState("");
+const [invoiceParcelamentoValorParcela, setInvoiceParcelamentoValorParcela] = useState("");
+const [invoiceParcelamentoPrimeiraParcela, setInvoiceParcelamentoPrimeiraParcela] = useState<string>(todayISO());
 
   const contaSelecionadaLabel =
     contaPagamentoOptions.find((o) => o.value === contaPagamentoFatura)?.label ?? "Conta";
@@ -443,8 +547,85 @@ useEffect(() => {
     .filter((p) => p.cartaoId === cartao.id && p.cicloKey === cicloKeyFatura)
     .sort((a, b) => b.criadoEm - a.criadoEm);
 
-  const valorPagoFatura = pagamentosDoCiclo.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
-  const saldoRestanteFatura = Math.max(0, valorFaturaTotal - valorPagoFatura);
+const valorPagoFatura = pagamentosDoCiclo.reduce((acc, p) => acc + Math.abs(Number(p.valor) || 0), 0);
+const saldoRestanteFatura = Math.max(0, valorFaturaTotal - valorPagoFatura);
+
+const limiteDisponivel = Math.max(
+  0,
+  Number(limiteDisponivelReal ?? cartao.limiteTotal ?? 0)
+);
+
+const previousBaseMonth = addMonths(baseMonth, -1);
+
+const vencimentoFaturaAnterior = makeDate(
+  previousBaseMonth.getFullYear(),
+  previousBaseMonth.getMonth(),
+  diaVencimento
+);
+vencimentoFaturaAnterior.setHours(0, 0, 0, 0);
+
+const cicloFimAnterior = makeDate(
+  previousBaseMonth.getFullYear(),
+  previousBaseMonth.getMonth() - 1,
+  diaFechamento
+);
+cicloFimAnterior.setHours(0, 0, 0, 0);
+
+const fechamentoTresMesesAntes = makeDate(
+  previousBaseMonth.getFullYear(),
+  previousBaseMonth.getMonth() - 2,
+  diaFechamento
+);
+fechamentoTresMesesAntes.setHours(0, 0, 0, 0);
+
+const cicloInicioAnterior = new Date(fechamentoTresMesesAntes);
+cicloInicioAnterior.setDate(cicloInicioAnterior.getDate() + 1);
+cicloInicioAnterior.setHours(0, 0, 0, 0);
+
+const cicloKeyFaturaAnterior = `${cartao.id}__${formatDateOnlyISO(
+  cicloInicioAnterior
+)}__${formatDateOnlyISO(cicloFimAnterior)}`;
+
+const pagamentosDaFaturaAnterior = pagamentosFatura
+  .filter(
+    (p) =>
+      String(p.cartaoId) === String(cartao.id) &&
+      String(p.cicloKey) === String(cicloKeyFaturaAnterior)
+  )
+  .sort((a, b) => {
+    const da = new Date(String(a.dataPagamento ?? 0)).getTime();
+    const db = new Date(String(b.dataPagamento ?? 0)).getTime();
+    return db - da;
+  });
+
+const valorPagoFaturaAnterior = pagamentosDaFaturaAnterior.reduce(
+  (acc, p) => acc + Math.abs(Number(p.valor) || 0),
+  0
+);
+
+const txFaturaAnterior = txDoCartao.filter((t) => {
+  const dt = parseISODateLocal(t.data);
+  if (Number.isNaN(dt.getTime())) return false;
+  return dt >= cicloInicioAnterior && dt <= cicloFimAnterior;
+});
+
+const valorTotalFaturaAnterior = txFaturaAnterior.reduce(
+  (acc, t) => acc + Math.abs(Number(t.valor) || 0),
+  0
+);
+
+const saldoFaturaAnterior = Math.max(
+  0,
+  valorTotalFaturaAnterior - valorPagoFaturaAnterior
+);
+
+const faturaAnteriorFoiPaga =
+  valorTotalFaturaAnterior > 0 && saldoFaturaAnterior <= 0 && valorPagoFaturaAnterior > 0;
+
+const faturaAnteriorEstaAtrasada =
+  valorTotalFaturaAnterior > 0 &&
+  saldoFaturaAnterior > 0 &&
+  startOfDay(new Date()).getTime() > startOfDay(vencimentoFaturaAnterior).getTime();
 
   useEffect(() => {
     onSaldoRestanteChange?.(Number(saldoRestanteFatura ?? 0));
@@ -458,19 +639,19 @@ useEffect(() => {
   }, [cicloKeyFatura]);
 
   useEffect(() => {
-  if (!isInvoiceModalOpen) return;
+    if (!isInvoiceModalOpen) return;
 
-  const originalBodyOverflow = document.body.style.overflow;
-  const originalHtmlOverflow = document.documentElement.style.overflow;
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
 
-  document.body.style.overflow = "hidden";
-  document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
 
-  return () => {
-    document.body.style.overflow = originalBodyOverflow;
-    document.documentElement.style.overflow = originalHtmlOverflow;
-  };
-}, [isInvoiceModalOpen]);
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+    };
+  }, [isInvoiceModalOpen]);
 
   const valorFaturaNum = Math.abs(Number(valorFaturaTotal || 0));
   const valorJaPagoNum = Math.abs(Number(valorPagoFatura || 0));
@@ -491,14 +672,29 @@ useEffect(() => {
     return "ATRASADA";
   };
 
-  const faturaStatus = getFaturaStatus();
+  const statusManualAtualObj =
+    faturasStatusManual.find(
+      (item) =>
+        String(item.cartaoId) === String(cartao.id) &&
+        String(item.cicloKey) === String(cicloKeyFatura)
+    ) ?? null;
+
+  const parcelamentoAtual =
+    statusManualAtualObj?.parcelamentoFaturaId
+      ? parcelamentosFatura.find(
+          (p) => String(p.id) === String(statusManualAtualObj.parcelamentoFaturaId)
+        ) ?? null
+      : null;
+
+  const faturaStatus =
+    statusManualAtualObj?.statusManual === "parcelada" ? "FECHADA" : getFaturaStatus();
 
   const faturaStatusLabel: Record<FaturaStatus, string> = {
     PAGA: "Paga",
     FUTURA: "Futura",
     EM_ABERTO: "Em aberto",
     PENDENTE: "Pendente",
-    ATRASADA: "Em Atraso",
+    ATRASADA: "Em atraso",
     ZERADA: "Zerada",
     FECHADA: "Fechada",
   };
@@ -520,14 +716,47 @@ useEffect(() => {
       "border-rose-300/70 bg-rose-50 text-rose-800 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-300",
   };
 
-  const statusFaturaDerivado: "pendente" | "parcial" | "pago" =
-    valorFaturaTotal <= 0
-      ? "pendente"
-      : saldoRestanteFatura <= 0
-      ? "pago"
-      : valorPagoFatura > 0
-      ? "parcial"
-      : "pendente";
+  const faturaStatusLabelFinal =
+    statusManualAtualObj?.statusManual === "parcelada"
+      ? "Parcelada"
+      : faturaStatusLabel[faturaStatus];
+
+  const faturaStatusClassFinal =
+    statusManualAtualObj?.statusManual === "parcelada"
+      ? "border-violet-300/60 bg-violet-50 text-violet-800 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-300"
+      : faturaStatusClass[faturaStatus];
+
+const valorOriginalParcelamento = parseCurrencyInputBR(invoiceParcelamentoValorOriginal);
+const valorParcelaParcelamento = parseCurrencyInputBR(invoiceParcelamentoValorParcela);
+const quantidadeParcelasNum = Number(invoiceParcelamentoQtd || 0);
+const saldoParceladoCalculado = Math.max(
+  0,
+  Number(valorOriginalParcelamento.toFixed(2))
+);
+const totalFinalParcelamento = Number((quantidadeParcelasNum * valorParcelaParcelamento).toFixed(2));
+const jurosTotaisParcelamento = Math.max(
+  0,
+  Number((totalFinalParcelamento - saldoParceladoCalculado).toFixed(2))
+);
+
+const resetInvoiceModalState = () => {
+  setInvoiceActionMode("pagamento");
+  setInvoiceParcelamentoQtd("2");
+  setInvoiceParcelamentoValorOriginal("");
+  setInvoiceParcelamentoValorParcela("");
+  setInvoiceParcelamentoPrimeiraParcela(todayISO());
+  setErroPagamentoFatura("");
+  setSucessoPagamentoFatura("");
+  setConfirmExcluirPagamentoId(null);
+  setConfirmCancelarNegociacao(false);
+};
+
+  const handleCloseInvoiceModal = () => {
+    resetInvoiceModalState();
+    setValorPagamentoInput("");
+    setDataPagamentoFatura(todayISO());
+    onCloseInvoiceModal?.();
+  };
 
   function registrarPagamentoFatura() {
     setErroPagamentoFatura("");
@@ -600,6 +829,80 @@ useEffect(() => {
     setValorPagamentoInput("");
   }
 
+const registrarParcelamentoFatura = () => {
+  setErroPagamentoFatura("");
+  setSucessoPagamentoFatura("");
+
+  const qtd = Number(invoiceParcelamentoQtd);
+  const valorParcela = parseCurrencyInputBR(invoiceParcelamentoValorParcela);
+  const valorOriginal = parseCurrencyInputBR(invoiceParcelamentoValorOriginal);
+  const valorEntrada = 0;
+  const saldoParcelado = Number(valorOriginal.toFixed(2));
+
+  if (!cartao?.id || !cicloKeyFatura) {
+    setErroPagamentoFatura("Não foi possível identificar a fatura.");
+    return;
+  }
+
+  if (!invoiceParcelamentoPrimeiraParcela) {
+    setErroPagamentoFatura("Informe a data da primeira parcela.");
+    return;
+  }
+
+  if (!Number.isFinite(valorOriginal) || valorOriginal <= 0) {
+    setErroPagamentoFatura("Informe um valor original válido.");
+    return;
+  }
+
+  if (!Number.isFinite(saldoParcelado) || saldoParcelado <= 0) {
+    setErroPagamentoFatura("O saldo parcelado deve ser maior que zero.");
+    return;
+  }
+
+  if (!Number.isFinite(qtd) || qtd <= 1) {
+    setErroPagamentoFatura("Informe uma quantidade válida de parcelas.");
+    return;
+  }
+
+  if (!Number.isFinite(valorParcela) || valorParcela <= 0) {
+    setErroPagamentoFatura("Informe um valor válido para a parcela.");
+    return;
+  }
+
+  const totalFinal = Number((qtd * valorParcela).toFixed(2));
+  if (totalFinal < saldoParcelado) {
+    setErroPagamentoFatura("O total parcelado não pode ser menor que o valor original.");
+    return;
+  }
+
+  onRegistrarParcelamentoFatura({
+    cartaoId: String(cartao.id),
+    cicloKey: String(cicloKeyFatura),
+    dataAcordo: invoiceParcelamentoPrimeiraParcela,
+    valorOriginal,
+    valorEntrada,
+    saldoParcelado,
+    quantidadeParcelas: qtd,
+    valorParcela,
+  });
+
+  setInvoiceMonthOffset((v) => v + 1);
+  handleCloseInvoiceModal();
+};
+
+const cancelarNegociacaoFatura = () => {
+  if (!parcelamentoAtual || !onCancelarParcelamentoFatura) return;
+
+  onCancelarParcelamentoFatura({
+    cartaoId: String(cartao.id),
+    cicloKey: String(cicloKeyFatura),
+    parcelamentoFaturaId: String(parcelamentoAtual.id),
+  });
+
+  setConfirmCancelarNegociacao(false);
+  setSucessoPagamentoFatura("Negociação cancelada com sucesso.");
+};
+
   function removerPagamentoFatura(id: string) {
     if (onRemoverPagamentoFatura) onRemoverPagamentoFatura(id);
     else setPagamentosFaturaLocal((prev) => prev.filter((p) => p.id !== id));
@@ -608,131 +911,287 @@ useEffect(() => {
     setSucessoPagamentoFatura("Pagamento removido.");
   }
 
+const renderParcelamentoHistorico = () => {
+  if (!parcelamentoAtual) return null;
+
+  const totalFinal = parcelamentoAtual.quantidadeParcelas * parcelamentoAtual.valorParcela;
+  const jurosTotais = totalFinal - parcelamentoAtual.saldoParcelado;
+
+return (
+  <div className="rounded-[1.5rem] border border-violet-200 bg-violet-50/70 px-6 py-5 dark:border-violet-400/20 dark:bg-violet-500/10">
+    <div className="text-[11px] font-semibold text-violet-800 dark:text-violet-300">
+      Parcelamento registrado
+    </div>
+
+    <div className="mt-5 grid grid-cols-1 gap-x-10 gap-y-6 sm:grid-cols-2">
+      <div>
+        <div className="text-[11px] text-slate-500 dark:text-white/50">Primeira parcela</div>
+        <div className="mt-1.5 text-[15px] font-semibold text-slate-900 dark:text-white">
+          {formatBRDate(parcelamentoAtual.dataAcordo)}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] text-slate-500 dark:text-white/50">Valor original</div>
+        <div className="mt-1.5 text-[15px] font-semibold text-slate-900 dark:text-white">
+          {moedaBR(parcelamentoAtual.valorOriginal)}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] text-slate-500 dark:text-white/50">Saldo parcelado</div>
+        <div className="mt-1.5 text-[15px] font-semibold text-slate-900 dark:text-white">
+          {moedaBR(parcelamentoAtual.saldoParcelado)}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] text-slate-500 dark:text-white/50">Parcelas</div>
+        <div className="mt-1.5 text-[15px] font-semibold text-slate-900 dark:text-white">
+          {parcelamentoAtual.quantidadeParcelas}x de {moedaBR(parcelamentoAtual.valorParcela)}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] text-slate-500 dark:text-white/50">Total final</div>
+        <div className="mt-1.5 text-[15px] font-semibold text-slate-900 dark:text-white">
+          {moedaBR(totalFinal)}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] text-slate-500 dark:text-white/50">Juros totais</div>
+        <div className="mt-1.5 text-[15px] font-semibold text-slate-900 dark:text-white">
+          {moedaBR(jurosTotais)}
+        </div>
+      </div>
+    </div>
+
+    {onCancelarParcelamentoFatura ? (
+      <div className="mt-5 flex justify-start border-t border-violet-200/70 pt-4 dark:border-violet-400/10">
+        <button
+          type="button"
+          onClick={() => setConfirmCancelarNegociacao(true)}
+          className="h-10 rounded-xl border border-rose-200 bg-white px-4 text-[13px] font-semibold text-rose-700 transition hover:bg-rose-50 dark:border-rose-400/20 dark:bg-white/5 dark:text-rose-300 dark:hover:bg-rose-500/10"
+        >
+          Cancelar negociação
+        </button>
+      </div>
+    ) : null}
+  </div>
+);
+};
+
   const renderPagamentoFaturaModalContent = () => (
     <div className="space-y-3">
       <div className="rounded-2xl bg-white shadow-sm border border-slate-200/70 p-4 text-slate-900 dark:bg-white/5 dark:border-white/10 dark:text-white">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-slate-600 text-sm font-medium dark:text-white/70">
+        <div className="flex items-start justify-between gap-4 px-1 pt-1">
+          <div className="pr-4">
+            <div className="text-slate-600 text-sm font-medium leading-none dark:text-white/70">
               Pagamento da fatura
             </div>
             <div className="mt-1 text-slate-500 text-[10px] leading-none dark:text-white/45">
               Ciclo da fatura: {cicloLabel}
             </div>
-            <div className="mt-1 text-slate-500 text-[10px] leading-none dark:text-white/45">
+            <div className="mt-1.5 text-slate-500 text-[10px] leading-none dark:text-white/45">
               Vencimento: {formatBRDate(formatDateOnlyISO(vencimentoFaturaAtual))}
             </div>
           </div>
 
           <span
-            className={`text-[11px] px-2 py-1 rounded-lg border whitespace-nowrap ${
-              statusFaturaDerivado === "pago"
-                ? "text-emerald-700 bg-emerald-50 border-emerald-300/50 dark:text-emerald-300 dark:bg-emerald-500/10 dark:border-emerald-400/20"
-                : statusFaturaDerivado === "parcial"
-                ? "text-sky-800 bg-sky-50 border-sky-300/60 dark:text-sky-300 dark:bg-sky-500/10 dark:border-sky-400/20"
-                : "text-amber-800 bg-amber-50 border-amber-300/70 dark:text-amber-300 dark:bg-amber-500/10 dark:border-amber-400/20"
-            }`}
+            className={`text-[11px] px-2 py-1 rounded-lg border whitespace-nowrap ${faturaStatusClassFinal}`}
           >
-            {statusFaturaDerivado === "pago"
-              ? "Pago"
-              : statusFaturaDerivado === "parcial"
-              ? "Parcial"
-              : "Pendente"}
+            {faturaStatusLabelFinal}
           </span>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-3">
-            <div>
-              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                Valor da fatura
-              </div>
-              <input
-                type="text"
-                readOnly
-                value={moedaBR(valorFaturaTotal)}
-                className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-                  bg-white border border-slate-200 text-rose-700 font-semibold outline-none
-                  dark:bg-transparent dark:border-white/10 dark:text-red-300"
-              />
-            </div>
+        {parcelamentoAtual && <div className="mt-4">{renderParcelamentoHistorico()}</div>}
 
-            <div>
-              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                Valor já pago
+        {invoiceActionMode === "pagamento" && !parcelamentoAtual && (
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-3">
+              <div>
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Valor da fatura
+                </div>
+                <input
+                  type="text"
+                  readOnly
+                  value={moedaBR(valorFaturaTotal)}
+                  className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+                    bg-white border border-slate-200 text-rose-700 font-semibold outline-none
+                    dark:bg-transparent dark:border-white/10 dark:text-red-300"
+                />
               </div>
-              <input
-                type="text"
-                readOnly
-                value={moedaBR(valorPagoFatura)}
-                className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-                  bg-white border border-slate-200 text-emerald-700 font-semibold outline-none
-                  dark:bg-transparent dark:border-white/10 dark:text-emerald-300"
-              />
-            </div>
 
-            <div>
-              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                Saldo pendente
+              <div>
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Valor já pago
+                </div>
+                <input
+                  type="text"
+                  readOnly
+                  value={moedaBR(valorPagoFatura)}
+                  className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+                    bg-white border border-slate-200 text-emerald-700 font-semibold outline-none
+                    dark:bg-transparent dark:border-white/10 dark:text-emerald-300"
+                />
               </div>
-              <input
-                type="text"
-                readOnly
-                value={moedaBR(saldoRestanteFatura)}
-                className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-                  bg-white border border-slate-200 text-slate-900 font-semibold outline-none
-                  dark:bg-transparent dark:border-white/10 dark:text-white/90"
-              />
-            </div>
-          </div>
 
-          <div className="space-y-3">
-            <div>
-              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                Conta p/ pgto
-              </div>
-              <div className="mt-2">
-                <CustomDropdown
-                  value={contaPagamentoFatura}
-                  options={contaPagamentoOptions}
-                  onSelect={(v) => setContaPagamentoFatura(v)}
+              <div>
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Saldo pendente
+                </div>
+                <input
+                  type="text"
+                  readOnly
+                  value={moedaBR(saldoRestanteFatura)}
+                  className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+                    bg-white border border-slate-200 text-slate-900 font-semibold outline-none
+                    dark:bg-transparent dark:border-white/10 dark:text-white/90"
                 />
               </div>
             </div>
 
-            <div>
-              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                Data do pagamento
+            <div className="space-y-3">
+              <div>
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Conta p/ pgto
+                </div>
+                <div className="mt-2">
+                  <CustomDropdown
+                    value={contaPagamentoFatura}
+                    options={contaPagamentoOptions}
+                    onSelect={(v) => setContaPagamentoFatura(v)}
+                  />
+                </div>
               </div>
-              <input
-                type="date"
-                value={dataPagamentoFatura}
-                onChange={(e) => setDataPagamentoFatura(e.target.value)}
-                className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-                  bg-white border border-slate-200 text-slate-900
-                  hover:bg-slate-50
-                  dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800/60"
-              />
-            </div>
 
-            <div>
-              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                Valor a pagar
+              <div>
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Data do pagamento
+                </div>
+                <input
+                  type="date"
+                  value={dataPagamentoFatura}
+                  onChange={(e) => setDataPagamentoFatura(e.target.value)}
+                  className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+                    bg-white border border-slate-200 text-slate-900
+                    hover:bg-slate-50
+                    dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800/60"
+                />
               </div>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={valorPagamentoInput}
-                onChange={(e) => setValorPagamentoInput(e.target.value)}
-                placeholder="0,00"
-                className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-                  bg-white border border-slate-200 text-slate-900
-                  hover:bg-slate-50
-                  dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800/60"
-              />
+
+              <div>
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Valor a pagar
+                </div>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={valorPagamentoInput}
+                  onChange={(e) => setValorPagamentoInput(e.target.value)}
+                  placeholder="0,00"
+                  className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+                    bg-white border border-slate-200 text-slate-900
+                    hover:bg-slate-50
+                    dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800/60"
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {invoiceActionMode === "parcelamento" && !parcelamentoAtual && (
+          <div className="mt-3 space-y-3">
+<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+  <div className="space-y-1">
+    <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+      Valor original
+    </div>
+    <input
+      type="text"
+      value={invoiceParcelamentoValorOriginal}
+      onChange={(e) => setInvoiceParcelamentoValorOriginal(e.target.value)}
+      placeholder="0,00"
+      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+        bg-white border border-slate-200 text-slate-900 outline-none
+        dark:bg-transparent dark:border-white/10 dark:text-white"
+    />
+  </div>
+
+  <div className="space-y-1">
+    <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+      Quantidade de parcelas
+    </div>
+    <input
+      type="number"
+      min={2}
+      value={invoiceParcelamentoQtd}
+      onChange={(e) => setInvoiceParcelamentoQtd(e.target.value)}
+      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+        bg-white border border-slate-200 text-slate-900 outline-none
+        dark:bg-transparent dark:border-white/10 dark:text-white"
+    />
+  </div>
+
+  <div className="space-y-1">
+    <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+      Valor da parcela
+    </div>
+    <input
+      type="text"
+      value={invoiceParcelamentoValorParcela}
+      onChange={(e) => setInvoiceParcelamentoValorParcela(e.target.value)}
+      placeholder="0,00"
+      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+        bg-white border border-slate-200 text-slate-900 outline-none
+        dark:bg-transparent dark:border-white/10 dark:text-white"
+    />
+  </div>
+
+  <div className="space-y-1">
+    <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+      Primeira parcela
+    </div>
+    <input
+      type="date"
+      value={invoiceParcelamentoPrimeiraParcela}
+      onChange={(e) => setInvoiceParcelamentoPrimeiraParcela(e.target.value)}
+      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
+        bg-white border border-slate-200 text-slate-900 outline-none
+        dark:bg-transparent dark:border-white/10 dark:text-white"
+    />
+  </div>
+</div>
+
+<div className="mt-3 text-[11px] font-medium leading-relaxed text-rose-600 dark:text-rose-400">
+  Caso exista entrada na negociação, faça esse lançamento separadamente.
+</div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500 dark:text-white/60">Saldo parcelado</span>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {moedaBR(saldoParceladoCalculado)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500 dark:text-white/60">Total final</span>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {moedaBR(totalFinalParcelamento)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500 dark:text-white/60">Juros totais</span>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {moedaBR(jurosTotaisParcelamento)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {!!erroPagamentoFatura && (
           <div className="mt-3 text-sm text-rose-700 dark:text-rose-300">{erroPagamentoFatura}</div>
@@ -744,58 +1203,60 @@ useEffect(() => {
         )}
       </div>
 
-      <div className="rounded-2xl bg-white shadow-sm border border-slate-200/70 p-4 text-slate-900 dark:bg-white/5 dark:border-white/10 dark:text-white">
-        <div className="text-slate-600 text-[11px] mb-2 dark:text-white/50">
-          Pagamentos registrados neste ciclo
-        </div>
+      {invoiceActionMode === "pagamento" && !parcelamentoAtual && (
+        <div className="rounded-[1.75rem] bg-white shadow-sm border border-slate-200/70 px-6 py-6 text-slate-900 dark:bg-white/5 dark:border-white/10 dark:text-white">
+          <div className="text-slate-600 text-[11px] mb-2 dark:text-white/50">
+            Pagamentos registrados neste ciclo
+          </div>
 
-        {pagamentosDoCiclo.length ? (
-          <div className="space-y-2">
-            {pagamentosDoCiclo.map((p) => (
-              <div
-                key={p.id}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2
-                  dark:border-white/10 dark:bg-black/20"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-slate-900 text-[12px] font-medium truncate dark:text-white/85">
-                      {p.contaLabel}
-                    </div>
-                    <div className="mt-1 text-slate-500 text-[10px] leading-none dark:text-white/45">
-                      {formatBRDate(p.dataPagamento)}
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 flex items-center gap-2">
-                    <div className="text-emerald-700 text-[12px] font-semibold dark:text-emerald-300">
-                      {moedaBR(p.valor)}
+          {pagamentosDoCiclo.length ? (
+            <div className="space-y-2">
+              {pagamentosDoCiclo.map((p) => (
+                <div
+                  key={p.id}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2
+                    dark:border-white/10 dark:bg-black/20"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-slate-900 text-[12px] font-medium truncate dark:text-white/85">
+                        {p.contaLabel}
+                      </div>
+                      <div className="mt-1.5 text-slate-500 text-[10px] leading-none dark:text-white/45">
+                        {formatBRDate(p.dataPagamento)}
+                      </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setConfirmExcluirPagamentoId(p.id)}
-                      className="h-8 w-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700
-                        dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/70"
-                      title="Remover pagamento"
-                      aria-label="Remover pagamento"
-                    >
-                      🗑
-                    </button>
+                    <div className="shrink-0 flex items-center gap-2">
+                      <div className="text-emerald-700 text-[12px] font-semibold dark:text-emerald-300">
+                        {moedaBR(p.valor)}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setConfirmExcluirPagamentoId(p.id)}
+                        className="h-8 w-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700
+                          dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/70"
+                        title="Remover pagamento"
+                        aria-label="Remover pagamento"
+                      >
+                        🗑
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-[11px]
-            dark:border-white/10 dark:bg-black/10 dark:text-white/50"
-          >
-            Nenhum pagamento registrado para esta fatura.
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-[11px]
+              dark:border-white/10 dark:bg-black/10 dark:text-white/50"
+            >
+              Nenhum pagamento registrado para esta fatura.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -842,19 +1303,27 @@ useEffect(() => {
             <div className="mt-2 space-y-3"></div>
 
             <div className={softCard}>
-              <div className="text-slate-700 text-sm font-medium dark:text-white/70">
-                Detalhes do cartão
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-slate-700 text-sm font-medium dark:text-white/70">
+                  Detalhes do cartão
+                </div>
               </div>
 
               <div className="mt-3 grid grid-cols-2 items-center gap-2">
                 <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                  Limite
+                  Limite total
                 </div>
                 <div className="text-right text-slate-900 text-[13px] font-semibold leading-none dark:text-white/85">
-                  {(cartao.limiteTotal ?? 0).toLocaleString("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  })}
+                  {moedaBR(cartao.limiteTotal ?? 0)}
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 items-center gap-2">
+                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                  Limite disponível
+                </div>
+                <div className="text-right text-slate-900 text-[13px] font-semibold leading-none dark:text-white/85">
+                  {moedaBR(limiteDisponivel)}
                 </div>
               </div>
 
@@ -873,20 +1342,6 @@ useEffect(() => {
                   </span>
                 </div>
               </div>
-
-              <div className="mt-3 h-px bg-slate-200/70 dark:bg-white/10" />
-
-              <div className="mt-3">
-                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                  Valor fatura anterior
-                </div>
-                <div className="mt-1 text-slate-400 text-[10px] leading-none dark:text-white/35">
-                  último pagamento efetuado
-                </div>
-                <div className="mt-2 text-emerald-700 text-[12px] font-semibold leading-none dark:text-emerald-400">
-                  - R$ 0,00
-                </div>
-              </div>
             </div>
 
             <div className={`${softCardLite} mt-4`}>
@@ -901,9 +1356,9 @@ useEffect(() => {
                 </div>
 
                 <span
-                  className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${faturaStatusClass[faturaStatus]}`}
+                  className={`rounded-full px-2 py-1 text-[11px] font-semibold border ${faturaStatusClassFinal}`}
                 >
-                  {faturaStatusLabel[faturaStatus]}
+                  {faturaStatusLabelFinal}
                 </span>
               </div>
 
@@ -929,11 +1384,34 @@ useEffect(() => {
                 </div>
               </div>
 
+<div className="mt-3">
+
+  <div className="mt-1 text-[10px] text-slate-500 dark:text-white/50">
+    <span className="font-semibold">Fatura anterior:</span> {labelPrev}
+  </div>
+
+{faturaAnteriorFoiPaga ? (
+  <div className="mt-0.5 text-[12px] font-semibold text-emerald-700 leading-none dark:text-emerald-400">
+    - {moedaBR(valorPagoFaturaAnterior)}
+  </div>
+) : faturaAnteriorEstaAtrasada ? (
+  <div className="mt-0.5 text-[12px] font-semibold text-rose-700 leading-none dark:text-rose-400">
+    Em atraso
+  </div>
+) : (
+  <div className="mt-0.5 text-[12px] font-semibold text-slate-900 leading-none dark:text-white/85">
+    {moedaBR(0)}
+  </div>
+)}
+</div>
+
               <button
                 type="button"
-                onClick={onOpenInvoiceModal}
-                className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50
-                dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                onClick={() => {
+                  resetInvoiceModalState();
+                  onOpenInvoiceModal?.();
+                }}
+                className="mt-7 w-full rounded-[18px] bg-gradient-to-r from-[#220055] to-[#4600ac] px-4 py-3 text-[15px] font-extrabold text-white shadow-[0_18px_45px_rgba(70,0,172,0.28)] transition-all duration-200 hover:scale-[1.01] hover:shadow-[0_22px_55px_rgba(70,0,172,0.34)] active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-100"
               >
                 Acessar fatura
               </button>
@@ -1131,33 +1609,52 @@ useEffect(() => {
                           </div>
 
                           {onDeleteTransacao && podeExcluirCompra(t) ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!podeExcluirCompra(t)) return;
-                                onDeleteTransacao(t.id);
-                              }}
-                              className="h-8 w-8 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 transition
-                                dark:text-white/55 dark:hover:text-white/90"
-                              title="Excluir transação"
-                              aria-label="Excluir transação"
-                            >
-                              <svg
-                                viewBox="0 0 24 24"
-                                className="h-4 w-4"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.8"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M3 6h18" />
-                                <path d="M8 6V4h8v2" />
-                                <path d="M6 6l1 16h10l1-16" />
-                                <path d="M10 11v6" />
-                                <path d="M14 11v6" />
-                              </svg>
-                            </button>
+<button
+  type="button"
+  disabled={!!parcelamentoAtual}
+  onClick={() => {
+    if (parcelamentoAtual) {
+      setErroPagamentoFatura(
+        "Não é possível excluir transações enquanto esta fatura estiver parcelada."
+      );
+      return;
+    }
+
+    if (!podeExcluirCompra(t)) return;
+    onDeleteTransacao(t.id);
+  }}
+  className={`h-8 w-8 inline-flex items-center justify-center transition ${
+    parcelamentoAtual
+      ? "cursor-not-allowed text-slate-300 dark:text-white/20"
+      : "text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
+  }`}
+  title={
+    parcelamentoAtual
+      ? "Não é possível excluir transações enquanto a fatura estiver parcelada."
+      : "Excluir transação"
+  }
+  aria-label={
+    parcelamentoAtual
+      ? "Exclusão bloqueada para fatura parcelada"
+      : "Excluir transação"
+  }
+>
+  <svg
+    viewBox="0 0 24 24"
+    className="h-4 w-4"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 6h18" />
+    <path d="M8 6V4h8v2" />
+    <path d="M6 6l1 14h10l1-14" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+  </svg>
+</button>
                           ) : null}
                         </div>
                       </div>
@@ -1255,52 +1752,144 @@ useEffect(() => {
         </div>
       </div>
 
-{isInvoiceModalOpen ? (
+      {isInvoiceModalOpen ? (
+          <div
+  className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-[2px] flex items-start justify-center px-4 pt-12 pb-4"
+          onClick={handleCloseInvoiceModal}
+        >
+          <div
+            className="w-full max-w-[660px] rounded-[2rem] border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-white/10 dark:bg-[#071235] dark:text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
 <div
-  className="fixed inset-0 z-[80] overflow-hidden bg-black/70 backdrop-blur-[2px] flex items-center justify-center px-4 py-2"
-  onClick={onCloseInvoiceModal}
+  className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 pt-5 pb-4 dark:border-white/10"
 >
-    <div
-className="w-full max-w-[540px] max-h-[92vh] rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl flex flex-col dark:border-white/10 dark:bg-[#071235] dark:text-white"
-      onClick={(e) => e.stopPropagation()}
-    >
-            <div
-              className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3
-              dark:border-white/10"
-            >
-              <div className="min-w-0">
-                <div className="text-slate-600 text-[11px] dark:text-white/60">Pagamento da fatura</div>
-                <div className="text-slate-900 font-semibold text-base dark:text-white">Acessar fatura</div>
-              </div>
+  <div className="min-w-0 pr-4">
+    <div className="text-slate-600 text-[11px] font-medium leading-none dark:text-white/60">
+      Pagamento da fatura
+    </div>
+    <div className="mt-1.5 text-slate-900 font-semibold text-[22px] leading-none dark:text-white">
+      Acessar fatura
+    </div>
+  </div>
 
-              <button
-                type="button"
-                onClick={onCloseInvoiceModal}
-                className="h-10 w-10 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50
-                  dark:border-white/10 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
-                aria-label="Fechar modal"
-                title="Fechar"
-              >
-                ✕
-              </button>
-            </div>
+  <button
+    type="button"
+    onClick={handleCloseInvoiceModal}
+    className="h-11 w-11 shrink-0 flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+    aria-label="Fechar modal"
+    title="Fechar"
+  >
+    ✕
+  </button>
+</div>
 
-<div className="p-4 overflow-y-auto max-h-[calc(92vh-140px)]">
+<div className="px-8 pt-7 pb-6">
   {renderPagamentoFaturaModalContent()}
 </div>
 
-<div className="border-t border-slate-200 px-4 py-3 flex items-center justify-end gap-2 dark:border-white/10">
-              <button
-                type="button"
-                onClick={registrarPagamentoFatura}
-                className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold"
-              >
-                Registrar pagamento
-              </button>
-            </div>
+<div className="border-t border-slate-200 px-6 py-4 flex items-center justify-between gap-3 dark:border-white/10">
+  {!parcelamentoAtual ? (
+    <>
+      <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5">
+        <button
+          type="button"
+          onClick={() => {
+            setInvoiceActionMode("pagamento");
+            setErroPagamentoFatura("");
+            setSucessoPagamentoFatura("");
+          }}
+          className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition ${
+            invoiceActionMode === "pagamento"
+              ? "bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900"
+              : "text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
+          }`}
+        >
+          À vista
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setInvoiceActionMode("parcelamento");
+            setErroPagamentoFatura("");
+            setSucessoPagamentoFatura("");
+            if (!invoiceParcelamentoValorOriginal && saldoRestanteFatura > 0) {
+              setInvoiceParcelamentoValorOriginal(
+                saldoRestanteFatura.toLocaleString("pt-BR", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              );
+            }
+          }}
+          className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition ${
+            invoiceActionMode === "parcelamento"
+              ? "bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900"
+              : "text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
+          }`}
+        >
+          Parcelado
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={
+          invoiceActionMode === "pagamento"
+            ? registrarPagamentoFatura
+            : registrarParcelamentoFatura
+        }
+        className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold"
+      >
+        {invoiceActionMode === "pagamento"
+          ? "Registrar pagamento"
+          : "Confirmar parcelamento"}
+      </button>
+    </>
+  ) : (
+    <div />
+  )}
+</div>
           </div>
         </div>
       ) : null}
+
+{confirmCancelarNegociacao && parcelamentoAtual ? (
+  <div
+    className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 px-4 backdrop-blur-[2px]"
+    onClick={() => setConfirmCancelarNegociacao(false)}
+  >
+    <div
+      className="w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-white/10 dark:bg-[#071235] dark:text-white"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="text-[18px] font-bold">Cancelar negociação?</div>
+
+      <div className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-white/70">
+        Isso vai desfazer o parcelamento desta fatura e remover a negociação vinculada.
+      </div>
+
+      <div className="mt-6 flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => setConfirmCancelarNegociacao(false)}
+          className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white/80 dark:hover:bg-white/10"
+        >
+          Voltar
+        </button>
+
+        <button
+          type="button"
+          onClick={cancelarNegociacaoFatura}
+          className="h-10 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700"
+        >
+          Confirmar cancelamento
+        </button>
+      </div>
+    </div>
+  </div>
+) : null}
 
       {confirmExcluirPagamentoId && (
         <div

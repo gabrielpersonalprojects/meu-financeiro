@@ -59,15 +59,17 @@ import { asId } from "./utils/asId";
 
 
 import type {
-  Transaction,
-  TransactionType,
   Categories,
   PaymentMethods,
   TabType,
+  TransactionType,
   SpendingType,
   PaymentMethod,
-  Profile,
+  Transaction,
   PagamentoFaturaApp,
+  ParcelamentoFaturaApp,
+  FaturaStatusManualApp,
+  Profile,
 } from "./app/types";
 
 
@@ -167,7 +169,25 @@ function confirmToast(opts: ConfirmState) {
   // ...
 
   const [transacoes, setTransacoes] = useState<Transaction[]>(() => loadOrMigrateTransacoes());
+  const [parcelamentosFatura, setParcelamentosFatura] = useState<ParcelamentoFaturaApp[]>(() => {
+  try {
+    const raw = localStorage.getItem("parcelamentos_fatura");
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+});
 
+const [faturasStatusManual, setFaturasStatusManual] = useState<FaturaStatusManualApp[]>(() => {
+  try {
+    const raw = localStorage.getItem("faturas_status_manual");
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+});
   
   const [projectionMode, setProjectionMode] = useState<"acumulado" | "mensal">("acumulado");
 
@@ -219,6 +239,18 @@ useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.FATURA_PAYMENTS, JSON.stringify(pagamentosFatura));
   } catch {}
 }, [pagamentosFatura]);
+
+useEffect(() => {
+  try {
+    localStorage.setItem("parcelamentos_fatura", JSON.stringify(parcelamentosFatura));
+  } catch {}
+}, [parcelamentosFatura]);
+
+useEffect(() => {
+  try {
+    localStorage.setItem("faturas_status_manual", JSON.stringify(faturasStatusManual));
+  } catch {}
+}, [faturasStatusManual]);
 
   // --- Auth Session ---
   const [session, setSession] = useState<Session | null>(null);
@@ -307,6 +339,147 @@ descricao: `Fatura: ${(() => {
   // toastCompact("Pagamento de fatura registrado.", "success");
 };
 
+const handleRegistrarParcelamentoFatura = ({
+cartaoId,
+  cicloKey,
+  dataAcordo,
+  valorOriginal,
+  valorEntrada,
+  saldoParcelado,
+  quantidadeParcelas,
+  valorParcela
+}: {
+  cartaoId: string;
+  cicloKey: string;
+  dataAcordo: string;
+  valorOriginal: number;
+  valorEntrada: number;
+  saldoParcelado: number;
+  quantidadeParcelas: number;
+  valorParcela: number;
+}) => {
+  console.log("[PARCELAMENTO] entrou no handle", {
+  cartaoId,
+  cicloKey,
+  dataAcordo,
+  valorOriginal,
+  valorEntrada,
+  saldoParcelado,
+  quantidadeParcelas,
+  valorParcela,
+});
+  const qtd = Number(quantidadeParcelas);
+  const valorParc = Number(valorParcela);
+  const valorOrig = Number(valorOriginal);
+  const valorEntr = Number(valorEntrada);
+  const saldoParc = Number(saldoParcelado);
+
+  if (!cartaoId || !cicloKey || !dataAcordo) return;
+  if (!Number.isFinite(qtd) || qtd <= 0) return;
+  if (!Number.isFinite(valorParc) || valorParc <= 0) return;
+  if (!Number.isFinite(valorOrig) || valorOrig <= 0) return;
+
+  const cartao = creditCards.find((c: any) => String(c.id) === String(cartaoId));
+  const nomeCartao =
+  String((cartao as any)?.bankText ?? (cartao as any)?.categoria ?? "Cartão").trim() || "Cartão";
+
+  const parcelamentoId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `pf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+  const valorTotalFinal = Number((qtd * valorParc).toFixed(2));
+  const jurosTotal = Number((valorTotalFinal - saldoParc).toFixed(2));
+  const criadoEm = Date.now();
+
+const acordo: ParcelamentoFaturaApp = {
+  id: parcelamentoId,
+  cartaoId: String(cartaoId),
+  cicloKeyOrigem: String(cicloKey),
+  dataAcordo,
+  valorOriginal: valorOrig,
+  valorEntrada: valorEntr,
+  saldoParcelado: saldoParc,
+  quantidadeParcelas: qtd,
+  valorParcela: valorParc,
+  valorTotalFinal,
+  jurosTotal,
+  criadoEm,
+  status: "ativo",
+};
+
+  setParcelamentosFatura((prev) => [...prev, acordo]);
+  console.log("[PARCELAMENTO] acordo salvo", acordo);
+  const baseDate = new Date(`${dataAcordo}T12:00:00`);
+
+  const novasParcelas: Transaction[] = Array.from({ length: qtd }, (_, idx) => {
+    const parcelaNumero = idx + 1;
+    const dataParcela = new Date(baseDate);
+    dataParcela.setMonth(dataParcela.getMonth() + idx);
+
+    const yyyy = dataParcela.getFullYear();
+    const mm = String(dataParcela.getMonth() + 1).padStart(2, "0");
+    const dd = String(dataParcela.getDate()).padStart(2, "0");
+    const data = `${yyyy}-${mm}-${dd}`;
+
+    const txId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `tx_pf_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 9)}`;
+
+    return {
+      id: txId,
+      tipo: "cartao_credito",
+      descricao: `Parcelamento de fatura ${parcelaNumero}/${qtd}`,
+      valor: valorParc,
+      data,
+      categoria: "Parcelamento de fatura",
+      qualCartao: nomeCartao,
+      cartaoId: String(cartaoId),
+      tipoGasto: "parcelado",
+      pago: false,
+      createdAt: Date.now() + idx,
+      parcelaAtual: parcelaNumero,
+      totalParcelas: qtd,
+      origemLancamento: "parcelamento_fatura",
+      parcelamentoFaturaId: parcelamentoId,
+      faturaOrigemCicloKey: String(cicloKey),
+    };
+  });
+
+  setTransacoes((prev) => [...prev, ...novasParcelas]);
+  console.log("[PARCELAMENTO] parcelas criadas", novasParcelas);
+  setFaturasStatusManual((prev) => {
+    const semAtual = prev.filter(
+      (item) =>
+        !(
+          String(item.cartaoId) === String(cartaoId) &&
+          String(item.cicloKey) === String(cicloKey)
+        )
+    );
+
+    return [
+      ...semAtual,
+      {
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `fsm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        cartaoId: String(cartaoId),
+        cicloKey: String(cicloKey),
+        statusManual: "parcelada",
+        parcelamentoFaturaId: parcelamentoId,
+        criadoEm,
+      },
+    ];
+  });
+  console.log("[PARCELAMENTO] status manual salvo", {
+  cartaoId,
+  cicloKey,
+  parcelamentoId,
+});
+};
+
 const handleRemoverPagamentoFatura = (pagamentoId: string) => {
   setPagamentosFatura((prevPagamentos) => {
     const alvo = prevPagamentos.find((p) => p.id === pagamentoId);
@@ -327,7 +500,6 @@ salvarPagamentosFatura(next);
 return next;
   });
 };
-
   // --- Perfis ---
 
 const [profiles, setProfiles] = useState<Profile[]>(() => {
@@ -858,7 +1030,7 @@ const [creditCards, setCreditCards] = useState<CreditCard[]>(() => {
 const [selectedCreditCardId, setSelectedCreditCardId] = useState<string>("");
 const [saldoRestanteAtual, setSaldoRestanteAtual] = useState<number>(0);
 const [isCcExpanded, setIsCcExpanded] = useState(false);
-
+const [creditJumpMonth, setCreditJumpMonth] = useState<string>(getHojeLocal().slice(0, 7));
 useEffect(() => {
   try {
     localStorage.setItem(STORAGE_KEYS.CREDIT_CARDS, JSON.stringify(creditCards));
@@ -929,6 +1101,7 @@ type CreditCard = {
   diaFechamento: number;
   diaVencimento: number;
   limite: number;
+  limiteDisponivel?: number;
   contaVinculadaId?: string | null;
   gradientFrom?: string;
   gradientTo?: string;
@@ -1936,7 +2109,18 @@ function dedupeById<T extends { id: string }>(arr: T[]): T[] {
   }
   return out;
 }
+const getCardCycleMonthFromDate = (dataISO: string, diaFechamento: number) => {
+  const dt = new Date(`${dataISO}T12:00:00`);
+  if (Number.isNaN(dt.getTime())) return getHojeLocal().slice(0, 7);
 
+  const ano = dt.getFullYear();
+  const mes = dt.getMonth();
+  const dia = dt.getDate();
+
+  return dia > Number(diaFechamento ?? 1)
+    ? `${ano}-${String(mes + 3).padStart(2, "0")}`
+    : `${ano}-${String(mes + 2).padStart(2, "0")}`;
+};
 // --- Add Transaction (com suporte simples a transferencia/cartao_credito) ---
 const handleAddTransaction = () => {
   if (addTxLockRef.current) return;
@@ -2210,20 +2394,30 @@ const handleAddTransaction = () => {
         });
       }
 
-      setTransacoes((prev) => {
-        const next = [...prev, ...novos];
-        persistTransacoes(next);
-        return next;
-      });
+setTransacoes((prev) => {
+  const next = [...prev, ...novos];
+  persistTransacoes(next);
+  return next;
+});
 
-      setFormDesc("");
-      setFormValor("");
-      setFormData(getHojeLocal());
-      setFormPago(true);
-      setFormTagCC("");
+const mesDestinoCartao = getCardCycleMonthFromDate(
+  formData,
+  Number(selectedCard?.diaFechamento ?? 1)
+);
 
-      toastCompact("Lançamento no cartão realizado com sucesso!", "success");
-      return;
+setSelectedCreditCardId(String(selectedCreditCardId));
+setCreditJumpMonth(mesDestinoCartao);
+setModoCentro("credito");
+setIsCcExpanded(true);
+
+setFormDesc("");
+setFormValor("");
+setFormData(getHojeLocal());
+setFormPago(true);
+setFormTagCC("");
+
+toastCompact("Lançamento no cartão realizado com sucesso!", "success");
+return;
     }
 
     // =========================
@@ -2367,16 +2561,19 @@ const handleAddTransaction = () => {
     addTxLockRef.current = false;
   }
 };
-  const creditTxSelecionado = useMemo<Transaction[]>(() => {
-  const cardId = String(selectedCreditCardId ?? "");
+const creditItSelecionado = useMemo<Transaction[]>(() => {
+  const cardId = String(selectedCreditCardId ?? "").trim();
   if (!cardId) return [];
 
   return transacoes
-    .filter(
-      (t) =>
-        t.tipo === "cartao_credito" &&
-        String((t as any).qualCartao ?? "") === cardId
-    )
+    .filter((t) => {
+      if (t.tipo !== "cartao_credito") return false;
+
+      const refCartaoId = String((t as any).cartaoId ?? "").trim();
+      const refQualCartao = String((t as any).qualCartao ?? "").trim();
+
+      return refCartaoId === cardId || refQualCartao === cardId;
+    })
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
 }, [transacoes, selectedCreditCardId]);
 
@@ -2789,20 +2986,204 @@ className={`lg:col-span-8 space-y-6 ${
         {/* cartões cadastrados */}
         {creditCards.map((c) => {
           const isSelected = c.id === selectedCreditCardId;
-const totalFatura = transacoes
-  .filter(
-    (t: any) =>
-      t?.tipo === "cartao_credito" &&
-      String((t as any).qualCartao ?? "") === String(c.id)
-  )
-  .reduce((acc: number, t: any) => acc + Math.abs(Number((t as any)?.valor ?? 0)), 0);
+const agora = new Date();
+const hojeFiltro = new Date();
+hojeFiltro.setHours(23, 59, 59, 999);
 
-// pagamentos feitos pra esse cartão (tira do em aberto)
-const totalPago = (pagamentosFatura ?? [])
-  .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
-  .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor ?? 0)), 0);
+function toYm(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function normalizePaymentCycleKeyToYm(raw: any): string {
+  const value = String(raw ?? "").trim();
+  if (!value) return "";
+
+  if (/^\d{4}-\d{2}$/.test(value)) return value;
+
+  if (value.includes("__")) {
+    const parts = value.split("__");
+    const endIso = String(parts[2] ?? "").trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
+      const endDate = new Date(`${endIso}T12:00:00`);
+      if (!Number.isNaN(endDate.getTime())) {
+        endDate.setMonth(endDate.getMonth() + 1);
+        return toYm(endDate);
+      }
+    }
+  }
+
+  return value;
+}
+
+const anoAtual = agora.getFullYear();
+const mesAtual = agora.getMonth();
+
+const cicloBase =
+  agora.getDate() > Number(c.diaFechamento ?? 1)
+    ? `${anoAtual}-${String(mesAtual + 3).padStart(2, "0")}`
+    : `${anoAtual}-${String(mesAtual + 2).padStart(2, "0")}`;
+
+const inferirCicloDaTransacao = (t: any): string => {
+  const ciclo = String((t as any).faturaMes ?? "").trim();
+  if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
+
+  const dataRaw = String((t as any).data ?? "").trim();
+  const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
+  if (!dataTx || Number.isNaN(dataTx.getTime())) return "";
+
+  const anoTx = dataTx.getFullYear();
+  const mesTx = dataTx.getMonth();
+  const diaTx = dataTx.getDate();
+
+  return diaTx > Number(c.diaFechamento ?? 1)
+    ? `${anoTx}-${String(mesTx + 3).padStart(2, "0")}`
+    : `${anoTx}-${String(mesTx + 2).padStart(2, "0")}`;
+};
+
+const transacoesDoCartao = transacoes.filter((t: any) => {
+  const cartaoTxId = String((t as any).qualCartao ?? (t as any).cartaoId ?? "");
+  const tipo = String((t as any)?.tipo ?? "").toLowerCase();
+  const parcelamentoFaturaId = String((t as any)?.parcelamentoFaturaId ?? "").trim();
+
+  const pertenceAoCartaoDiretamente =
+    cartaoTxId === String(c.id) && tipo === "cartao_credito";
+
+  const pertenceAoCartaoViaParcelamento =
+    Boolean(parcelamentoFaturaId) &&
+    (parcelamentosFatura ?? []).some(
+      (p: any) =>
+        String(p?.id ?? "") === parcelamentoFaturaId &&
+        String(p?.cartaoId ?? "") === String(c.id)
+    );
+
+  return pertenceAoCartaoDiretamente || pertenceAoCartaoViaParcelamento;
+});
+
+const parcelasNegociacaoDoCartao = transacoes.filter(
+  (t: any) => Boolean((t as any)?.parcelamentoFaturaId)
+);
+
+console.log("[PARCELAS NEGOCIACAO DEBUG]", {
+  cartaoAtual: c.id,
+  parcelasNegociacaoDoCartao,
+  transacoesDoCartao,
+});
+
+const transacoesAteHoje = transacoesDoCartao.filter((t: any) => {
+  const dataRaw = String((t as any).data ?? "").trim();
+  const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
+  if (!dataTx || Number.isNaN(dataTx.getTime())) return false;
+  return dataTx.getTime() <= hojeFiltro.getTime();
+});
+
+const transacoesDaFaturaAtual = transacoesAteHoje.filter(
+  (t: any) => inferirCicloDaTransacao(t) === cicloBase
+);
+
+const pagamentosDaFaturaAtual = (pagamentosFatura ?? []).filter((p: any) => {
+  if (String(p?.cartaoId ?? "") !== String(c.id)) return false;
+  return normalizePaymentCycleKeyToYm(p?.cicloKey) === cicloBase;
+});
+
+const totalFatura = transacoesDaFaturaAtual.reduce(
+  (acc: number, t: any) => acc + Math.abs(Number(t.valor || 0)),
+  0
+);
+
+const totalPago = pagamentosDaFaturaAtual.reduce(
+  (acc: number, p: any) => acc + Math.abs(Number(p.valor || 0)),
+  0
+);
 
 const emAberto = Math.max(0, totalFatura - totalPago);
+
+const statusManualPorCiclo = new Map<string, string>();
+
+(faturasStatusManual ?? []).forEach((item: any) => {
+  if (String(item?.cartaoId ?? "") !== String(c.id)) return;
+
+  const cicloNormalizado = normalizePaymentCycleKeyToYm(item?.cicloKey);
+  if (!cicloNormalizado) return;
+
+  const status = String(item?.statusManual ?? "").trim().toLowerCase();
+  if (!status) return;
+
+  statusManualPorCiclo.set(cicloNormalizado, status);
+});
+
+const totalComprometidoCartao = transacoesDoCartao.reduce((acc: number, t: any) => {
+  const cicloTx = inferirCicloDaTransacao(t);
+  const statusDoCiclo = String(statusManualPorCiclo.get(cicloTx) ?? "").toLowerCase();
+
+  if (statusDoCiclo === "parcelada") return acc;
+
+  return acc + Math.abs(Number((t as any)?.valor || 0));
+}, 0);
+
+const totalPagoNoCartao = (pagamentosFatura ?? [])
+  .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
+  .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0);
+
+const valorComprometidoReal = Math.max(0, totalComprometidoCartao - totalPagoNoCartao);
+const limiteDisponivelReal = Math.max(0, Number(c.limite ?? 0) - valorComprometidoReal);
+
+const hoje = new Date();
+hoje.setHours(0, 0, 0, 0);
+
+const totaisPorCiclo = new Map<string, { total: number; pago: number }>();
+
+transacoesAteHoje.forEach((t: any) => {
+  const ciclo = inferirCicloDaTransacao(t);
+  if (!ciclo) return;
+
+  const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
+  atual.total += Math.abs(Number(t.valor || 0));
+  totaisPorCiclo.set(ciclo, atual);
+});
+
+(pagamentosFatura ?? []).forEach((p: any) => {
+  if (String(p?.cartaoId ?? "") !== String(c.id)) return;
+
+  const ciclo = normalizePaymentCycleKeyToYm(p?.cicloKey);
+  if (!ciclo) return;
+
+  const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
+  atual.pago += Math.abs(Number(p?.valor || 0));
+  totaisPorCiclo.set(ciclo, atual);
+});
+
+const existeFaturaAtrasada = Array.from(totaisPorCiclo.entries()).some(([ciclo, info]) => {
+  if (!/^\d{4}-\d{2}$/.test(String(ciclo))) return false;
+  if ((info?.total ?? 0) <= 0) return false;
+
+  const statusManualDoCiclo = String(statusManualPorCiclo.get(ciclo) ?? "").toLowerCase();
+  if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") return false;
+
+  const saldo = Math.max(0, Number(info.total || 0) - Number(info.pago || 0));
+  if (saldo <= 0) return false;
+
+  const [anoStr, mesStr] = String(ciclo).split("-");
+  const ano = Number(anoStr);
+  const mes = Number(mesStr);
+  if (!ano || !mes) return false;
+
+  const vencimentoDoCiclo = new Date(
+    ano,
+    mes - 1,
+    Math.min(28, Math.max(1, Number(c.diaVencimento ?? 10)))
+  );
+  vencimentoDoCiclo.setHours(0, 0, 0, 0);
+
+  return hoje.getTime() > vencimentoDoCiclo.getTime();
+});
+
+const statusMiniCard: "normal" | "atrasada" | "zerada" =
+  existeFaturaAtrasada
+    ? "atrasada"
+    : emAberto > 0
+    ? "normal"
+    : "zerada";
           return (
             <div key={c.id} className="relative group w-full max-w-[360px]">
               {/* CARTÃO (clicável) */}
@@ -2824,20 +3205,22 @@ const emAberto = Math.max(0, totalFatura - totalPago);
                   "hover:bg-white/5",
                 ].join(" ")}
               >
-                <CreditCardVisual
-                  nome={(c as any).name || (c as any).nome || "Cartão"}
-                  emissor={c.emissor || "Banco"}
-                  categoria={c.categoria ?? ""}
-                  perfil={c.perfil?.toUpperCase?.() ?? "PF"}
-                  limite={c.limite ?? 0}
-                  fechamentoDia={c.diaFechamento ?? 1}
-                  vencimentoDia={c.diaVencimento ?? 10}
-                  emAberto={emAberto}
-                  design={{
-                    from: c.gradientFrom ?? "#220055",
-                    to: c.gradientTo ?? "#4600ac",
-                  }}
-                />
+<CreditCardVisual
+  nome={(c as any).name || (c as any).nome || "Cartão"}
+  emissor={c.emissor || "Banco"}
+  categoria={c.categoria ?? ""}
+  perfil={c.perfil?.toUpperCase?.() ?? "PF"}
+  limite={c.limite ?? 0}
+  limiteDisponivel={limiteDisponivelReal}
+  fechamentoDia={c.diaFechamento ?? 1}
+  vencimentoDia={c.diaVencimento ?? 10}
+  emAberto={emAberto > 0 ? emAberto : 0}
+  statusMiniCard={statusMiniCard}
+  design={{
+    from: c.gradientFrom ?? "#220055",
+    to: c.gradientTo ?? "#4600ac",
+  }}
+/>
               </button>
 
               {/* ÍCONES NO HOVER (por cima do cartão) */}
@@ -2959,6 +3342,8 @@ const emAberto = Math.max(0, totalFatura - totalPago);
 {selectedCcCard ? (
   <div className={isCcExpanded ? "" : "hidden"}>
   <CreditDashboard
+  key={`${selectedCcCard.id}_${creditJumpMonth}`}
+  initialMonth={creditJumpMonth}
     cartao={{
       id: selectedCcCard.id ?? "",
       nome: selectedCcCard.name ?? "",
@@ -2973,7 +3358,66 @@ const emAberto = Math.max(0, totalFatura - totalPago);
       gradientTo: selectedCcCard.gradientTo ?? "#4600ac",
       categoria: selectedCard?.categoria ?? "",
     }}
-    transacoes={creditTxSelecionado.map((t: Transaction) => ({ ...t, id: String(t.id) }))}
+limiteDisponivelReal={Math.max(
+  0,
+  Number(selectedCcCard.limite ?? 0) -
+    Math.max(
+      0,
+      creditItSelecionado.reduce((acc: number, t: Transaction) => {
+        const ciclo = /^\d{4}-\d{2}$/.test(String((t as any)?.faturaMes ?? "").trim())
+          ? String((t as any).faturaMes).trim()
+          : (() => {
+              const dataRaw = String((t as any)?.data ?? "").trim();
+              const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
+              if (!dataTx || Number.isNaN(dataTx.getTime())) return "";
+
+              const anoTx = dataTx.getFullYear();
+              const mesTx = dataTx.getMonth();
+              const diaTx = dataTx.getDate();
+
+              return diaTx > Number(selectedCcCard.diaFechamento ?? 1)
+                ? `${anoTx}-${String(mesTx + 3).padStart(2, "0")}`
+                : `${anoTx}-${String(mesTx + 2).padStart(2, "0")}`;
+            })();
+
+        const statusDoCiclo = String(
+          (faturasStatusManual ?? []).find(
+            (item: any) =>
+              String(item?.cartaoId ?? "") === String(selectedCcCard.id) &&
+              (() => {
+  const value = String(item?.cicloKey ?? "").trim();
+  if (!value) return "";
+
+  if (/^\d{4}-\d{2}$/.test(value)) return value;
+
+  if (value.includes("__")) {
+    const parts = value.split("__");
+    const endIso = String(parts[2] ?? "").trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
+      const endDate = new Date(`${endIso}T12:00:00`);
+      if (!Number.isNaN(endDate.getTime())) {
+        endDate.setMonth(endDate.getMonth() + 1);
+        return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
+      }
+    }
+  }
+
+  return value;
+})() === ciclo
+          )?.statusManual ?? ""
+        ).toLowerCase();
+
+        if (statusDoCiclo === "parcelada") return acc;
+
+        return acc + Math.abs(Number(t.valor || 0));
+      }, 0) -
+        (pagamentosFatura ?? [])
+          .filter((p: any) => String(p?.cartaoId ?? "") === String(selectedCcCard.id))
+          .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0)
+    )
+)}
+    transacoes={creditItSelecionado.map((t: Transaction) => ({ ...t, id: String(t.id) }))}
     contaPagamentoOptions={(profiles ?? []).map((p) => {
       const banco = String(p.banco ?? "").trim();
       const nome = String(p.name ?? "").trim();
@@ -2988,6 +3432,35 @@ const emAberto = Math.max(0, totalFatura - totalPago);
       };
     })}
 
+faturasStatusManual={faturasStatusManual}
+parcelamentosFatura={parcelamentosFatura}
+onCancelarParcelamentoFatura={({ cartaoId, cicloKey, parcelamentoFaturaId }) => {
+  setFaturasStatusManual((prev: any[]) =>
+    prev.filter(
+      (item: any) =>
+        !(
+          String(item?.cartaoId ?? "") === String(cartaoId) &&
+          String(item?.cicloKey ?? "") === String(cicloKey)
+        )
+    )
+  );
+
+  setParcelamentosFatura((prev: any[]) =>
+    prev.filter((item: any) => String(item?.id ?? "") !== String(parcelamentoFaturaId))
+  );
+
+  setTransacoes((prev: any[]) =>
+    prev.filter(
+      (t: any) =>
+        !(
+          String((t as any)?.tipo ?? "") === "cartao_credito" &&
+          String((t as any)?.cartaoId ?? (t as any)?.qualCartao ?? "") === String(cartaoId) &&
+          String((t as any)?.parcelamentoFaturaId ?? "") === String(parcelamentoFaturaId)
+        )
+    )
+  );
+}}
+
     onPickOtherCard={toggleCcExpanded}
     onSaldoRestanteChange={setSaldoRestanteAtual}
     onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
@@ -2996,10 +3469,42 @@ const emAberto = Math.max(0, totalFatura - totalPago);
     
     pagamentosFatura={pagamentosFatura}
     onRegistrarPagamentoFatura={handleRegistrarPagamentoFatura}
+    onRegistrarParcelamentoFatura={handleRegistrarParcelamentoFatura}
     onRemoverPagamentoFatura={handleRemoverPagamentoFatura}
 
     onDeleteTransacao={(id: string) => {
-      const target = transacoes.find((t) => String(t.id) === String(id));
+     const target = transacoes.find((t) => String(t.id) === String(id));
+if (
+  (target as any).origemLancamento === "parcelamento_fatura" &&
+  (target as any).parcelamentoFaturaId
+) {
+  const parcelamentoId = String((target as any).parcelamentoFaturaId);
+
+  confirmToast({
+    title: "Excluir parcelamento",
+    message:
+      "Isso vai apagar todas as parcelas geradas e remover a negociação da fatura.",
+    confirmText: "Excluir",
+    cancelText: "Cancelar",
+    onConfirm: () => {
+      setTransacoes((prev) =>
+        prev.filter(
+          (t) => String((t as any)?.parcelamentoFaturaId ?? "") !== parcelamentoId
+        )
+      );
+
+      setParcelamentosFatura((prev) =>
+        prev.filter((p) => String(p.id) !== parcelamentoId)
+      );
+
+      setFaturasStatusManual((prev) =>
+        prev.filter((s) => String(s.parcelamentoFaturaId) !== parcelamentoId)
+      );
+    },
+  });
+
+  return;
+}
 
 const isTransfer =
   !!(target as any)?.transferId ||

@@ -1,5 +1,5 @@
 // src/app/transactions/projection.ts
-import type { Transaction } from "../types";
+import type { Profile, Transaction } from "../types";
 
 export type ProjectionRow = {
   mesAno: string;
@@ -10,6 +10,7 @@ export type ProjectionRow = {
 };
 
 export type ProjectionMode = "acumulado" | "mensal";
+type PerfilView = "geral" | "pf" | "pj";
 
 const isTransfer = (t: any) => {
   const tipo = String(t?.tipo ?? "").toLowerCase();
@@ -41,13 +42,51 @@ export const computeProjection12Months = (params: {
   getMesAnoExtenso: (mesAno: string) => string;
   mode?: ProjectionMode;
   saldoInicialBase?: number; // em REAIS
+  perfilView?: PerfilView;
+  profiles?: Profile[];
 }): ProjectionRow[] => {
-  const {
-    transacoes,
-    getMesAnoExtenso,
-    mode = "acumulado",
-    saldoInicialBase = 0,
-  } = params;
+const {
+  transacoes,
+  getMesAnoExtenso,
+  mode = "acumulado",
+  saldoInicialBase = 0,
+  perfilView = "geral",
+  profiles = [],
+} = params;
+
+const getPerfilContaFromTransaction = (t: Transaction): "PF" | "PJ" | null => {
+  const profileId = String(
+    (t as any)?.profileId ??
+      (t as any)?.contaId ??
+      (t as any)?.qualConta ??
+      (t as any)?.conta?.id ??
+      (t as any)?.profile?.id ??
+      ""
+  ).trim();
+
+  if (!profileId) return null;
+
+  const profile = (profiles ?? []).find(
+    (p) => String((p as any)?.id ?? "").trim() === profileId
+  );
+
+  const perfil = String((profile as any)?.perfilConta ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (perfil === "PF" || perfil === "PJ") return perfil;
+  return null;
+};
+
+const transacoesFiltradas =
+  perfilView === "geral"
+    ? transacoes
+    : (transacoes ?? []).filter((t) => {
+        const perfilConta = getPerfilContaFromTransaction(t);
+        return perfilView === "pf"
+          ? perfilConta === "PF"
+          : perfilConta === "PJ";
+      });
 
   const results: ProjectionRow[] = [];
   const now = new Date();
@@ -61,7 +100,7 @@ export const computeProjection12Months = (params: {
       targetDate.getMonth() + 1
     ).padStart(2, "0")}`;
 
-   const monthTransactions = (transacoes || [])
+const monthTransactions = (transacoesFiltradas || [])
   .filter((t) => String((t as any).data || "").startsWith(targetMonthStr))
   .filter((t) => !isTransfer(t));
 

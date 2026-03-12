@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { Transaction } from "../types";
+import type { Profile, Transaction } from "../types";
 import { computeProjection12Months } from "./projection";
 import type { ProjectionMode, ProjectionRow } from "./projection";
 
@@ -7,6 +7,8 @@ type Params = {
   transactions: Transaction[];
   getMesAnoExtenso: (mesAno: string) => string;
   saldoInicialBase?: number;
+  perfilView?: "geral" | "pf" | "pj";
+profiles?: Profile[];
   mode: ProjectionMode;
 };
 
@@ -14,6 +16,8 @@ export function useProjection12Months({
   transactions,
   getMesAnoExtenso,
   saldoInicialBase = 0,
+  perfilView = "geral",
+  profiles = [],
   mode,
 }: Params): ProjectionRow[] {
   return useMemo(() => {
@@ -21,7 +25,9 @@ export function useProjection12Months({
       transacoes: transactions,
       getMesAnoExtenso,
       saldoInicialBase,
-      mode, // <- ESSENCIAL
+      perfilView,
+      profiles,
+      mode,
     });
-  }, [transactions, getMesAnoExtenso, saldoInicialBase, mode]); // <- ESSENCIAL
+  }, [transactions, getMesAnoExtenso, saldoInicialBase, perfilView, profiles, mode]);
 }

@@ -1,12 +1,14 @@
 import { formatarMoeda } from "../../utils/formatters";
 import type { Dispatch, SetStateAction } from "react";
-import type { ProjectionMode } from "../../app/transactions/projection"; // ajuste o caminho se necessário
+import type { ProjectionMode, ProjectionRow } from "../../app/transactions/projection";
 
 type Props = {
-  projection12Months: any[];
+  projection12Months: ProjectionRow[];
   projectionMode: ProjectionMode;
   setProjectionMode: Dispatch<SetStateAction<ProjectionMode>>;
   saldoInicial: number;
+  perfilView: "geral" | "pf" | "pj";
+  setPerfilView: Dispatch<SetStateAction<"geral" | "pf" | "pj">>;
 };
 
 
@@ -14,6 +16,9 @@ export default function ProjecaoTab({
   projection12Months,
   projectionMode,
   setProjectionMode,
+  saldoInicial,
+  perfilView,
+  setPerfilView,
 }: Props) {
   const lastColTitle =
     projectionMode === "acumulado" ? "Saldo projetado" : "Resultado do mês";
@@ -30,39 +35,77 @@ export default function ProjecaoTab({
         </p>
 
         {/* MODO DA PROJEÇÃO (abaixo do título/subtítulo) */}
-        <div className="mt-3 flex items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setProjectionMode("acumulado")}
-            className={
-              "px-3 py-1.5 rounded-full text-xs font-semibold transition " +
-              (projectionMode === "acumulado"
-                ? "bg-indigo-600 text-white"
-                : "bg-slate-800/60 text-slate-200 border border-slate-700")
-            }
-          >
-            Acumulado
-          </button>
+<div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+  <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
+    <button
+      type="button"
+      onClick={() => setProjectionMode("acumulado")}
+      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
+        projectionMode === "acumulado"
+          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+      }`}
+    >
+      Acumulado
+    </button>
 
-          <button
-            type="button"
-            onClick={() => setProjectionMode("mensal")}
-            className={
-              "px-3 py-1.5 rounded-full text-xs font-semibold transition " +
-              (projectionMode === "mensal"
-                ? "bg-indigo-600 text-white"
-                : "bg-slate-800/60 text-slate-200 border border-slate-700")
-            }
-          >
-            Resultado do mês
-          </button>
-        </div>
+    <button
+      type="button"
+      onClick={() => setProjectionMode("mensal")}
+      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
+        projectionMode === "mensal"
+          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+      }`}
+    >
+      Mensal
+    </button>
+  </div>
+
+  <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
+    <button
+      type="button"
+      onClick={() => setPerfilView("geral")}
+      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
+        perfilView === "geral"
+          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+      }`}
+    >
+      Geral
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setPerfilView("pf")}
+      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
+        perfilView === "pf"
+          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+      }`}
+    >
+      PF
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setPerfilView("pj")}
+      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
+        perfilView === "pj"
+          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+      }`}
+    >
+      PJ
+    </button>
+  </div>
+</div>
 
         {/* micro-ajuda opcional (se quiser, deixa; se não, apaga) */}
-        <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+        <p className="mt-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
           {projectionMode === "acumulado"
-            ? "Acumulado considera entradas + seu saldo inicial."
-            : "Mensal mostra o resultado isolado de cada mês (entradas - saídas)."}
+            ? "Em Acumulado o 'Saldo Projetado' considera o Saldo Inicial + Entradas - Saídas"
+            : "Em Mensal o 'Resultado do mês' considera apenas Entradas - Saídas"}
         </p>
       </div>
 

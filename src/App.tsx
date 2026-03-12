@@ -1007,6 +1007,8 @@ const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
   // --- Filtros ---
   const [filtroMesTransacoes, setFiltroMesTransacoes] = useState(getHojeLocal().substring(0, 7));
   const [filtroMesAnalise, setFiltroMesAnalise] = useState(getHojeLocal().substring(0, 7));
+  const [analisePerfilView, setAnalisePerfilView] = useState<"geral" | "pf" | "pj">("geral");
+  const [projecaoPerfilView, setProjecaoPerfilView] = useState<"geral" | "pf" | "pj">("geral");
   const [filtroLancamento, setFiltroLancamento] = useState<
   "despesa" | "receita" | "todos" | "transferencia"
 >("todos");
@@ -1821,10 +1823,15 @@ const {
 
 
 // --- Gastos por categoria (somente despesa) ---
-// IMPORTANTE: aqui usa o mês da ABA ANÁLISE, independente de Transações
+// IMPORTANTE: aqui usa o mês da ABA ANÁLISE e o filtro Geral | PF | PJ da própria aba
 const spendingByCategoryData = useMemo(() => {
-  return computeSpendingByCategoryData(transacoes, filtroMesAnalise);
-}, [transacoes, filtroMesAnalise]);
+  return computeSpendingByCategoryData(
+    transacoes,
+    filtroMesAnalise,
+    analisePerfilView,
+    profiles
+  );
+}, [transacoes, filtroMesAnalise, analisePerfilView, profiles]);
 
 // --- Base anual da Projeção (independente do mês da aba Transações) ---
 const anoBaseProjecao = useMemo(() => getHojeLocal().slice(0, 4), []);
@@ -1878,6 +1885,8 @@ const projection12Months = useProjection12Months({
   transactions: transacoes, // <- SEMPRE a lista bruta
   getMesAnoExtenso,
   saldoInicialBase: saldoInicialProjecao,
+  perfilView: projecaoPerfilView,
+profiles,
   mode: projectionMode,
 });
 
@@ -2197,11 +2206,21 @@ const handleAddTransaction = () => {
         return;
       }
 
-      const origemNome = profiles.find((p) => p.id === formContaOrigem)?.name || "Origem";
-      const destinoNome = profiles.find((p) => p.id === formContaDestino)?.name || "Destino";
+const contaOrigemProfile = profiles.find((p) => String(p.id) === String(formContaOrigem));
+const contaDestinoProfile = profiles.find((p) => String(p.id) === String(formContaDestino));
 
-      const origemId = String(formContaOrigem);
-      const destinoId = String(formContaDestino);
+const origemNome =
+  `${String((contaOrigemProfile as any)?.name ?? (contaOrigemProfile as any)?.nome ?? "Origem").trim()} • ${
+    String((contaOrigemProfile as any)?.perfilConta ?? "").trim().toUpperCase() === "PJ" ? "PJ" : "PF"
+  }`;
+
+const destinoNome =
+  `${String((contaDestinoProfile as any)?.name ?? (contaDestinoProfile as any)?.nome ?? "Destino").trim()} • ${
+    String((contaDestinoProfile as any)?.perfilConta ?? "").trim().toUpperCase() === "PJ" ? "PJ" : "PF"
+  }`;
+
+const origemId = String(contaOrigemProfile?.id ?? formContaOrigem ?? "");
+const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
 
       // ✅ usa a descrição digitada; se vier vazia, cai no fallback
       const descDigitada = (formDesc || "").trim();
@@ -3683,24 +3702,28 @@ if (transferId) {
     )}
 
     {/* GASTOS */}
-    {activeTab === "gastos" && (
-      <GastosTab
-        spendingByCategoryData={spendingByCategoryData}
-        filtroMes={filtroMesAnalise}
-        setFiltroMes={setFiltroMesAnalise}
-        isDarkMode={isDarkMode}
-      />
-    )}
+{activeTab === "gastos" && (
+  <GastosTab
+    spendingByCategoryData={spendingByCategoryData}
+    filtroMes={filtroMesAnalise}
+    setFiltroMes={setFiltroMesAnalise}
+    perfilView={analisePerfilView}
+    setPerfilView={setAnalisePerfilView}
+    isDarkMode={isDarkMode}
+  />
+)}
 
     {/* PROJECAO */}
-    {activeTab === "projecao" && (
-      <ProjecaoTab
-        projection12Months={projection12Months}
-        projectionMode={projectionMode}
-        setProjectionMode={setProjectionMode}
-        saldoInicial={saldoInicialProjecao}
-      />
-    )}
+{activeTab === "projecao" && (
+  <ProjecaoTab
+    projection12Months={projection12Months}
+    projectionMode={projectionMode}
+    setProjectionMode={setProjectionMode}
+    saldoInicial={saldoInicialProjecao}
+    perfilView={projecaoPerfilView}
+    setPerfilView={setProjecaoPerfilView}
+  />
+)}
   </div>
 )}
 
@@ -4565,14 +4588,18 @@ if (transferId) {
 >
   <div className="flex items-center gap-3 min-w-0">
     {/* badge PF/PJ */}
-    <span
-      className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg
-                 bg-slate-100 border border-slate-200 text-slate-700
-                 dark:bg-white/5 dark:border-white/10 dark:text-slate-200
-                 text-[10px] font-bold"
-    >
-      {getContaBadge(p)}
-    </span>
+<span
+  className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg
+             bg-slate-100 border border-slate-200 text-slate-700
+             dark:bg-white/5 dark:border-white/10 dark:text-slate-200
+             text-[10px] font-bold"
+>
+  {String((p as any)?.perfilConta ?? "")
+    .trim()
+    .toUpperCase() === "PJ"
+    ? "PJ"
+    : "PF"}
+</span>
 
     {/* texto */}
     <div className="min-w-0">
@@ -4583,7 +4610,9 @@ if (transferId) {
             : "text-slate-800 dark:text-slate-100"
         }`}
       >
-        {getContaLabel(p)}
+        {`${String((p as any)?.name ?? (p as any)?.nome ?? "Conta").trim()} • ${
+  String((p as any)?.perfilConta ?? "").trim().toUpperCase() === "PJ" ? "PJ" : "PF"
+}`}
       </div>
     </div>
   </div>

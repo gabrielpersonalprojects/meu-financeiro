@@ -1,3 +1,13 @@
 export function getContaBadge(p: any) {
-  return (p?.tipo ?? p?.perfil ?? p?.scope ?? "PF") as string;
+  const perfil = String(
+    p?.perfilConta ??
+      p?.tipo ??
+      p?.perfil ??
+      p?.scope ??
+      "PF"
+  )
+    .trim()
+    .toUpperCase();
+
+  return perfil === "PJ" ? "PJ" : "PF";
 }

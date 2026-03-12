@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, type Dispatch, type SetStateAction } from "react";
 import CustomDateInput from "../CustomDateInput";
 import { getMesAnoExtenso, formatarMoeda } from "../../utils/formatters";
 import { getHojeLocal } from "../../domain/date";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { shiftYm } from "../../utils/dateMonth";
+import type { SpendingByCategoryDatum } from "../../app/transactions/summary";
 
 const COLORS = [
   "#6366f1",
@@ -20,9 +21,11 @@ const COLORS = [
 ];
 
 type Props = {
-  spendingByCategoryData: any[];
+  spendingByCategoryData: SpendingByCategoryDatum[];
   filtroMes: string;
-  setFiltroMes: (v: string) => void;
+  setFiltroMes: Dispatch<SetStateAction<string>>;
+  perfilView: "geral" | "pf" | "pj";
+  setPerfilView: Dispatch<SetStateAction<"geral" | "pf" | "pj">>;
   isDarkMode: boolean;
 };
 
@@ -30,6 +33,8 @@ export default function GastosTab({
   spendingByCategoryData,
   filtroMes,
   setFiltroMes,
+  perfilView,
+  setPerfilView,
   isDarkMode,
 }: Props) {
     const filteredData = useMemo(() => {
@@ -63,25 +68,64 @@ const chartData = useMemo(() => {
   return (
     <div className="animate-in fade-in py-4 space-y-6">
       <div className="flex flex-col items-center gap-4 mb-10">
-        <div className="flex items-center gap-3">
-          <div className="w-1.5 h-8 bg-indigo-600 rounded-full" />
-          <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
-            Análise de <span className="text-indigo-600 dark:text-indigo-400">Gastos</span>
-          </h3>
-        </div>
+<div className="flex items-center gap-3">
+  <div className="w-1.5 h-8 bg-indigo-600 rounded-full" />
+  <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
+    Análise de <span className="text-indigo-600 dark:text-indigo-400">Gastos</span>
+  </h3>
+</div>
 
-        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] ml-4">
-          Visão detalhada por categoria de consumo
-        </p>
+<p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] ml-4">
+  Visão detalhada por categoria de consumo
+</p>
+<div className="mt-4 flex justify-center">
+  <div className="flex flex-wrap items-center justify-center gap-3">
+    <CustomDateInput
+      type="month"
+      value={filtroMes}
+      onChange={setFiltroMes}
+      className="w-full sm:w-[220px] lg:w-[220px]"
+    />
 
-        <div className="flex justify-center mt-4">
-          <CustomDateInput
-            type="month"
-            value={filtroMes}
-            onChange={setFiltroMes}
-            className="w-full sm:w-[220px] lg:w-[220px]"
-          />
-        </div>
+    <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
+      <button
+        type="button"
+        onClick={() => setPerfilView("geral")}
+        className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
+          perfilView === "geral"
+            ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+            : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+        }`}
+      >
+        Geral
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setPerfilView("pf")}
+        className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
+          perfilView === "pf"
+            ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+            : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+        }`}
+      >
+        PF
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setPerfilView("pj")}
+        className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
+          perfilView === "pj"
+            ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+            : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+        }`}
+      >
+        PJ
+      </button>
+    </div>
+  </div>
+</div>
       </div>
 
       {filteredData.length > 0 ? (

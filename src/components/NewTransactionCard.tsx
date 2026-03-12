@@ -132,6 +132,17 @@ function getCardLabel(card: any) {
   return `${base}${suffix ? ` ${suffix}` : ""}`.trim();
 }
 
+function getProfileLabel(profile: any) {
+  const nome = safeStr(profile?.name || profile?.nome || "Conta");
+  const perfil = safeStr(profile?.perfilConta || profile?.perfil || profile?.tipoPerfil).toUpperCase();
+
+  if (perfil === "PF" || perfil === "PJ") {
+    return `${nome} • ${perfil}`;
+  }
+
+  return nome;
+}
+
 /**
  * ✅ Normaliza o valor vindo do CustomDropdown para SEMPRE virar string.
  * Evita salvar objeto (que viraria "[object Object]" na UI).
@@ -757,7 +768,7 @@ onClick={() => {
       <CustomDropdown
         label="Conta"
         value={formQualCartao}
-        options={profiles.map((p) => ({ label: p.name, value: p.id })) as any}
+        options={profiles.map((p) => ({ label: getProfileLabel(p), value: p.id })) as any}
         onSelect={(val) => setFormQualCartao(String(val))}
         onAddNew={() => {
           setEditingProfileId(null);
@@ -803,7 +814,7 @@ onClick={() => {
       <CustomDropdown
         label="Conta"
         value={formQualCartao}
-        options={profiles.map((p) => ({ label: p.name, value: p.id })) as any}
+        options={profiles.map((p) => ({ label: getProfileLabel(p), value: p.id })) as any}
         onSelect={(val) => setFormQualCartao(String(val))}
         onAddNew={() => {
           setEditingProfileId(null);
@@ -935,7 +946,7 @@ onClick={() => {
                   title="Selecionar conta origem"
                 >
                   <p className="min-w-0 truncate text-[13px] font-extrabold text-slate-900 dark:text-slate-100">
-                    {profiles.find((p) => p.id === formContaOrigem)?.name || "Selecione"}
+                    {getProfileLabel(profiles.find((p) => p.id === formContaOrigem)) || "Selecione"}
                   </p>
                 </button>
               </div>
@@ -961,7 +972,7 @@ onClick={() => {
                   title="Selecionar conta destino"
                 >
                   <p className="min-w-0 truncate text-[13px] font-extrabold text-slate-900 dark:text-slate-100">
-                    {profiles.find((p) => p.id === formContaDestino)?.name || "Selecione"}
+                    {getProfileLabel(profiles.find((p) => p.id === formContaDestino)) || "Selecione"}
                   </p>
                 </button>
               </div>

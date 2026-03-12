@@ -627,6 +627,11 @@ const faturaAnteriorEstaAtrasada =
   saldoFaturaAnterior > 0 &&
   startOfDay(new Date()).getTime() > startOfDay(vencimentoFaturaAnterior).getTime();
 
+  const faturaAnteriorFechadaAguardandoPagamento =
+  valorTotalFaturaAnterior > 0 &&
+  saldoFaturaAnterior > 0 &&
+  startOfDay(new Date()).getTime() <= startOfDay(vencimentoFaturaAnterior).getTime();
+
   useEffect(() => {
     onSaldoRestanteChange?.(Number(saldoRestanteFatura ?? 0));
   }, [saldoRestanteFatura, onSaldoRestanteChange, cartao?.id]);
@@ -668,7 +673,7 @@ const faturaAnteriorEstaAtrasada =
     if (now0 > cicloFimEOD && saldoPendenteNum <= 0) return "FECHADA";
     if (now0 < cicloIni0) return "FUTURA";
     if (now0 <= cicloFimEOD) return "EM_ABERTO";
-    if (now0 <= venc0) return "PENDENTE";
+    if (now0 <= venc0) return "FECHADA";
     return "ATRASADA";
   };
 
@@ -1397,6 +1402,10 @@ return (
 ) : faturaAnteriorEstaAtrasada ? (
   <div className="mt-0.5 text-[12px] font-semibold text-rose-700 leading-none dark:text-rose-400">
     Em atraso
+  </div>
+) : faturaAnteriorFechadaAguardandoPagamento ? (
+  <div className="mt-0.5 text-[12px] font-semibold text-amber-700 leading-none dark:text-amber-400">
+    Fechada
   </div>
 ) : (
   <div className="mt-0.5 text-[12px] font-semibold text-slate-900 leading-none dark:text-white/85">

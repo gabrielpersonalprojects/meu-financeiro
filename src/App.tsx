@@ -1108,17 +1108,55 @@ useEffect(() => {
   }
 }, [creditCards]);
 
+const getCardCycleMonthOnOpen = (card: any) => {
+  const hoje = getHojeLocal();
+  const [anoStr, mesStr, diaStr] = hoje.split("-");
+  const ano = Number(anoStr);
+  const mes = Number(mesStr);
+  const dia = Number(diaStr);
+
+  const fechamento = Number(card?.diaFechamento ?? 31);
+
+  // No app, o mês exibido é o mês da FATURA (vencimento), não o mês calendário.
+  // Então:
+  // - antes/até o fechamento: compras de hoje caem na fatura do próximo mês
+  // - depois do fechamento: compras de hoje caem na fatura do mês seguinte ao próximo
+  const offsetMeses = dia > fechamento ? 2 : 1;
+
+  const base = new Date(ano, mes - 1 + offsetMeses, 1);
+
+  const y = base.getFullYear();
+  const m = String(base.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+};
+
 const toggleCcExpanded = () => setIsCcExpanded((v) => !v);
 
 const toggleCcDetails = (id: string) => {
+  const card = creditCards.find((c) => c.id === id);
+
+  if (card) {
+    setCreditJumpMonth(getCardCycleMonthOnOpen(card));
+  }
+
   setIsCcExpanded((open) => {
     const same = selectedCreditCardId === id;
-    // se clicar no mesmo cartão: alterna abre/fecha
-    // se clicar em outro cartão: abre
     return same ? !open : true;
   });
+
   setSelectedCreditCardId(id);
 };
+
+useEffect(() => {
+  if (!isCcExpanded || !selectedCreditCardId) return;
+
+  const card = creditCards.find((c) => String(c.id) === String(selectedCreditCardId));
+  if (!card) return;
+
+  const cicloCorreto = getCardCycleMonthOnOpen(card);
+
+  setCreditJumpMonth((prev) => (prev === cicloCorreto ? prev : cicloCorreto));
+}, [isCcExpanded, selectedCreditCardId, creditCards]);
 
 const closeCcDetails = () => setIsCcExpanded(false);
 
@@ -2753,48 +2791,77 @@ const periodOfDay =
     <>
       <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-300/10 blur-3xl" />
 
-      <div className="absolute right-4 top-2">
-        <svg
-          width="96"
-          height="96"
-          viewBox="0 0 96 96"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="drop-shadow-[0_0_28px_rgba(251,191,36,0.22)]"
-        >
-          <defs>
-            <radialGradient id="sunCore" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(48 42) rotate(90) scale(22)">
-              <stop stopColor="#FFF7CC" />
-              <stop offset="0.6" stopColor="#FDE68A" />
-              <stop offset="1" stopColor="#F59E0B" />
-            </radialGradient>
-            <linearGradient id="cloudFill" x1="20" y1="0" x2="64" y2="40" gradientUnits="userSpaceOnUse">
-              <stop stopColor="rgba(255,255,255,0.95)" />
-              <stop offset="1" stopColor="rgba(255,255,255,0.68)" />
-            </linearGradient>
-          </defs>
+<div className="absolute right-2 top-1">
+  <svg
+    width="118"
+    height="88"
+    viewBox="0 0 118 88"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={
+      isDarkMode
+        ? "drop-shadow-[0_10px_24px_rgba(255,196,0,0.22)]"
+        : "drop-shadow-[0_10px_18px_rgba(255,196,0,0.12)]"
+    }
+  >
+    <defs>
+      <radialGradient
+        id="sunHaloDay"
+        cx="0"
+        cy="0"
+        r="1"
+        gradientUnits="userSpaceOnUse"
+        gradientTransform="translate(63 31) rotate(90) scale(31)"
+      >
+        <stop stopColor={isDarkMode ? "rgba(255,210,80,0.55)" : "rgba(255,210,80,0.30)"} />
+        <stop offset="0.58" stopColor={isDarkMode ? "rgba(255,184,0,0.22)" : "rgba(255,184,0,0.10)"} />
+        <stop offset="1" stopColor="rgba(255,184,0,0)" />
+      </radialGradient>
 
-          <g opacity="0.9">
-            <path d="M48 11V19" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
-            <path d="M48 65V73" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
-            <path d="M17 42H25" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
-            <path d="M71 42H79" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
-            <path d="M26.5 20.5L32 26" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
-            <path d="M64 58L69.5 63.5" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
-            <path d="M26.5 63.5L32 58" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
-            <path d="M64 26L69.5 20.5" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" />
-          </g>
+      <radialGradient
+        id="sunCoreDay"
+        cx="0"
+        cy="0"
+        r="1"
+        gradientUnits="userSpaceOnUse"
+        gradientTransform="translate(63 31) rotate(90) scale(19.5)"
+      >
+        <stop stopColor="#FFFCE8" />
+        <stop offset="0.45" stopColor="#FFE98A" />
+        <stop offset="0.78" stopColor="#FFC93C" />
+        <stop offset="1" stopColor="#F6AE1A" />
+      </radialGradient>
 
-          <circle cx="48" cy="42" r="16" fill="url(#sunCore)" />
+      <linearGradient id="cloudMainDay" x1="18" y1="6" x2="74" y2="44">
+        <stop stopColor={isDarkMode ? "rgba(255,255,255,0.96)" : "rgba(243,246,251,0.98)"} />
+        <stop offset="1" stopColor={isDarkMode ? "rgba(214,223,238,0.92)" : "rgba(214,223,236,0.98)"} />
+      </linearGradient>
 
-          <g transform="translate(32 44)">
-            <path
-              d="M10 20C4.8 20 1 16.7 1 12.2C1 8.3 3.9 5.2 8 4.7C9.4 1.9 12.4 0 15.8 0C20.2 0 23.8 3.1 24.6 7.3C25.2 7.1 25.9 7 26.6 7C31.2 7 35 10.3 35 14.8C35 17.7 33.5 20 28.5 20H10Z"
-              fill="url(#cloudFill)"
-            />
-          </g>
-        </svg>
-      </div>
+      <linearGradient id="cloudShadowDay" x1="0" y1="16" x2="0" y2="38">
+        <stop stopColor="rgba(255,255,255,0)" />
+        <stop offset="1" stopColor={isDarkMode ? "rgba(160,173,196,0.45)" : "rgba(170,182,201,0.38)"} />
+      </linearGradient>
+
+      <filter id="cloudBlurSoft" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="0.6" />
+      </filter>
+    </defs>
+
+    <circle cx="63" cy="31" r="31" fill="url(#sunHaloDay)" />
+    <circle cx="63" cy="31" r="19.5" fill="url(#sunCoreDay)" />
+
+    <g transform="translate(28 34)" filter="url(#cloudBlurSoft)">
+      <path
+        d="M13 27C6.8 27 2.5 23.2 2.5 18.1C2.5 13.7 5.7 10.3 10.3 9.7C11.7 5.6 15.8 2.8 20.8 2.8C27.3 2.8 32.6 7 33.7 12.8C34.7 12.5 35.8 12.4 36.8 12.4C43.2 12.4 48.2 16.5 48.2 22C48.2 25.7 45.5 27.8 41.3 27.8H13V27Z"
+        fill="url(#cloudMainDay)"
+      />
+      <path
+        d="M13 27C6.8 27 2.5 23.2 2.5 18.1C2.5 13.7 5.7 10.3 10.3 9.7C11.7 5.6 15.8 2.8 20.8 2.8C27.3 2.8 32.6 7 33.7 12.8C34.7 12.5 35.8 12.4 36.8 12.4C43.2 12.4 48.2 16.5 48.2 22C48.2 25.7 45.5 27.8 41.3 27.8H13V27Z"
+        fill="url(#cloudShadowDay)"
+      />
+    </g>
+  </svg>
+</div>
     </>
   ) : (
     <>

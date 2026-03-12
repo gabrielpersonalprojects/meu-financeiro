@@ -808,27 +808,83 @@ if (existe) {
 
 const handleDeleteAccount = (idOrName: string) => {
   if (!idOrName) return;
-if ((profiles || []).length <= 1) {
-  toastCompact("Você precisa ter pelo menos 1 conta cadastrada. Crie outra conta antes de excluir esta.", "error");
-  return;
-}
-  // remove por id (padrão) e também funciona se o dropdown estiver mandando o "nome"
-  setProfiles((prev) => {
-    const next = prev.filter(
-      (p) => p.id !== idOrName && p.name !== idOrName && p.banco !== idOrName
-    );
 
-    // se apagou a conta ativa, volta pra "Todas as Contas" pra não quebrar filtro
-    if (
-  activeProfileId === idOrName ||
-  prev.some((p) => p.id === activeProfileId && (p.name === idOrName || p.banco === idOrName))
-) {
-  setActiveProfileId("");
-}
+  if ((profiles || []).length <= 1) {
+    toastCompact(
+      "Você precisa ter pelo menos 1 conta cadastrada. Crie outra conta antes de excluir esta.",
+      "error"
+    );
+    return;
+  }
+
+  const conta = profiles.find(
+    (p) => p.id === idOrName || p.name === idOrName || p.banco === idOrName
+  );
+  if (!conta) return;
+
+  const contaId = String(conta.id ?? "").trim();
+  if (!contaId) return;
+
+  setProfiles((prev) => {
+    const next = prev.filter((p) => String(p?.id ?? "").trim() !== contaId);
+
+    if (String(activeProfileId ?? "").trim() === contaId) {
+      setActiveProfileId(next[0]?.id ?? "");
+    }
 
     return next;
   });
+
+  setTransacoes((prev: any[]) => {
+    const next = prev.filter((t: any) => {
+      const idsRelacionados = [
+        t?.profileId,
+        t?.contaId,
+        t?.contaOrigemId,
+        t?.contaDestinoId,
+        t?.transferFromId,
+        t?.transferToId,
+        t?.qualConta,
+        t?.conta?.id,
+        t?.profile?.id,
+      ]
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean);
+
+      return !idsRelacionados.includes(contaId);
+    });
+
+    persistTransacoes(next);
+    return next;
+  });
+
+  if (String(filtroConta ?? "").trim() === contaId) {
+    setFiltroConta("todas");
+  }
+
+  if (editingTransaction) {
+    const idsEditing = [
+      (editingTransaction as any)?.profileId,
+      (editingTransaction as any)?.contaId,
+      (editingTransaction as any)?.contaOrigemId,
+      (editingTransaction as any)?.contaDestinoId,
+      (editingTransaction as any)?.transferFromId,
+      (editingTransaction as any)?.transferToId,
+      (editingTransaction as any)?.qualConta,
+      (editingTransaction as any)?.conta?.id,
+      (editingTransaction as any)?.profile?.id,
+    ]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean);
+
+    if (idsEditing.includes(contaId)) {
+      setEditingTransaction(null);
+    }
+  }
+
+  toastCompact("Conta excluída.", "success");
 };
+
 const confirmDeleteAccount = (id: string) => {
   const conta = profiles.find((p) => p.id === id);
   const nome = conta?.banco || conta?.name || "esta conta";
@@ -836,7 +892,7 @@ const confirmDeleteAccount = (id: string) => {
   setConfirmState({
     title: "Excluir conta?",
     message:
-      `Ao excluir ${nome}, transações vinculadas a essa conta podem ser perdidas/ficar inacessíveis. ` +
+      `Ao excluir ${nome}, transações vinculadas a essa conta serão perdidas e ficarão inacessíveis. ` +
       `Essa ação não pode ser desfeita. Deseja continuar?`,
     confirmText: "Excluir",
     cancelText: "Cancelar",
@@ -961,6 +1017,17 @@ const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
   const saved = localStorage.getItem(STORAGE_KEYS.FILTRO_CONTA);
   return normalizeFiltroContaValue(saved);
 });
+
+const [transacoesCardsPerfilView, setTransacoesCardsPerfilView] = useState<"geral" | "PF" | "PJ">("geral");
+
+useEffect(() => {
+  const isGeralConta =
+    !filtroConta || String(filtroConta).trim().toLowerCase() === "todas";
+
+  if (!isGeralConta && transacoesCardsPerfilView !== "geral") {
+    setTransacoesCardsPerfilView("geral");
+  }
+}, [filtroConta, transacoesCardsPerfilView]);
 
 // helpers p/ mexer no localStorage de OUTRA conta (sem precisar trocar a conta ativa)
 
@@ -1414,27 +1481,7 @@ useEffect(() => {
 };
 
 const handleDeleteProfile = async (id: string) => {
-  const p = profiles.find((x: any) => x.id === id);
-const ok = await confirm({
-  title: "Excluir conta",
-  message: `Tem certeza que deseja excluir a conta "${p?.name ?? "Conta"}"?`,
-  confirmText: "Excluir",
-  cancelText: "Cancelar",
-});
-if (!ok) return;
-
-
-  setProfiles((prev: any[]) => {
-    const next = prev.filter((x) => x.id !== id);
-
-    // se deletou a conta ativa, joga para a primeira que sobrar
-    if (activeProfileId === id) {
-      setActiveProfileId(next[0]?.id ?? "");
-    }
-    return next;
-  });
-
-  toastCompact("Conta excluída.", "success");
+  handleDeleteAccount(id);
 };
 
 
@@ -1741,6 +1788,7 @@ const handleLimparFiltros = () => {
 
   // ✅ garante que a conta volta pro padrão
   setFiltroConta("todas");
+  setTransacoesCardsPerfilView("geral");
 };
 
 
@@ -1760,6 +1808,7 @@ const stats = useStatsMes({
   filtroConta,
   profiles,
   passaFiltroConta,
+  perfilView: transacoesCardsPerfilView,
 });
 
 const {
@@ -3605,6 +3654,8 @@ if (transferId) {
         filtroLancamento={filtroLancamento}
         setFiltroLancamento={setFiltroLancamento}
         filtroConta={filtroConta}
+        transacoesCardsPerfilView={transacoesCardsPerfilView}
+        setTransacoesCardsPerfilView={setTransacoesCardsPerfilView}
         setFiltroConta={setFiltroConta}
         filtroCategoria={filtroCategoria}
         setFiltroCategoria={setFiltroCategoria}
@@ -4726,7 +4777,7 @@ if (transferId) {
               placeholder="R$ 0,00"
               inputMode="numeric"
               readOnly={!!editingProfileId}
-className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate-50 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900/40 dark:border-slate-700 ${
+className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate-50 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900/40 dark:border-slate-700 ${
   !!editingProfileId ? "opacity-80 cursor-not-allowed" : ""
 }`}
             />

@@ -69,6 +69,39 @@ function getInitialBalance(profiles: ProfileLike[], filtroConta: string) {
   return safeNumber(p?.initialBalanceCents) / 100;
 }
 
+function getPerfilContaFromProfile(profiles: any[], profileId: any): "PF" | "PJ" | "" {
+  const id = asId(profileId);
+  if (!id) return "";
+
+  const profile = (profiles || []).find((p: any) => asId(p?.id) === id);
+  const perfil = String(profile?.perfilConta ?? "").trim().toUpperCase();
+
+  return perfil === "PF" || perfil === "PJ" ? perfil : "";
+}
+
+function passaFiltroPerfilView(
+  t: any,
+  profiles: any[],
+  perfilView: "geral" | "PF" | "PJ"
+) {
+  if (perfilView === "geral") return true;
+
+  const ids = [
+    t?.profileId,
+    t?.contaId,
+    t?.contaOrigemId,
+    t?.contaDestinoId,
+    t?.transferFromId,
+    t?.transferToId,
+  ]
+    .map(asId)
+    .filter(Boolean);
+
+  if (!ids.length) return true;
+
+  return ids.some((id) => getPerfilContaFromProfile(profiles, id) === perfilView);
+}
+
 type PassarFiltroContaFn = (
   t: any,
   filtroConta: string,
@@ -88,6 +121,7 @@ type Params = {
   // aceitamos os 2 nomes pra não quebrar variações
   passarFiltroConta?: PassarFiltroContaFn;
   passaFiltroConta?: PassarFiltroContaFn;
+  perfilView?: "geral" | "PF" | "PJ";
 };
 
 export function useStatsMes(params: Params) {
@@ -97,21 +131,46 @@ export function useStatsMes(params: Params) {
     const filtroMes = String(params.filtroMes ?? "");
     const filtroConta = String(params.filtroConta ?? "");
     const profiles = (params.profiles ?? []) as any[];
+    const perfilView = params.perfilView ?? "geral";
 
     const passarFiltroConta =
       params.passarFiltroConta ?? params.passaFiltroConta;
 
-    const fc = normFc(filtroConta);
-    const activeProfileId = fc; // compat com tua fn (que usa isso)
+const fc = normFc(filtroConta);
+const activeProfileId = fc; // compat com tua fn (que usa isso)
 
-    // aplica filtro de conta (se existir a fn)
-    const txAll = passarFiltroConta
-      ? txs.filter((t) => passarFiltroConta(t, filtroConta, activeProfileId))
-      : txs;
+const isTodasConta =
+  fc === "" ||
+  fc === "todas" ||
+  fc === "todas as contas" ||
+  fc === "todas_as_contas";
+
+// aplica filtro de conta (se existir a fn)
+const txBaseConta = passarFiltroConta
+  ? txs.filter((t) => passarFiltroConta(t, filtroConta, activeProfileId))
+  : txs;
+
+// aplica visão PF/PJ SOMENTE quando o filtro de conta estiver em Geral
+const txAll =
+  isTodasConta && perfilView !== "geral"
+    ? txBaseConta.filter((t) => passaFiltroPerfilView(t, profiles, perfilView))
+    : txBaseConta;
 
     // saldo total: saldo inicial + soma de valores PAGOS (inclui transferências)
     // (ignora itens mesclados tr_ pra não distorcer caso passem por engano)
-    const saldoInicial = getInitialBalance(profiles, filtroConta);
+const saldoInicialBase = getInitialBalance(profiles, filtroConta);
+
+const profilesDoPerfilView =
+  isTodasConta && perfilView !== "geral"
+    ? (profiles || []).filter(
+        (p: any) => String(p?.perfilConta ?? "").trim().toUpperCase() === perfilView
+      )
+    : profiles;
+
+const saldoInicial =
+  isTodasConta && perfilView !== "geral"
+    ? getInitialBalance(profilesDoPerfilView, "todas")
+    : saldoInicialBase;
 
     let saldoMov = 0;
     for (const t of txAll) {
@@ -170,12 +229,13 @@ const isDesp = tipo === "despesa";
       pendenteDespesa: safeNumber(pendenteDespesa),
     };
   }, [
-    params.transactions,
-    params.transacoes,
-    params.filtroMes,
-    params.filtroConta,
-    params.profiles,
-    params.passarFiltroConta,
-    params.passaFiltroConta,
+  params.transactions,
+  params.transacoes,
+  params.filtroMes,
+  params.filtroConta,
+  params.profiles,
+  params.perfilView,
+  params.passarFiltroConta,
+  params.passaFiltroConta,
   ]);
 }

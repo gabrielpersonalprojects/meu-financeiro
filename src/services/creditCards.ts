@@ -1,0 +1,119 @@
+import { supabase } from "../lib/supabase";
+
+export type CreditCardRow = {
+  id: string;
+  user_id: string;
+  nome: string;
+  titular: string | null;
+  limite_total: number | string;
+  dia_fechamento: number;
+  dia_vencimento: number;
+  bank_text: string | null;
+  categoria: string | null;
+  brand: string | null;
+  last4: string | null;
+  gradient_from: string | null;
+  gradient_to: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type CreditCardApp = {
+  id: string;
+  name: string;
+  emissor: string;
+  validade?: string;
+  diaFechamento: number;
+  diaVencimento: number;
+  limite: number;
+  limiteDisponivel?: number;
+  contaVinculadaId?: string | null;
+  gradientFrom?: string;
+  gradientTo?: string;
+  categoria?: string;
+  perfil: "pf" | "pj";
+};
+
+export const mapCreditCardRowToApp = (row: CreditCardRow): CreditCardApp => {
+  return {
+    id: row.id,
+    name: row.nome,
+    emissor: row.bank_text ?? row.titular ?? "",
+    validade: "",
+    diaFechamento: Number(row.dia_fechamento ?? 1),
+    diaVencimento: Number(row.dia_vencimento ?? 10),
+    limite: Number(row.limite_total ?? 0),
+    limiteDisponivel: undefined,
+    contaVinculadaId: null,
+    gradientFrom: row.gradient_from ?? "#220055",
+    gradientTo: row.gradient_to ?? "#4600ac",
+    categoria: row.categoria ?? "",
+    perfil: row.categoria?.toLowerCase() === "pj" ? "pj" : "pf",
+  };
+};
+
+export const mapCreditCardAppToInsert = (
+  card: CreditCardApp,
+  userId: string
+) => {
+  return {
+    id: card.id,
+    user_id: userId,
+    nome: card.name,
+    titular: card.emissor || null,
+    limite_total: Number(card.limite ?? 0),
+    dia_fechamento: Number(card.diaFechamento ?? 1),
+    dia_vencimento: Number(card.diaVencimento ?? 10),
+    bank_text: card.emissor || null,
+    categoria: card.categoria || null,
+brand: "",
+last4: "",
+    gradient_from: card.gradientFrom || "#220055",
+    gradient_to: card.gradientTo || "#4600ac",
+  };
+};
+
+export async function fetchCreditCards(): Promise<CreditCardRow[]> {
+  const { data, error } = await supabase
+    .from("credit_cards")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as CreditCardRow[];
+}
+
+export async function insertCreditCard(row: ReturnType<typeof mapCreditCardAppToInsert>) {
+  const { data, error } = await supabase
+    .from("credit_cards")
+    .insert(row)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as CreditCardRow;
+}
+
+export async function updateCreditCardById(
+  id: string,
+  patch: Partial<ReturnType<typeof mapCreditCardAppToInsert>>
+) {
+  const { data, error } = await supabase
+    .from("credit_cards")
+    .update(patch)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as CreditCardRow;
+}
+
+export async function deleteCreditCardById(id: string) {
+  const { error } = await supabase
+    .from("credit_cards")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+}

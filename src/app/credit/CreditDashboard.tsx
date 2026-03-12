@@ -54,9 +54,10 @@ type PagamentoFaturaUI = {
   cicloKey: string;
   dataPagamento: string;
   valor: number;
-  contaId: string;
-  contaLabel: string;
-  criadoEm: number;
+  contaId?: string | null;
+  contaLabel?: string | null;
+  criadoEm?: number;
+  transacaoId?: string | null;
 };
 
 type FaturaStatusManualUI = {
@@ -171,6 +172,7 @@ export function CreditDashboard({
   limiteDisponivelReal,
   initialMonth,
 }: Props) {
+  console.log("CREDIT_DASHBOARD onRegistrarPagamentoFatura:", onRegistrarPagamentoFatura);
   const pad2 = (n: number) => String(n).padStart(2, "0");
 
   const formatBRDate = (iso: string) => {
@@ -545,7 +547,7 @@ const [invoiceParcelamentoPrimeiraParcela, setInvoiceParcelamentoPrimeiraParcela
 
   const pagamentosDoCiclo = pagamentosFatura
     .filter((p) => p.cartaoId === cartao.id && p.cicloKey === cicloKeyFatura)
-    .sort((a, b) => b.criadoEm - a.criadoEm);
+    .sort((a, b) => (b.criadoEm ?? 0) - (a.criadoEm ?? 0))
 
 const valorPagoFatura = pagamentosDoCiclo.reduce((acc, p) => acc + Math.abs(Number(p.valor) || 0), 0);
 const saldoRestanteFatura = Math.max(0, valorFaturaTotal - valorPagoFatura);
@@ -764,6 +766,7 @@ const resetInvoiceModalState = () => {
   };
 
   function registrarPagamentoFatura() {
+    console.log("REGISTRAR_PAGAMENTO_FATURA INTERNO CHAMOU");
     setErroPagamentoFatura("");
     setSucessoPagamentoFatura("");
 
@@ -810,6 +813,15 @@ const resetInvoiceModalState = () => {
     };
 
     if (onRegistrarPagamentoFatura) {
+console.log("CREDIT_DASHBOARD VAI CHAMAR onRegistrarPagamentoFatura", {
+  cartaoId: cartao.id,
+  cartaoNome: cartao.nome,
+  cicloKey: cicloKeyFatura,
+  dataPagamento: dataPagamentoFatura,
+  valor: valorAplicado,
+  contaId: contaPagamentoFatura,
+  contaLabel: contaSelecionadaLabel,
+});
       onRegistrarPagamentoFatura({
         cartaoId: cartao.id,
         cartaoNome: cartao.nome,

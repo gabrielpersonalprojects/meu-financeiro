@@ -66,12 +66,12 @@ export type PagamentoFaturaApp = {
   id: string;
   cartaoId: string;
   cicloKey: string;
-  dataPagamento: string; // YYYY-MM-DD
+  dataPagamento: string;
   valor: number;
-  contaId: string;
-  contaLabel: string;
-  criadoEm: number;
-  transacaoId?: number;
+  contaId?: string | null;
+  contaLabel?: string | null;
+  criadoEm?: number;
+  transacaoId?: string | null;
 };
 
 export type ParcelamentoFaturaApp = {

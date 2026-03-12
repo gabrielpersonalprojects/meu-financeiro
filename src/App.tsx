@@ -16,6 +16,7 @@ import {
   insertAccount,
   mapAccountRowToProfile,
   createAccountAndReturnProfile,
+  deleteAccountById,
 } from "./services/accounts";
 import {
   fetchTransactions,
@@ -26,6 +27,21 @@ import {
   deleteTransactionById,
   updateTransactionsPagoByTransferId,
 } from "./services/transactions";
+import {
+  fetchCreditCards,
+  mapCreditCardRowToApp,
+  insertCreditCard,
+  mapCreditCardAppToInsert,
+  updateCreditCardById,
+  deleteCreditCardById,
+} from "./services/creditCards";
+import {
+  fetchInvoicePayments,
+  mapInvoicePaymentRowToApp,
+  insertInvoicePayment,
+  mapInvoicePaymentAppToInsert,
+  deleteInvoicePaymentById,
+} from "./services/invoicePayments";
 
 import { sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
@@ -182,6 +198,7 @@ function confirmToast(opts: ConfirmState) {
   // const [transacoes, setTransacoes] = useState(...)
   // const activeProfile = ...
   // ...
+const [creditCardsLoaded, setCreditCardsLoaded] = useState(false);
 
   const [transacoes, setTransacoes] = useState<Transaction[]>(() => loadOrMigrateTransacoes());
   const [parcelamentosFatura, setParcelamentosFatura] = useState<ParcelamentoFaturaApp[]>(() => {
@@ -208,46 +225,7 @@ const [faturasStatusManual, setFaturasStatusManual] = useState<FaturaStatusManua
 
   const ui = useUI();
  
-const salvarPagamentosFatura = (lista: PagamentoFaturaApp[]) => {
-  try {
-    console.log("[FATURA][SALVAR] qtd:", Array.isArray(lista) ? lista.length : "nao-array");
-    console.log("[FATURA][SALVAR] lista:", lista);
-
-    localStorage.setItem(STORAGE_KEYS.FATURA_PAYMENTS, JSON.stringify(lista));
-
-    console.log("[FATURA][SALVAR] LS bruto:", localStorage.getItem(STORAGE_KEYS.FATURA_PAYMENTS));
-  } catch (e) {
-    console.error("[FATURA] erro ao salvar pagamentos", e);
-  }
-};
-
-function loadPagamentosFatura(): PagamentoFaturaApp[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.FATURA_PAYMENTS);
-    console.log("[FATURA][LOAD] raw:", raw);
-
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    console.log("[FATURA][LOAD] parsed:", parsed);
-
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(Boolean);
-  } catch (e) {
-    console.error("[FATURA][LOAD] erro:", e);
-    return [];
-  }
-}
-
-const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>(() =>
-  loadPagamentosFatura()
-);
-
-useEffect(() => {
-  try {
-    localStorage.setItem(STORAGE_KEYS.FATURA_PAYMENTS, JSON.stringify(pagamentosFatura));
-  } catch {}
-}, [pagamentosFatura]);
+const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>([]);
 
 useEffect(() => {
   try {
@@ -288,8 +266,22 @@ try {
   setTransacoes(appTransactionsFromDb as any);
 }
 
+const creditCardRows = await fetchCreditCards();
+console.log("CREDIT_CARDS SUPABASE:", creditCardRows);
+
+setCreditCards(creditCardRows.map(mapCreditCardRowToApp) as any);
+setCreditCardsLoaded(true);
+
+    const invoicePaymentRows = await fetchInvoicePayments();
+  console.log("INVOICE_PAYMENTS SUPABASE:", invoicePaymentRows);
+
+  if (invoicePaymentRows.length > 0) {
+    setPagamentosFatura(invoicePaymentRows.map(mapInvoicePaymentRowToApp) as any);
+  }
+
 } catch (err) {
   console.error("ERRO SUPABASE ACCOUNTS:", err);
+  setCreditCardsLoaded(true);
 }
 });
 
@@ -304,7 +296,7 @@ try {
   }, []);
 
   
-  const handleRegistrarPagamentoFatura = (payload: {  
+const handleRegistrarPagamentoFatura = async (payload: {
   cartaoId: string;
   cartaoNome: string;
   cicloKey: string;
@@ -312,59 +304,119 @@ try {
   valor: number;
   contaId: string;
   contaLabel: string;
+  criadoEm?: number;
 }) => {
-  console.log("[FATURA] payload recebido:", payload);
   const valor = Number(payload.valor) || 0;
+
   if (valor <= 0) {
     throw new Error("Valor de pagamento inválido.");
   }
-const cartaoRef = creditCards.find((c: any) => String(c.id) === String(payload.cartaoId));
 
-  // cria despesa real na lista de transações
-  const nextTxId = Date.now(); // compatível com Transaction.id:number
+  if (!session?.user?.id) {
+    toastCompact("Sessão inválida para registrar pagamento de fatura.", "error");
+    return;
+  }
+
+  const cartaoRef = creditCards.find(
+    (c: any) => String(c.id) === String(payload.cartaoId)
+  );
+
+  const nextTxId = Date.now();
+
   const novaTransacao: Transaction = {
     id: nextTxId,
     tipo: "despesa",
-descricao: `Fatura: ${(() => {
-  const emissor = String((cartaoRef as any)?.emissor ?? "").trim();
-  const categoria = String((cartaoRef as any)?.categoria ?? "").trim();
+    descricao: `Fatura: ${(() => {
+      const emissor = String((cartaoRef as any)?.emissor ?? "").trim();
+      const categoria = String((cartaoRef as any)?.categoria ?? "").trim();
 
-  const bancoFinal = emissor || "Cartão";
-  return categoria ? `${bancoFinal} ${categoria}` : bancoFinal;
-})()}`,
+      const bancoFinal = emissor || "Cartão";
+      return categoria ? `${bancoFinal} ${categoria}` : bancoFinal;
+    })()}`,
     valor: -Math.abs(Number(payload.valor || 0)),
     data: payload.dataPagamento,
     categoria: "Cartão de Crédito",
     tipoGasto: "",
     metodoPagamento: undefined,
     qualConta: payload.contaId,
-    qualCartao: "", // pagamento da fatura não é compra no cartão
+    qualCartao: "",
     pago: true,
     contaId: payload.contaId,
     profileId: payload.contaId,
   };
 
-  setTransacoes((prev) => [novaTransacao, ...prev]);
+  try {
+    // 1) salva a transação de despesa no Supabase
+    const txRow = await insertTransaction({
+      user_id: session.user.id,
+      tipo: novaTransacao.tipo,
+      valor: Number(novaTransacao.valor ?? 0),
+      data: String(novaTransacao.data ?? ""),
+      descricao: String(novaTransacao.descricao ?? ""),
+      categoria:
+        typeof novaTransacao.categoria === "string"
+          ? novaTransacao.categoria
+          : String((novaTransacao as any).categoria?.nome ?? ""),
+      tag: String((novaTransacao as any).tag ?? ""),
+      pago: true,
 
-  const novoPagamento: PagamentoFaturaApp = {
-    id: makeId(),
-    cartaoId: payload.cartaoId,
-    cicloKey: payload.cicloKey,
-    dataPagamento: payload.dataPagamento,
-    valor,
-    contaId: payload.contaId,
-    contaLabel: payload.contaLabel,
-    criadoEm: Date.now(),
-    transacaoId: nextTxId,
-  };
-  
-setPagamentosFatura((prev) => {
-  const base = Array.isArray(prev) ? prev : [];
-  return [...base, novoPagamento];
-});
+      conta_id: novaTransacao.contaId ? String(novaTransacao.contaId) : null,
+      conta_origem_id: null,
+      conta_destino_id: null,
+      cartao_id: null,
 
-  // opcional: se você quiser toast aqui depois
-  // toastCompact("Pagamento de fatura registrado.", "success");
+      transfer_from_id: "",
+      transfer_to_id: "",
+      qual_conta: String(novaTransacao.qualConta ?? novaTransacao.contaId ?? ""),
+      criado_em: Date.now(),
+
+      payload: {
+        metodoPagamento: "",
+        tipoGasto: "",
+        recorrenciaId: "",
+        isRecorrente: false,
+        contraParte: "",
+        transferId: "",
+        observacoes: "",
+        parcelaAtual: null,
+        totalParcelas: null,
+        qualCartao: "",
+      },
+    });
+
+    const txApp = mapTransactionRowToApp(txRow);
+
+    setTransacoes((prev) => [txApp as any, ...prev]);
+
+    // 2) salva o registro de pagamento da fatura no Supabase
+    const novoPagamento: PagamentoFaturaApp = {
+      id: globalThis.crypto.randomUUID(),
+      cartaoId: payload.cartaoId,
+      cicloKey: payload.cicloKey,
+      dataPagamento: payload.dataPagamento,
+      valor,
+      contaId: payload.contaId,
+      contaLabel: payload.contaLabel,
+      criadoEm: Date.now(),
+      transacaoId: String((txApp as any).id ?? nextTxId),
+    };
+
+    const invoicePayload = mapInvoicePaymentAppToInsert(
+      novoPagamento,
+      session.user.id
+    );
+
+    const savedRow = await insertInvoicePayment(invoicePayload);
+    const savedPagamento = mapInvoicePaymentRowToApp(savedRow as any);
+
+    setPagamentosFatura((prev) => {
+      const base = Array.isArray(prev) ? prev : [];
+      return [...base, savedPagamento as any];
+    });
+  } catch (err) {
+    console.error("ERRO AO REGISTRAR PAGAMENTO DE FATURA:", err);
+    toastCompact("Erro ao registrar pagamento da fatura.", "error");
+  }
 };
 
 const handleRegistrarParcelamentoFatura = ({
@@ -507,24 +559,41 @@ const acordo: ParcelamentoFaturaApp = {
   parcelamentoId,
 });
 };
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "").trim()
+  );
+const handleRemoverPagamentoFatura = async (pagamentoId: string) => {
+  const alvo = (pagamentosFatura ?? []).find(
+    (p: any) => String(p?.id ?? "") === String(pagamentoId)
+  );
 
-const handleRemoverPagamentoFatura = (pagamentoId: string) => {
-  setPagamentosFatura((prevPagamentos) => {
-    const alvo = prevPagamentos.find((p) => p.id === pagamentoId);
+  if (!alvo) return;
 
-    // remove também a despesa real vinculada (se existir)
-    if (alvo?.transacaoId != null) {
-      setTransacoes((prevTx) =>
-        prevTx.filter((t) => Number(t.id) !== Number(alvo.transacaoId))
-      );
-    }
+  try {
+    await deleteInvoicePaymentById(String(alvo.id));
 
-const next = (Array.isArray(prevPagamentos) ? prevPagamentos : []).filter(
-  (p) => p.id !== pagamentoId
-);
+if (alvo.transacaoId && isUuid(String(alvo.transacaoId))) {
+  await deleteTransactionById(String(alvo.transacaoId));
+}
 
-return next;
-  });
+    setPagamentosFatura((prev) =>
+      (prev ?? []).filter((p: any) => String(p?.id ?? "") !== String(pagamentoId))
+    );
+
+if (alvo.transacaoId) {
+  setTransacoes((prev) =>
+    (prev ?? []).filter(
+      (t: any) => String(t?.id ?? "") !== String(alvo.transacaoId)
+    )
+  );
+}
+
+    toastCompact("Pagamento removido.", "success");
+  } catch (err) {
+    console.error("ERRO AO REMOVER PAGAMENTO DE FATURA:", err);
+    toastCompact("Erro ao remover pagamento da fatura.", "error");
+  }
 };
   // --- Perfis ---
 
@@ -765,7 +834,7 @@ try {
 }
 };
 
-const handleDeleteAccount = (idOrName: string) => {
+const handleDeleteAccount = async (idOrName: string) => {
   if (!idOrName) return;
 
   if ((profiles || []).length <= 1) {
@@ -783,6 +852,14 @@ const handleDeleteAccount = (idOrName: string) => {
 
   const contaId = String(conta.id ?? "").trim();
   if (!contaId) return;
+
+  try {
+  await deleteAccountById(contaId);
+} catch (err) {
+  console.error("ERRO AO EXCLUIR CONTA NO SUPABASE:", err);
+  toastCompact("Erro ao excluir conta no banco.", "error");
+  return;
+}
 
   setProfiles((prev) => {
     const next = prev.filter((p) => String(p?.id ?? "").trim() !== contaId);
@@ -1077,26 +1154,12 @@ const saveTransacoesByProfile = (_pid: string, list: Transaction[]) => {
   const [formContaDestino, setFormContaDestino] = useState("");
   const [formBancoId, setFormBancoId] = useState<string>("");
 
-const [creditCards, setCreditCards] = useState<CreditCard[]>(() => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.CREDIT_CARDS);
-    return raw ? (JSON.parse(raw) as CreditCard[]) : [];
-  } catch {
-    return [];
-  }
-});
+const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
 
 const [selectedCreditCardId, setSelectedCreditCardId] = useState<string>("");
 const [saldoRestanteAtual, setSaldoRestanteAtual] = useState<number>(0);
 const [isCcExpanded, setIsCcExpanded] = useState(false);
 const [creditJumpMonth, setCreditJumpMonth] = useState<string>(getHojeLocal().slice(0, 7));
-useEffect(() => {
-  try {
-    localStorage.setItem(STORAGE_KEYS.CREDIT_CARDS, JSON.stringify(creditCards));
-  } catch {
-    // ignora
-  }
-}, [creditCards]);
 
 const getCardCycleMonthOnOpen = (card: any) => {
   const hoje = getHojeLocal();
@@ -1211,43 +1274,7 @@ type CreditCard = {
 
 // helper id seguro
 const makeId = () =>
-  (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`);
-
-// carregar/persistir cartões
-useEffect(() => {
-  try {
-    const rawCurrent = localStorage.getItem(STORAGE_KEYS.CREDIT_CARDS);
-    const rawLegacy = localStorage.getItem(STORAGE_KEYS.CREDIT_CARDS_LEGACY);
-    const raw = rawCurrent || rawLegacy;
-
-    if (raw) {
-      const parsed = JSON.parse(raw) as any[];
-
-      if (Array.isArray(parsed)) {
-        const normalized = parsed.map((c) => ({
-          ...c,
-          perfil: c?.perfil === "pj" ? "pj" : "pf",
-        })) as CreditCard[];
-
-        setCreditCards(normalized);
-
-        // migra legado para a chave nova
-        if (!rawCurrent && rawLegacy) {
-          localStorage.setItem(STORAGE_KEYS.CREDIT_CARDS, JSON.stringify(normalized));
-          localStorage.removeItem(STORAGE_KEYS.CREDIT_CARDS_LEGACY);
-        }
-      }
-    }
-  } catch {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
-
-useEffect(() => {
-  try {
-    localStorage.setItem(STORAGE_KEYS.CREDIT_CARDS, JSON.stringify(creditCards));
-    localStorage.removeItem(STORAGE_KEYS.CREDIT_CARDS_LEGACY);
-  } catch {}
-}, [creditCards]);
+  (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`)
 
 
 // se tiver cartões e nenhum selecionado, seleciona o primeiro
@@ -1409,32 +1436,49 @@ const maskMoedaBR = (value: string) => {
 };
 
 
-const handleSaveNewCreditCard = () => {
+const handleSaveNewCreditCard = async () => {
   const nome = ccNome.trim();
   const emissor = ccEmissor.trim();
   const validade = ccValidade.trim();
 
+  if (!nome) {
+    toastCompact("Informe o nome do cartão.", "info");
+    return;
+  }
 
-  if (!nome) return toastCompact("Informe o nome do cartão.", "info");
-  if (!emissor) return toastCompact("Informe o banco emissor.", "info");
+  if (!emissor) {
+    toastCompact("Informe o banco emissor.", "info");
+    return;
+  }
 
- const fechamento = Number(ccFechamento || "1");
- const vencimento = Number(ccVencimento || "10");
+  const fechamento = Number(ccFechamento || "1");
+  const vencimento = Number(ccVencimento || "10");
 
+  if (!Number.isFinite(fechamento) || fechamento < 1 || fechamento > 31) {
+    toastCompact("Dia de fechamento inválido (1 a 31).", "info");
+    return;
+  }
 
-  if (!Number.isFinite(fechamento) || fechamento < 1 || fechamento > 31)
-    return toastCompact("Dia de fechamento inválido (1 a 31).", "info");
-
-  if (!Number.isFinite(vencimento) || vencimento < 1 || vencimento > 31)
-    return toastCompact("Dia de vencimento inválido (1 a 31).", "info");
+  if (!Number.isFinite(vencimento) || vencimento < 1 || vencimento > 31) {
+    toastCompact("Dia de vencimento inválido (1 a 31).", "info");
+    return;
+  }
 
   const limiteNum = Math.max(0, Number(ccLimiteRaw || "0"));
 
-if (!isEditingLimite && creditCards.length >= 20) {
-  toastCompact("Você atingiu o limite de 20 cartões cadastrados.", "info");
-  return;
-}
-  const id = isEditingLimite ? selectedCreditCardId : `cc_${Date.now()}`;
+  if (!isEditingLimite && creditCards.length >= 20) {
+    toastCompact("Você atingiu o limite de 20 cartões cadastrados.", "info");
+    return;
+  }
+
+  if (!session?.user?.id) {
+    toastCompact("Faça login novamente para salvar o cartão.", "error");
+    return;
+  }
+
+  const id = isEditingLimite
+    ? selectedCreditCardId
+    : globalThis.crypto.randomUUID();
 
   const card: CreditCard = {
     id,
@@ -1448,20 +1492,63 @@ if (!isEditingLimite && creditCards.length >= 20) {
     perfil: ccPerfil,
     gradientFrom: CC_DESIGNS.find((d) => d.id === ccDesignId)?.from ?? "#220055",
     gradientTo: CC_DESIGNS.find((d) => d.id === ccDesignId)?.to ?? "#4600ac",
+  };
 
+  try {
+    const payload = {
+      nome: card.name,
+      titular: card.emissor || null,
+      limite_total: Number(card.limite ?? 0),
+      dia_fechamento: Number(card.diaFechamento ?? 1),
+      dia_vencimento: Number(card.diaVencimento ?? 10),
+      bank_text: card.emissor || null,
+      categoria: card.categoria || null,
+      brand: "",
+      last4: "",
+      gradient_from: card.gradientFrom || "#220055",
+      gradient_to: card.gradientTo || "#4600ac",
     };
 
-  setCreditCards((prev) => {
-  if (!isEditingLimite) return [...prev, card];
-  return prev.map((x) => (x.id === card.id ? card : x));
-});
+    let savedRow;
 
-  setSelectedCreditCardId(id);
-  setIsCcExpanded(false);
+    if (isEditingLimite) {
+      savedRow = await updateCreditCardById(card.id, payload);
+    } else {
+      const { data, error } = await supabase
+        .from("credit_cards")
+        .insert({
+          id: card.id,
+          user_id: session.user.id,
+          ...payload,
+        })
+        .select()
+        .single();
 
-  closeAddCardModal();
-  toastCompact(isEditingLimite ? "Cartão atualizado." : "Cartão cadastrado.", "success");
-  setIsEditingLimite(false);
+      if (error) {
+        console.error("ERRO SUPABASE CREDIT_CARDS:", error);
+        toastCompact(`Erro ao salvar cartão: ${error.message}`, "error");
+        return;
+      }
+
+      savedRow = data;
+    }
+
+    const savedCard = mapCreditCardRowToApp(savedRow as any);
+
+    setCreditCards((prev) => {
+      if (!isEditingLimite) return [...prev, savedCard];
+      return prev.map((x) => (x.id === savedCard.id ? savedCard : x));
+    });
+
+    setSelectedCreditCardId(savedCard.id);
+    setIsCcExpanded(false);
+    closeAddCardModal();
+    toastCompact(isEditingLimite ? "Cartão atualizado." : "Cartão cadastrado.", "success");
+    setIsEditingLimite(false);
+  } catch (err) {
+    console.error("ERRO AO SALVAR/ATUALIZAR CARTÃO:", err);
+    toastCompact("Erro ao salvar cartão no banco.", "error");
+  }
 };
 
 
@@ -2100,7 +2187,16 @@ const confirmarExclusao = async (apagarTodas: boolean) => {
     const isTransfer = catNorm === "transferencia" || catNorm.includes("transfer");
     const transferId = tx?.transferId;
 
-    try {
+       const alvoPagamento = (pagamentosFatura ?? []).find((p: any) => {
+      const pId = String(p?.id ?? "");
+      const pTxId = String(
+        p?.transacaoId ??
+          p?.transactionId ??
+          p?.txId ??
+          p?.idTransacao ??
+          ""
+      );
+
       const pagamentoId =
         tx?.pagamentoFaturaId ??
         tx?.faturaPaymentId ??
@@ -2108,32 +2204,20 @@ const confirmarExclusao = async (apagarTodas: boolean) => {
         tx?.meta?.faturaPaymentId ??
         null;
 
-      const raw = localStorage.getItem(STORAGE_KEYS.FATURA_PAYMENTS);
-      const lista = raw ? JSON.parse(raw) : [];
-      if (Array.isArray(lista) && lista.length) {
-        const txIdStr = String(tx?.id ?? "");
+      if (pagamentoId && pId === String(pagamentoId)) return true;
+      if (String(tx?.id ?? "") && pTxId === String(tx?.id ?? "")) return true;
 
-        const nextLista = lista.filter((p: any) => {
-          const pId = String(p?.id ?? "");
-          const pTxId = String(
-            p?.transacaoId ??
-              p?.transactionId ??
-              p?.txId ??
-              p?.idTransacao ??
-              ""
-          );
+      return false;
+    });
 
-          if (pagamentoId && pId === String(pagamentoId)) return false;
-          if (txIdStr && pTxId === txIdStr) return false;
-          return true;
-        });
+    if (alvoPagamento) {
+      await deleteInvoicePaymentById(String(alvoPagamento.id));
 
-        if (nextLista.length !== lista.length) {
-          setPagamentosFatura(nextLista);
-        }
-      }
-    } catch (e) {
-      console.warn("[FATURA] falha ao sincronizar exclusão do pagamento no LS", e);
+      setPagamentosFatura((prev) =>
+        (prev ?? []).filter(
+          (p: any) => String(p?.id ?? "") !== String(alvoPagamento.id)
+        )
+      );
     }
 
     if (isTransfer && transferId) {
@@ -3558,24 +3642,24 @@ const statusMiniCard: "normal" | "atrasada" | "zerada" =
   title="Excluir"
   className="h-9 w-9 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/25 text-red-200 backdrop-blur flex items-center justify-center"
   onMouseDown={(e) => e.stopPropagation()}
-  onClick={async (e) => {
-    e.stopPropagation();
+onClick={async (e) => {
+  e.stopPropagation();
 
-    const ok = await confirm({
-      title: "Excluir cartão",
-      message: "Tem certeza que deseja excluir este cartão?",
-      confirmText: "Excluir",
-      cancelText: "Cancelar",
-      // se você tiver tone no tipo, pode manter:
-      // tone: "danger",
-    });
+  const ok = await confirm({
+    title: "Excluir cartão",
+    message: "Tem certeza que deseja excluir este cartão?",
+    confirmText: "Excluir",
+    cancelText: "Cancelar",
+  });
 
-    if (!ok) return;
+  if (!ok) return;
+
+  try {
+    await deleteCreditCardById(c.id);
 
     setCreditCards((prev) => {
       const next = prev.filter((x) => x.id !== c.id);
 
-      // se deletou o selecionado, aponta pro primeiro que sobrar (ou "")
       if (selectedCreditCardId === c.id) {
         setSelectedCreditCardId(next[0]?.id ?? "");
         setIsCcExpanded(false);
@@ -3586,7 +3670,11 @@ const statusMiniCard: "normal" | "atrasada" | "zerada" =
     });
 
     toastCompact("Cartão excluído.", "success");
-  }}
+  } catch (err) {
+    console.error("ERRO AO EXCLUIR CARTÃO:", err);
+    toastCompact("Erro ao excluir cartão no banco.", "error");
+  }
+}}
 >
   <Trash2 className="h-4 w-4" />
 </button>
@@ -3760,87 +3848,115 @@ onCancelarParcelamentoFatura={({ cartaoId, cicloKey, parcelamentoFaturaId }) => 
     onRegistrarParcelamentoFatura={handleRegistrarParcelamentoFatura}
     onRemoverPagamentoFatura={handleRemoverPagamentoFatura}
 
-    onDeleteTransacao={(id: string) => {
-     const target = transacoes.find((t) => String(t.id) === String(id));
-if (
-  (target as any).origemLancamento === "parcelamento_fatura" &&
-  (target as any).parcelamentoFaturaId
-) {
-  const parcelamentoId = String((target as any).parcelamentoFaturaId);
+onDeleteTransacao={(id: string) => {
+  const target = transacoes.find((t) => String(t.id) === String(id));
+
+  if (
+    (target as any).origemLancamento === "parcelamento_fatura" &&
+    (target as any).parcelamentoFaturaId
+  ) {
+    const parcelamentoId = String((target as any).parcelamentoFaturaId);
+
+    confirmToast({
+      title: "Excluir parcelamento",
+      message:
+        "Isso vai apagar todas as parcelas geradas e remover a negociação da fatura.",
+      confirmText: "Excluir",
+      cancelText: "Cancelar",
+      onConfirm: () => {
+        setTransacoes((prev) =>
+          prev.filter(
+            (t) => String((t as any)?.parcelamentoFaturaId ?? "") !== parcelamentoId
+          )
+        );
+
+        setParcelamentosFatura((prev) =>
+          prev.filter((p) => String(p.id) !== parcelamentoId)
+        );
+
+        setFaturasStatusManual((prev) =>
+          prev.filter((s) => String(s.parcelamentoFaturaId) !== parcelamentoId)
+        );
+      },
+    });
+
+    return;
+  }
+
+  const isTransfer =
+    !!(target as any)?.transferId ||
+    String((target as any)?.categoria ?? "").toLowerCase().includes("transfer");
+
+  if (isTransfer) {
+    const ok = window.confirm(
+      "Tem certeza que deseja excluir esta transferência?\n\nIsso vai apagar a ENTRADA e a SAÍDA vinculadas."
+    );
+    if (!ok) return;
+  }
 
   confirmToast({
-    title: "Excluir parcelamento",
-    message:
-      "Isso vai apagar todas as parcelas geradas e remover a negociação da fatura.",
+    title: "Excluir transação",
+    message: "Tem certeza que deseja excluir esta transação?",
     confirmText: "Excluir",
     cancelText: "Cancelar",
-    onConfirm: () => {
-      setTransacoes((prev) =>
-        prev.filter(
-          (t) => String((t as any)?.parcelamentoFaturaId ?? "") !== parcelamentoId
-        )
+    onConfirm: async () => {
+      const alvoPagamento = (pagamentosFatura ?? []).find(
+        (p: any) => String(p?.transacaoId ?? "") === String(id)
       );
 
-      setParcelamentosFatura((prev) =>
-        prev.filter((p) => String(p.id) !== parcelamentoId)
-      );
+      try {
+        // se a transação estiver vinculada a um pagamento de fatura, remove o payment também
+        if (alvoPagamento) {
+          await deleteInvoicePaymentById(String(alvoPagamento.id));
 
-      setFaturasStatusManual((prev) =>
-        prev.filter((s) => String(s.parcelamentoFaturaId) !== parcelamentoId)
-      );
+          setPagamentosFatura((prev) =>
+            (prev ?? []).filter(
+              (p: any) => String(p?.id ?? "") !== String(alvoPagamento.id)
+            )
+          );
+        }
+
+        // remove do banco se for uma transaction real do Supabase (uuid)
+        if (isUuid(String(id))) {
+          await deleteTransactionById(String(id));
+        }
+
+        setTransacoes((prev) => {
+          const target = prev.find((t) => String(t.id) === String(id));
+          if (!target) return prev;
+
+          const transferId = (target as any)?.transferId;
+
+          if (transferId) {
+            return prev.filter((t) => String((t as any)?.transferId) !== String(transferId));
+          }
+
+          const isCC = target.tipo === "cartao_credito";
+          const rid = (target as any).recorrenciaId;
+          const cardId = (target as any).qualCartao;
+
+          if (isCC && rid) {
+            return prev.filter(
+              (t) =>
+                !(
+                  t.tipo === "cartao_credito" &&
+                  String((t as any).qualCartao) === String(cardId) &&
+                  String((t as any).recorrenciaId) === String(rid)
+                )
+            );
+          }
+
+          return prev.filter((t) => String(t.id) !== String(id));
+        });
+
+        toastCompact("Transação excluída.", "success");
+      } catch (err) {
+        console.error("ERRO AO EXCLUIR TRANSAÇÃO:", err);
+        toastCompact("Erro ao excluir transação.", "error");
+      }
     },
   });
-
-  return;
-}
-
-const isTransfer =
-  !!(target as any)?.transferId ||
-  String((target as any)?.categoria ?? "").toLowerCase().includes("transfer");
-
-if (isTransfer) {
-  const ok = window.confirm(
-    "Tem certeza que deseja excluir esta transferência?\n\nIsso vai apagar a ENTRADA e a SAÍDA vinculadas."
-  );
-  if (!ok) return;
-}
-      confirmToast({
-        title: "Excluir transação",
-        message: "Tem certeza que deseja excluir esta transação?",
-        confirmText: "Excluir",
-        cancelText: "Cancelar",
-        onConfirm: () => {
-          setTransacoes((prev) => {
-            const target = prev.find((t) => String(t.id) === String(id));
-            if (!target) return prev;
-            // --- TRANSFERÊNCIA: remove as 2 pernas pelo transferId ---
-const transferId = (target as any)?.transferId;
-
-if (transferId) {
-  return prev.filter((t) => String((t as any)?.transferId) !== String(transferId));
-}
-            // se for parcela de cartão e tiver recorrenciaId, remove o grupo inteiro
-            const isCC = target.tipo === "cartao_credito";
-            const rid = (target as any).recorrenciaId;
-            const cardId = (target as any).qualCartao;
-
-            if (isCC && rid) {
-              return prev.filter(
-                (t) =>
-                  !(
-                    t.tipo === "cartao_credito" &&
-                    String((t as any).qualCartao) === String(cardId) &&
-                    String((t as any).recorrenciaId) === String(rid)
-                  )
-              );
-            }
-
-            // caso normal: remove só 1 item
-            return prev.filter((t) => String(t.id) !== String(id));
-          });
-        },
-      });
-    }}
+}}
   />
 </div>
 ) : null}

@@ -74,3 +74,12 @@ export function mapAccountRowToProfile(row: AccountRow) {
     initialBalanceCents: Number(row.initial_balance_cents ?? 0),
   };
 }
+
+export async function deleteAccountById(id: string) {
+  const { error } = await supabase
+    .from("accounts")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+}

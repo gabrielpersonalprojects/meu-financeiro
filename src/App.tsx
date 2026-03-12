@@ -11,6 +11,21 @@ import type { FC } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { mergeTransfers } from "./app/transactions/logic";
 import { createPortal } from "react-dom";
+import {
+  fetchAccounts,
+  insertAccount,
+  mapAccountRowToProfile,
+  createAccountAndReturnProfile,
+} from "./services/accounts";
+import {
+  fetchTransactions,
+  insertTransaction,
+  mapTransactionRowToApp,
+  updateTransactionPago,
+  updateTransactionById,
+  deleteTransactionById,
+  updateTransactionsPagoByTransferId,
+} from "./services/transactions";
 
 import { sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
@@ -191,12 +206,6 @@ const [faturasStatusManual, setFaturasStatusManual] = useState<FaturaStatusManua
   
   const [projectionMode, setProjectionMode] = useState<"acumulado" | "mensal">("acumulado");
 
-  useEffect(() => {
-  try {
-    persistTransacoes(transacoes);
-  } catch {}
-}, [transacoes]);
-
   const ui = useUI();
  
 const salvarPagamentosFatura = (lista: PagamentoFaturaApp[]) => {
@@ -257,10 +266,32 @@ useEffect(() => {
   const [sessionLoading, setSessionLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setSessionLoading(false);
-    });
+    supabase.auth.getSession().then(async ({ data }) => {
+  setSession(data.session);
+  setSessionLoading(false);
+
+try {
+  const rows = await fetchAccounts();
+  console.log("ACCOUNTS SUPABASE:", rows);
+
+  const profilesFromDb = rows.map(mapAccountRowToProfile);
+
+  if (profilesFromDb.length > 0) {
+    setProfiles(profilesFromDb as any);
+  }
+  const txRows = await fetchTransactions();
+  console.log("TRANSACTIONS SUPABASE:", txRows);
+
+  const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
+
+  if (appTransactionsFromDb.length > 0) {
+  setTransacoes(appTransactionsFromDb as any);
+}
+
+} catch (err) {
+  console.error("ERRO SUPABASE ACCOUNTS:", err);
+}
+});
 
     const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
       setSession(sess);
@@ -327,14 +358,11 @@ descricao: `Fatura: ${(() => {
     transacaoId: nextTxId,
   };
   
-  setPagamentosFatura((prev) => {
+setPagamentosFatura((prev) => {
   const base = Array.isArray(prev) ? prev : [];
-  const next = [...base, novoPagamento];
-
-  salvarPagamentosFatura(next); // persistência imediata
-
-  return next;
+  return [...base, novoPagamento];
 });
+
   // opcional: se você quiser toast aqui depois
   // toastCompact("Pagamento de fatura registrado.", "success");
 };
@@ -491,11 +519,9 @@ const handleRemoverPagamentoFatura = (pagamentoId: string) => {
       );
     }
 
-    const next = (Array.isArray(prevPagamentos) ? prevPagamentos : []).filter(
+const next = (Array.isArray(prevPagamentos) ? prevPagamentos : []).filter(
   (p) => p.id !== pagamentoId
 );
-
-salvarPagamentosFatura(next);
 
 return next;
   });
@@ -637,69 +663,12 @@ const openManageAccountsModal = () => {
   });
 };
 
-  const openEditAccountModal = (profileId: string) => {
-  const p = profiles.find((x) => x.id === profileId);
-  if (!p) return;
-console.log("CONTA EM EDICAO >>>", JSON.stringify(p, null, 2));
-  setEditingProfileId(profileId);
-
-  // Preenche o modal inteiro com os dados
-  setAccPerfilConta(p.perfilConta ?? "PF");
-  setAccTipoConta(p.tipoConta ?? TIPOS_CONTA[0]);
-
-  // você usa "name" como nome exibido; e também tem "banco"
-  setAccBanco(p.banco ?? p.name ?? "");
-  setAccNumeroConta(p.numeroConta ?? "");
-  setAccNumeroAgencia(p.numeroAgencia ?? "");
-  
-  setAccSaldoInicial(String(p.initialBalanceCents ?? 0));
-
-
-  const possuiCC = !!p.possuiCartaoCredito;
-  setAccPossuiCC(possuiCC);
-
-  setAccLimiteCC(p.limiteCartao != null ? String(p.limiteCartao) : "");
-  setAccFechamentoCC(p.diaFechamento ?? 1);
-  setAccVencimentoCC(p.diaVencimento ?? 10);
-
-  setIsAddAccountOpen(true);
-  setShowProfileMenu(false);
-};
-
 const handleOpenEditAccount = (id: string) => {
-  const conta = profiles.find((p) => p.id === id);
-  if (!conta) return;
-
-  // liga o modo edição
-  setEditingProfileId(id);
-
-  // preenche o modal com os dados atuais
- 
-  setAccBanco(conta.banco ?? conta.name ?? "");
-  setAccNumeroConta(conta.numeroConta ?? "");
-  setAccNumeroAgencia(conta.numeroAgencia ?? "");
-  
-  setAccSaldoInicial(formatBRLFromAnyInput(String(conta.initialBalanceCents ?? 0)));
-
-  setAccPerfilConta(conta.perfilConta ?? "PF");
-  setAccTipoConta(conta.tipoConta ?? "");
-
-  const temCC = !!conta.possuiCartaoCredito;
-  setAccPossuiCC(temCC);
-
-  setAccLimiteCC(temCC && conta.limiteCartao != null ? String(conta.limiteCartao) : "");
-  setAccFechamentoCC(temCC ? (conta.diaFechamento as any) : undefined);
-  setAccVencimentoCC(temCC ? (conta.diaVencimento as any) : undefined);
-
-  // abre o modal
-  setIsAddAccountOpen(true);
-
-  // se você usa o menu/overlay de contas, fecha ele ao abrir o modal
-  if (typeof setShowProfileMenu === "function") setShowProfileMenu(false);
+  openEditAccountModal(id);
 };
 
 
-const handleConfirmAddAccount = () => {
+const handleConfirmAddAccount = async () => {
  const banco = accBanco.trim();
   const numeroConta = accNumeroConta.trim();
   const numeroAgencia = accNumeroAgencia.trim();
@@ -747,31 +716,19 @@ if (existe) {
   toastCompact("Já existe uma conta igual (banco/perfil/tipo).", "info");
   return;
 }
-
-
-  const limiteCartaoNum = Math.max(0, Number(extrairValorMoeda(accLimiteCC || "")) || 0);
   
   // ====== EDITANDO ======
   if (editingProfileId) {
-    const updated: Profile = {
-      ...(profiles.find((x) => x.id === editingProfileId) as Profile),
-      name: banco,
-      banco,
-      numeroConta,
-      numeroAgencia,
-
-      initialBalanceCents,
-
-
-      perfilConta: accPerfilConta,
-      tipoConta: accTipoConta,
-      possuiCartaoCredito: accPossuiCC,
-      limiteCartao: accPossuiCC ? limiteCartaoNum : 0,
-      diaFechamento: accPossuiCC ? accFechamentoCC : undefined,
-      diaVencimento: accPossuiCC ? accVencimentoCC : undefined,
-
-
-    };
+const updated: Profile = {
+  ...(profiles.find((x) => x.id === editingProfileId) as Profile),
+  name: banco,
+  banco,
+  numeroConta,
+  numeroAgencia,
+  initialBalanceCents,
+  perfilConta: accPerfilConta,
+  tipoConta: accTipoConta,
+};
 
     setProfiles((prev) => prev.map((p) => (p.id === editingProfileId ? updated : p)));
     setActiveProfileId(editingProfileId);
@@ -781,29 +738,31 @@ if (existe) {
     return;
   }
 
-  // ====== NOVO CADASTRO ======
-  const id = `acc_${Date.now()}`;
+ // ===== NOVO CADASTRO =====
+if (!session?.user?.id) {
+  toastCompact("Sessão inválida para salvar conta.", "error");
+  return;
+}
 
-  const novo: Profile = {
-    id,
-    name: banco,
+try {
+  const novo = await createAccountAndReturnProfile({
+    user_id: session.user.id,
     banco,
-    numeroConta,
-    numeroAgencia,
+    name: banco,
+    numero_conta: numeroConta,
+    numero_agencia: numeroAgencia,
+    perfil_conta: accPerfilConta,
+    tipo_conta: accTipoConta,
+    initial_balance_cents: initialBalanceCents,
+  });
 
-    initialBalanceCents,
-
-    perfilConta: accPerfilConta,
-    tipoConta: accTipoConta,
-    possuiCartaoCredito: accPossuiCC,
-    limiteCartao: accPossuiCC ? limiteCartaoNum : 0,
-    diaFechamento: accPossuiCC ? accFechamentoCC : undefined,
-    diaVencimento: accPossuiCC ? accVencimentoCC : undefined,
-  };
-
-  setProfiles((prev) => [...prev, novo]);  
+  setProfiles((prev) => [...prev, novo as any]);
   setIsAddAccountOpen(false);
   toastCompact("Conta adicionada.", "success");
+} catch (err) {
+  console.error("ERRO AO CRIAR CONTA NO SUPABASE:", err);
+  toastCompact("Erro ao salvar conta no banco.", "error");
+}
 };
 
 const handleDeleteAccount = (idOrName: string) => {
@@ -835,28 +794,67 @@ const handleDeleteAccount = (idOrName: string) => {
     return next;
   });
 
-  setTransacoes((prev: any[]) => {
-    const next = prev.filter((t: any) => {
-      const idsRelacionados = [
-        t?.profileId,
-        t?.contaId,
-        t?.contaOrigemId,
-        t?.contaDestinoId,
-        t?.transferFromId,
-        t?.transferToId,
-        t?.qualConta,
-        t?.conta?.id,
-        t?.profile?.id,
-      ]
-        .map((v) => String(v ?? "").trim())
-        .filter(Boolean);
+setTransacoes((prev: any[]) => {
+  return prev.filter((t: any) => {
+    const idsRelacionados = [
+      t?.profileId,
+      t?.contaId,
+      t?.contaOrigemId,
+      t?.contaDestinoId,
+      t?.transferFromId,
+      t?.transferToId,
+      t?.qualConta,
+      t?.conta?.id,
+      t?.profile?.id,
+    ]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean);
 
-      return !idsRelacionados.includes(contaId);
-    });
-
-    persistTransacoes(next);
-    return next;
+    return !idsRelacionados.includes(contaId);
   });
+});
+
+setPagamentosFatura((prev: any[]) =>
+  (Array.isArray(prev) ? prev : []).filter((p: any) => {
+    const idsRelacionados = [
+      p?.contaId,
+      p?.contaPagamentoId,
+      p?.profileId,
+    ]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean);
+
+    return !idsRelacionados.includes(contaId);
+  })
+);
+
+setFaturasStatusManual((prev: any[]) =>
+  (Array.isArray(prev) ? prev : []).filter((item: any) => {
+    const idsRelacionados = [
+      item?.contaId,
+      item?.contaPagamentoId,
+      item?.profileId,
+    ]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean);
+
+    return !idsRelacionados.includes(contaId);
+  })
+);
+
+setParcelamentosFatura((prev: any[]) =>
+  (Array.isArray(prev) ? prev : []).filter((item: any) => {
+    const idsRelacionados = [
+      item?.contaId,
+      item?.contaPagamentoId,
+      item?.profileId,
+    ]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean);
+
+    return !idsRelacionados.includes(contaId);
+  })
+);
 
   if (String(filtroConta ?? "").trim() === contaId) {
     setFiltroConta("todas");
@@ -900,39 +898,31 @@ const confirmDeleteAccount = (id: string) => {
     onCancel: () => {},
   });
 };
-const handleEditAccount = (idOrName: string) => {
-  if (!idOrName) return;
 
-  // encontra o profile pelo id OU pelo nome/banco (caso o dropdown mande texto)
-  const p = profiles.find(
-    (x) => x.id === idOrName || x.name === idOrName || x.banco === idOrName
-  );
+const openEditAccountModal = (profileId: string) => {
+  const conta = profiles.find((p) => p.id === profileId);
+  if (!conta) return;
 
-  if (!p) return;
+  setEditingProfileId(profileId);
 
-  // marca que estamos editando este profile
-  setEditingProfileId(p.id);
+  setAccPerfilConta(conta.perfilConta ?? "PF");
+  setAccTipoConta(conta.tipoConta ?? TIPOS_CONTA[0]);
 
-  // preenche os campos do modal (usando defaults seguros)
-  setAccBanco(p.banco ?? p.name ?? "");
-  setAccNumeroConta(p.numeroConta ?? "");
-  setAccNumeroAgencia(p.numeroAgencia ?? "");
-  setAccPerfilConta(p.perfilConta ?? "PF");
-  setAccTipoConta(p.tipoConta ?? TIPOS_CONTA[0]);
-  setAccSaldoInicial(formatBRLFromCentsDigits(String((p as any).initialBalanceCents ?? 0)));
+  setAccBanco(conta.banco ?? conta.name ?? "");
+  setAccNumeroConta(conta.numeroConta ?? "");
+  setAccNumeroAgencia(conta.numeroAgencia ?? "");
 
-  // cartão de crédito (os campos podem não estar tipados no Profile)
-  const anyP = p as any;
-  setAccPossuiCC(!!anyP.possuiCC);
-  setAccLimiteCC(anyP.limiteCC != null ? String(anyP.limiteCC) : "");
-  setAccFechamentoCC((Number(anyP.fechamentoCC) || 1) as number);
-  setAccVencimentoCC((Number(anyP.vencimentoCC) || 10) as number);
+  setAccSaldoInicial(formatBRLFromAnyInput(String(conta.initialBalanceCents ?? 0)));
 
+  // conta não possui mais vínculo cadastral com cartão
+  setAccPossuiCC(false);
+  setAccLimiteCC("");
+  setAccFechamentoCC(1);
+  setAccVencimentoCC(10);
 
-
-// abre o formulário em modo edição
-setAccTab("novo");
-setIsAddAccountOpen(true);
+  setAccTab("novo");
+  setIsAddAccountOpen(true);
+  setShowProfileMenu(false);
 };
 
 const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -1952,30 +1942,75 @@ const handleEditClick = (t: Transaction) => {
 const inputModalClass =
   "w-full p-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500";
 
-const salvarEdicao = () => {
-
+const salvarEdicao = async () => {
   if (!editingTransaction) return;
-  const tipo = editingTransaction.tipo;
 
-  const novoValorAbs = extrairValorMoeda(editValueInput);
-  const novaDesc = editDescInput.trim() || editingTransaction.descricao;
+  try {
+    const novoValorAbs = extrairValorMoeda(editValueInput);
+    const novaDesc = editDescInput.trim() || editingTransaction.descricao;
 
-  const sign = editingTransaction.tipo === "receita" ? 1 : -1;
+    const listaEditada = applyEditToTransactions(
+      transacoes,
+      editingTransaction,
+      novoValorAbs,
+      novaDesc,
+      applyToAllRelated,
+      editDataInput,
+      editCategoriaInput
+    );
 
-  setTransacoes((prev) =>
-applyEditToTransactions(
-  prev,
-  editingTransaction,
-  novoValorAbs,
-  novaDesc,
-  applyToAllRelated,
-  editDataInput,
-  editCategoriaInput
-)
-  );
+    const idsParaAtualizar = applyToAllRelated && editingTransaction.recorrenciaId
+      ? transacoes
+          .filter(
+            (t: any) =>
+              t.recorrenciaId === editingTransaction.recorrenciaId &&
+              String(t.data ?? "") >= String(editingTransaction.data ?? "")
+          )
+          .map((t: any) => String(t.id))
+      : [String(editingTransaction.id)];
 
-  setEditingTransaction(null);
-  toastCompact("Alteração salva com sucesso.", "success");
+    const mapaEditadas = new Map(
+      listaEditada.map((t: any) => [String(t.id), t])
+    );
+
+    await Promise.all(
+      idsParaAtualizar.map(async (id) => {
+        const tx = mapaEditadas.get(id);
+        if (!tx) return;
+
+        await updateTransactionById(id, {
+          valor: Number(tx.valor ?? 0),
+          data: String(tx.data ?? ""),
+          descricao: String(tx.descricao ?? ""),
+          categoria:
+            typeof tx.categoria === "string"
+              ? tx.categoria
+              : String(tx.categoria?.nome ?? ""),
+          tag: String(tx.tag ?? ""),
+          pago: !!tx.pago,
+          payload: {
+            metodoPagamento: tx.metodoPagamento ?? "",
+            tipoGasto: tx.tipoGasto ?? "",
+            recorrenciaId: tx.recorrenciaId ?? "",
+            isRecorrente: !!tx.isRecorrente,
+            contraParte: tx.contraParte ?? "",
+            transferId: tx.transferId ?? "",
+            observacoes: tx.observacoes ?? "",
+            parcelaAtual: tx.parcelaAtual ?? null,
+            totalParcelas: tx.totalParcelas ?? null,
+            qualCartao: String(tx.qualCartao ?? ""),
+          },
+        });
+      })
+    );
+
+    setTransacoes(listaEditada as any);
+    setEditingTransaction(null);
+    toastCompact("Alteração salva com sucesso.", "success");
+  } catch (err) {
+    console.error("ERRO AO SALVAR EDICAO:", err);
+    toastCompact("Erro ao salvar edição no banco.", "error");
+  }
 };
 
 const confirmDelete = (t: Transaction) => {
@@ -2001,87 +2036,160 @@ const confirmDelete = (t: Transaction) => {
 };
 
 // ✅ INSERIDO AQUI (logo após o confirmDelete)
-const togglePago = (payload: any) => {
-  setTransacoes((prev: any[]) => togglePagoById(prev, payload));
+const togglePago = async (payload: any) => {
+  try {
+    console.log("TOGGLE PAGO PAYLOAD:", payload);
+const id = String(payload?.id ?? payload?.transactionId ?? "").trim();
+const sourceIds = Array.isArray((payload as any)?._sourceIds)
+  ? (payload as any)._sourceIds.map((v: any) => String(v))
+  : [];
+
+const txAtual = id
+  ? transacoes.find((t: any) => String(t?.id) === id)
+  : sourceIds.length
+  ? transacoes.find((t: any) => sourceIds.includes(String(t?.id)))
+  : null;
+
+if (!txAtual) return;
+
+const novoPago = !txAtual.pago;
+const transferId = String(
+  (payload as any)?.transferId ?? (txAtual as any)?.transferId ?? ""
+).trim();
+
+    if (transferId) {
+      await updateTransactionsPagoByTransferId(transferId, novoPago);
+
+      setTransacoes((prev: any[]) =>
+        prev.map((t: any) =>
+          String(t?.transferId ?? "").trim() === transferId
+            ? { ...t, pago: novoPago }
+            : t
+        )
+      );
+      return;
+    }
+
+    await updateTransactionPago(id, novoPago);
+
+    setTransacoes((prev: any[]) =>
+      prev.map((t: any) =>
+        String(t?.id) === id ? { ...t, pago: novoPago } : t
+      )
+    );
+  } catch (err) {
+    console.error("ERRO AO ATUALIZAR PAGO:", err);
+    toastCompact("Erro ao atualizar status do lançamento.", "error");
+  }
 };
 
 
 
-  const confirmarExclusao = (apagarTodas: boolean) => {
-    if (!deletingTransaction) return;
+const confirmarExclusao = async (apagarTodas: boolean) => {
+  if (!deletingTransaction) return;
 
+  try {
     const desc = deletingTransaction.descricao;
-    // --- sync: se essa transação for pagamento de fatura, remove também o registro do modal ---
-try {
-  const tx: any = deletingTransaction;
-// --- Transferência: apagar entrada e saída pelo transferId ---
-const catNorm = String(tx?.categoria ?? "")
-  .toLowerCase()
-  .normalize("NFD")
-  .replace(/[\u0300-\u036f]/g, "");
+    const tx: any = deletingTransaction;
 
-const isTransfer = catNorm === "transferencia" || catNorm.includes("transfer");
-const transferId = (tx as any)?.transferId;
+    const catNorm = String(tx?.categoria ?? "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
 
-if (isTransfer && transferId) {
-  setTransacoes((prev: any[]) =>
-    prev.filter((t: any) => String((t as any)?.transferId) !== String(transferId))
-  );
+    const isTransfer = catNorm === "transferencia" || catNorm.includes("transfer");
+    const transferId = tx?.transferId;
 
-  setDeletingTransaction(null);
-  toastCompact("Transferência excluída (entrada e saída).", "success");
-  return;
-}
-  const pagamentoId =
-    tx?.pagamentoFaturaId ??
-    tx?.faturaPaymentId ??
-    tx?.meta?.pagamentoFaturaId ??
-    tx?.meta?.faturaPaymentId ??
-    null;
+    try {
+      const pagamentoId =
+        tx?.pagamentoFaturaId ??
+        tx?.faturaPaymentId ??
+        tx?.meta?.pagamentoFaturaId ??
+        tx?.meta?.faturaPaymentId ??
+        null;
 
-  const raw = localStorage.getItem(STORAGE_KEYS.FATURA_PAYMENTS);
-  const lista = raw ? JSON.parse(raw) : [];
-  if (Array.isArray(lista) && lista.length) {
-    const txIdStr = String(tx?.id ?? "");
+      const raw = localStorage.getItem(STORAGE_KEYS.FATURA_PAYMENTS);
+      const lista = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(lista) && lista.length) {
+        const txIdStr = String(tx?.id ?? "");
 
-    const nextLista = lista.filter((p: any) => {
-      const pId = String(p?.id ?? "");
-      const pTxId =
-        String(
-          p?.transacaoId ??
-            p?.transactionId ??
-            p?.txId ??
-            p?.idTransacao ??
-            ""
-        );
+        const nextLista = lista.filter((p: any) => {
+          const pId = String(p?.id ?? "");
+          const pTxId = String(
+            p?.transacaoId ??
+              p?.transactionId ??
+              p?.txId ??
+              p?.idTransacao ??
+              ""
+          );
 
-      if (pagamentoId && pId === String(pagamentoId)) return false;
-      if (txIdStr && pTxId === txIdStr) return false;
+          if (pagamentoId && pId === String(pagamentoId)) return false;
+          if (txIdStr && pTxId === txIdStr) return false;
+          return true;
+        });
 
-      return true;
-    });
+        if (nextLista.length !== lista.length) {
+          setPagamentosFatura(nextLista);
+        }
+      }
+    } catch (e) {
+      console.warn("[FATURA] falha ao sincronizar exclusão do pagamento no LS", e);
+    }
 
-if (nextLista.length !== lista.length) {
-  setPagamentosFatura(nextLista);
-  salvarPagamentosFatura(nextLista); // persistência imediata (e mantém tudo consistente)
-}
-  }
-} catch (e) {
-  console.warn("[FATURA] falha ao sincronizar exclusão do pagamento no LS", e);
-}
+    if (isTransfer && transferId) {
+      const relacionadas = transacoes.filter(
+        (t: any) => String(t?.transferId ?? "") === String(transferId)
+      );
+
+      await Promise.all(
+        relacionadas.map((t: any) => deleteTransactionById(String(t.id)))
+      );
+
+      setTransacoes((prev: any[]) =>
+        prev.filter((t: any) => String((t as any)?.transferId) !== String(transferId))
+      );
+
+      setDeletingTransaction(null);
+      toastCompact("Transferência excluída (entrada e saída).", "success");
+      return;
+    }
 
     if (apagarTodas && deletingTransaction.recorrenciaId) {
-      setTransacoes((prev) =>
-        prev.filter((t) => t.recorrenciaId !== deletingTransaction.recorrenciaId || t.data < deletingTransaction.data)
+      const relacionadas = transacoes.filter(
+        (t: any) =>
+          t.recorrenciaId === deletingTransaction.recorrenciaId &&
+          String(t.data ?? "") >= String(deletingTransaction.data ?? "")
       );
+
+      await Promise.all(
+        relacionadas.map((t: any) => deleteTransactionById(String(t.id)))
+      );
+
+      setTransacoes((prev) =>
+        prev.filter(
+          (t) =>
+            t.recorrenciaId !== deletingTransaction.recorrenciaId ||
+            t.data < deletingTransaction.data
+        )
+      );
+
       toastCompact(`Recorrência removida: "${desc}".`, "success");
     } else {
-      setTransacoes((prev) => prev.filter((t) => t.id !== deletingTransaction.id));
+      await deleteTransactionById(String(deletingTransaction.id));
+
+      setTransacoes((prev) =>
+        prev.filter((t) => String(t.id) !== String(deletingTransaction.id))
+      );
+
       toastCompact(`Lançamento excluído: "${desc}".`, "success");
     }
 
     setDeletingTransaction(null);
-  };
+  } catch (err) {
+    console.error("ERRO AO EXCLUIR LANCAMENTO:", err);
+    toastCompact("Erro ao excluir lançamento no banco.", "error");
+  }
+};
 
   // --- Categorias ---
   type CategoriaKey = "receita" | "despesa";
@@ -2218,7 +2326,7 @@ const getCardCycleMonthFromDate = (dataISO: string, diaFechamento: number) => {
     : `${ano}-${String(mes + 2).padStart(2, "0")}`;
 };
 // --- Add Transaction (com suporte simples a transferencia/cartao_credito) ---
-const handleAddTransaction = () => {
+const handleAddTransaction = async () => {
   if (addTxLockRef.current) return;
   addTxLockRef.current = true;
 
@@ -2229,7 +2337,55 @@ const handleAddTransaction = () => {
       toastCompact("Por favor, preencha o valor.", "error");
       return;
     }
+if (!session?.user?.id) {
+  toastCompact("Sessão inválida para salvar lançamento.", "error");
+  return;
+}
 
+const salvarNoSupabase = async (items: Transaction[]) => {
+  const createdRows = await Promise.all(
+    items.map((tx: any) =>
+      insertTransaction({
+        user_id: session.user.id,
+        tipo: tx.tipo,
+        valor: Number(tx.valor ?? 0),
+        data: String(tx.data ?? ""),
+        descricao: String(tx.descricao ?? ""),
+        categoria:
+          typeof tx.categoria === "string"
+            ? tx.categoria
+            : String(tx.categoria?.nome ?? ""),
+        tag: String(tx.tag ?? ""),
+        pago: !!tx.pago,
+
+        conta_id: tx.contaId ? String(tx.contaId) : null,
+        conta_origem_id: tx.contaOrigemId ? String(tx.contaOrigemId) : null,
+        conta_destino_id: tx.contaDestinoId ? String(tx.contaDestinoId) : null,
+cartao_id: tx.cartaoId ? String(tx.cartaoId) : null,
+
+        transfer_from_id: String(tx.transferFromId ?? ""),
+        transfer_to_id: String(tx.transferToId ?? ""),
+        qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
+        criado_em: Number(tx.criadoEm ?? Date.now()),
+
+        payload: {
+          metodoPagamento: tx.metodoPagamento ?? "",
+          tipoGasto: tx.tipoGasto ?? "",
+          recorrenciaId: tx.recorrenciaId ?? "",
+          isRecorrente: !!tx.isRecorrente,
+          contraParte: tx.contraParte ?? "",
+          transferId: tx.transferId ?? "",
+          observacoes: tx.observacoes ?? "",
+          parcelaAtual: tx.parcelaAtual ?? null,
+          totalParcelas: tx.totalParcelas ?? null,
+          qualCartao: String(tx.qualCartao ?? ""),
+        },
+      })
+    )
+  );
+
+  return createdRows.map(mapTransactionRowToApp);
+};
     // =========================
     // TRANSFERÊNCIA
     // =========================
@@ -2269,6 +2425,9 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
       const normalizeTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
       const tid = normalizeTid(transferId);
 
+  const hoje = new Date().toISOString().slice(0, 10);
+  const transferenciaPagoInicial = formData <= hoje ? formPago : false;
+
       // saída (negativa) na origem
       const saida: Transaction = {
         id: newId("tx"),
@@ -2277,7 +2436,7 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
         valor: -Math.abs(valorNum),
         data: formData,
         categoria: "Transferência",
-        pago: formPago,
+        pago: transferenciaPagoInicial,
 
         profileId: origemId as any,
         contaId: origemId as any,
@@ -2300,7 +2459,7 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
         valor: Math.abs(valorNum),
         data: formData,
         categoria: "Transferência",
-        pago: formPago,
+        pago: transferenciaPagoInicial,
 
         profileId: destinoId as any,
         contaId: destinoId as any,
@@ -2315,11 +2474,8 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
         contaDestinoId: destinoId as any,
       } as any;
 
-      setTransacoes((prev) => {
-        const next = [...prev, saida, entrada];
-        persistTransacoes(next);
-        return next;
-      });
+const criadas = await salvarNoSupabase([saida, entrada]);
+setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
       // ✅ resetar campos do formulário (transfer)
       setFormDesc("");
@@ -2500,11 +2656,8 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
         });
       }
 
-setTransacoes((prev) => {
-  const next = [...prev, ...novos];
-  persistTransacoes(next);
-  return next;
-});
+const criadas = await salvarNoSupabase(novos);
+setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
 const mesDestinoCartao = getCardCycleMonthFromDate(
   formData,
@@ -2647,11 +2800,8 @@ return;
       });
     }
 
-    setTransacoes((prev) => {
-      const next = [...prev, ...newTrans];
-      persistTransacoes(next);
-      return next;
-    });
+const criadas = await salvarNoSupabase(newTrans);
+setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
     setFormDesc("");
     setFormValor("");
@@ -2663,6 +2813,9 @@ return;
     setIsParceladoMode(null);
 
     toastCompact("Lançamento realizado com sucesso!", "success");
+  } catch (err) {
+    console.error("ERRO AO SALVAR LANCAMENTO:", err);
+    toastCompact("Erro ao salvar lançamento no banco.", "error");
   } finally {
     addTxLockRef.current = false;
   }
@@ -4920,7 +5073,7 @@ className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => handleEditAccount(p.id)}
+                    onClick={() => openEditAccountModal(p.id)}
                     className="p-1.5 text-slate-500 hover:text-indigo-500 dark:text-slate-300 dark:hover:text-indigo-400 transition"
                     title="Editar conta"
                   >

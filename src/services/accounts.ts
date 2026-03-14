@@ -83,3 +83,41 @@ export async function deleteAccountById(id: string) {
 
   if (error) throw error;
 }
+
+export type UpdateAccountInput = {
+  banco?: string;
+  name?: string;
+  numero_conta?: string;
+  numero_agencia?: string;
+  perfil_conta?: string;
+  tipo_conta?: string;
+  initial_balance_cents?: number;
+};
+
+export async function updateAccountById(id: string, input: UpdateAccountInput) {
+  const { data, error } = await supabase
+    .from("accounts")
+    .update({
+      ...(input.banco !== undefined ? { banco: input.banco } : {}),
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.numero_conta !== undefined
+        ? { numero_conta: input.numero_conta }
+        : {}),
+      ...(input.numero_agencia !== undefined
+        ? { numero_agencia: input.numero_agencia }
+        : {}),
+      ...(input.perfil_conta !== undefined
+        ? { perfil_conta: input.perfil_conta }
+        : {}),
+      ...(input.tipo_conta !== undefined ? { tipo_conta: input.tipo_conta } : {}),
+      ...(input.initial_balance_cents !== undefined
+        ? { initial_balance_cents: input.initial_balance_cents }
+        : {}),
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as AccountRow;
+}

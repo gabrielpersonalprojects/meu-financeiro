@@ -16,6 +16,7 @@ import {
   insertAccount,
   mapAccountRowToProfile,
   createAccountAndReturnProfile,
+  updateAccountById,
   deleteAccountById,
 } from "./services/accounts";
 import {
@@ -63,7 +64,6 @@ import { computeSpendingByCategoryData } from "./app/transactions/summary";
 import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
 import { getCartoesDisponiveis } from "./app/profiles/selectors";
 import { newId } from "./app/utils/ids";
-import { loadOrMigrateTransacoes, persistTransacoes } from "./app/utils/storage";
 import { AppTopBar } from "./components/AppTopBar";
 import { confirm, type ConfirmOpts } from "./services/confirm";
 import { getContaBadge, getContaLabel } from "./domain";
@@ -214,45 +214,19 @@ function confirmToast(opts: ConfirmState) {
   // const activeProfile = ...
   // ...
 const [creditCardsLoaded, setCreditCardsLoaded] = useState(false);
+const [accountsLoaded, setAccountsLoaded] = useState(false);
 
-  const [transacoes, setTransacoes] = useState<Transaction[]>(() => loadOrMigrateTransacoes());
-  const [parcelamentosFatura, setParcelamentosFatura] = useState<ParcelamentoFaturaApp[]>(() => {
-  try {
-    const raw = localStorage.getItem("parcelamentos_fatura");
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-});
 
-const [faturasStatusManual, setFaturasStatusManual] = useState<FaturaStatusManualApp[]>(() => {
-  try {
-    const raw = localStorage.getItem("faturas_status_manual");
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-});
+ const [transacoes, setTransacoes] = useState<Transaction[]>([]);
+const [parcelamentosFatura, setParcelamentosFatura] = useState<ParcelamentoFaturaApp[]>([]);
+
+const [faturasStatusManual, setFaturasStatusManual] = useState<FaturaStatusManualApp[]>([]);
   
   const [projectionMode, setProjectionMode] = useState<"acumulado" | "mensal">("acumulado");
 
   const ui = useUI();
  
 const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>([]);
-
-useEffect(() => {
-  try {
-    localStorage.setItem("parcelamentos_fatura", JSON.stringify(parcelamentosFatura));
-  } catch {}
-}, [parcelamentosFatura]);
-
-useEffect(() => {
-  try {
-    localStorage.setItem("faturas_status_manual", JSON.stringify(faturasStatusManual));
-  } catch {}
-}, [faturasStatusManual]);
 
   // --- Auth Session ---
   const [session, setSession] = useState<Session | null>(null);
@@ -292,6 +266,9 @@ const profilesFromDb = rows.map(mapAccountRowToProfile);
 if (profilesFromDb.length > 0) {
   setProfiles(profilesFromDb as any);
 }
+
+setAccountsLoaded(true);
+
 const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
 if (appTransactionsFromDb.length > 0) {
   setTransacoes(appTransactionsFromDb as any);
@@ -305,10 +282,12 @@ setParcelamentosFatura(
 setFaturasStatusManual(
   (invoiceManualStatusRows ?? []).map(mapInvoiceManualStatusRowToApp) as any
 );
-    } catch (err) {
-      console.error("ERRO SUPABASE ACCOUNTS:", err);
-      setCreditCardsLoaded(true);
-    }
+} catch (err) {
+  console.error("ERRO SUPABASE ACCOUNTS:", err);
+  setAccountsLoaded(true);
+  setCreditCardsLoaded(true);
+}
+
   });
 
   const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
@@ -926,31 +905,7 @@ const transacoesRelacionadas = (transacoes ?? []).filter((t: any) => {
 
   // --- Perfis ---
 
-const [profiles, setProfiles] = useState<Profile[]>(() => {
-  const isLegacySeed = (p: any) => {
-    const id = String(p?.id ?? "");
-    const name = String(p?.name ?? p?.banco ?? "");
-    return (
-      id === "default" ||
-      id === "profile_secondary" ||
-      name === "Conta Principal" ||
-      name === "Conta Secundária"
-    );
-  };
-
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.PROFILES);
-    const parsed = raw ? JSON.parse(raw) : null;
-
-    if (Array.isArray(parsed)) {
-      // remove seeds antigos caso já tenham sido salvos
-      return parsed.filter((p) => !isLegacySeed(p));
-    }
-  } catch {}
-
-  // SEM contas padrão: começa vazio e o usuário cria do zero
-  return [];
-});
+const [profiles, setProfiles] = useState<Profile[]>([]);
 
 
 const LABEL_TODAS_CONTAS = "Todas as Contas";
@@ -962,13 +917,6 @@ const bancosOptions = useMemo(() => {
 
 const cartoesDisponiveis = useMemo(() => {
   return getCartoesDisponiveis(profiles);
-}, [profiles]);
-
-// persiste lista de contas
-useEffect(() => {
-  try {
-    localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(profiles));
-  } catch {}
 }, [profiles]);
 
 // ===== Modal "Adicionar Conta" =====
@@ -1116,25 +1064,28 @@ if (existe) {
 }
   
   // ====== EDITANDO ======
-  if (editingProfileId) {
-const updated: Profile = {
-  ...(profiles.find((x) => x.id === editingProfileId) as Profile),
-  name: banco,
-  banco,
-  numeroConta,
-  numeroAgencia,
-  initialBalanceCents,
-  perfilConta: accPerfilConta,
-  tipoConta: accTipoConta,
-};
+if (editingProfileId) {
+  const updatedRow = await updateAccountById(editingProfileId, {
+    banco: accBanco.trim() || "Conta",
+    name: accBanco.trim() || "Conta",
+    numero_conta: accNumeroConta.trim(),
+    numero_agencia: accNumeroAgencia.trim(),
+    perfil_conta: accPerfilConta,
+    tipo_conta: accTipoConta,
+    initial_balance_cents: initialBalanceCents,
+  });
 
-    setProfiles((prev) => prev.map((p) => (p.id === editingProfileId ? updated : p)));
-    setActiveProfileId(editingProfileId);
-    setIsAddAccountOpen(false);
-    setEditingProfileId(null);
-    toastCompact("Conta atualizada.", "success");
-    return;
-  }
+  const updated = mapAccountRowToProfile(updatedRow) as Profile;
+
+  setProfiles((prev) =>
+    prev.map((p) => (p.id === editingProfileId ? updated : p))
+  );
+  setActiveProfileId(editingProfileId);
+  setIsAddAccountOpen(false);
+  setEditingProfileId(null);
+  toastCompact("Conta atualizada.", "success");
+  return;
+}
 
  // ===== NOVO CADASTRO =====
 if (!session?.user?.id) {
@@ -1460,13 +1411,6 @@ const loadTransacoesByProfile = (pid: string): Transaction[] => {
   }
 };
 
-
-const saveTransacoesByProfile = (_pid: string, list: Transaction[]) => {
-  try {
-    persistTransacoes(list);
-  } catch {}
-};
-
   // --- Form ---
   const [formTipo, setFormTipo] = useState<TransactionType>("despesa");
   const [formDesc, setFormDesc] = useState("");
@@ -1563,14 +1507,18 @@ useEffect(() => {
 const [ccNome, setCcNome] = useState("");
 const nomePreenchido = String(confirmedDisplayName ?? "").trim().length > 0;
 const temContas = Array.isArray(profiles) && profiles.length > 0;
+const contasCarregando = !accountsLoaded;
 
-const onboardingStep = !temContas
+const onboardingStep = contasCarregando
+  ? "loading"
+  : !temContas
   ? !nomePreenchido
     ? "nome"
     : "conta"
   : "ok";
 
-const appBloqueado = !temContas;
+const appBloqueado = !contasCarregando && !temContas;
+
 const [ccEmissor, setCcEmissor] = useState("");
 const [ccCategoria, setCcCategoria] = useState("");
 const [ccValidade, setCcValidade] = useState("");
@@ -1982,8 +1930,6 @@ const savedName = safeProfileId
   ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "userName"))
   : null;
 
-setTransacoes(loadOrMigrateTransacoes());
-
     const parsedCats = savedCats ? JSON.parse(savedCats) : null;
     const catsOk = parsedCats && Array.isArray(parsedCats.despesa) && Array.isArray(parsedCats.receita);
     setCategorias(catsOk ? parsedCats : CATEGORIAS_PADRAO);
@@ -2006,10 +1952,6 @@ setTransacoes(loadOrMigrateTransacoes());
       isDataLoadedRef.current = true;
     }, 0);
   }, [activeProfileId]);
-
-useEffect(() => {
-  persistTransacoes(transacoes);
-}, [transacoes]);
 
 useEffect(() => {
   localStorage.setItem("meu-financeiro-categorias", JSON.stringify(categorias));
@@ -2790,6 +2732,11 @@ const handleAddTransaction = async () => {
   try {
     const valorNum = extrairValorMoeda(formValor);
 
+if (!String(formDesc ?? "").trim()) {
+  toastCompact("Por favor, preencha a descrição do lançamento.", "error");
+  return;
+}
+
     if (!valorNum) {
       toastCompact("Por favor, preencha o valor.", "error");
       return;
@@ -2944,12 +2891,22 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
       return;
     }
 
-    // =========================
+       // =========================
     // CARTÃO DE CRÉDITO
     // =========================
     if (formTipo === "cartao_credito") {
       const desc = (formDesc || "").trim();
       const tagCC = (formTagCC || "").trim();
+
+      if (!desc) {
+        toastCompact("Por favor, preencha a descrição do lançamento.", "error");
+        return;
+      }
+
+      if (!valorNum) {
+        toastCompact("Por favor, preencha o valor.", "error");
+        return;
+      }
 
       if (!formData) {
         toastCompact("Por favor, selecione a data.", "error");
@@ -2962,19 +2919,43 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
       }
 
       const selectedCard = (creditCards || []).find(
-        (c: any) => String(c?.id ?? c?.cardId ?? "") === String(selectedCreditCardId)
+        (c: any) =>
+          String(c?.id ?? c?.cardId ?? "") === String(selectedCreditCardId)
       );
 
-        const cardAny: any = selectedCard as any;
-        const contaIdDoCartao = String(
-          cardAny?.contaPaganteId ??
+      const cardAny: any = selectedCard as any;
+      const contaIdDoCartao = String(
+        cardAny?.contaPaganteId ??
           cardAny?.contaId ??
           cardAny?.profileId ??
           cardAny?.accountId ??
           ""
-        ).trim();
+      ).trim();
+
+      const ehParcelado = ccIsParceladoMode === true;
+      const ehFixo = !ehParcelado && String(formTipoGasto) === "Fixo";
+
+      if (ehParcelado) {
+        const parcelas = Number(formParcelas || 0);
+        if (!Number.isFinite(parcelas) || parcelas < 2) {
+          toastCompact(
+            "Informe a quantidade de parcelas (mínimo 2).",
+            "error"
+          );
+          return;
+        }
+      }
+
+      if (!ehParcelado && !formTipoGasto) {
+        toastCompact(
+          "Por favor, selecione o tipo de gasto (Fixo ou Variável).",
+          "error"
+        );
+        return;
+      }
 
       // helper: soma meses sem “pular” mês quando o dia não existe (ex: 31)
+
       const addMonthsSafe = (date: Date, monthsToAdd: number) => {
         const y = date.getFullYear();
         const m = date.getMonth();
@@ -2985,9 +2966,6 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
         return new Date(y, m + monthsToAdd, day, 12, 0, 0, 0);
       };
-
-      const ehParcelado = ccIsParceladoMode === true;
-      const ehFixo = !ehParcelado && String(formTipoGasto) === "Fixo";
 
       if (ehFixo && prazoMode === null) {
         toastCompact("Selecione 'Com prazo' ou 'Sem prazo' para continuar.", "error");
@@ -3141,27 +3119,27 @@ return;
     // =========================
     // RECEITA / DESPESA
     // =========================
-    if (!formQualCartao) {
-      toastCompact("Selecione uma conta para salvar o lançamento.", "error");
-      return;
-    }
+if (!String(formDesc ?? "").trim()) {
+  toastCompact("Por favor, preencha a descrição do lançamento.", "error");
+  return;
+}
 
-    if (!formCat) {
-      toastCompact("Por favor, selecione uma categoria.", "error");
-      return;
-    }
+if (!formQualCartao) {
+  toastCompact("Selecione uma conta para salvar o lançamento.", "error");
+  return;
+}
 
-    if (formTipo === "despesa") {
-      if (isParceladoMode === null) {
-        toastCompact("Por favor, selecione se o pagamento é À vista ou Parcelado.", "error");
-        return;
-      }
+if (formTipo === "despesa") {
+  if (isParceladoMode === null) {
+    toastCompact("Por favor, selecione se o pagamento é À vista ou Parcelado.", "error");
+    return;
+  }
 
-      if (!isParceladoMode && !formTipoGasto) {
-        toastCompact("Por favor, selecione o tipo de gasto (Fixo ou Variável).", "error");
-        return;
-      }
-    }
+if (!isParceladoMode && !formTipoGasto) {
+  toastCompact("Por favor, selecione o tipo de gasto (Fixo ou Variável).", "error");
+  return;
+}
+}
 
     const precisaEscolherPrazo =
       (formTipo === "despesa" && isParceladoMode === false && formTipoGasto === "fixo") ||
@@ -5081,181 +5059,171 @@ if (isCartaoParceladoComumTarget) {
       {/* DELETE MODAL */}
       {deletingTransaction && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-[500px] rounded-[2rem] border border-slate-800/80 bg-[#020b2d] text-white shadow-2xl animate-in zoom-in-95 p-5">
-            <h3 className="text-[18px] leading-tight font-extrabold mb-3 text-white">
-  Confirmar Exclusão
-</h3>
+          <div className="w-full max-w-[460px] rounded-[2rem] border border-slate-800/80 bg-[#020b2d] text-white shadow-2xl animate-in zoom-in-95 p-5">
+            <h3 className="mb-3 text-[18px] leading-tight font-extrabold text-white">
+              Confirmar Exclusão
+            </h3>
 
-           <div className="text-slate-200/90 mb-5 text-[14px] leading-7">
-{(() => {
-  const tx: any = deletingTransaction;
+            <div className="mb-5 text-[14px] leading-7 text-slate-200/90">
+              {(() => {
+                const tx: any = deletingTransaction;
 
-  const catNorm = String(tx?.categoria ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+                const catNorm = String(tx?.categoria ?? "")
+                  .toLowerCase()
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "");
 
-  const isTransfer =
-    catNorm === "transferencia" || catNorm.includes("transfer");
+                const isTransfer =
+                  catNorm === "transferencia" || catNorm.includes("transfer");
 
-  const parcelaAtualNum = Number(
-    tx?.parcelaAtual ?? tx?.payload?.parcelaAtual ?? 0
-  );
+                const parcelaAtualNum = Number(
+                  tx?.parcelaAtual ?? tx?.payload?.parcelaAtual ?? 0
+                );
 
-  const totalParcelasNum = Number(
-    tx?.totalParcelas ?? tx?.payload?.totalParcelas ?? 0
-  );
+                const totalParcelasNum = Number(
+                  tx?.totalParcelas ?? tx?.payload?.totalParcelas ?? 0
+                );
 
-const recorrenciaIdTx = String(
-  tx?.recorrenciaId ?? tx?.payload?.recorrenciaId ?? ""
-).trim();
+                const recorrenciaIdTx = String(
+                  tx?.recorrenciaId ?? tx?.payload?.recorrenciaId ?? ""
+                ).trim();
 
-const isCartaoParceladoComum =
-  String(tx?.tipo ?? "") === "cartao_credito" &&
-  !!recorrenciaIdTx &&
-  totalParcelasNum > 1 &&
-  parcelaAtualNum > 0;
+                const isCartaoParceladoComum =
+                  String(tx?.tipo ?? "") === "cartao_credito" &&
+                  !!recorrenciaIdTx &&
+                  totalParcelasNum > 1 &&
+                  parcelaAtualNum > 0;
 
-  const isPagamentoFatura =
-    /(pagamento\s*fatura|^fatura\s*:)/i.test(String(tx?.descricao ?? "")) ||
-    !!tx?.pagamentoFaturaId ||
-    !!tx?.faturaPaymentId ||
-    !!tx?.meta?.pagamentoFaturaId ||
-    !!tx?.meta?.faturaPaymentId;
+                const isPagamentoFatura =
+                  /(pagamento\s*fatura|^fatura\s*:)/i.test(
+                    String(tx?.descricao ?? "")
+                  ) ||
+                  !!tx?.pagamentoFaturaId ||
+                  !!tx?.faturaPaymentId ||
+                  !!tx?.meta?.pagamentoFaturaId ||
+                  !!tx?.meta?.faturaPaymentId;
 
-if (isCartaoParceladoComum) {
-  return (
-    <>
-      Tem certeza que deseja excluir esta parcela e as próximas? As parcelas anteriores serão mantidas. Você está apagando{" "}
-      <span className="font-black text-white">
-        "{deletingTransaction.descricao}"
-      </span>
-      .
-    </>
-  );
-}
-    
-  if (isTransfer) {
-    return (
-      <>
-        Tem certeza que quer excluir esta transferência?
-        Você está apagando{" "}
-        <span className="font-black text-slate-800 dark:text-slate-100">
-          "{deletingTransaction.descricao}"
-        </span>
-      </>
-    );
-  }
-
-  if (isCartaoParceladoComum) {
-    return (
-      <>
-        Você está apagando{" "}
-        <span className="font-black text-slate-800 dark:text-slate-100">
-          "{deletingTransaction.descricao}"
-        </span>
-        <span className="block mt-3 text-sm leading-7 text-slate-200/85">
-          Atenção: isso excluirá esta parcela e todas as próximas deste
-          parcelamento. As parcelas anteriores serão mantidas.
-        </span>
-      </>
-    );
-  }
-
-  if (deletingTransaction.recorrenciaId) {
-    return (
-      <>
-        Você está apagando{" "}
-        <span className="font-black text-slate-800 dark:text-slate-100">
-          "{deletingTransaction.descricao}"
-        </span>
-        {isPagamentoFatura ? (
-          <div className="mt-2 text-slate-700 dark:text-slate-200 text-sm">
-            <span className="font-bold">Atenção:</span> isso também apagará o{" "}
-            <span className="font-bold">registro do pagamento</span> da fatura.
-          </div>
-        ) : null}
-        . Como deseja prosseguir?
-      </>
-    );
-  }
-
-  return (
-    <>
-      Tem certeza que quer excluir este lançamento? Você está apagando{" "}
-      <span className="font-black text-slate-800 dark:text-slate-100">
-        "{deletingTransaction.descricao}"
-      </span>
-      {/^fatura\s*:/i.test(String(deletingTransaction?.descricao ?? "")) && (
-        <span className="block mt-2 text-sm text-slate-700 dark:text-slate-200">
-          Atenção: ao excluir esta fatura, o registro de pagamento do cartão
-          relacionado a ela também será apagado.
-        </span>
-      )}
-    </>
-  );
-})()}
-
-           </div>
-
-           <div className="space-y-2.5">
-            
-{(() => {
-  const txBtn: any = deletingTransaction;
-  const parcelaAtualBtn = Number(
-    txBtn?.parcelaAtual ?? txBtn?.payload?.parcelaAtual ?? 0
-  );
-  const totalParcelasBtn = Number(
-    txBtn?.totalParcelas ?? txBtn?.payload?.totalParcelas ?? 0
-  );
-
-const recorrenciaIdBtn = String(
-  txBtn?.recorrenciaId ?? txBtn?.payload?.recorrenciaId ?? ""
-).trim();
-
-const isCartaoParceladoComumBtn =
-  String(txBtn?.tipo ?? "") === "cartao_credito" &&
-  !!recorrenciaIdBtn &&
-  totalParcelasBtn > 1 &&
-  parcelaAtualBtn > 0;
-
-  return (
-   <>
-
-              <button
-                onClick={() => confirmarExclusao(false)}
-                className={`w-full py-3 rounded-2xl text-[14px] font-black whitespace-nowrap transition-colors ${
-                  deletingTransaction.recorrenciaId
-                    ? "bg-rose-600 text-white shadow-lg shadow-rose-950/30 hover:bg-rose-700"
-                    : "bg-rose-600 text-white shadow-lg shadow-rose-200 dark:shadow-none hover:bg-rose-700"
-                }`}
-              >
-{deletingTransaction.categoria === "Transferência"
-  ? "Excluir transferência"
-  : isCartaoParceladoComumBtn
-    ? "Excluir esta parcela em diante"
-    : (recorrenciaIdBtn ? "Excluir apenas este lançamento" : "Sim, excluir lançamento")}
-
-              </button>
-
-             {recorrenciaIdBtn && deletingTransaction.categoria !== "Transferência" && !isCartaoParceladoComumBtn && (
-                <button
-                  onClick={() => confirmarExclusao(true)}
-                  className="w-full py-4 bg-rose-600 text-white rounded-2xl font-black shadow-lg shadow-rose-200 dark:shadow-none hover:bg-rose-700 transition-colors"
-                >
-                  Excluir deste mês em diante
-                </button>
-              )}
-
-              <button
-                onClick={() => setDeletingTransaction(null)}
-                className="w-full py-2.5 text-slate-300/80 hover:text-white font-bold text-[13px] uppercase transition-colors"
-              >
-                Voltar
-              </button>
+                if (isCartaoParceladoComum) {
+                  return (
+                    <>
+                      Tem certeza que deseja excluir esta parcela e as próximas?
+                      As parcelas anteriores serão mantidas. Você está apagando{" "}
+                      <span className="font-black text-white">
+                        "{deletingTransaction.descricao}"
+                      </span>
+                      .
                     </>
-    );
-  })()}
+                  );
+                }
+
+                if (isTransfer) {
+                  return (
+                    <>
+                      Tem certeza que quer excluir esta transferência? Você está
+                      apagando{" "}
+                      <span className="font-black text-white">
+                        "{deletingTransaction.descricao}"
+                      </span>
+                      .
+                    </>
+                  );
+                }
+
+                if (recorrenciaIdTx) {
+                  return (
+                    <>
+                      Você está apagando{" "}
+                      <span className="font-black text-white">
+                        "{deletingTransaction.descricao}"
+                      </span>
+                      .
+                      {isPagamentoFatura ? (
+                        <span className="block mt-3 text-sm leading-7 text-slate-200/85">
+                          <span className="font-bold">Atenção:</span> isso também
+                          apagará o <span className="font-bold">registro do pagamento</span>{" "}
+                          da fatura.
+                        </span>
+                      ) : null}
+                      {" "}Como deseja prosseguir?
+                    </>
+                  );
+                }
+
+                return (
+                  <>
+                    Tem certeza que quer excluir este lançamento? Você está apagando{" "}
+                    <span className="font-black text-white">
+                      "{deletingTransaction.descricao}"
+                    </span>
+                    .
+                    {/^fatura\s*:/i.test(
+                      String(deletingTransaction?.descricao ?? "")
+                    ) && (
+                      <span className="block mt-3 text-sm leading-7 text-slate-200/85">
+                        Atenção: ao excluir esta fatura, o registro de pagamento do
+                        cartão relacionado a ela também será apagado.
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
+            <div className="space-y-2">
+              {(() => {
+                const txBtn: any = deletingTransaction;
+                const parcelaAtualBtn = Number(
+                  txBtn?.parcelaAtual ?? txBtn?.payload?.parcelaAtual ?? 0
+                );
+                const totalParcelasBtn = Number(
+                  txBtn?.totalParcelas ?? txBtn?.payload?.totalParcelas ?? 0
+                );
+
+                const recorrenciaIdBtn = String(
+                  txBtn?.recorrenciaId ?? txBtn?.payload?.recorrenciaId ?? ""
+                ).trim();
+
+                const isCartaoParceladoComumBtn =
+                  String(txBtn?.tipo ?? "") === "cartao_credito" &&
+                  !!recorrenciaIdBtn &&
+                  totalParcelasBtn > 1 &&
+                  parcelaAtualBtn > 0;
+
+                return (
+                  <>
+                    <button
+                      onClick={() => confirmarExclusao(false)}
+                      className="w-full rounded-2xl bg-rose-600 py-3 text-[14px] font-black text-white transition-colors hover:bg-rose-700"
+                    >
+                      {deletingTransaction.categoria === "Transferência"
+                        ? "Excluir transferência"
+                        : isCartaoParceladoComumBtn
+                        ? "Excluir esta parcela em diante"
+                        : recorrenciaIdBtn
+                        ? "Excluir apenas este lançamento"
+                        : "Sim, excluir lançamento"}
+                    </button>
+
+                    {recorrenciaIdBtn &&
+                      deletingTransaction.categoria !== "Transferência" &&
+                      !isCartaoParceladoComumBtn && (
+                        <button
+                          onClick={() => confirmarExclusao(true)}
+                          className="w-full rounded-2xl bg-rose-600 py-3 text-[14px] font-black text-white transition-colors hover:bg-rose-700"
+                        >
+                          Excluir deste mês em diante
+                        </button>
+                      )}
+
+                    <button
+                      onClick={() => setDeletingTransaction(null)}
+                      className="w-full py-2 text-[13px] font-bold uppercase text-slate-300/80 transition-colors hover:text-white"
+                    >
+                      Voltar
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

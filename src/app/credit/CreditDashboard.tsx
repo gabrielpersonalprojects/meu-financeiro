@@ -780,6 +780,29 @@ const jurosTotaisParcelamento = Math.max(
   Number((totalFinalParcelamento - saldoParceladoCalculado).toFixed(2))
 );
 
+useEffect(() => {
+  if (!isInvoiceModalOpen) return;
+  if (invoiceActionMode !== "parcelamento") return;
+  if (parcelamentoAtual) return;
+
+  const valorPadrao = Number(saldoRestanteFatura || 0);
+
+  if (valorPadrao <= 0) return;
+
+  setInvoiceParcelamentoValorOriginal((atual) => {
+    if (String(atual ?? "").trim()) return atual;
+    return valorPadrao.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  });
+}, [
+  isInvoiceModalOpen,
+  invoiceActionMode,
+  parcelamentoAtual,
+  saldoRestanteFatura,
+]);
+
 const resetInvoiceModalState = () => {
   setInvoiceActionMode("pagamento");
   setInvoiceParcelamentoQtd("2");
@@ -1171,10 +1194,11 @@ return (
       type="text"
       value={invoiceParcelamentoValorOriginal}
       onChange={(e) => setInvoiceParcelamentoValorOriginal(e.target.value)}
+      readOnly
       placeholder="0,00"
       className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
         bg-white border border-slate-200 text-slate-900 outline-none
-        dark:bg-transparent dark:border-white/10 dark:text-white"
+        dark:bg-transparent dark:border-white/10 dark:text-white cursor-not-allowed bg-slate-100 text-slate-500"
     />
   </div>
 
@@ -1926,7 +1950,7 @@ onClick={() => {
       >
         {invoiceActionMode === "pagamento"
           ? "Registrar pagamento"
-          : "Confirmar parcelamento"}
+          : "Registrar parcelamento"}
       </button>
     </>
   ) : (

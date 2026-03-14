@@ -42,6 +42,21 @@ import {
   mapInvoicePaymentAppToInsert,
   deleteInvoicePaymentById,
 } from "./services/invoicePayments";
+import {
+  fetchInvoiceInstallments,
+  mapInvoiceInstallmentRowToApp,
+  insertInvoiceInstallment,
+  mapInvoiceInstallmentAppToInsert,
+  updateInvoiceInstallmentStatusById,
+} from "./services/invoiceInstallments";
+
+import {
+  fetchInvoiceManualStatus,
+  mapInvoiceManualStatusRowToApp,
+  mapInvoiceManualStatusAppToInsert,
+  upsertInvoiceManualStatus,
+  deleteInvoiceManualStatusByCycle,
+} from "./services/invoiceManualStatus";
 
 import { sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
@@ -243,57 +258,71 @@ useEffect(() => {
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-  setSession(data.session);
-  setSessionLoading(false);
+useEffect(() => {
+  supabase.auth.getSession().then(async ({ data }) => {
+    setSession(data.session);
+    setSessionLoading(false);
 
-try {
-  const rows = await fetchAccounts();
-  console.log("ACCOUNTS SUPABASE:", rows);
+    try {
+      const rows = await fetchAccounts();
+      console.log("ACCOUNTS SUPABASE:", rows);
 
-  const profilesFromDb = rows.map(mapAccountRowToProfile);
+      const profilesFromDb = rows.map(mapAccountRowToProfile);
 
-  if (profilesFromDb.length > 0) {
-    setProfiles(profilesFromDb as any);
-  }
-  const txRows = await fetchTransactions();
-  console.log("TRANSACTIONS SUPABASE:", txRows);
+      if (profilesFromDb.length > 0) {
+        setProfiles(profilesFromDb as any);
+      }
 
-  const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
+      const txRows = await fetchTransactions();
+      console.log("TRANSACTIONS SUPABASE:", txRows);
 
-  if (appTransactionsFromDb.length > 0) {
-  setTransacoes(appTransactionsFromDb as any);
-}
+      const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
 
-const creditCardRows = await fetchCreditCards();
-console.log("CREDIT_CARDS SUPABASE:", creditCardRows);
+      if (appTransactionsFromDb.length > 0) {
+        setTransacoes(appTransactionsFromDb as any);
+      }
 
-setCreditCards(creditCardRows.map(mapCreditCardRowToApp) as any);
-setCreditCardsLoaded(true);
+      const creditCardRows = await fetchCreditCards();
+      console.log("CREDIT_CARDS SUPABASE:", creditCardRows);
 
-    const invoicePaymentRows = await fetchInvoicePayments();
-  console.log("INVOICE_PAYMENTS SUPABASE:", invoicePaymentRows);
+      setCreditCards(creditCardRows.map(mapCreditCardRowToApp) as any);
+      setCreditCardsLoaded(true);
 
-  if (invoicePaymentRows.length > 0) {
-    setPagamentosFatura(invoicePaymentRows.map(mapInvoicePaymentRowToApp) as any);
-  }
+      const invoicePaymentRows = await fetchInvoicePayments();
+      console.log("INVOICE_PAYMENTS SUPABASE:", invoicePaymentRows);
 
-} catch (err) {
-  console.error("ERRO SUPABASE ACCOUNTS:", err);
-  setCreditCardsLoaded(true);
-}
-});
+      setPagamentosFatura(
+        (invoicePaymentRows ?? []).map(mapInvoicePaymentRowToApp) as any
+      );
 
-    const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
-      setSession(sess);
-      setSessionLoading(false);
-    });
+      const invoiceInstallmentsRows = await fetchInvoiceInstallments();
+      console.log("INVOICE_INSTALLMENTS SUPABASE:", invoiceInstallmentsRows);
 
-    return () => {
-      data.subscription.unsubscribe();
-    };
-  }, []);
+      setParcelamentosFatura(
+        (invoiceInstallmentsRows ?? []).map(mapInvoiceInstallmentRowToApp) as any
+      );
+
+      const invoiceManualStatusRows = await fetchInvoiceManualStatus();
+      console.log("INVOICE_MANUAL_STATUS SUPABASE:", invoiceManualStatusRows);
+
+      setFaturasStatusManual(
+        (invoiceManualStatusRows ?? []).map(mapInvoiceManualStatusRowToApp) as any
+      );
+    } catch (err) {
+      console.error("ERRO SUPABASE ACCOUNTS:", err);
+      setCreditCardsLoaded(true);
+    }
+  });
+
+  const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
+    setSession(sess);
+    setSessionLoading(false);
+  });
+
+  return () => {
+    data.subscription.unsubscribe();
+  };
+}, []);
 
   
 const handleRegistrarPagamentoFatura = async (payload: {
@@ -398,6 +427,7 @@ const handleRegistrarPagamentoFatura = async (payload: {
       contaId: payload.contaId,
       contaLabel: payload.contaLabel,
       criadoEm: Date.now(),
+      snapshotCreatedAtMs: Date.now(),
       transacaoId: String((txApp as any).id ?? nextTxId),
     };
 
@@ -419,15 +449,15 @@ const handleRegistrarPagamentoFatura = async (payload: {
   }
 };
 
-const handleRegistrarParcelamentoFatura = ({
-cartaoId,
+const handleRegistrarParcelamentoFatura = async ({
+  cartaoId,
   cicloKey,
   dataAcordo,
   valorOriginal,
   valorEntrada,
   saldoParcelado,
   quantidadeParcelas,
-  valorParcela
+  valorParcela,
 }: {
   cartaoId: string;
   cicloKey: string;
@@ -439,125 +469,229 @@ cartaoId,
   valorParcela: number;
 }) => {
   console.log("[PARCELAMENTO] entrou no handle", {
-  cartaoId,
-  cicloKey,
-  dataAcordo,
-  valorOriginal,
-  valorEntrada,
-  saldoParcelado,
-  quantidadeParcelas,
-  valorParcela,
-});
-  const qtd = Number(quantidadeParcelas);
-  const valorParc = Number(valorParcela);
-  const valorOrig = Number(valorOriginal);
-  const valorEntr = Number(valorEntrada);
-  const saldoParc = Number(saldoParcelado);
-
-  if (!cartaoId || !cicloKey || !dataAcordo) return;
-  if (!Number.isFinite(qtd) || qtd <= 0) return;
-  if (!Number.isFinite(valorParc) || valorParc <= 0) return;
-  if (!Number.isFinite(valorOrig) || valorOrig <= 0) return;
-
-  const cartao = creditCards.find((c: any) => String(c.id) === String(cartaoId));
-  const nomeCartao =
-  String((cartao as any)?.bankText ?? (cartao as any)?.categoria ?? "Cartão").trim() || "Cartão";
-
-  const parcelamentoId =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `pf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-
-  const valorTotalFinal = Number((qtd * valorParc).toFixed(2));
-  const jurosTotal = Number((valorTotalFinal - saldoParc).toFixed(2));
-  const criadoEm = Date.now();
-
-const acordo: ParcelamentoFaturaApp = {
-  id: parcelamentoId,
-  cartaoId: String(cartaoId),
-  cicloKeyOrigem: String(cicloKey),
-  dataAcordo,
-  valorOriginal: valorOrig,
-  valorEntrada: valorEntr,
-  saldoParcelado: saldoParc,
-  quantidadeParcelas: qtd,
-  valorParcela: valorParc,
-  valorTotalFinal,
-  jurosTotal,
-  criadoEm,
-  status: "ativo",
-};
-
-  setParcelamentosFatura((prev) => [...prev, acordo]);
-  console.log("[PARCELAMENTO] acordo salvo", acordo);
-  const baseDate = new Date(`${dataAcordo}T12:00:00`);
-
-  const novasParcelas: Transaction[] = Array.from({ length: qtd }, (_, idx) => {
-    const parcelaNumero = idx + 1;
-    const dataParcela = new Date(baseDate);
-    dataParcela.setMonth(dataParcela.getMonth() + idx);
-
-    const yyyy = dataParcela.getFullYear();
-    const mm = String(dataParcela.getMonth() + 1).padStart(2, "0");
-    const dd = String(dataParcela.getDate()).padStart(2, "0");
-    const data = `${yyyy}-${mm}-${dd}`;
-
-    const txId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `tx_pf_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 9)}`;
-
-    return {
-      id: txId,
-      tipo: "cartao_credito",
-      descricao: `Parcelamento de fatura ${parcelaNumero}/${qtd}`,
-      valor: valorParc,
-      data,
-      categoria: "Parcelamento de fatura",
-      qualCartao: nomeCartao,
-      cartaoId: String(cartaoId),
-      tipoGasto: "parcelado",
-      pago: false,
-      createdAt: Date.now() + idx,
-      parcelaAtual: parcelaNumero,
-      totalParcelas: qtd,
-      origemLancamento: "parcelamento_fatura",
-      parcelamentoFaturaId: parcelamentoId,
-      faturaOrigemCicloKey: String(cicloKey),
-    };
+    cartaoId,
+    cicloKey,
+    dataAcordo,
+    valorOriginal,
+    valorEntrada,
+    saldoParcelado,
+    quantidadeParcelas,
+    valorParcela,
   });
 
-  setTransacoes((prev) => [...prev, ...novasParcelas]);
-  console.log("[PARCELAMENTO] parcelas criadas", novasParcelas);
-  setFaturasStatusManual((prev) => {
-    const semAtual = prev.filter(
-      (item) =>
-        !(
-          String(item.cartaoId) === String(cartaoId) &&
-          String(item.cicloKey) === String(cicloKey)
-        )
+  try {
+    if (!session?.user?.id) {
+      toastCompact("Sessão inválida para registrar parcelamento.", "error");
+      return;
+    }
+
+    const qtd = Number(quantidadeParcelas);
+    const valorParc = Number(valorParcela);
+    const valorOrig = Number(valorOriginal);
+    const valorEntr = Number(valorEntrada);
+    const saldoParc = Number(saldoParcelado);
+
+    if (!cartaoId || !cicloKey || !dataAcordo) return;
+    if (!Number.isFinite(qtd) || qtd <= 0) return;
+    if (!Number.isFinite(valorParc) || valorParc <= 0) return;
+    if (!Number.isFinite(valorOrig) || valorOrig <= 0) return;
+
+    const cartao = creditCards.find(
+      (c: any) => String(c.id) === String(cartaoId)
     );
 
-    return [
-      ...semAtual,
-      {
-        id:
+    const nomeCartao =
+      String(
+        (cartao as any)?.bankText ?? (cartao as any)?.categoria ?? "Cartão"
+      ).trim() || "Cartão";
+
+    const parcelamentoId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `pf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+    const valorTotalFinal = Number((qtd * valorParc).toFixed(2));
+    const jurosTotal = Number((valorTotalFinal - saldoParc).toFixed(2));
+    const criadoEm = Date.now();
+
+    const acordo: ParcelamentoFaturaApp = {
+      id: parcelamentoId,
+      cartaoId: String(cartaoId),
+      cicloKeyOrigem: String(cicloKey),
+      dataAcordo,
+      valorOriginal: valorOrig,
+      valorEntrada: valorEntr,
+      saldoParcelado: saldoParc,
+      quantidadeParcelas: qtd,
+      valorParcela: valorParc,
+      valorTotalFinal,
+      jurosTotal,
+      criadoEm,
+      status: "ativo",
+    };
+
+    const installmentPayload = mapInvoiceInstallmentAppToInsert(
+      acordo,
+      session.user.id
+    );
+
+    const savedInstallmentRow = await insertInvoiceInstallment(
+      installmentPayload
+    );
+
+    const savedInstallment = mapInvoiceInstallmentRowToApp(
+      savedInstallmentRow as any
+    );
+
+    console.log("[PARCELAMENTO] acordo salvo no supabase", savedInstallment);
+
+    const baseDate = new Date(`${dataAcordo}T12:00:00`);
+
+    const novasParcelasBase: Transaction[] = Array.from(
+      { length: qtd },
+      (_, idx) => {
+        const parcelaNumero = idx + 1;
+        const dataParcela = new Date(baseDate);
+        dataParcela.setMonth(dataParcela.getMonth() + idx);
+
+        const yyyy = dataParcela.getFullYear();
+        const mm = String(dataParcela.getMonth() + 1).padStart(2, "0");
+        const dd = String(dataParcela.getDate()).padStart(2, "0");
+        const data = `${yyyy}-${mm}-${dd}`;
+
+        const txId =
           typeof crypto !== "undefined" && "randomUUID" in crypto
             ? crypto.randomUUID()
-            : `fsm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        cartaoId: String(cartaoId),
-        cicloKey: String(cicloKey),
-        statusManual: "parcelada",
-        parcelamentoFaturaId: parcelamentoId,
-        criadoEm,
-      },
-    ];
-  });
-  console.log("[PARCELAMENTO] status manual salvo", {
-  cartaoId,
-  cicloKey,
-  parcelamentoId,
-});
+            : `tx_pf_${Date.now()}_${idx}_${Math.random()
+                .toString(36)
+                .slice(2, 9)}`;
+
+        return {
+          id: txId,
+          tipo: "cartao_credito",
+          descricao: `Parcelamento de fatura ${parcelaNumero}/${qtd}`,
+          valor: valorParc,
+          data,
+          categoria: "Parcelamento de fatura",
+          qualCartao: nomeCartao,
+          cartaoId: String(cartaoId),
+          tipoGasto: "parcelado",
+          pago: false,
+          createdAt: Date.now() + idx,
+          criadoEm: Date.now() + idx,
+          parcelaAtual: parcelaNumero,
+          totalParcelas: qtd,
+          origemLancamento: "parcelamento_fatura",
+          parcelamentoFaturaId: parcelamentoId,
+          faturaOrigemCicloKey: String(cicloKey),
+        } as any;
+      }
+    );
+
+    const txRows = await Promise.all(
+      novasParcelasBase.map((tx: any) =>
+        insertTransaction({
+          user_id: session.user.id,
+          tipo: tx.tipo,
+          valor: Number(tx.valor ?? 0),
+          data: String(tx.data ?? ""),
+          descricao: String(tx.descricao ?? ""),
+          categoria:
+            typeof tx.categoria === "string"
+              ? tx.categoria
+              : String(tx.categoria?.nome ?? ""),
+          tag: String(tx.tag ?? ""),
+          pago: !!tx.pago,
+
+          conta_id: tx.contaId ? String(tx.contaId) : null,
+          conta_origem_id: tx.contaOrigemId ? String(tx.contaOrigemId) : null,
+          conta_destino_id: tx.contaDestinoId
+            ? String(tx.contaDestinoId)
+            : null,
+          cartao_id: tx.cartaoId ? String(tx.cartaoId) : null,
+
+          transfer_from_id: String(tx.transferFromId ?? ""),
+          transfer_to_id: String(tx.transferToId ?? ""),
+          qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
+          criado_em: Number(tx.criadoEm ?? Date.now()),
+
+          payload: {
+            metodoPagamento: tx.metodoPagamento ?? "",
+            tipoGasto: tx.tipoGasto ?? "",
+            recorrenciaId: tx.recorrenciaId ?? "",
+            isRecorrente: !!tx.isRecorrente,
+            contraParte: tx.contraParte ?? "",
+            transferId: tx.transferId ?? "",
+            observacoes: tx.observacoes ?? "",
+            parcelaAtual: tx.parcelaAtual ?? null,
+            totalParcelas: tx.totalParcelas ?? null,
+            qualCartao: String(tx.qualCartao ?? ""),
+            origemLancamento: tx.origemLancamento ?? "",
+            parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
+            faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
+          },
+        })
+      )
+    );
+
+    const savedTransactions = txRows.map(mapTransactionRowToApp);
+
+    console.log("[PARCELAMENTO] parcelas criadas no supabase", savedTransactions);
+
+    const statusManualApp = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `fsm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      cartaoId: String(cartaoId),
+      cicloKey: String(cicloKey),
+      statusManual: "parcelada",
+      parcelamentoFaturaId: parcelamentoId,
+      criadoEm,
+    };
+
+    const savedManualStatusRow = await upsertInvoiceManualStatus(
+      mapInvoiceManualStatusAppToInsert(statusManualApp as any, session.user.id)
+    );
+
+    const savedManualStatus = mapInvoiceManualStatusRowToApp(
+      savedManualStatusRow as any
+    );
+
+    setParcelamentosFatura((prev) => {
+      const base = Array.isArray(prev) ? prev : [];
+      const semAtual = base.filter(
+        (item: any) => String(item?.id ?? "") !== String(savedInstallment.id)
+      );
+      return [...semAtual, savedInstallment as any];
+    });
+
+    setTransacoes((prev) => {
+      const base = Array.isArray(prev) ? prev : [];
+      return [...base, ...(savedTransactions as any)];
+    });
+
+    setFaturasStatusManual((prev) => {
+      const base = Array.isArray(prev) ? prev : [];
+      const semAtual = base.filter(
+        (item: any) =>
+          !(
+            String(item?.cartaoId ?? "") === String(cartaoId) &&
+            String(item?.cicloKey ?? "") === String(cicloKey)
+          )
+      );
+      return [...semAtual, savedManualStatus as any];
+    });
+
+    console.log("[PARCELAMENTO] status manual salvo no supabase", {
+      cartaoId,
+      cicloKey,
+      parcelamentoId,
+    });
+  } catch (err) {
+    console.error("ERRO AO REGISTRAR PARCELAMENTO DE FATURA:", err);
+    toastCompact("Erro ao registrar parcelamento da fatura.", "error");
+  }
 };
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -595,6 +729,204 @@ if (alvo.transacaoId) {
     toastCompact("Erro ao remover pagamento da fatura.", "error");
   }
 };
+
+const handleCancelarParcelamentoFatura = async ({
+  cartaoId,
+  cicloKey,
+  parcelamentoFaturaId,
+}: {
+  cartaoId: string;
+  cicloKey: string;
+  parcelamentoFaturaId: string;
+}) => {
+  const parcelamentoId = String(parcelamentoFaturaId ?? "").trim();
+  const cartaoIdSafe = String(cartaoId ?? "").trim();
+  const cicloKeySafe = String(cicloKey ?? "").trim();
+
+  if (!parcelamentoId) return;
+
+  try {
+    await updateInvoiceInstallmentStatusById(parcelamentoId, "cancelado");
+
+    const acordo = (parcelamentosFatura ?? []).find(
+      (p: any) => String(p?.id ?? "").trim() === parcelamentoId
+    );
+
+const transacoesRelacionadas = (transacoes ?? []).filter((t: any) => {
+  const txParcelamentoId = String(
+    (t as any)?.parcelamentoFaturaId ??
+      (t as any)?.payload?.parcelamentoFaturaId ??
+      ""
+  ).trim();
+
+  const origemLancamentoTx = String(
+    (t as any)?.origemLancamento ??
+      (t as any)?.payload?.origemLancamento ??
+      ""
+  ).trim();
+
+  const descricaoTx = String((t as any)?.descricao ?? "").trim().toLowerCase();
+  const categoriaTx = String(
+    typeof (t as any)?.categoria === "string"
+      ? (t as any)?.categoria
+      : (t as any)?.categoria?.nome ??
+        (t as any)?.categoria?.label ??
+        (t as any)?.categoria?.value ??
+        ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const cartaoTxId = String(
+    (t as any)?.cartaoId ??
+      (t as any)?.payload?.cartaoId ??
+      (t as any)?.qualCartao ??
+      (t as any)?.payload?.qualCartao ??
+      ""
+  ).trim();
+
+  const cicloTx = String(
+    (t as any)?.faturaOrigemCicloKey ??
+      (t as any)?.payload?.faturaOrigemCicloKey ??
+      ""
+  ).trim();
+
+  const batePorId = txParcelamentoId === parcelamentoId;
+
+  const batePorAssinaturaDeParcela =
+    origemLancamentoTx === "parcelamento_fatura" ||
+    descricaoTx.startsWith("parcelamento de fatura") ||
+    categoriaTx === "parcelamento de fatura";
+
+  const batePorMesmoCartaoECiclo =
+    (!cartaoIdSafe || cartaoTxId === cartaoIdSafe) &&
+    (!cicloKeySafe || cicloTx === cicloKeySafe);
+
+  return batePorId || (batePorAssinaturaDeParcela && batePorMesmoCartaoECiclo);
+});
+
+    const cartaoIdFinal = String(
+      cartaoIdSafe ||
+        (acordo as any)?.cartaoId ||
+        (transacoesRelacionadas[0] as any)?.cartaoId ||
+        (transacoesRelacionadas[0] as any)?.payload?.cartaoId ||
+        ""
+    ).trim();
+
+    const cicloKeyFinal = String(
+      cicloKeySafe ||
+        (acordo as any)?.cicloKeyOrigem ||
+        (transacoesRelacionadas[0] as any)?.faturaOrigemCicloKey ||
+        (transacoesRelacionadas[0] as any)?.payload?.faturaOrigemCicloKey ||
+        ""
+    ).trim();
+
+    if (cartaoIdFinal && cicloKeyFinal) {
+      await deleteInvoiceManualStatusByCycle(cartaoIdFinal, cicloKeyFinal);
+    }
+
+    const transacoesUuid = transacoesRelacionadas.filter((t: any) =>
+      isUuid(String((t as any)?.id ?? "").trim())
+    );
+
+    if (transacoesUuid.length > 0) {
+      await Promise.all(
+        transacoesUuid.map((t: any) =>
+          deleteTransactionById(String((t as any).id))
+        )
+      );
+    }
+
+    setParcelamentosFatura((prev: any[]) =>
+      (Array.isArray(prev) ? prev : []).filter(
+        (item: any) => String(item?.id ?? "").trim() !== parcelamentoId
+      )
+    );
+
+    setFaturasStatusManual((prev: any[]) =>
+      (Array.isArray(prev) ? prev : []).filter((item: any) => {
+        const itemParcelamentoId = String(
+          item?.parcelamentoFaturaId ?? ""
+        ).trim();
+
+        const itemCartaoId = String(item?.cartaoId ?? "").trim();
+        const itemCicloKey = String(item?.cicloKey ?? "").trim();
+
+        if (itemParcelamentoId && itemParcelamentoId === parcelamentoId) {
+          return false;
+        }
+
+        return !(
+          cartaoIdFinal &&
+          cicloKeyFinal &&
+          itemCartaoId === cartaoIdFinal &&
+          itemCicloKey === cicloKeyFinal
+        );
+      })
+    );
+
+    setTransacoes((prev: any[]) =>
+  (Array.isArray(prev) ? prev : []).filter((t: any) => {
+    const txParcelamentoId = String(
+      (t as any)?.parcelamentoFaturaId ??
+        (t as any)?.payload?.parcelamentoFaturaId ??
+        ""
+    ).trim();
+
+    const origemLancamentoTx = String(
+      (t as any)?.origemLancamento ??
+        (t as any)?.payload?.origemLancamento ??
+        ""
+    ).trim();
+
+    const descricaoTx = String((t as any)?.descricao ?? "").trim().toLowerCase();
+    const categoriaTx = String(
+      typeof (t as any)?.categoria === "string"
+        ? (t as any)?.categoria
+        : (t as any)?.categoria?.nome ??
+          (t as any)?.categoria?.label ??
+          (t as any)?.categoria?.value ??
+          ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const cartaoTxId = String(
+      (t as any)?.cartaoId ??
+        (t as any)?.payload?.cartaoId ??
+        (t as any)?.qualCartao ??
+        (t as any)?.payload?.qualCartao ??
+        ""
+    ).trim();
+
+    const cicloTx = String(
+      (t as any)?.faturaOrigemCicloKey ??
+        (t as any)?.payload?.faturaOrigemCicloKey ??
+        ""
+    ).trim();
+
+    const batePorId = txParcelamentoId === parcelamentoId;
+
+    const batePorAssinaturaDeParcela =
+      origemLancamentoTx === "parcelamento_fatura" ||
+      descricaoTx.startsWith("parcelamento de fatura") ||
+      categoriaTx === "parcelamento de fatura";
+
+    const batePorMesmoCartaoECiclo =
+      (!cartaoIdFinal || cartaoTxId === cartaoIdFinal) &&
+      (!cicloKeyFinal || cicloTx === cicloKeyFinal);
+
+    return !(batePorId || (batePorAssinaturaDeParcela && batePorMesmoCartaoECiclo));
+  })
+);
+
+    toastCompact("Parcelamento cancelado.", "success");
+  } catch (err) {
+    console.error("ERRO AO CANCELAR PARCELAMENTO DE FATURA:", err);
+    toastCompact("Erro ao cancelar parcelamento da fatura.", "error");
+  }
+};
+
   // --- Perfis ---
 
 const [profiles, setProfiles] = useState<Profile[]>(() => {
@@ -2187,6 +2519,24 @@ const confirmarExclusao = async (apagarTodas: boolean) => {
     const isTransfer = catNorm === "transferencia" || catNorm.includes("transfer");
     const transferId = tx?.transferId;
 
+    const parcelaAtualNum = Number(
+  tx?.parcelaAtual ?? tx?.payload?.parcelaAtual ?? 0
+);
+
+const totalParcelasNum = Number(
+  tx?.totalParcelas ?? tx?.payload?.totalParcelas ?? 0
+);
+
+const recorrenciaIdTx = String(
+  tx?.recorrenciaId ?? tx?.payload?.recorrenciaId ?? ""
+).trim();
+
+const isCartaoParceladoComum =
+  String(tx?.tipo ?? "") === "cartao_credito" &&
+  !!recorrenciaIdTx &&
+  totalParcelasNum > 1 &&
+  parcelaAtualNum > 0;
+
        const alvoPagamento = (pagamentosFatura ?? []).find((p: any) => {
       const pId = String(p?.id ?? "");
       const pTxId = String(
@@ -2238,27 +2588,53 @@ const confirmarExclusao = async (apagarTodas: boolean) => {
       return;
     }
 
-    if (apagarTodas && deletingTransaction.recorrenciaId) {
-      const relacionadas = transacoes.filter(
-        (t: any) =>
-          t.recorrenciaId === deletingTransaction.recorrenciaId &&
-          String(t.data ?? "") >= String(deletingTransaction.data ?? "")
+const apagarEmDiante =
+  (apagarTodas && !!deletingTransaction.recorrenciaId) || isCartaoParceladoComum;
+
+if (apagarEmDiante && recorrenciaIdTx) {
+  const relacionadas = transacoes.filter((t: any) => {
+    const recorrenciaIdItem = String(
+      (t as any)?.recorrenciaId ?? (t as any)?.payload?.recorrenciaId ?? ""
+    ).trim();
+
+    if (recorrenciaIdItem !== recorrenciaIdTx) return false;
+
+    const tParcelaAtual = Number(
+      (t as any)?.parcelaAtual ?? (t as any)?.payload?.parcelaAtual ?? 0
+    );
+
+    if (isCartaoParceladoComum && parcelaAtualNum > 0 && tParcelaAtual > 0) {
+      return tParcelaAtual >= parcelaAtualNum;
+    }
+
+    return String(t.data ?? "") >= String(deletingTransaction.data ?? "");
+  });
+
+  await Promise.all(
+    relacionadas.map((t: any) => deleteTransactionById(String(t.id)))
+  );
+
+  setTransacoes((prev) =>
+  prev.filter((t: any) => {
+    const recorrenciaIdItem = String(
+      (t as any)?.recorrenciaId ?? (t as any)?.payload?.recorrenciaId ?? ""
+    ).trim();
+
+    if (recorrenciaIdItem !== recorrenciaIdTx) return true;
+      const tParcelaAtual = Number(
+        (t as any)?.parcelaAtual ?? (t as any)?.payload?.parcelaAtual ?? 0
       );
 
-      await Promise.all(
-        relacionadas.map((t: any) => deleteTransactionById(String(t.id)))
-      );
+      if (isCartaoParceladoComum && parcelaAtualNum > 0 && tParcelaAtual > 0) {
+        return tParcelaAtual < parcelaAtualNum;
+      }
 
-      setTransacoes((prev) =>
-        prev.filter(
-          (t) =>
-            t.recorrenciaId !== deletingTransaction.recorrenciaId ||
-            t.data < deletingTransaction.data
-        )
-      );
+      return String(t.data ?? "") < String(deletingTransaction.data ?? "");
+    })
+  );
 
-      toastCompact(`Recorrência removida: "${desc}".`, "success");
-    } else {
+  toastCompact(`Parcelamento atualizado: "${desc}".`, "success");
+} else {
       await deleteTransactionById(String(deletingTransaction.id));
 
       setTransacoes((prev) =>
@@ -2657,21 +3033,23 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
         for (let i = 0; i < parcelas; i++) {
           const d = addMonthsSafe(baseDate, i);
 
-          novos.push({
-            id: makeId(String(i)),
-            tipo: "cartao_credito",
-            criadoEm: Date.now(),
-            descricao: `${descBase} (${i + 1}/${parcelas})`,
-            valor: -Math.abs(valorParcela),
-            data: d.toISOString().split("T")[0],
-            categoria: categoriaBase || undefined,
-            tag: tagCC || undefined,
-            tipoGasto: "fixo",
-            qualCartao: selectedCreditCardId,
-            contaId: contaIdDoCartao,
-            pago: i === 0 ? formPago : false,
-            recorrenciaId,
-          } as any);
+novos.push({
+  id: makeId(String(i)),
+  tipo: "cartao_credito",
+  criadoEm: Date.now(),
+  descricao: `${descBase} (${i + 1}/${parcelas})`,
+  valor: -Math.abs(valorParcela),
+  data: d.toISOString().split("T")[0],
+  categoria: categoriaBase || undefined,
+  tag: tagCC || undefined,
+  tipoGasto: "fixo",
+  qualCartao: selectedCreditCardId,
+  contaId: contaIdDoCartao,
+  pago: i === 0 ? formPago : false,
+  recorrenciaId,
+  parcelaAtual: i + 1,
+  totalParcelas: parcelas,
+} as any);
         }
       }
 
@@ -3810,32 +4188,13 @@ limiteDisponivelReal={Math.max(
 
 faturasStatusManual={faturasStatusManual}
 parcelamentosFatura={parcelamentosFatura}
-onCancelarParcelamentoFatura={({ cartaoId, cicloKey, parcelamentoFaturaId }) => {
-  setFaturasStatusManual((prev: any[]) =>
-    prev.filter(
-      (item: any) =>
-        !(
-          String(item?.cartaoId ?? "") === String(cartaoId) &&
-          String(item?.cicloKey ?? "") === String(cicloKey)
-        )
-    )
-  );
-
-  setParcelamentosFatura((prev: any[]) =>
-    prev.filter((item: any) => String(item?.id ?? "") !== String(parcelamentoFaturaId))
-  );
-
-  setTransacoes((prev: any[]) =>
-    prev.filter(
-      (t: any) =>
-        !(
-          String((t as any)?.tipo ?? "") === "cartao_credito" &&
-          String((t as any)?.cartaoId ?? (t as any)?.qualCartao ?? "") === String(cartaoId) &&
-          String((t as any)?.parcelamentoFaturaId ?? "") === String(parcelamentoFaturaId)
-        )
-    )
-  );
-}}
+onCancelarParcelamentoFatura={({ cartaoId, cicloKey, parcelamentoFaturaId }) =>
+  handleCancelarParcelamentoFatura({
+    cartaoId,
+    cicloKey,
+    parcelamentoFaturaId,
+  })
+}
 
     onPickOtherCard={toggleCcExpanded}
     onSaldoRestanteChange={setSaldoRestanteAtual}
@@ -3848,36 +4207,53 @@ onCancelarParcelamentoFatura={({ cartaoId, cicloKey, parcelamentoFaturaId }) => 
     onRegistrarParcelamentoFatura={handleRegistrarParcelamentoFatura}
     onRemoverPagamentoFatura={handleRemoverPagamentoFatura}
 
-onDeleteTransacao={(id: string) => {
-  const target = transacoes.find((t) => String(t.id) === String(id));
+onDeleteTransacao={async (id: string) => {
+  const sourceList = [
+    ...((creditItSelecionado ?? []) as any[]),
+    ...((transacoes ?? []) as any[]),
+  ];
 
-  if (
-    (target as any).origemLancamento === "parcelamento_fatura" &&
-    (target as any).parcelamentoFaturaId
-  ) {
-    const parcelamentoId = String((target as any).parcelamentoFaturaId);
+  const target = sourceList.find(
+    (t: any) => String(t?.id ?? "").trim() === String(id).trim()
+  );
 
-    confirmToast({
-      title: "Excluir parcelamento",
-      message:
-        "Isso vai apagar todas as parcelas geradas e remover a negociação da fatura.",
-      confirmText: "Excluir",
-      cancelText: "Cancelar",
-      onConfirm: () => {
-        setTransacoes((prev) =>
-          prev.filter(
-            (t) => String((t as any)?.parcelamentoFaturaId ?? "") !== parcelamentoId
-          )
-        );
+  if (!target) {
+    console.warn("[DELETE PARCELA] transação não encontrada", { id });
+    toastCompact("Não foi possível localizar a transação.", "error");
+    return;
+  }
 
-        setParcelamentosFatura((prev) =>
-          prev.filter((p) => String(p.id) !== parcelamentoId)
-        );
+  const parcelamentoId = String(
+    (target as any)?.parcelamentoFaturaId ??
+      (target as any)?.payload?.parcelamentoFaturaId ??
+      ""
+  ).trim();
 
-        setFaturasStatusManual((prev) =>
-          prev.filter((s) => String(s.parcelamentoFaturaId) !== parcelamentoId)
-        );
-      },
+  if (parcelamentoId) {
+    const acordo = (parcelamentosFatura ?? []).find(
+      (p: any) => String(p?.id ?? "").trim() === parcelamentoId
+    );
+
+    const cartaoId = String(
+      (target as any)?.cartaoId ??
+        (target as any)?.payload?.cartaoId ??
+        (acordo as any)?.cartaoId ??
+        String(selectedCcCard?.id ?? "") ??
+        ""
+    ).trim();
+
+    const cicloKey = String(
+      (target as any)?.faturaOrigemCicloKey ??
+        (target as any)?.payload?.faturaOrigemCicloKey ??
+        (acordo as any)?.cicloKeyOrigem ??
+        String(creditJumpMonth ?? "") ??
+        ""
+    ).trim();
+
+    await handleCancelarParcelamentoFatura({
+      cartaoId,
+      cicloKey,
+      parcelamentoFaturaId: parcelamentoId,
     });
 
     return;
@@ -3894,6 +4270,29 @@ onDeleteTransacao={(id: string) => {
     if (!ok) return;
   }
 
+const parcelaAtualTarget = Number(
+  (target as any)?.parcelaAtual ?? (target as any)?.payload?.parcelaAtual ?? 0
+);
+
+const totalParcelasTarget = Number(
+  (target as any)?.totalParcelas ?? (target as any)?.payload?.totalParcelas ?? 0
+);
+
+const recorrenciaIdTarget = String(
+  (target as any)?.recorrenciaId ?? (target as any)?.payload?.recorrenciaId ?? ""
+).trim();
+
+const isCartaoParceladoComumTarget =
+  String((target as any)?.tipo ?? "") === "cartao_credito" &&
+  !!recorrenciaIdTarget &&
+  totalParcelasTarget > 1 &&
+  parcelaAtualTarget > 0;
+
+if (isCartaoParceladoComumTarget) {
+  setDeletingTransaction(target as any);
+  return;
+}
+
   confirmToast({
     title: "Excluir transação",
     message: "Tem certeza que deseja excluir esta transação?",
@@ -3905,7 +4304,6 @@ onDeleteTransacao={(id: string) => {
       );
 
       try {
-        // se a transação estiver vinculada a um pagamento de fatura, remove o payment também
         if (alvoPagamento) {
           await deleteInvoicePaymentById(String(alvoPagamento.id));
 
@@ -3916,24 +4314,25 @@ onDeleteTransacao={(id: string) => {
           );
         }
 
-        // remove do banco se for uma transaction real do Supabase (uuid)
         if (isUuid(String(id))) {
           await deleteTransactionById(String(id));
         }
 
         setTransacoes((prev) => {
-          const target = prev.find((t) => String(t.id) === String(id));
-          if (!target) return prev;
+          const current = prev.find((t) => String(t.id) === String(id));
+          if (!current) return prev;
 
-          const transferId = (target as any)?.transferId;
+          const transferId = (current as any)?.transferId;
 
           if (transferId) {
-            return prev.filter((t) => String((t as any)?.transferId) !== String(transferId));
+            return prev.filter(
+              (t) => String((t as any)?.transferId) !== String(transferId)
+            );
           }
 
-          const isCC = target.tipo === "cartao_credito";
-          const rid = (target as any).recorrenciaId;
-          const cardId = (target as any).qualCartao;
+          const isCC = current.tipo === "cartao_credito";
+          const rid = (current as any).recorrenciaId;
+          const cardId = (current as any).qualCartao;
 
           if (isCC && rid) {
             return prev.filter(
@@ -4686,28 +5085,41 @@ onDeleteTransacao={(id: string) => {
       {/* DELETE MODAL */}
       {deletingTransaction && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 max-w-[420px] w-full shadow-2xl animate-in zoom-in-95">
-            <h3 className="text-[22px] leading-tight font-bold mb-3 text-slate-800 dark:text-white">
+          <div className="w-full max-w-[500px] rounded-[2rem] border border-slate-800/80 bg-[#020b2d] text-white shadow-2xl animate-in zoom-in-95 p-5">
+            <h3 className="text-[18px] leading-tight font-extrabold mb-3 text-white">
   Confirmar Exclusão
 </h3>
 
-           <div className="text-slate-500 dark:text-slate-400 mb-5 text-[15px] leading-7">
-             {deletingTransaction.categoria === "Transferência" ? (
-<>
-  Tem certeza que quer excluir esta transferência?
-  Você está apagando{" "}
-  <span className="font-black text-slate-800 dark:text-slate-100">
-    "{deletingTransaction.descricao}"
-  </span>
-</>
-) : deletingTransaction.recorrenciaId ? (
-  <>
-    Você está apagando{" "}
-    <span className="font-black text-slate-800 dark:text-slate-100">
-      "{deletingTransaction.descricao}"
-    </span>
-        {(() => {
+           <div className="text-slate-200/90 mb-5 text-[14px] leading-7">
+{(() => {
   const tx: any = deletingTransaction;
+
+  const catNorm = String(tx?.categoria ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const isTransfer =
+    catNorm === "transferencia" || catNorm.includes("transfer");
+
+  const parcelaAtualNum = Number(
+    tx?.parcelaAtual ?? tx?.payload?.parcelaAtual ?? 0
+  );
+
+  const totalParcelasNum = Number(
+    tx?.totalParcelas ?? tx?.payload?.totalParcelas ?? 0
+  );
+
+const recorrenciaIdTx = String(
+  tx?.recorrenciaId ?? tx?.payload?.recorrenciaId ?? ""
+).trim();
+
+const isCartaoParceladoComum =
+  String(tx?.tipo ?? "") === "cartao_credito" &&
+  !!recorrenciaIdTx &&
+  totalParcelasNum > 1 &&
+  parcelaAtualNum > 0;
+
   const isPagamentoFatura =
     /(pagamento\s*fatura|^fatura\s*:)/i.test(String(tx?.descricao ?? "")) ||
     !!tx?.pagamentoFaturaId ||
@@ -4715,50 +5127,122 @@ onDeleteTransacao={(id: string) => {
     !!tx?.meta?.pagamentoFaturaId ||
     !!tx?.meta?.faturaPaymentId;
 
-  if (!isPagamentoFatura) return null;
+if (isCartaoParceladoComum) {
+  return (
+    <>
+      Tem certeza que deseja excluir esta parcela e as próximas? As parcelas anteriores serão mantidas. Você está apagando{" "}
+      <span className="font-black text-white">
+        "{deletingTransaction.descricao}"
+      </span>
+      .
+    </>
+  );
+}
+    
+  if (isTransfer) {
+    return (
+      <>
+        Tem certeza que quer excluir esta transferência?
+        Você está apagando{" "}
+        <span className="font-black text-slate-800 dark:text-slate-100">
+          "{deletingTransaction.descricao}"
+        </span>
+      </>
+    );
+  }
+
+  if (isCartaoParceladoComum) {
+    return (
+      <>
+        Você está apagando{" "}
+        <span className="font-black text-slate-800 dark:text-slate-100">
+          "{deletingTransaction.descricao}"
+        </span>
+        <span className="block mt-3 text-sm leading-7 text-slate-200/85">
+          Atenção: isso excluirá esta parcela e todas as próximas deste
+          parcelamento. As parcelas anteriores serão mantidas.
+        </span>
+      </>
+    );
+  }
+
+  if (deletingTransaction.recorrenciaId) {
+    return (
+      <>
+        Você está apagando{" "}
+        <span className="font-black text-slate-800 dark:text-slate-100">
+          "{deletingTransaction.descricao}"
+        </span>
+        {isPagamentoFatura ? (
+          <div className="mt-2 text-slate-700 dark:text-slate-200 text-sm">
+            <span className="font-bold">Atenção:</span> isso também apagará o{" "}
+            <span className="font-bold">registro do pagamento</span> da fatura.
+          </div>
+        ) : null}
+        . Como deseja prosseguir?
+      </>
+    );
+  }
 
   return (
-    <div className="mt-2 text-slate-700 dark:text-slate-200 text-sm">
-      <span className="font-bold">Atenção:</span> isso também apagará o{" "}
-      <span className="font-bold">registro do pagamento</span> da fatura.
-    </div>
+    <>
+      Tem certeza que quer excluir este lançamento? Você está apagando{" "}
+      <span className="font-black text-slate-800 dark:text-slate-100">
+        "{deletingTransaction.descricao}"
+      </span>
+      {/^fatura\s*:/i.test(String(deletingTransaction?.descricao ?? "")) && (
+        <span className="block mt-2 text-sm text-slate-700 dark:text-slate-200">
+          Atenção: ao excluir esta fatura, o registro de pagamento do cartão
+          relacionado a ela também será apagado.
+        </span>
+      )}
+    </>
   );
 })()}
-    . Como deseja prosseguir?
-  </>
-) : (
-  <>
-    Tem certeza que quer excluir este lançamento? Você está apagando{" "}
-    <span className="font-black text-slate-800 dark:text-slate-100">
-      "{deletingTransaction.descricao}"
-    </span>
-{/^fatura\s*:/i.test(String(deletingTransaction?.descricao ?? "")) && (
-  <span className="block mt-2 text-sm text-slate-700 dark:text-slate-200">
-    Atenção: ao excluir esta fatura, o registro de pagamento do cartão relacionado a ela também será apagado.
-  </span>
-)}
-  
-  </>
-)}
 
            </div>
 
            <div className="space-y-2.5">
+            
+{(() => {
+  const txBtn: any = deletingTransaction;
+  const parcelaAtualBtn = Number(
+    txBtn?.parcelaAtual ?? txBtn?.payload?.parcelaAtual ?? 0
+  );
+  const totalParcelasBtn = Number(
+    txBtn?.totalParcelas ?? txBtn?.payload?.totalParcelas ?? 0
+  );
+
+const recorrenciaIdBtn = String(
+  txBtn?.recorrenciaId ?? txBtn?.payload?.recorrenciaId ?? ""
+).trim();
+
+const isCartaoParceladoComumBtn =
+  String(txBtn?.tipo ?? "") === "cartao_credito" &&
+  !!recorrenciaIdBtn &&
+  totalParcelasBtn > 1 &&
+  parcelaAtualBtn > 0;
+
+  return (
+   <>
+
               <button
                 onClick={() => confirmarExclusao(false)}
-                className={`w-full py-4 rounded-2xl font-black transition-colors ${
+                className={`w-full py-3 rounded-2xl text-[14px] font-black whitespace-nowrap transition-colors ${
                   deletingTransaction.recorrenciaId
-                    ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                    ? "bg-rose-600 text-white shadow-lg shadow-rose-950/30 hover:bg-rose-700"
                     : "bg-rose-600 text-white shadow-lg shadow-rose-200 dark:shadow-none hover:bg-rose-700"
                 }`}
               >
-                {deletingTransaction.categoria === "Transferência"
+{deletingTransaction.categoria === "Transferência"
   ? "Excluir transferência"
-  : (deletingTransaction.recorrenciaId ? "Excluir apenas este lançamento" : "Sim, excluir lançamento")}
+  : isCartaoParceladoComumBtn
+    ? "Excluir esta parcela em diante"
+    : (recorrenciaIdBtn ? "Excluir apenas este lançamento" : "Sim, excluir lançamento")}
 
               </button>
 
-              {deletingTransaction.recorrenciaId && deletingTransaction.categoria !== "Transferência" && (
+             {recorrenciaIdBtn && deletingTransaction.categoria !== "Transferência" && !isCartaoParceladoComumBtn && (
                 <button
                   onClick={() => confirmarExclusao(true)}
                   className="w-full py-4 bg-rose-600 text-white rounded-2xl font-black shadow-lg shadow-rose-200 dark:shadow-none hover:bg-rose-700 transition-colors"
@@ -4769,10 +5253,13 @@ onDeleteTransacao={(id: string) => {
 
               <button
                 onClick={() => setDeletingTransaction(null)}
-                className="w-full py-4 text-slate-400 dark:text-slate-500 font-bold text-sm uppercase transition-colors"
+                className="w-full py-2.5 text-slate-300/80 hover:text-white font-bold text-[13px] uppercase transition-colors"
               >
                 Voltar
               </button>
+                    </>
+    );
+  })()}
             </div>
           </div>
         </div>

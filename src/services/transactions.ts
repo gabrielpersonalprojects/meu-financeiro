@@ -96,36 +96,47 @@ export async function insertTransaction(input: InsertTransactionInput) {
 export function mapTransactionRowToApp(row: TransactionRow) {
   const payload = row.payload ?? {};
 
-  return {
-    id: row.id,
-    tipo: row.tipo,
-    valor: Number(row.valor ?? 0),
-    data: row.data,
-    descricao: row.descricao ?? "",
-    categoria: row.categoria ?? "",
-    tag: row.tag ?? "",
-    pago: !!row.pago,
+return {
+  id: row.id,
+  tipo: row.tipo,
+  valor: Number(row.valor ?? 0),
+  data: row.data,
+  descricao: row.descricao ?? "",
+  categoria: row.categoria ?? "",
+  tag: row.tag ?? "",
+  pago: !!row.pago,
 
-    contaId: row.conta_id ?? undefined,
-    contaOrigemId: row.conta_origem_id ?? undefined,
-    contaDestinoId: row.conta_destino_id ?? undefined,
-    qualCartao: row.cartao_id ?? payload.qualCartao ?? "",
+  contaId: row.conta_id ?? undefined,
+  contaOrigemId: row.conta_origem_id ?? undefined,
+  contaDestinoId: row.conta_destino_id ?? undefined,
 
-    transferFromId: row.transfer_from_id ?? "",
-    transferToId: row.transfer_to_id ?? "",
-    qualConta: row.qual_conta ?? "",
-    criadoEm: row.criado_em ?? undefined,
+  cartaoId: row.cartao_id ?? payload.cartaoId ?? "",
+  qualCartao: row.cartao_id ?? payload.qualCartao ?? payload.cartaoId ?? "",
 
-    metodoPagamento: payload.metodoPagamento ?? "",
-    tipoGasto: payload.tipoGasto ?? "",
-    recorrenciaId: payload.recorrenciaId ?? "",
-    isRecorrente: payload.isRecorrente ?? false,
-    contraParte: payload.contraParte ?? "",
-    transferId: payload.transferId ?? "",
-    observacoes: payload.observacoes ?? "",
-    parcelaAtual: payload.parcelaAtual ?? undefined,
-    totalParcelas: payload.totalParcelas ?? undefined,
-  };
+  transferFromId: row.transfer_from_id ?? "",
+  transferToId: row.transfer_to_id ?? "",
+  qualConta: row.qual_conta ?? "",
+  criadoEm: row.criado_em ?? undefined,
+
+metodoPagamento: payload.metodoPagamento ?? "",
+tipoGasto: payload.tipoGasto ?? "",
+recorrenciaId: row.payload?.recorrenciaId ?? (row as any).recorrenciaId ?? "",
+isRecorrente: payload.isRecorrente ?? false,
+contraParte: payload.contraParte ?? "",
+transferId: row.payload?.transferId ?? (row as any).transferId ?? "",
+observacoes: payload.observacoes ?? "",
+
+parcelaAtual:
+  row.payload?.parcelaAtual ?? (row as any).parcelaAtual ?? undefined,
+totalParcelas:
+  row.payload?.totalParcelas ?? (row as any).totalParcelas ?? undefined,
+
+  origemLancamento: payload.origemLancamento ?? "",
+  parcelamentoFaturaId: payload.parcelamentoFaturaId ?? "",
+  faturaOrigemCicloKey: payload.faturaOrigemCicloKey ?? "",
+
+  payload,
+};
 }
 
 export async function updateTransactionPago(id: string, pago: boolean) {

@@ -264,50 +264,47 @@ useEffect(() => {
     setSessionLoading(false);
 
     try {
-      const rows = await fetchAccounts();
-      console.log("ACCOUNTS SUPABASE:", rows);
+const creditCardsPromise = fetchCreditCards();
+const rowsPromise = fetchAccounts();
+const txRowsPromise = fetchTransactions();
+const invoicePaymentRowsPromise = fetchInvoicePayments();
+const invoiceInstallmentsRowsPromise = fetchInvoiceInstallments();
+const invoiceManualStatusRowsPromise = fetchInvoiceManualStatus();
 
-      const profilesFromDb = rows.map(mapAccountRowToProfile);
+const creditCardRows = await creditCardsPromise;
+setCreditCards(creditCardRows.map(mapCreditCardRowToApp) as any);
+setCreditCardsLoaded(true);
 
-      if (profilesFromDb.length > 0) {
-        setProfiles(profilesFromDb as any);
-      }
-
-      const txRows = await fetchTransactions();
-      console.log("TRANSACTIONS SUPABASE:", txRows);
-
-      const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
-
-      if (appTransactionsFromDb.length > 0) {
-        setTransacoes(appTransactionsFromDb as any);
-      }
-
-      const creditCardRows = await fetchCreditCards();
-      console.log("CREDIT_CARDS SUPABASE:", creditCardRows);
-
-      setCreditCards(creditCardRows.map(mapCreditCardRowToApp) as any);
-      setCreditCardsLoaded(true);
-
-      const invoicePaymentRows = await fetchInvoicePayments();
-      console.log("INVOICE_PAYMENTS SUPABASE:", invoicePaymentRows);
-
-      setPagamentosFatura(
-        (invoicePaymentRows ?? []).map(mapInvoicePaymentRowToApp) as any
-      );
-
-      const invoiceInstallmentsRows = await fetchInvoiceInstallments();
-      console.log("INVOICE_INSTALLMENTS SUPABASE:", invoiceInstallmentsRows);
-
-      setParcelamentosFatura(
-        (invoiceInstallmentsRows ?? []).map(mapInvoiceInstallmentRowToApp) as any
-      );
-
-      const invoiceManualStatusRows = await fetchInvoiceManualStatus();
-      console.log("INVOICE_MANUAL_STATUS SUPABASE:", invoiceManualStatusRows);
-
-      setFaturasStatusManual(
-        (invoiceManualStatusRows ?? []).map(mapInvoiceManualStatusRowToApp) as any
-      );
+const [
+  rows,
+  txRows,
+  invoicePaymentRows,
+  invoiceInstallmentsRows,
+  invoiceManualStatusRows,
+] = await Promise.all([
+  rowsPromise,
+  txRowsPromise,
+  invoicePaymentRowsPromise,
+  invoiceInstallmentsRowsPromise,
+  invoiceManualStatusRowsPromise,
+]);
+const profilesFromDb = rows.map(mapAccountRowToProfile);
+if (profilesFromDb.length > 0) {
+  setProfiles(profilesFromDb as any);
+}
+const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
+if (appTransactionsFromDb.length > 0) {
+  setTransacoes(appTransactionsFromDb as any);
+}
+setPagamentosFatura(
+  (invoicePaymentRows ?? []).map(mapInvoicePaymentRowToApp) as any
+);
+setParcelamentosFatura(
+  (invoiceInstallmentsRows ?? []).map(mapInvoiceInstallmentRowToApp) as any
+);
+setFaturasStatusManual(
+  (invoiceManualStatusRows ?? []).map(mapInvoiceManualStatusRowToApp) as any
+);
     } catch (err) {
       console.error("ERRO SUPABASE ACCOUNTS:", err);
       setCreditCardsLoaded(true);
@@ -2011,17 +2008,17 @@ setTransacoes(loadOrMigrateTransacoes());
   }, [activeProfileId]);
 
 useEffect(() => {
-  if (isClearingRef.current || isClearing || !isDataLoadedRef.current) return;
-
   persistTransacoes(transacoes);
+}, [transacoes]);
 
-  const safeProfileId = activeProfileId?.trim();
-  if (!safeProfileId) return;
-
-  localStorage.setItem(buildProfileStorageKey(safeProfileId, "categorias"), JSON.stringify(categorias));
-  localStorage.setItem(buildProfileStorageKey(safeProfileId, "metodosPagamento"), JSON.stringify(metodosPagamento));
-  localStorage.setItem(buildProfileStorageKey(safeProfileId, "userName"), userName);
-}, [transacoes, categorias, metodosPagamento, userName, activeProfileId, isClearing]);
+useEffect(() => {
+  localStorage.setItem("meu-financeiro-categorias", JSON.stringify(categorias));
+  localStorage.setItem(
+    "meu-financeiro-metodos",
+    JSON.stringify(metodosPagamento)
+  );
+  localStorage.setItem("meu-financeiro-username", userName);
+}, [categorias, metodosPagamento, userName]);
 
   // --- Helpers ---
 
@@ -4096,7 +4093,6 @@ onClick={async (e) => {
 {selectedCcCard ? (
   <div className={isCcExpanded ? "" : "hidden"}>
   <CreditDashboard
-  key={`${selectedCcCard.id}_${creditJumpMonth}`}
   initialMonth={creditJumpMonth}
     cartao={{
       id: selectedCcCard.id ?? "",

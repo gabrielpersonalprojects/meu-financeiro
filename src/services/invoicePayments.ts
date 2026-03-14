@@ -10,6 +10,7 @@ export type InvoicePaymentRow = {
   account_id: string | null;
   account_label: string | null;
   transaction_id: string | null;
+  snapshot_created_at_ms: number | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -23,6 +24,7 @@ export type InvoicePaymentApp = {
   contaId?: string | null;
   contaLabel?: string | null;
   transacaoId?: string | null;
+  snapshotCreatedAtMs?: number | null;
 };
 
 export const mapInvoicePaymentRowToApp = (
@@ -37,6 +39,7 @@ export const mapInvoicePaymentRowToApp = (
     contaId: row.account_id ?? null,
     contaLabel: row.account_label ?? null,
     transacaoId: row.transaction_id ?? null,
+    snapshotCreatedAtMs: row.snapshot_created_at_ms ?? null,
   };
 };
 
@@ -54,6 +57,7 @@ export const mapInvoicePaymentAppToInsert = (
     account_id: payment.contaId ?? null,
     account_label: payment.contaLabel ?? null,
     transaction_id: payment.transacaoId ?? null,
+    snapshot_created_at_ms: payment.snapshotCreatedAtMs ?? null,
   };
 };
 

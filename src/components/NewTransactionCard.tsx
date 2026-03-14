@@ -354,6 +354,20 @@ const canSubmit =
   }
 }, [isCC]);
 
+useEffect(() => {
+  const isTransfer = formTipo === "transferencia";
+  const isContaNormal = !isCC && !isTransfer;
+
+  if (!isContaNormal) return;
+  if (safeStr(formQualCartao) !== "") return;
+  if (!Array.isArray(profiles) || profiles.length === 0) return;
+
+  const primeiraContaId = safeStr(profiles[0]?.id);
+  if (!primeiraContaId) return;
+
+  setFormQualCartao(primeiraContaId);
+}, [formTipo, isCC, formQualCartao, profiles, setFormQualCartao]);
+
   const ccCardOptions =
     (creditCards || []).map((c: any) => ({
       label: getCardLabel(c),

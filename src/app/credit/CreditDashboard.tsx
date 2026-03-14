@@ -58,6 +58,7 @@ type PagamentoFaturaUI = {
   contaLabel?: string | null;
   criadoEm?: number;
   transacaoId?: string | null;
+  snapshotCreatedAtMs?: number | null;
 };
 
 type FaturaStatusManualUI = {
@@ -588,6 +589,16 @@ const cicloKeyFaturaAnterior = `${cartao.id}__${formatDateOnlyISO(
   cicloInicioAnterior
 )}__${formatDateOnlyISO(cicloFimAnterior)}`;
 
+const statusManualAnteriorObj =
+  faturasStatusManual.find(
+    (item) =>
+      String(item.cartaoId) === String(cartao.id) &&
+      String(item.cicloKey) === String(cicloKeyFaturaAnterior)
+  ) ?? null;
+
+const faturaAnteriorParcelada =
+  statusManualAnteriorObj?.statusManual === "parcelada";
+
 const pagamentosDaFaturaAnterior = pagamentosFatura
   .filter(
     (p) =>
@@ -621,18 +632,29 @@ const saldoFaturaAnterior = Math.max(
   valorTotalFaturaAnterior - valorPagoFaturaAnterior
 );
 
+const agoraAnterior0 = startOfDay(new Date()).getTime();
+const cicloFimAnteriorEOD = endOfDay(cicloFimAnterior).getTime();
+
 const faturaAnteriorFoiPaga =
-  valorTotalFaturaAnterior > 0 && saldoFaturaAnterior <= 0 && valorPagoFaturaAnterior > 0;
+  valorTotalFaturaAnterior > 0 &&
+  saldoFaturaAnterior <= 0 &&
+  valorPagoFaturaAnterior > 0;
+
+const faturaAnteriorEmAberto =
+  valorTotalFaturaAnterior > 0 &&
+  saldoFaturaAnterior > 0 &&
+  agoraAnterior0 <= cicloFimAnteriorEOD;
 
 const faturaAnteriorEstaAtrasada =
   valorTotalFaturaAnterior > 0 &&
   saldoFaturaAnterior > 0 &&
-  startOfDay(new Date()).getTime() > startOfDay(vencimentoFaturaAnterior).getTime();
+  agoraAnterior0 > startOfDay(vencimentoFaturaAnterior).getTime();
 
-  const faturaAnteriorFechadaAguardandoPagamento =
+const faturaAnteriorFechadaAguardandoPagamento =
   valorTotalFaturaAnterior > 0 &&
   saldoFaturaAnterior > 0 &&
-  startOfDay(new Date()).getTime() <= startOfDay(vencimentoFaturaAnterior).getTime();
+  agoraAnterior0 > cicloFimAnteriorEOD &&
+  agoraAnterior0 <= startOfDay(vencimentoFaturaAnterior).getTime();
 
   useEffect(() => {
     onSaldoRestanteChange?.(Number(saldoRestanteFatura ?? 0));
@@ -732,6 +754,18 @@ const faturaAnteriorEstaAtrasada =
     statusManualAtualObj?.statusManual === "parcelada"
       ? "border-violet-300/60 bg-violet-50 text-violet-800 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-300"
       : faturaStatusClass[faturaStatus];
+
+      const podeParcelarFatura =
+  !parcelamentoAtual &&
+  statusManualAtualObj?.statusManual !== "parcelada" &&
+  (faturaStatus === "FECHADA" || faturaStatus === "ATRASADA");
+
+  useEffect(() => {
+  if (invoiceActionMode !== "parcelamento") return;
+  if (podeParcelarFatura) return;
+
+  setInvoiceActionMode("pagamento");
+}, [invoiceActionMode, podeParcelarFatura]);
 
 const valorOriginalParcelamento = parseCurrencyInputBR(invoiceParcelamentoValorOriginal);
 const valorParcelaParcelamento = parseCurrencyInputBR(invoiceParcelamentoValorParcela);
@@ -849,6 +883,13 @@ console.log("CREDIT_DASHBOARD VAI CHAMAR onRegistrarPagamentoFatura", {
 const registrarParcelamentoFatura = () => {
   setErroPagamentoFatura("");
   setSucessoPagamentoFatura("");
+
+if (!podeParcelarFatura) {
+  setErroPagamentoFatura(
+    "O parcelamento da fatura só pode ser feito quando a fatura estiver fechada ou atrasada."
+  );
+  return;
+}
 
   const qtd = Number(invoiceParcelamentoQtd);
   const valorParcela = parseCurrencyInputBR(invoiceParcelamentoValorParcela);
@@ -1411,6 +1452,14 @@ return (
   <div className="mt-0.5 text-[12px] font-semibold text-emerald-700 leading-none dark:text-emerald-400">
     - {moedaBR(valorPagoFaturaAnterior)}
   </div>
+) : faturaAnteriorParcelada ? (
+  <div className="mt-0.5 text-[12px] font-semibold text-violet-700 leading-none dark:text-violet-400">
+    Parcelada
+  </div>
+) : faturaAnteriorEmAberto ? (
+  <div className="mt-0.5 text-[12px] font-semibold text-sky-700 leading-none dark:text-sky-400">
+    {moedaBR(saldoFaturaAnterior)}
+  </div>
 ) : faturaAnteriorEstaAtrasada ? (
   <div className="mt-0.5 text-[12px] font-semibold text-rose-700 leading-none dark:text-rose-400">
     Em atraso
@@ -1554,25 +1603,53 @@ return (
                   const isNeg = valor < 0;
 
                   const parcelasTotal = (t as any).parcelasTotal ?? (t as any).totalParcelas ?? null;
-                  const parcelaAtual = (t as any).parcelaAtual ?? (t as any).parcelaN ?? null;
-                  const isParcelado = Boolean(parcelasTotal && parcelaAtual);
+const parcelaAtual = (t as any).parcelaAtual ?? (t as any).parcelaN ?? null;
+const isParcelado = Boolean(parcelasTotal && parcelaAtual);
 
-                  const catLabel = categoriaToLabel(t.categoria);
+const origemLancamentoTx = String(
+  (t as any)?.origemLancamento ??
+    (t as any)?.payload?.origemLancamento ??
+    ""
+).trim();
 
-                  const ultimoPgtoTs = (() => {
-                    const ts = (pagamentosDoCiclo ?? [])
-                      .map((p: any) => Number(p?.criadoEm ?? 0))
-                      .filter((n: number) => Number.isFinite(n) && n > 0)
-                      .sort((a: number, b: number) => a - b);
-                    return ts.length ? ts[ts.length - 1] : null;
-                  })();
+const descricaoTx = String((t as any)?.descricao ?? "").trim().toLowerCase();
+const catLabel = categoriaToLabel(t.categoria);
+const catLabelNorm = String(catLabel ?? "").trim().toLowerCase();
 
-                  const podeExcluirCompra = (tx: any) => {
-                    if (!ultimoPgtoTs) return true;
-                    const txTs = Number(tx?.criadoEm ?? 0);
-                    if (!Number.isFinite(txTs) || txTs <= 0) return false;
-                    return txTs > Number(ultimoPgtoTs);
-                  };
+const isParcelaDeAcordoFatura =
+  origemLancamentoTx === "parcelamento_fatura" ||
+  !!String(
+    (t as any)?.parcelamentoFaturaId ??
+      (t as any)?.payload?.parcelamentoFaturaId ??
+      ""
+  ).trim() ||
+  descricaoTx.startsWith("parcelamento de fatura") ||
+  catLabelNorm === "parcelamento de fatura";
+  
+  const isFaturaAtualParcelada =
+  !!parcelamentoAtual ||
+  statusManualAtualObj?.statusManual === "parcelada";
+
+const isTransacaoOriginalDaFaturaParcelada =
+  isFaturaAtualParcelada && !isParcelaDeAcordoFatura;
+
+const snapshotBloqueioMaisRecente = (() => {
+  const ts = (pagamentosDoCiclo ?? [])
+    .map((p: any) => Number(p?.snapshotCreatedAtMs ?? 0))
+    .filter((n: number) => Number.isFinite(n) && n > 0)
+    .sort((a: number, b: number) => a - b);
+
+  return ts.length ? ts[ts.length - 1] : null;
+})();
+
+const podeExcluirCompra = (tx: any) => {
+  if (!snapshotBloqueioMaisRecente) return true;
+
+  const txTs = Number(tx?.criadoEm ?? 0);
+  if (!Number.isFinite(txTs) || txTs <= 0) return false;
+
+  return txTs > Number(snapshotBloqueioMaisRecente);
+};
 
                   return (
                     <li
@@ -1629,54 +1706,37 @@ return (
                             {valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                           </div>
 
-                          {onDeleteTransacao && podeExcluirCompra(t) ? (
-<button
-  type="button"
-  disabled={!!parcelamentoAtual}
-  onClick={() => {
-    if (parcelamentoAtual) {
-      setErroPagamentoFatura(
-        "Não é possível excluir transações enquanto esta fatura estiver parcelada."
-      );
-      return;
-    }
-
-    if (!podeExcluirCompra(t)) return;
-    onDeleteTransacao(t.id);
-  }}
-  className={`h-8 w-8 inline-flex items-center justify-center transition ${
-    parcelamentoAtual
-      ? "cursor-not-allowed text-slate-300 dark:text-white/20"
-      : "text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
-  }`}
-  title={
-    parcelamentoAtual
-      ? "Não é possível excluir transações enquanto a fatura estiver parcelada."
-      : "Excluir transação"
-  }
-  aria-label={
-    parcelamentoAtual
-      ? "Exclusão bloqueada para fatura parcelada"
-      : "Excluir transação"
-  }
->
-  <svg
-    viewBox="0 0 24 24"
-    className="h-4 w-4"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+{onDeleteTransacao &&
+ !isParcelaDeAcordoFatura &&
+ !isTransacaoOriginalDaFaturaParcelada &&
+ podeExcluirCompra(t) ? (
+  <button
+    type="button"
+    onClick={() => {
+      if (!podeExcluirCompra(t)) return;
+      onDeleteTransacao(t.id);
+    }}
+    className="h-8 w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
+    title="Excluir transação"
+    aria-label="Excluir transação"
   >
-    <path d="M3 6h18" />
-    <path d="M8 6V4h8v2" />
-    <path d="M6 6l1 14h10l1-14" />
-    <path d="M10 11v6" />
-    <path d="M14 11v6" />
-  </svg>
-</button>
-                          ) : null}
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M6 6l1 14h10l1-14" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  </button>
+) : null}
                         </div>
                       </div>
                     </li>
@@ -1831,19 +1891,20 @@ return (
 
         <button
           type="button"
-          onClick={() => {
-            setInvoiceActionMode("parcelamento");
-            setErroPagamentoFatura("");
-            setSucessoPagamentoFatura("");
-            if (!invoiceParcelamentoValorOriginal && saldoRestanteFatura > 0) {
-              setInvoiceParcelamentoValorOriginal(
-                saldoRestanteFatura.toLocaleString("pt-BR", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
-              );
-            }
-          }}
+onClick={() => {
+  setSucessoPagamentoFatura("");
+
+  if (!podeParcelarFatura) {
+    setErroPagamentoFatura(
+      "O parcelamento só está disponível para faturas fechadas ou atrasadas."
+    );
+    setInvoiceActionMode("pagamento");
+    return;
+  }
+
+  setErroPagamentoFatura("");
+  setInvoiceActionMode("parcelamento");
+}}
           className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition ${
             invoiceActionMode === "parcelamento"
               ? "bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900"

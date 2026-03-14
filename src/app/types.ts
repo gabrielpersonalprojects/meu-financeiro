@@ -72,6 +72,7 @@ export type PagamentoFaturaApp = {
   contaLabel?: string | null;
   criadoEm?: number;
   transacaoId?: string | null;
+  snapshotCreatedAtMs?: number | null;
 };
 
 export type ParcelamentoFaturaApp = {

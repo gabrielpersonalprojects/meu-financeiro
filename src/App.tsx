@@ -139,7 +139,7 @@ import {
 
 
 
-const SEM_PRAZO_MESES = 60;
+const SEM_PRAZO_MESES = 12;
 const hojeStr = getHojeLocal();
 
 
@@ -2579,6 +2579,8 @@ const isCartaoParceladoComum =
   totalParcelasNum > 1 &&
   parcelaAtualNum > 0;
 
+  const isRecorrenciaComum = !!recorrenciaIdTx && !isCartaoParceladoComum;
+
        const alvoPagamento = (pagamentosFatura ?? []).find((p: any) => {
       const pId = String(p?.id ?? "");
       const pTxId = String(
@@ -3247,6 +3249,7 @@ if (!formQualCartao) {
   toastCompact("Selecione uma conta para salvar o lançamento.", "error");
   return;
 }
+const formTipoGastoNorm = String(formTipoGasto ?? "").trim().toLowerCase(); 
 
 if (formTipo === "despesa") {
   if (isParceladoMode === null) {
@@ -3260,9 +3263,9 @@ if (!isParceladoMode && !formTipoGasto) {
 }
 }
 
-    const precisaEscolherPrazo =
-      (formTipo === "despesa" && isParceladoMode === false && formTipoGasto === "fixo") ||
-      (formTipo === "receita" && formTipoGasto === "fixo");
+const precisaEscolherPrazo =
+  (formTipo === "despesa" && isParceladoMode === false && formTipoGastoNorm === "fixo") ||
+  (formTipo === "receita" && formTipoGastoNorm === "fixo");
 
     if (precisaEscolherPrazo && prazoMode === null) {
       toastCompact("Selecione 'Com prazo' ou 'Sem prazo' para continuar.", "error");
@@ -3300,7 +3303,7 @@ if (!isParceladoMode && !formTipoGasto) {
     }
 
     // recorrente fixo
-    else if (formTipoGasto === "fixo") {
+   else if (formTipoGastoNorm === "fixo") {
       const dataInicio = new Date(formData + "T12:00:00");
       let mesesParaGerar = 12;
 
@@ -3348,7 +3351,10 @@ if (!isParceladoMode && !formTipoGasto) {
         valor: sign * valorNum,
         data: formData,
         categoria: formCat,
-        tipoGasto: formTipo === "despesa" ? (formTipoGasto || "normal") : "",
+        tipoGasto:
+  formTipo === "despesa"
+    ? ((formTipoGastoNorm || "normal") as SpendingType)
+    : "",
         metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
         qualCartao: formQualCartao,
         contaId: formQualCartao,
@@ -4383,7 +4389,10 @@ const isCartaoParceladoComumTarget =
   totalParcelasTarget > 1 &&
   parcelaAtualTarget > 0;
 
-if (isCartaoParceladoComumTarget) {
+  const isRecorrenciaComumTarget =
+  !!recorrenciaIdTarget && !isCartaoParceladoComumTarget;
+
+if (isCartaoParceladoComumTarget || isRecorrenciaComumTarget) {
   setDeletingTransaction(target as any);
   return;
 }
@@ -5316,6 +5325,9 @@ await deleteTransactionById(String(id), userId);
                   totalParcelasBtn > 1 &&
                   parcelaAtualBtn > 0;
 
+const isRecorrenciaComumBtn =
+  !!recorrenciaIdBtn && !isCartaoParceladoComumBtn;
+
                 return (
                   <>
                     <button
@@ -5326,14 +5338,13 @@ await deleteTransactionById(String(id), userId);
                         ? "Excluir transferência"
                         : isCartaoParceladoComumBtn
                         ? "Excluir esta parcela em diante"
-                        : recorrenciaIdBtn
+                        : isRecorrenciaComumBtn
                         ? "Excluir apenas este lançamento"
                         : "Sim, excluir lançamento"}
                     </button>
 
-                    {recorrenciaIdBtn &&
-                      deletingTransaction.categoria !== "Transferência" &&
-                      !isCartaoParceladoComumBtn && (
+                        {isRecorrenciaComumBtn &&
+                          deletingTransaction.categoria !== "Transferência" && (
                         <button
                           onClick={() => confirmarExclusao(true)}
                           className="w-full rounded-2xl bg-rose-600 py-3 text-[14px] font-black text-white transition-colors hover:bg-rose-700"

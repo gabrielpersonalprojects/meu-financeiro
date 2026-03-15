@@ -391,7 +391,7 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
 
 <div className="pt-1">
   <p className="text-[10px] font-black text-white/80 uppercase tracking-[0.25em] mb-3">
-    Saldo Disponível
+    Saldo Atual
   </p>
 
   <p className="text-4xl font-black text-white tracking-tight leading-none">

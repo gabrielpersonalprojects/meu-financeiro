@@ -61,10 +61,13 @@ export const mapInvoicePaymentAppToInsert = (
   };
 };
 
-export async function fetchInvoicePayments(): Promise<InvoicePaymentRow[]> {
+export async function fetchInvoicePayments(
+  userId: string
+): Promise<InvoicePaymentRow[]> {
   const { data, error } = await supabase
     .from("invoice_payments")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -84,11 +87,12 @@ export async function insertInvoicePayment(
   return data as InvoicePaymentRow;
 }
 
-export async function deleteInvoicePaymentById(id: string) {
+export async function deleteInvoicePaymentById(id: string, userId: string) {
   const { error } = await supabase
     .from("invoice_payments")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (error) throw error;
 }

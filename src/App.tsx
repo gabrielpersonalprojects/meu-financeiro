@@ -237,13 +237,16 @@ useEffect(() => {
     setSession(data.session);
     setSessionLoading(false);
 
+      const userId = data.session?.user?.id;
+  if (!userId) return;
+
     try {
-const creditCardsPromise = fetchCreditCards();
-const rowsPromise = fetchAccounts();
-const txRowsPromise = fetchTransactions();
-const invoicePaymentRowsPromise = fetchInvoicePayments();
-const invoiceInstallmentsRowsPromise = fetchInvoiceInstallments();
-const invoiceManualStatusRowsPromise = fetchInvoiceManualStatus();
+const creditCardsPromise = fetchCreditCards(userId);
+const rowsPromise = fetchAccounts(userId);
+const txRowsPromise = fetchTransactions(userId);
+const invoicePaymentRowsPromise = fetchInvoicePayments(userId);
+const invoiceInstallmentsRowsPromise = fetchInvoiceInstallments(userId);
+const invoiceManualStatusRowsPromise = fetchInvoiceManualStatus(userId);
 
 const creditCardRows = await creditCardsPromise;
 setCreditCards(creditCardRows.map(mapCreditCardRowToApp) as any);
@@ -681,10 +684,16 @@ const handleRemoverPagamentoFatura = async (pagamentoId: string) => {
   if (!alvo) return;
 
   try {
-    await deleteInvoicePaymentById(String(alvo.id));
+    const userId = session?.user?.id;
+if (!userId) return;
+
+await deleteInvoicePaymentById(String(alvo.id), userId);
 
 if (alvo.transacaoId && isUuid(String(alvo.transacaoId))) {
-  await deleteTransactionById(String(alvo.transacaoId));
+  const userId = session?.user?.id;
+if (!userId) return;
+
+await deleteTransactionById(String(alvo.transacaoId), userId);
 }
 
     setPagamentosFatura((prev) =>
@@ -722,7 +731,10 @@ const handleCancelarParcelamentoFatura = async ({
   if (!parcelamentoId) return;
 
   try {
-    await updateInvoiceInstallmentStatusById(parcelamentoId, "cancelado");
+    const userId = session?.user?.id;
+if (!userId) return;
+
+await updateInvoiceInstallmentStatusById(parcelamentoId, userId, "cancelado");
 
     const acordo = (parcelamentosFatura ?? []).find(
       (p: any) => String(p?.id ?? "").trim() === parcelamentoId
@@ -798,7 +810,10 @@ const transacoesRelacionadas = (transacoes ?? []).filter((t: any) => {
     ).trim();
 
     if (cartaoIdFinal && cicloKeyFinal) {
-      await deleteInvoiceManualStatusByCycle(cartaoIdFinal, cicloKeyFinal);
+      const userId = session?.user?.id;
+if (!userId) return;
+
+await deleteInvoiceManualStatusByCycle(cartaoIdFinal, cicloKeyFinal, userId);
     }
 
     const transacoesUuid = transacoesRelacionadas.filter((t: any) =>
@@ -806,11 +821,14 @@ const transacoesRelacionadas = (transacoes ?? []).filter((t: any) => {
     );
 
     if (transacoesUuid.length > 0) {
-      await Promise.all(
-        transacoesUuid.map((t: any) =>
-          deleteTransactionById(String((t as any).id))
-        )
-      );
+await Promise.all(
+  transacoesUuid.map((t: any) => {
+    const userId = session?.user?.id;
+    if (!userId) return Promise.resolve();
+
+    return deleteTransactionById(String((t as any).id), userId);
+  })
+);
     }
 
     setParcelamentosFatura((prev: any[]) =>
@@ -1065,7 +1083,10 @@ if (existe) {
   
   // ====== EDITANDO ======
 if (editingProfileId) {
-  const updatedRow = await updateAccountById(editingProfileId, {
+  const userId = session?.user?.id;
+if (!userId) return;
+
+const updatedRow = await updateAccountById(editingProfileId, userId, {
     banco: accBanco.trim() || "Conta",
     name: accBanco.trim() || "Conta",
     numero_conta: accNumeroConta.trim(),
@@ -1134,7 +1155,11 @@ const handleDeleteAccount = async (idOrName: string) => {
   if (!contaId) return;
 
   try {
-  await deleteAccountById(contaId);
+  const userId = session?.user?.id;
+if (!userId) return;
+
+await deleteAccountById(contaId, userId);
+
 } catch (err) {
   console.error("ERRO AO EXCLUIR CONTA NO SUPABASE:", err);
   toastCompact("Erro ao excluir conta no banco.", "error");
@@ -1788,8 +1813,11 @@ const handleSaveNewCreditCard = async () => {
 
     let savedRow;
 
+const userId = session?.user?.id;
+if (!userId) return;
+
     if (isEditingLimite) {
-      savedRow = await updateCreditCardById(card.id, payload);
+      savedRow = await updateCreditCardById(card.id, userId, payload);
     } else {
       const { data, error } = await supabase
         .from("credit_cards")
@@ -2331,12 +2359,15 @@ const salvarEdicao = async () => {
       listaEditada.map((t: any) => [String(t.id), t])
     );
 
+const userId = session?.user?.id;
+if (!userId) return;
+
     await Promise.all(
       idsParaAtualizar.map(async (id) => {
         const tx = mapaEditadas.get(id);
         if (!tx) return;
 
-        await updateTransactionById(id, {
+        await updateTransactionById(id, userId, {
           valor: Number(tx.valor ?? 0),
           data: String(tx.data ?? ""),
           descricao: String(tx.descricao ?? ""),
@@ -2428,7 +2459,9 @@ const transferId = String(
       return;
     }
 
-    await updateTransactionPago(id, novoPago);
+    const userId = session?.user?.id;
+if (!userId) return;
+    await updateTransactionPago(id, userId, novoPago);
 
     setTransacoes((prev: any[]) =>
       prev.map((t: any) =>
@@ -2500,7 +2533,10 @@ const isCartaoParceladoComum =
     });
 
     if (alvoPagamento) {
-      await deleteInvoicePaymentById(String(alvoPagamento.id));
+      const userId = session?.user?.id;
+if (!userId) return;
+
+await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
 
       setPagamentosFatura((prev) =>
         (prev ?? []).filter(
@@ -2514,9 +2550,14 @@ const isCartaoParceladoComum =
         (t: any) => String(t?.transferId ?? "") === String(transferId)
       );
 
-      await Promise.all(
-        relacionadas.map((t: any) => deleteTransactionById(String(t.id)))
-      );
+const userId = session?.user?.id;
+if (!userId) return;
+
+await Promise.all(
+  relacionadas.map((t: any) =>
+    deleteTransactionById(String(t.id), userId)
+  )
+);
 
       setTransacoes((prev: any[]) =>
         prev.filter((t: any) => String((t as any)?.transferId) !== String(transferId))
@@ -2549,9 +2590,14 @@ if (apagarEmDiante && recorrenciaIdTx) {
     return String(t.data ?? "") >= String(deletingTransaction.data ?? "");
   });
 
-  await Promise.all(
-    relacionadas.map((t: any) => deleteTransactionById(String(t.id)))
-  );
+ const userId = session?.user?.id;
+if (!userId) return;
+
+await Promise.all(
+  relacionadas.map((t: any) =>
+    deleteTransactionById(String(t.id), userId)
+  )
+);
 
   setTransacoes((prev) =>
   prev.filter((t: any) => {
@@ -2574,7 +2620,10 @@ if (apagarEmDiante && recorrenciaIdTx) {
 
   toastCompact(`Parcelamento atualizado: "${desc}".`, "success");
 } else {
-      await deleteTransactionById(String(deletingTransaction.id));
+      const userId = session?.user?.id;
+if (!userId) return;
+
+await deleteTransactionById(String(deletingTransaction.id), userId);
 
       setTransacoes((prev) =>
         prev.filter((t) => String(t.id) !== String(deletingTransaction.id))
@@ -4008,7 +4057,9 @@ onClick={async (e) => {
   if (!ok) return;
 
   try {
-    await deleteCreditCardById(c.id);
+    const userId = session?.user?.id;
+if (!userId) return;
+    await deleteCreditCardById(c.id, userId);
 
     setCreditCards((prev) => {
       const next = prev.filter((x) => x.id !== c.id);
@@ -4279,7 +4330,10 @@ if (isCartaoParceladoComumTarget) {
 
       try {
         if (alvoPagamento) {
-          await deleteInvoicePaymentById(String(alvoPagamento.id));
+          const userId = session?.user?.id;
+if (!userId) return;
+
+await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
 
           setPagamentosFatura((prev) =>
             (prev ?? []).filter(
@@ -4289,7 +4343,10 @@ if (isCartaoParceladoComumTarget) {
         }
 
         if (isUuid(String(id))) {
-          await deleteTransactionById(String(id));
+          const userId = session?.user?.id;
+if (!userId) return;
+
+await deleteTransactionById(String(id), userId);
         }
 
         setTransacoes((prev) => {

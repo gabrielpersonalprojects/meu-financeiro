@@ -26,14 +26,15 @@ export type TransactionRow = {
   updated_at?: string;
 };
 
-export async function fetchTransactions() {
+export async function fetchTransactions(userId: string) {
   const { data, error } = await supabase
     .from("transactions")
     .select("*")
-    .order("data", { ascending: false });
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []) as TransactionRow[];
+  return data ?? [];
 }
 
 export type InsertTransactionInput = {
@@ -139,34 +140,33 @@ totalParcelas:
 };
 }
 
-export async function updateTransactionPago(id: string, pago: boolean) {
+export async function updateTransactionPago(
+  id: string,
+  userId: string,
+  pago: boolean
+) {
   const { data, error } = await supabase
     .from("transactions")
     .update({ pago })
     .eq("id", id)
+    .eq("user_id", userId)
     .select()
     .single();
 
   if (error) throw error;
-  return data as TransactionRow;
+  return data;
 }
 
 export async function updateTransactionById(
   id: string,
-  updates: Partial<{
-    valor: number;
-    data: string;
-    descricao: string;
-    categoria: string;
-    tag: string;
-    pago: boolean;
-    payload: Record<string, any>;
-  }>
+  userId: string,
+  updates: any
 ) {
   const { data, error } = await supabase
     .from("transactions")
     .update(updates)
     .eq("id", id)
+    .eq("user_id", userId)
     .select()
     .single();
 
@@ -174,11 +174,12 @@ export async function updateTransactionById(
   return data as TransactionRow;
 }
 
-export async function deleteTransactionById(id: string) {
+export async function deleteTransactionById(id: string, userId: string) {
   const { error } = await supabase
     .from("transactions")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (error) throw error;
 }
@@ -198,13 +199,4 @@ export async function updateTransactionsPagoByTransferId(
     .map((r: any) => r.id);
 
   if (!ids.length) return [];
-
-  const { data, error } = await supabase
-    .from("transactions")
-    .update({ pago })
-    .in("id", ids)
-    .select();
-
-  if (error) throw error;
-  return data as TransactionRow[];
 }

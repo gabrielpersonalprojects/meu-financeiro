@@ -56,12 +56,13 @@ export const mapInvoiceManualStatusAppToInsert = (
   };
 };
 
-export async function fetchInvoiceManualStatus(): Promise<
-  InvoiceManualStatusRow[]
-> {
+export async function fetchInvoiceManualStatus(
+  userId: string
+): Promise<InvoiceManualStatusRow[]> {
   const { data, error } = await supabase
     .from("invoice_manual_status")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -83,24 +84,27 @@ export async function upsertInvoiceManualStatus(
   return data as InvoiceManualStatusRow;
 }
 
-export async function deleteInvoiceManualStatusById(id: string) {
+export async function deleteInvoiceManualStatusById(id: string, userId: string) {
   const { error } = await supabase
     .from("invoice_manual_status")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (error) throw error;
 }
 
 export async function deleteInvoiceManualStatusByCycle(
   cartaoId: string,
-  cicloKey: string
+  cicloKey: string,
+  userId: string
 ) {
   const { error } = await supabase
     .from("invoice_manual_status")
     .delete()
     .eq("cartao_id", cartaoId)
-    .eq("ciclo_key", cicloKey);
+    .eq("ciclo_key", cicloKey)
+    .eq("user_id", userId);
 
   if (error) throw error;
 }

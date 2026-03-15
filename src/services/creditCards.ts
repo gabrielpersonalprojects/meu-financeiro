@@ -73,10 +73,11 @@ last4: "",
   };
 };
 
-export async function fetchCreditCards(): Promise<CreditCardRow[]> {
+export async function fetchCreditCards(userId: string): Promise<CreditCardRow[]> {
   const { data, error } = await supabase
     .from("credit_cards")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -94,14 +95,37 @@ export async function insertCreditCard(row: ReturnType<typeof mapCreditCardAppTo
   return data as CreditCardRow;
 }
 
+type UpdateCreditCardInput = {
+  name?: string;
+  brand?: string | null;
+  limit_cents?: number;
+  due_day?: number;
+  closing_day?: number;
+  color?: string | null;
+  perfil_cartao?: string | null;
+  active?: boolean;
+};
+
 export async function updateCreditCardById(
   id: string,
-  patch: Partial<ReturnType<typeof mapCreditCardAppToInsert>>
+  userId: string,
+  input: UpdateCreditCardInput
 ) {
+  
   const { data, error } = await supabase
     .from("credit_cards")
-    .update(patch)
+    .update({
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.brand !== undefined ? { brand: input.brand } : {}),
+      ...(input.limit_cents !== undefined ? { limit_cents: input.limit_cents } : {}),
+      ...(input.due_day !== undefined ? { due_day: input.due_day } : {}),
+      ...(input.closing_day !== undefined ? { closing_day: input.closing_day } : {}),
+      ...(input.color !== undefined ? { color: input.color } : {}),
+      ...(input.perfil_cartao !== undefined ? { perfil_cartao: input.perfil_cartao } : {}),
+      ...(input.active !== undefined ? { active: input.active } : {}),
+    })
     .eq("id", id)
+    .eq("user_id", userId)
     .select()
     .single();
 
@@ -109,11 +133,12 @@ export async function updateCreditCardById(
   return data as CreditCardRow;
 }
 
-export async function deleteCreditCardById(id: string) {
+export async function deleteCreditCardById(id: string, userId: string) {
   const { error } = await supabase
     .from("credit_cards")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (error) throw error;
 }

@@ -14,10 +14,11 @@ export type AccountRow = {
   updated_at?: string;
 };
 
-export async function fetchAccounts() {
+export async function fetchAccounts(userId: string) {
   const { data, error } = await supabase
     .from("accounts")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: true });
 
   if (error) throw error;
@@ -75,11 +76,12 @@ export function mapAccountRowToProfile(row: AccountRow) {
   };
 }
 
-export async function deleteAccountById(id: string) {
+export async function deleteAccountById(id: string, userId: string) {
   const { error } = await supabase
     .from("accounts")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (error) throw error;
 }
@@ -94,7 +96,11 @@ export type UpdateAccountInput = {
   initial_balance_cents?: number;
 };
 
-export async function updateAccountById(id: string, input: UpdateAccountInput) {
+export async function updateAccountById(
+  id: string,
+  userId: string,
+  input: UpdateAccountInput
+) {
   const { data, error } = await supabase
     .from("accounts")
     .update({
@@ -115,6 +121,7 @@ export async function updateAccountById(id: string, input: UpdateAccountInput) {
         : {}),
     })
     .eq("id", id)
+    .eq("user_id", userId)
     .select()
     .single();
 

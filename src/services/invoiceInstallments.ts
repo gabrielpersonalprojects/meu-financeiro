@@ -76,12 +76,13 @@ export const mapInvoiceInstallmentAppToInsert = (
   };
 };
 
-export async function fetchInvoiceInstallments(): Promise<
-  InvoiceInstallmentRow[]
-> {
+export async function fetchInvoiceInstallments(
+  userId: string
+): Promise<InvoiceInstallmentRow[]> {
   const { data, error } = await supabase
     .from("invoice_installments")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -103,12 +104,14 @@ export async function insertInvoiceInstallment(
 
 export async function updateInvoiceInstallmentStatusById(
   id: string,
+  userId: string,
   status: "ativo" | "cancelado" | "concluido" | string
 ) {
   const { data, error } = await supabase
     .from("invoice_installments")
     .update({ status })
     .eq("id", id)
+    .eq("user_id", userId)
     .select()
     .single();
 
@@ -116,11 +119,15 @@ export async function updateInvoiceInstallmentStatusById(
   return data as InvoiceInstallmentRow;
 }
 
-export async function deleteInvoiceInstallmentById(id: string) {
+export async function deleteInvoiceInstallmentById(
+  id: string,
+  userId: string
+) {
   const { error } = await supabase
     .from("invoice_installments")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (error) throw error;
 }

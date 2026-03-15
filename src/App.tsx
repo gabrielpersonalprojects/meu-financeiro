@@ -2055,21 +2055,91 @@ const RESET_APP_PHRASE = "REINICIAR";
 const [resetAppOpen, setResetAppOpen] = useState(false);
 const [resetAppText, setResetAppText] = useState("");
 
-const executarLimpezaTotal = () => {
-  try {
-    // se quiser preservar theme, descomenta as 2 linhas:
-    // const theme = localStorage.getItem("theme");
+const executarLimpezaTotal = async () => {
+  if (isClearingRef.current) return;
 
+  const userId = session?.user?.id;
+  if (!userId) {
+    toastCompact("Sessão inválida para limpar os dados.", "error");
+    return;
+  }
+
+  isClearingRef.current = true;
+  setIsClearing(true);
+
+  try {
+    // 1) limpa tabelas auxiliares primeiro
+    const { error: errManual } = await supabase
+      .from("invoice_manual_status")
+      .delete()
+      .eq("user_id", userId);
+
+    if (errManual) throw errManual;
+
+    const { error: errPayments } = await supabase
+      .from("invoice_payments")
+      .delete()
+      .eq("user_id", userId);
+
+    if (errPayments) throw errPayments;
+
+    const { error: errInstallments } = await supabase
+      .from("invoice_installments")
+      .delete()
+      .eq("user_id", userId);
+
+    if (errInstallments) throw errInstallments;
+
+    // 2) limpa transações
+    const { error: errTransactions } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("user_id", userId);
+
+    if (errTransactions) throw errTransactions;
+
+    // 3) limpa cartões
+    const { error: errCards } = await supabase
+      .from("credit_cards")
+      .delete()
+      .eq("user_id", userId);
+
+    if (errCards) throw errCards;
+
+    // 4) limpa contas
+    const { error: errAccounts } = await supabase
+      .from("accounts")
+      .delete()
+      .eq("user_id", userId);
+
+    if (errAccounts) throw errAccounts;
+
+    // 5) limpa estados em memória
+    setTransacoes([]);
+    setPagamentosFatura([]);
+    setParcelamentosFatura([]);
+    setFaturasStatusManual([]);
+    setCreditCards([]);
+    setProfiles([]);
+    setSelectedCreditCardId("");
+    setActiveProfileId("");
+    setEditingTransaction(null);
+    setDeletingTransaction(null);
+
+    // 6) limpa storage local
     localStorage.clear();
     sessionStorage.clear();
 
-    // se quiser preservar theme, descomenta:
-    // if (theme) localStorage.setItem("theme", theme);
+    toastCompact("Dados apagados com sucesso.", "success");
+
+    // reload limpo
+    window.location.href = window.location.origin + window.location.pathname;
   } catch (e) {
     console.error("RESET ERROR:", e);
+    toastCompact("Erro ao limpar os dados do app.", "error");
   } finally {
-    // reload “limpo” (evita algum estado preso)
-    window.location.href = window.location.origin + window.location.pathname;
+    isClearingRef.current = false;
+    setIsClearing(false);
   }
 };
 
@@ -2085,7 +2155,7 @@ const confirmarResetApp = () => {
   setResetAppOpen(false);
   setResetAppText("");
 
-  executarLimpezaTotal();
+  void executarLimpezaTotal();
 };
 
 const handleLimparDados = () => {

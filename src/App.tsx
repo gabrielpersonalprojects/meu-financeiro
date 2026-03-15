@@ -1553,7 +1553,7 @@ const [ccLimite, setCcLimite] = useState("");
 const [ccLimiteRaw, setCcLimiteRaw] = useState("");
 const [isEditingLimite, setIsEditingLimite] = useState(false);
 const [ccPerfil, setCcPerfil] = useState<"pf" | "pj">("pf");
-
+const [isSavingCreditCard, setIsSavingCreditCard] = useState(false);
 
 type CreditCard = {
   id: string;
@@ -1739,6 +1739,7 @@ const maskMoedaBR = (value: string) => {
 
 
 const handleSaveNewCreditCard = async () => {
+  if (isSavingCreditCard) return;
   const nome = ccNome.trim();
   const emissor = ccEmissor.trim();
   const validade = ccValidade.trim();
@@ -1795,7 +1796,7 @@ const handleSaveNewCreditCard = async () => {
     gradientFrom: CC_DESIGNS.find((d) => d.id === ccDesignId)?.from ?? "#220055",
     gradientTo: CC_DESIGNS.find((d) => d.id === ccDesignId)?.to ?? "#4600ac",
   };
-
+  setIsSavingCreditCard(true);
   try {
     const payload = {
       nome: card.name,
@@ -1850,10 +1851,12 @@ if (!userId) return;
     closeAddCardModal();
     toastCompact(isEditingLimite ? "Cartão atualizado." : "Cartão cadastrado.", "success");
     setIsEditingLimite(false);
-  } catch (err) {
-    console.error("ERRO AO SALVAR/ATUALIZAR CARTÃO:", err);
-    toastCompact("Erro ao salvar cartão no banco.", "error");
-  }
+} catch (err) {
+  console.error("ERRO AO SALVAR/ATUALIZAR CARTÃO:", err);
+  toastCompact("Erro ao salvar cartão no banco.", "error");
+} finally {
+  setIsSavingCreditCard(false);
+}
 };
 
 
@@ -4850,13 +4853,17 @@ await deleteTransactionById(String(id), userId);
           Cancelar
         </button>
 
-        <button
-          type="button"
-          onClick={handleSaveNewCreditCard}
-          className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold"
-        >
-          Salvar
-        </button>
+<button
+  type="button"
+  disabled={isSavingCreditCard}
+  onClick={() => {
+    if (isSavingCreditCard) return;
+    handleSaveNewCreditCard();
+  }}
+  className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold"
+>
+  {isSavingCreditCard ? "Salvando..." : "Salvar"}
+</button>
       </div>
     </div>
   </div>

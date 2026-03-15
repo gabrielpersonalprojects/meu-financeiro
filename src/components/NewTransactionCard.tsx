@@ -110,6 +110,7 @@ type Props = {
 
   // submit
   handleAddTransaction: () => void;
+  isSubmittingTransaction: boolean;
 
   // layout do centro
   setModoCentro?: Dispatch<SetStateAction<"normal" | "credito">>;
@@ -254,6 +255,7 @@ export default function NewTransactionCard({
 
   setModoCentro,
   handleAddTransaction,
+  isSubmittingTransaction,
 }: Props) {
   // trocar aba / tipo (mata espelhamento e seta layout do centro certo)
   const trocarTipo = (tipo: TransactionType) => {
@@ -1049,8 +1051,11 @@ onClick={() => {
 
 <button
   type="button"
+  disabled={isSubmittingTransaction}
   onClick={() => {
-    // Bloqueia mas MOSTRA mensagem
+    if (isSubmittingTransaction) return;
+
+    // bloqueia mas MOSTRA mensagem
     if (!canSubmit) {
       toastCompact("Antes de lançar é preciso selecionar a conta", "error");
       return;
@@ -1062,12 +1067,11 @@ onClick={() => {
     "mt-4 w-full h-12 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac]",
     "text-white font-black tracking-wide shadow-lg shadow-violet-900/20",
     "hover:brightness-110 active:scale-[0.99] transition",
-    // visual quando não pode (SEM opacidade)
-    !canSubmit ? "cursor-not-allowed" : "",
+    (!canSubmit || isSubmittingTransaction) ? "cursor-not-allowed opacity-90" : "",
   ].join(" ")}
   aria-disabled={!canSubmit}
 >
-  Efetuar Lançamento
+  {isSubmittingTransaction ? "Lançando..." : "Efetuar Lançamento"}
 </button>
       </div>
     </div>

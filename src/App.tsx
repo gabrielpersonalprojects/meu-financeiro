@@ -152,6 +152,7 @@ const hojeStr = getHojeLocal();
 
   const App: FC = () => {
     const addTxLockRef = useRef(false);
+    const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
     const [ccTags, setCcTags] = useState<string[]>(() => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CC_TAGS);
@@ -950,6 +951,7 @@ const TIPOS_CONTA = [
 
 const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
 const [accTab, setAccTab] = useState<"novo" | "gerenciar">("novo");
+const [isSavingAccount, setIsSavingAccount] = useState(false);
 
 const [accPerfilConta, setAccPerfilConta] = useState<"PF" | "PJ">("PF");
 const [accTipoConta, setAccTipoConta] = useState<string>(TIPOS_CONTA[0]);
@@ -1033,6 +1035,7 @@ const handleOpenEditAccount = (id: string) => {
 
 
 const handleConfirmAddAccount = async () => {
+  if (isSavingAccount) return;
  const banco = accBanco.trim();
   const numeroConta = accNumeroConta.trim();
   const numeroAgencia = accNumeroAgencia.trim();
@@ -1114,6 +1117,7 @@ if (!session?.user?.id) {
   return;
 }
 
+setIsSavingAccount(true);
 try {
   const novo = await createAccountAndReturnProfile({
     user_id: session.user.id,
@@ -1132,6 +1136,8 @@ try {
 } catch (err) {
   console.error("ERRO AO CRIAR CONTA NO SUPABASE:", err);
   toastCompact("Erro ao salvar conta no banco.", "error");
+} finally {
+  setIsSavingAccount(false);
 }
 };
 
@@ -2852,6 +2858,7 @@ const getCardCycleMonthFromDate = (dataISO: string, diaFechamento: number) => {
 const handleAddTransaction = async () => {
   if (addTxLockRef.current) return;
   addTxLockRef.current = true;
+  setIsSubmittingTransaction(true);
 
   try {
     const valorNum = extrairValorMoeda(formValor);
@@ -3382,6 +3389,7 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
     console.error("ERRO AO SALVAR LANCAMENTO:", err);
     toastCompact("Erro ao salvar lançamento no banco.", "error");
   } finally {
+    setIsSubmittingTransaction(false);
     addTxLockRef.current = false;
   }
 };
@@ -3788,6 +3796,7 @@ onKeyDown={(e) => {
     setFormDataTerminoFixa={setFormDataTerminoFixa}
     SEM_PRAZO_MESES={SEM_PRAZO_MESES}
     handleAddTransaction={handleAddTransaction}
+    isSubmittingTransaction={isSubmittingTransaction}
     setModoCentro={setModoCentro}
     formTagCC={formTagCC}
     setFormTagCC={setFormTagCC}
@@ -5821,13 +5830,21 @@ className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate
           Cancelar
         </button>
 
-        <button
-          type="button"
-          onClick={handleConfirmAddAccount}
-          className="flex-1 py-2 rounded-lg bg-indigo-600 text-sm text-white font-extrabold hover:bg-indigo-500 transition"
-        >
-          {editingProfileId ? "Editar" : "Adicionar"}
-        </button>
+<button
+  type="button"
+  disabled={isSavingAccount}
+  onClick={() => {
+    if (isSavingAccount) return;
+    handleConfirmAddAccount();
+  }}
+  className="flex-1 py-2 rounded-lg bg-indigo-600 text-sm text-white font-extrabold hover:bg-indigo-500 transition"
+>
+  {isSavingAccount
+    ? "Salvando..."
+    : editingProfileId
+      ? "Editar"
+      : "Adicionar"}
+</button>
       </div>
     )}
   </div>

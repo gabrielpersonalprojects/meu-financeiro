@@ -379,7 +379,7 @@ useEffect(() => {
       ? selectedCreditCardId
       : "";
 
-  const ccCategoryOptions = (categorias as any).despesa as any; // gasto no cartão é despesa
+const ccCategoryOptions = (categorias as any).despesa as any; // gasto no cartão é despesa
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 lg:p-5">

@@ -2430,8 +2430,18 @@ const saldoInicialProjecao = useMemo(() => {
     return 0;
   };
 
-return profiles.reduce((sum: number, p: any) => sum + toReais(p), 0);
-}, [profiles]);
+const filteredProfiles = profiles.filter((p: any) => {
+  const perfil = String(
+    p?.perfil ?? p?.profileType ?? p?.tipo ?? ""
+  ).trim().toLowerCase();
+
+  if (projecaoPerfilView === "pf") return perfil === "pf";
+  if (projecaoPerfilView === "pj") return perfil === "pj";
+  return true;
+});
+
+return filteredProfiles.reduce((sum: number, p: any) => sum + toReais(p), 0);
+}, [profiles, projecaoPerfilView]);
 
 
 // --- Projeção ---

@@ -1751,7 +1751,7 @@ const handleSaveNewCreditCard = async () => {
   const validade = ccValidade.trim();
 
   if (!nome) {
-    toastCompact("Informe o nome do cartão.", "info");
+    toastCompact("Informe o nome do titular do cartão.", "info");
     return;
   }
 
@@ -1811,7 +1811,7 @@ const handleSaveNewCreditCard = async () => {
       dia_fechamento: Number(card.diaFechamento ?? 1),
       dia_vencimento: Number(card.diaVencimento ?? 10),
       bank_text: card.emissor || null,
-      categoria: card.categoria || null,
+      categoria: card.categoria || "",
       validade: card.validade || null,
       brand: "",
       last4: "",
@@ -1956,17 +1956,23 @@ useEffect(() => {
 
 const safeProfileId = activeProfileId?.trim();
 
-const savedCats = safeProfileId
-  ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "categorias"))
-  : null;
+const savedCats =
+  (safeProfileId
+    ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "categorias"))
+    : null) ??
+  localStorage.getItem("meu-financeiro-categorias");
 
-const savedMetodos = safeProfileId
-  ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "metodosPagamento"))
-  : null;
+const savedMetodos =
+  (safeProfileId
+    ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "metodosPagamento"))
+    : null) ??
+  localStorage.getItem("meu-financeiro-metodos");
 
-const savedName = safeProfileId
-  ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "userName"))
-  : null;
+const savedName =
+  (safeProfileId
+    ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "userName"))
+    : null) ??
+  localStorage.getItem("meu-financeiro-username");
 
     const parsedCats = savedCats ? JSON.parse(savedCats) : null;
     const catsOk = parsedCats && Array.isArray(parsedCats.despesa) && Array.isArray(parsedCats.receita);
@@ -1992,13 +1998,30 @@ const savedName = safeProfileId
   }, [activeProfileId]);
 
 useEffect(() => {
+  if (!isDataLoadedRef.current) return;
+  const safeProfileId = activeProfileId?.trim();
+
   localStorage.setItem("meu-financeiro-categorias", JSON.stringify(categorias));
+  localStorage.setItem("meu-financeiro-metodos", JSON.stringify(metodosPagamento));
+  localStorage.setItem("meu-financeiro-username", userName);
+
+  if (!safeProfileId) return;
+
   localStorage.setItem(
-    "meu-financeiro-metodos",
+    buildProfileStorageKey(safeProfileId, "categorias"),
+    JSON.stringify(categorias)
+  );
+
+  localStorage.setItem(
+    buildProfileStorageKey(safeProfileId, "metodosPagamento"),
     JSON.stringify(metodosPagamento)
   );
-  localStorage.setItem("meu-financeiro-username", userName);
-}, [categorias, metodosPagamento, userName]);
+
+  localStorage.setItem(
+    buildProfileStorageKey(safeProfileId, "userName"),
+    userName
+  );
+}, [activeProfileId, categorias, metodosPagamento, userName]);
 
   // --- Helpers ---
 
@@ -2724,23 +2747,47 @@ await deleteTransactionById(String(deletingTransaction.id), userId);
   // --- Categorias ---
   type CategoriaKey = "receita" | "despesa";
 
-  const adicionarCategoria = () => {
-    const nome = inputNovaCat.trim();
-    if (!nome) return;
+const adicionarCategoria = () => {
+  const nome = inputNovaCat.trim();
+  console.log("[DEBUG adicionarCategoria] nome:", nome);
+  console.log("[DEBUG adicionarCategoria] formTipo:", formTipo);
 
-    if (formTipo !== "receita" && formTipo !== "despesa") return;
+  if (!nome) {
+    console.log("[DEBUG adicionarCategoria] saiu por nome vazio");
+    return;
+  }
 
-    const key = formTipo as CategoriaKey;
+if (
+  formTipo !== "receita" &&
+  formTipo !== "despesa" &&
+  formTipo !== "cartao_credito"
+) {
+  console.log("[DEBUG adicionarCategoria] saiu por formTipo inválido:", formTipo);
+  return;
+}
 
-    setCategorias((prev: Categories) => {
-      const lista = prev[key] ?? [];
-      if (lista.includes(nome)) return prev;
-      return { ...prev, [key]: [...lista, nome] };
-    });
+ const key = (formTipo === "cartao_credito" ? "despesa" : formTipo) as CategoriaKey;
 
-    setInputNovaCat("");
-    setShowModalCategoria(false);
-  };
+  setCategorias((prev: Categories) => {
+    const lista = prev[key] ?? [];
+    console.log("[DEBUG adicionarCategoria] lista antes:", lista);
+
+    if (lista.includes(nome)) {
+      console.log("[DEBUG adicionarCategoria] categoria já existe");
+      return prev;
+    }
+
+    const next = { ...prev, [key]: [...lista, nome] };
+    console.log("[DEBUG adicionarCategoria] next:", next);
+    return next;
+  });
+
+  setFormCat(nome);
+
+  console.log("[DEBUG adicionarCategoria] fechando modal");
+  setInputNovaCat("");
+  setShowModalCategoria(false);
+};
 
 const removerCategoria = (tipo: "despesa" | "receita", valueOrIndex: string | number) => {
   setCategorias((prev: Categories) => {
@@ -3472,11 +3519,12 @@ const periodOfDay =
 <Toaster
   position="bottom-center"
   gutter={8}
-  containerStyle={{
-    bottom: 56,
-    left: 0,
-    right: 0,
-  }}
+containerStyle={{
+  bottom: 56,
+  left: 0,
+  right: 0,
+  zIndex: 999999,
+}}
   toastOptions={{
     duration: 2600,
     style: {
@@ -3490,6 +3538,7 @@ const periodOfDay =
       color: "#0f172a",
       border: "1px solid #cbd5e1",
       boxShadow: "0 12px 28px rgba(15, 23, 42, 0.18)",
+      zIndex: 999999,
     },
   }}
 />

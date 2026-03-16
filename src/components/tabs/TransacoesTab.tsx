@@ -10,7 +10,7 @@ import { getContaBadge, getContaLabel } from "../../domain";
 import { asId } from "../../utils/asId";
 import { getContaPartsById } from "../../app/transactions/logic";
 
-import { ArrowUpRight, ArrowDownRight, Eye, EyeOff } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Eye, EyeOff, Wallet } from "lucide-react";
 
 const isPaid = (v: any) => {
   const s = String(v ?? "").toLowerCase();
@@ -390,9 +390,10 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
 </div>
 
 <div className="pt-1">
-  <p className="text-[10px] font-black text-white/80 uppercase tracking-[0.25em] mb-3">
-    Saldo Atual
-  </p>
+<p className="mb-3 flex items-center gap-1.5 text-[10px] font-black text-white/80 uppercase tracking-[0.25em]">
+  <Wallet className="h-3.5 w-3.5 text-white" strokeWidth={2.2} />
+  <span>Saldo Atual</span>
+</p>
 
   <p className="text-4xl font-black text-white tracking-tight leading-none">
     {valorOuOculto(stats.saldoTotal)}

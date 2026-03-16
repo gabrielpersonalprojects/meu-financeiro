@@ -1531,16 +1531,16 @@ const toggleCcDetails = (id: string) => {
   setSelectedCreditCardId(id);
 };
 
-useEffect(() => {
-  if (!isCcExpanded || !selectedCreditCardId) return;
+//useEffect(() => {
+// if (!isCcExpanded || !selectedCreditCardId) return;
 
-  const card = creditCards.find((c) => String(c.id) === String(selectedCreditCardId));
-  if (!card) return;
+//  const card = creditCards.find((c) => String(c.id) === String(selectedCreditCardId));
+//  if (!card) return;
 
-  const cicloCorreto = getCardCycleMonthOnOpen(card);
+//  const cicloCorreto = getCardCycleMonthOnOpen(card);
 
-  setCreditJumpMonth((prev) => (prev === cicloCorreto ? prev : cicloCorreto));
-}, [isCcExpanded, selectedCreditCardId, creditCards]);
+//  setCreditJumpMonth((prev) => (prev === cicloCorreto ? prev : cicloCorreto));
+// }, [isCcExpanded, selectedCreditCardId, creditCards]);
 
 const closeCcDetails = () => setIsCcExpanded(false);
 
@@ -2921,14 +2921,19 @@ const getCardCycleMonthFromDate = (dataISO: string, diaFechamento: number) => {
   const dt = new Date(`${dataISO}T12:00:00`);
   if (Number.isNaN(dt.getTime())) return getHojeLocal().slice(0, 7);
 
-  const ano = dt.getFullYear();
-  const mes = dt.getMonth();
   const dia = dt.getDate();
+  const fechamento = Number(diaFechamento ?? 1);
 
-  return dia > Number(diaFechamento ?? 1)
-    ? `${ano}-${String(mes + 3).padStart(2, "0")}`
-    : `${ano}-${String(mes + 2).padStart(2, "0")}`;
+  const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
+
+  // Regra atual do app:
+  // - até o fechamento => próxima fatura
+  // - depois do fechamento => fatura do mês seguinte
+  base.setMonth(base.getMonth() + (dia > fechamento ? 2 : 1));
+
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
 };
+
 // --- Add Transaction (com suporte simples a transferencia/cartao_credito) ---
 const handleAddTransaction = async () => {
   if (addTxLockRef.current) return;
@@ -3193,6 +3198,11 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
           : rawCat?.nome ?? rawCat?.name ?? rawCat?.label ?? rawCat?.titulo ?? rawCat?.value) ?? "";
 
       const total = Math.abs(valorNum);
+      const getFaturaMesTx = (dataIso: string) =>
+  getCardCycleMonthFromDate(
+    dataIso,
+    Number(selectedCard?.diaFechamento ?? 1)
+  );
 
       const makeId = (suffix: string) => {
         try {
@@ -3221,6 +3231,7 @@ novos.push({
   descricao: `${descBase} (${i + 1}/${parcelas})`,
   valor: -Math.abs(valorParcela),
   data: d.toISOString().split("T")[0],
+  faturaMes: getFaturaMesTx(d.toISOString().split("T")[0]),
   categoria: categoriaBase || undefined,
   tag: tagCC || undefined,
   tipoGasto: "fixo",
@@ -3259,6 +3270,7 @@ novos.push({
             descricao: descBase,
             valor: -Math.abs(total),
             data: d.toISOString().split("T")[0],
+            faturaMes: getFaturaMesTx(d.toISOString().split("T")[0]),
             categoria: categoriaBase || undefined,
             tag: tagCC || undefined,
             tipoGasto: "fixo",
@@ -3280,6 +3292,7 @@ novos.push({
           descricao: descBase,
           valor: -Math.abs(total),
           data: baseDate.toISOString().split("T")[0],
+          faturaMes: getFaturaMesTx(baseDate.toISOString().split("T")[0]),
           categoria: categoriaBase || undefined,
           tag: tagCC || undefined,
           tipoGasto: (formTipoGasto as any) ?? "",
@@ -3474,6 +3487,7 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
     addTxLockRef.current = false;
   }
 };
+
 const creditItSelecionado = useMemo<Transaction[]>(() => {
   const cardId = String(selectedCreditCardId ?? "").trim();
   if (!cardId) return [];
@@ -3484,8 +3498,13 @@ const creditItSelecionado = useMemo<Transaction[]>(() => {
 
       const refCartaoId = String((t as any).cartaoId ?? "").trim();
       const refQualCartao = String((t as any).qualCartao ?? "").trim();
+      const refQualConta = String((t as any).qualConta ?? "").trim();
 
-      return refCartaoId === cardId || refQualCartao === cardId;
+      return (
+        refCartaoId === cardId ||
+        refQualCartao === cardId ||
+        refQualConta === cardId
+      );
     })
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
 }, [transacoes, selectedCreditCardId]);
@@ -3964,30 +3983,31 @@ function normalizePaymentCycleKeyToYm(raw: any): string {
 const anoAtual = agora.getFullYear();
 const mesAtual = agora.getMonth();
 
-const cicloBase =
-  agora.getDate() > Number(c.diaFechamento ?? 1)
-    ? `${anoAtual}-${String(mesAtual + 3).padStart(2, "0")}`
-    : `${anoAtual}-${String(mesAtual + 2).padStart(2, "0")}`;
+const cicloBase = getCardCycleMonthFromDate(
+  getHojeLocal(),
+  Number(c.diaFechamento ?? 1)
+);
 
 const inferirCicloDaTransacao = (t: any): string => {
   const ciclo = String((t as any).faturaMes ?? "").trim();
   if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
 
   const dataRaw = String((t as any).data ?? "").trim();
-  const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
-  if (!dataTx || Number.isNaN(dataTx.getTime())) return "";
+  if (!dataRaw) return "";
 
-  const anoTx = dataTx.getFullYear();
-  const mesTx = dataTx.getMonth();
-  const diaTx = dataTx.getDate();
-
-  return diaTx > Number(c.diaFechamento ?? 1)
-    ? `${anoTx}-${String(mesTx + 3).padStart(2, "0")}`
-    : `${anoTx}-${String(mesTx + 2).padStart(2, "0")}`;
+  return getCardCycleMonthFromDate(
+    dataRaw,
+    Number(c.diaFechamento ?? 1)
+  );
 };
 
 const transacoesDoCartao = transacoes.filter((t: any) => {
-  const cartaoTxId = String((t as any).qualCartao ?? (t as any).cartaoId ?? "");
+  const cartaoTxId = String(
+  (t as any).qualCartao ??
+  (t as any).cartaoId ??
+  (t as any).qualConta ??
+  ""
+);
   const tipo = String((t as any)?.tipo ?? "").toLowerCase();
   const parcelamentoFaturaId = String((t as any)?.parcelamentoFaturaId ?? "").trim();
 

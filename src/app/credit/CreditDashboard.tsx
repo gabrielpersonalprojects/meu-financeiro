@@ -367,12 +367,17 @@ const baseMonth = addMonths(baseMonthInicial, invoiceMonthOffset);
     return `${mesVencimento.getFullYear()}-${pad2(mesVencimento.getMonth() + 1)}`;
   };
 
-  const txMes = (transacoes || []).filter((t) => {
-    if (t.tipo !== "cartao_credito") return false;
-    const dt = parseISODateLocal(t.data);
-    if (Number.isNaN(dt.getTime())) return false;
-    return dt >= cicloInicio && dt <= cicloFim;
-  });
+const txMes = (transacoes || []).filter((t) => {
+  if (t.tipo !== "cartao_credito") return false;
+  const dt = parseISODateLocal(t.data);
+  if (Number.isNaN(dt.getTime())) return false;
+
+  const dt0 = startOfDay(dt);
+  const cicloInicio0 = startOfDay(cicloInicio);
+  const cicloFim0 = startOfDay(cicloFim);
+
+  return dt0 >= cicloInicio0 && dt0 <= cicloFim0;
+});
 
   const txDoCartao = useMemo(() => {
     return (transacoes || []).filter((t) => {

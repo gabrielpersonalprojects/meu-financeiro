@@ -45,9 +45,20 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
     document.body.style.paddingRight = "";
   }, []);
 
-  const normalized = useMemo<DropdownOption[]>(() => {
-    return options.map((opt: any) => (typeof opt === "string" ? { label: opt, value: opt } : opt));
-  }, [options]);
+const normalized = useMemo<DropdownOption[]>(() => {
+  const base = options.map((opt: any) =>
+    typeof opt === "string" ? { label: opt, value: opt } : opt
+  );
+
+  const isCategoryField = String(label ?? "").trim().toLowerCase() === "categoria";
+  const hasEmptyOption = base.some((opt: any) => String(opt?.value ?? "") === "");
+
+  if (isCategoryField && !hasEmptyOption) {
+    return [{ label: "Nenhuma", value: "" }, ...base];
+  }
+
+  return base;
+}, [options, label]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -60,10 +71,12 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const displayValue = useMemo(() => {
-    const found = normalized.find((o) => o.value === value);
-    return found ? found.label : placeholder;
-  }, [normalized, value, placeholder]);
+const displayValue = useMemo(() => {
+  if (String(value ?? "") === "") return placeholder;
+
+  const found = normalized.find((o) => o.value === value);
+  return found ? found.label : placeholder;
+}, [normalized, value, placeholder]);
 
   const recalcMenuHeight = () => {
     const el = containerRef.current;
@@ -153,7 +166,7 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
 
             {normalized.map((opt, idx) => {
               const optValue = opt.value;
-              const isFixed = optValue === "todas";
+              const isFixed = optValue === "todas" || optValue === "";
 
               return (
                 <div

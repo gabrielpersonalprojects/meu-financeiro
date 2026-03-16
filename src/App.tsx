@@ -1933,6 +1933,7 @@ useEffect(() => {
   setIsParceladoMode(null);
   setFormMetodo("");
   setFormQualCartao("");
+  setCcIsParceladoMode(null);
 
   // default do checkbox só quando TROCA o tipo
   if (formTipo === "receita") {
@@ -3290,6 +3291,10 @@ setFormValor("");
 setFormData(getHojeLocal());
 setFormPago(true);
 setFormTagCC("");
+setFormParcelas(2);
+setFormCat("");
+setFormTipoGasto("");
+setCcIsParceladoMode(null);
 
 toastCompact("Lançamento no cartão realizado com sucesso!", "success");
 return;
@@ -3431,6 +3436,8 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
     setFormCat("");
     setFormPago(formTipo === "receita" ? false : true);
     setIsParceladoMode(null);
+    setCcIsParceladoMode(null);
+    setFormParcelas(2);
 
     toastCompact("Lançamento realizado com sucesso!", "success");
   } catch (err) {

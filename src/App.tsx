@@ -5135,7 +5135,7 @@ await deleteTransactionById(String(id), userId);
                   <button
                     type="button"
                     onClick={async () => {
-                      await supabase.auth.signOut();
+                      await supabase.auth.signOut({ scope: "local" });
                       setSettingsOpen(false);
                     }}
                     className="h-9 px-3 rounded-xl text-[13px] font-semibold whitespace-nowrap

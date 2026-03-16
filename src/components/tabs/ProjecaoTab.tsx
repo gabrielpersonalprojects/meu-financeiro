@@ -104,7 +104,7 @@ export default function ProjecaoTab({
         {/* micro-ajuda opcional (se quiser, deixa; se não, apaga) */}
         <p className="mt-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
           {projectionMode === "acumulado"
-            ? "Em Acumulado o 'Saldo Projetado' considera o Saldo Inicial + Entradas - Saídas"
+            ? "Em Acumulado o 'Saldo Projetado' considera o Saldo Inicial + Receita - Despesa - Gastos c/ Cartões"
             : "Em Mensal o 'Resultado do mês' considera apenas Entradas - Saídas"}
         </p>
       </div>

@@ -2400,15 +2400,14 @@ const getMesAnoExtenso = useCallback((mesAno: string) => {
 }, []);
 
 const projection12Months = useProjection12Months({
-  transactions: transacoes, // <- SEMPRE a lista bruta
+  transactions: transacoes,
   getMesAnoExtenso,
   saldoInicialBase: saldoInicialProjecao,
   perfilView: projecaoPerfilView,
-profiles,
+  profiles,
+  creditCards,
   mode: projectionMode,
 });
-
-
 
 // --- Categorias filtradas para dropdown (Transações) ---
 const categoriasFiltradasTransacoes = useMemo(() => {

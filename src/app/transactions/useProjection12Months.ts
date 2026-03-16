@@ -8,7 +8,8 @@ type Params = {
   getMesAnoExtenso: (mesAno: string) => string;
   saldoInicialBase?: number;
   perfilView?: "geral" | "pf" | "pj";
-profiles?: Profile[];
+  profiles?: Profile[];
+  creditCards?: any[];
   mode: ProjectionMode;
 };
 
@@ -18,6 +19,7 @@ export function useProjection12Months({
   saldoInicialBase = 0,
   perfilView = "geral",
   profiles = [],
+  creditCards = [],
   mode,
 }: Params): ProjectionRow[] {
   return useMemo(() => {
@@ -27,6 +29,7 @@ export function useProjection12Months({
       saldoInicialBase,
       perfilView,
       profiles,
+      creditCards,
       mode,
     });
   }, [transactions, getMesAnoExtenso, saldoInicialBase, perfilView, profiles, mode]);

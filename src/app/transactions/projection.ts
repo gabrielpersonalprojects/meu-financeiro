@@ -41,9 +41,10 @@ export const computeProjection12Months = (params: {
   transacoes: Transaction[];
   getMesAnoExtenso: (mesAno: string) => string;
   mode?: ProjectionMode;
-  saldoInicialBase?: number; // em REAIS
+  saldoInicialBase?: number;
   perfilView?: PerfilView;
   profiles?: Profile[];
+  creditCards?: any[];
 }): ProjectionRow[] => {
 const {
   transacoes,
@@ -52,44 +53,84 @@ const {
   saldoInicialBase = 0,
   perfilView = "geral",
   profiles = [],
+  creditCards = [],
 } = params;
 
+const perfilViewNorm = String(perfilView ?? "geral").trim().toLowerCase();
+
 const getPerfilContaFromTransaction = (t: Transaction): "PF" | "PJ" | null => {
-  const profileId = String(
-    (t as any)?.profileId ??
-      (t as any)?.contaId ??
-      (t as any)?.qualConta ??
-      (t as any)?.conta?.id ??
-      (t as any)?.profile?.id ??
-      ""
-  ).trim();
+const cartaoId = String(
+  (t as any)?.qualConta ??
+    (t as any)?.qualCartao ??
+    (t as any)?.cartaoId ??
+    (t as any)?.creditCardId ??
+    (t as any)?.selectedCreditCardId ??
+    (t as any)?.payload?.qualConta ??
+    (t as any)?.payload?.qualCartao ??
+    (t as any)?.payload?.cartaoId ??
+    (t as any)?.payload?.creditCardId ??
+    (t as any)?.payload?.selectedCreditCardId ??
+    ""
+).trim();
 
-  if (!profileId) return null;
-
-  const profile = (profiles ?? []).find(
-    (p) => String((p as any)?.id ?? "").trim() === profileId
+if (cartaoId) {
+  const cartao = (creditCards ?? []).find(
+    (c: any) => String(c?.id ?? "").trim() === cartaoId
   );
 
-  const perfil = String((profile as any)?.perfilConta ?? "")
+  const perfilCartao = String((cartao as any)?.perfil ?? "")
     .trim()
     .toUpperCase();
 
-  if (perfil === "PF" || perfil === "PJ") return perfil;
+  if (perfilCartao === "PF" || perfilCartao === "PJ") return perfilCartao;
+}
+
   return null;
 };
 
 const transacoesFiltradas =
-  perfilView === "geral"
+  perfilViewNorm === "geral"
     ? transacoes
     : (transacoes ?? []).filter((t) => {
         const perfilConta = getPerfilContaFromTransaction(t);
-        return perfilView === "pf"
+        return perfilViewNorm === "pf"
           ? perfilConta === "PF"
           : perfilConta === "PJ";
       });
 
   const results: ProjectionRow[] = [];
   const now = new Date();
+
+  const debugPerfilCounts = (transacoes ?? []).reduce(
+  (acc, t) => {
+    const tipo = String((t as any)?.tipo ?? "").toLowerCase();
+    const perfil = getPerfilContaFromTransaction(t);
+
+    acc.total++;
+    if (perfil === "PF") acc.pf++;
+    if (perfil === "PJ") acc.pj++;
+    if (!perfil) acc.null++;
+
+    if (tipo === "cartao_credito") {
+      acc.cartaoTotal++;
+      if (perfil === "PF") acc.cartaoPf++;
+      if (perfil === "PJ") acc.cartaoPj++;
+      if (!perfil) acc.cartaoNull++;
+    }
+
+    return acc;
+  },
+  {
+    total: 0,
+    pf: 0,
+    pj: 0,
+    null: 0,
+    cartaoTotal: 0,
+    cartaoPf: 0,
+    cartaoPj: 0,
+    cartaoNull: 0,
+  }
+);
 
   // saldo acumulado (começa no saldo inicial das contas, respeitando filtro)
   let runningSaldo = Number(saldoInicialBase) || 0;
@@ -104,24 +145,49 @@ const monthTransactions = (transacoesFiltradas || [])
   .filter((t) => String((t as any).data || "").startsWith(targetMonthStr))
   .filter((t) => !isTransfer(t));
 
-const isPgtoFatura = (t: any) =>
-  String((t as any)?.descricao ?? "")
+const isPgtoFatura = (t: any) => {
+  const desc = String((t as any)?.descricao ?? "")
     .toLowerCase()
-    .trim()
-    .startsWith("fatura:");
-    const fixas = monthTransactions
-      .filter((t) => (t as any).tipo === "despesa" && (t as any).tipoGasto === "Fixo")
-      .reduce((s, t) => s + Math.abs(Number((t as any).valor) || 0), 0);
+    .trim();
+
+  const categoria = String((t as any)?.categoria ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return (
+    desc.startsWith("fatura:") ||
+    categoria.includes("fatura")
+  );
+};
+
+const fixas = monthTransactions
+  .filter((t) => {
+    const tipo = String((t as any).tipo ?? "").toLowerCase();
+    const tipoGasto = String((t as any).tipoGasto ?? "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    return tipo === "despesa" && tipoGasto === "fixo";
+  })
+  .reduce((s, t) => s + Math.abs(Number((t as any).valor) || 0), 0);
 
 const variaveis = monthTransactions
   .filter((t) => {
     const tipo = String((t as any).tipo ?? "").toLowerCase();
-    const tipoGasto = String((t as any).tipoGasto ?? "");
-    return (
-      tipo === "despesa" &&
-      (tipoGasto === "Variável" || isPgtoFatura(t))
-    );
+    const tipoGasto = String((t as any).tipoGasto ?? "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    const isCartao = tipo === "cartao_credito";
+    const isDespesaVariavel = tipo === "despesa" && tipoGasto === "variavel";
+    const isPagamentoFatura = isPgtoFatura(t);
+
+    return isCartao || isDespesaVariavel || isPagamentoFatura;
   })
+  .filter((t) => !isPgtoFatura(t))
   .reduce((s, t) => s + Math.abs(Number((t as any).valor) || 0), 0);
 
     const receitas = monthTransactions

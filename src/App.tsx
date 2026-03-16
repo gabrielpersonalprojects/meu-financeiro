@@ -4088,7 +4088,7 @@ const transacoesAteHoje = transacoesDoCartao.filter((t: any) => {
   return dataTx.getTime() <= hojeFiltro.getTime();
 });
 
-const transacoesDaFaturaAtual = transacoesAteHoje.filter(
+const transacoesDaFaturaAtual = transacoesDoCartao.filter(
   (t: any) => inferirCicloDaTransacao(t) === cicloBase
 );
 
@@ -4200,17 +4200,19 @@ const statusMiniCard: "normal" | "atrasada" | "zerada" =
               {/* CARTÃO (clicável) */}
               <button
                 type="button"
-                onClick={() => {
-                  // clicou no mesmo cartão -> alterna abrir/fechar
-                  if (c.id === selectedCreditCardId) {
-                    toggleCcExpanded();
-                    return;
-                  }
+onClick={() => {
+  setCreditJumpMonth(cicloBase);
 
-                  // clicou em outro cartão -> seleciona e abre (não fecha)
-                  setSelectedCreditCardId(c.id);
-                  setIsCcExpanded(true);
-                }}
+  // clicou no mesmo cartão -> alterna abrir/fechar
+  if (c.id === selectedCreditCardId) {
+    toggleCcExpanded();
+    return;
+  }
+
+  // clicou em outro cartão -> seleciona e abre (não fecha)
+  setSelectedCreditCardId(c.id);
+  setIsCcExpanded(true);
+}}
                 className={[
                   "w-full block text-left rounded-2xl transition-all",
                   "hover:bg-white/5",

@@ -1373,18 +1373,22 @@ return (
                 />
               </button>
             ) : (
-              <CreditCardVisual
-                nome={cartao.nome}
-                categoria={cartao.categoria ?? ""}
-                limite={cartao.limiteTotal}
-                fechamentoDia={cartao.diaFechamento}
-                vencimentoDia={cartao.diaVencimento}
-                emissor={cartao.bankText ?? ""}
-                design={{
-                  from: cartao.gradientFrom ?? "#220055",
-                  to: cartao.gradientTo ?? "#4600ac",
-                }}
-              />
+<CreditCardVisual
+  nome={cartao.nome}
+  categoria={cartao.categoria ?? ""}
+  perfil={cartao.brand ?? "pf"}
+  limite={cartao.limiteTotal}
+  limiteDisponivel={limiteDisponivel}
+  fechamentoDia={cartao.diaFechamento}
+  vencimentoDia={cartao.diaVencimento}
+  emissor={cartao.bankText ?? ""}
+emAberto={valorFaturaTotal}
+statusMiniCard={faturaStatus === "ATRASADA" ? "atrasada" : valorFaturaTotal <= 0 ? "zerada" : "normal"}
+  design={{
+    from: cartao.gradientFrom ?? "#220055",
+    to: cartao.gradientTo ?? "#4600ac",
+  }}
+/>
             )}
 
             <div className="mt-2 space-y-3"></div>

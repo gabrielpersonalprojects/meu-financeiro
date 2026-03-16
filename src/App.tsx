@@ -1812,6 +1812,7 @@ const handleSaveNewCreditCard = async () => {
       dia_vencimento: Number(card.diaVencimento ?? 10),
       bank_text: card.emissor || null,
       categoria: card.categoria || null,
+      validade: card.validade || null,
       brand: "",
       last4: "",
       gradient_from: card.gradientFrom || "#220055",

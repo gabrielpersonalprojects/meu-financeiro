@@ -121,14 +121,12 @@ function safeStr(v: any) {
 }
 
 function getCardLabel(card: any) {
-  // tenta montar um label “premium” com o que existir no objeto
   const banco = safeStr(card?.banco || card?.bank || card?.issuer || card?.emissor);
   const nome = safeStr(card?.nome || card?.name || card?.apelido || card?.nickname);
-  const categoria = safeStr(card?.categoria || card?.category || card?.tier);
   const perfil = safeStr(card?.perfil || card?.profile || card?.tipoPerfil || card?.scope);
 
-  const base = [banco || nome || "Cartão", categoria].filter(Boolean).join(" ");
-  const suffix = perfil ? `• ${perfil.toLowerCase()}` : "";
+  const base = banco || nome || "Cartão";
+  const suffix = perfil ? `• ${perfil.toUpperCase()}` : "";
 
   return `${base}${suffix ? ` ${suffix}` : ""}`.trim();
 }

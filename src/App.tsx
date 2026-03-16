@@ -1492,6 +1492,27 @@ const [saldoRestanteAtual, setSaldoRestanteAtual] = useState<number>(0);
 const [isCcExpanded, setIsCcExpanded] = useState(false);
 const [creditJumpMonth, setCreditJumpMonth] = useState<string>(getHojeLocal().slice(0, 7));
 
+const CREDIT_CARDS_PER_PAGE = 8;
+const [creditCardsPage, setCreditCardsPage] = useState(1);
+
+const totalCreditCardsPages = Math.max(
+  1,
+  Math.ceil(creditCards.length / CREDIT_CARDS_PER_PAGE)
+);
+
+const paginatedCreditCards = creditCards.slice(
+  (creditCardsPage - 1) * CREDIT_CARDS_PER_PAGE,
+  creditCardsPage * CREDIT_CARDS_PER_PAGE
+);
+
+useEffect(() => {
+  setCreditCardsPage((prev) => {
+    if (prev < 1) return 1;
+    if (prev > totalCreditCardsPages) return totalCreditCardsPages;
+    return prev;
+  });
+}, [totalCreditCardsPages]);
+
 const getCardCycleMonthOnOpen = (card: any) => {
   const hoje = getHojeLocal();
   const [anoStr, mesStr, diaStr] = hoje.split("-");
@@ -1838,7 +1859,7 @@ const handleSaveNewCreditCard = async () => {
       dia_fechamento: Number(card.diaFechamento ?? 1),
       dia_vencimento: Number(card.diaVencimento ?? 10),
       bank_text: card.emissor || null,
-      categoria: card.categoria || "",
+      categoria: card.perfil || card.categoria || "",
       validade: card.validade || null,
       brand: "",
       last4: "",
@@ -3961,8 +3982,9 @@ className={`lg:col-span-8 space-y-6 ${
 </p>
         </button>
 
+
         {/* cartões cadastrados */}
-        {creditCards.map((c) => {
+        {paginatedCreditCards.map((c) => {
           const isSelected = c.id === selectedCreditCardId;
 const agora = new Date();
 const hojeFiltro = new Date();
@@ -4292,6 +4314,34 @@ if (!userId) return;
             </div>
           );
         })}
+
+        {creditCards.length > CREDIT_CARDS_PER_PAGE && (
+  <div className="col-span-full mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-2 text-sm dark:border-slate-700/60 dark:bg-slate-900/35">
+    <button
+      type="button"
+      onClick={() => setCreditCardsPage((p) => Math.max(1, p - 1))}
+      disabled={creditCardsPage === 1}
+      className="rounded-xl border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
+    >
+      Anterior
+    </button>
+
+    <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+      Página {creditCardsPage} de {totalCreditCardsPages}
+    </span>
+
+    <button
+      type="button"
+      onClick={() =>
+        setCreditCardsPage((p) => Math.min(totalCreditCardsPages, p + 1))
+      }
+      disabled={creditCardsPage === totalCreditCardsPages}
+      className="rounded-xl border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
+    >
+      Próxima
+    </button>
+  </div>
+)}
 
       </div>
     ) : (

@@ -184,6 +184,7 @@ const persistCCTags = (tags: string[]) => {
     localStorage.setItem(STORAGE_KEYS.CC_TAGS, JSON.stringify(tags));
   } catch {}
 };
+
 type ConfirmState = {
   title: string;
   message: string;
@@ -1322,6 +1323,32 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [metodosPagamento, setMetodosPagamento] = useState<PaymentMethods>({ credito: [], debito: [] });
   const transactions = transacoes;
   const setTransactions = setTransacoes;
+
+useEffect(() => {
+  const tagsDasTransacoes = (transacoes ?? [])
+    .filter((t: any) => String(t?.tipo ?? "").toLowerCase() === "cartao_credito")
+    .map((t: any) => String(t?.tag ?? "").trim())
+    .filter(Boolean);
+
+  if (!tagsDasTransacoes.length) return;
+
+  setCcTags((prev) => {
+    const merged = Array.from(
+      new Set(
+        [...prev, ...tagsDasTransacoes].map((tag) => String(tag).trim()).filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+    const igual =
+      merged.length === prev.length &&
+      merged.every((tag, index) => tag === prev[index]);
+
+    if (igual) return prev;
+
+    persistCCTags(merged);
+    return merged;
+  });
+}, [transacoes]);
 
 
   const [activeTab, setActiveTab] = useState<TabType>("transacoes");

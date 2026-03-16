@@ -3146,6 +3146,14 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
       const ehParcelado = ccIsParceladoMode === true;
       const ehFixo = !ehParcelado && String(formTipoGasto) === "Fixo";
 
+      if (ccIsParceladoMode === null) {
+  toastCompact(
+    "Por favor, selecione se o pagamento é À vista ou Parcelado.",
+    "error"
+  );
+  return;
+}
+
       if (ehParcelado) {
         const parcelas = Number(formParcelas || 0);
         if (!Number.isFinite(parcelas) || parcelas < 2) {
@@ -3366,8 +3374,9 @@ if (!isParceladoMode && !formTipoGasto) {
 }
 
 const precisaEscolherPrazo =
-  (formTipo === "despesa" && isParceladoMode === false && formTipoGastoNorm === "fixo") ||
-  (formTipo === "receita" && formTipoGastoNorm === "fixo");
+  formTipo === "despesa" &&
+  isParceladoMode === false &&
+  formTipoGastoNorm === "fixo";
 
     if (precisaEscolherPrazo && prazoMode === null) {
       toastCompact("Selecione 'Com prazo' ou 'Sem prazo' para continuar.", "error");
@@ -3404,8 +3413,11 @@ const precisaEscolherPrazo =
       }
     }
 
-    // recorrente fixo
-   else if (formTipoGastoNorm === "fixo") {
+// recorrente fixo
+else if (
+  formTipoGastoNorm === "fixo" ||
+  (formTipo === "receita" && (prazoMode === "com_prazo" || prazoMode === "sem_prazo"))
+) {
       const dataInicio = new Date(formData + "T12:00:00");
       let mesesParaGerar = 12;
 
@@ -3477,8 +3489,10 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
     setIsParceladoMode(null);
     setCcIsParceladoMode(null);
     setFormParcelas(2);
-
+    setPrazoMode(null);
+    setFormDataTerminoFixa(getHojeLocal());
     toastCompact("Lançamento realizado com sucesso!", "success");
+
   } catch (err) {
     console.error("ERRO AO SALVAR LANCAMENTO:", err);
     toastCompact("Erro ao salvar lançamento no banco.", "error");

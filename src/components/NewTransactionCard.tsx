@@ -995,8 +995,11 @@ onClick={() => {
           </div>
         )}
 
-        {/* Fixas/recorrentes (somente despesa à vista + fixo) */}
-        {formTipo === "despesa" && isParceladoMode === false && String(formTipoGasto) === "Fixo" && (
+ {/* Fixas/recorrentes (despesa e receita à vista + fixo) */}
+{((formTipo === "despesa" &&
+  isParceladoMode === false &&
+  String(formTipoGasto) === "Fixo") ||
+  formTipo === "receita") && (
           <div className="mt-2 space-y-2">
             <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
               Lançamento fixo

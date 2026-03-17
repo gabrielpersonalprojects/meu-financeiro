@@ -969,19 +969,33 @@ const [accSaldoInicial, setAccSaldoInicial] = useState("");
 const [modoCentro, setModoCentro] = useState<"normal" | "credito">("normal");
 const hojeStr = getHojeLocal();
 
-const [displayName, setDisplayName] = useState(() => {
-  return localStorage.getItem(STORAGE_KEYS.DISPLAY_NAME) || "";
-});
-const [confirmedDisplayName, setConfirmedDisplayName] = useState(
-  String(displayName ?? "").trim()
-);
-const [isEditingDisplayName, setIsEditingDisplayName] = useState(
-  !String(displayName ?? "").trim()
-);
+const [displayName, setDisplayName] = useState("");
+const [confirmedDisplayName, setConfirmedDisplayName] = useState("");
+const [isEditingDisplayName, setIsEditingDisplayName] = useState(true);
 
 useEffect(() => {
-  localStorage.setItem(STORAGE_KEYS.DISPLAY_NAME, displayName);
-}, [displayName]);
+  const nomeDoUsuario =
+    String(
+      session?.user?.user_metadata?.display_name ??
+      session?.user?.user_metadata?.name ??
+      ""
+    ).trim();
+
+  if (!nomeDoUsuario) {
+    setDisplayName("");
+    setConfirmedDisplayName("");
+    setIsEditingDisplayName(true);
+    return;
+  }
+
+  setDisplayName(nomeDoUsuario);
+  setConfirmedDisplayName(nomeDoUsuario);
+  setIsEditingDisplayName(false);
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.DISPLAY_NAME, nomeDoUsuario);
+  } catch {}
+}, [session]);
 
 const resetAddAccountForm = () => {
   setAccPerfilConta("PF");
@@ -2327,6 +2341,50 @@ const { getFilteredTransactions, getFilteredTransactionsAno, anoRef } =
     passarFiltroConta: passaFiltroConta,
   });
 
+  const filtrarTransacoesPorPerfil = useCallback(
+  (lista: any[]) => {
+    if (transacoesCardsPerfilView === "geral") return lista ?? [];
+
+    const perfilDesejado = String(transacoesCardsPerfilView).trim().toUpperCase();
+
+    return (lista ?? []).filter((t: any) => {
+      const idsRelacionados = [
+        t?.profileId,
+        t?.contaId,
+        t?.qualCartao,
+        t?.contaOrigemId,
+        t?.contaDestinoId,
+        t?.transferFromId,
+        t?.transferToId,
+      ]
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean);
+
+      if (idsRelacionados.length === 0) return false;
+
+      const contasRelacionadas = (profiles ?? []).filter((p: any) =>
+        idsRelacionados.includes(String(p?.id ?? "").trim())
+      );
+
+      if (contasRelacionadas.length === 0) return false;
+
+      return contasRelacionadas.some(
+        (p: any) =>
+          String(p?.perfilConta ?? "").trim().toUpperCase() === perfilDesejado
+      );
+    });
+  },
+  [profiles, transacoesCardsPerfilView]
+);
+
+const getFilteredTransactionsComPerfil = useMemo(() => {
+  return filtrarTransacoesPorPerfil(getFilteredTransactions);
+}, [getFilteredTransactions, filtrarTransacoesPorPerfil]);
+
+const getFilteredTransactionsAnoComPerfil = useMemo(() => {
+  return filtrarTransacoesPorPerfil(getFilteredTransactionsAno);
+}, [getFilteredTransactionsAno, filtrarTransacoesPorPerfil]);
+
 
 const {
   totalFiltradoReceitas,
@@ -2334,8 +2392,8 @@ const {
   totalAnualReceitas,
   totalAnualDespesas,
 } = useTransactionTotals({
-  getFilteredTransactions,
-  getFilteredTransactionsAno,
+  getFilteredTransactions: getFilteredTransactionsComPerfil,
+  getFilteredTransactionsAno: getFilteredTransactionsAnoComPerfil,
   sumReceitas,
   sumDespesasAbs,
 });
@@ -3609,6 +3667,35 @@ const periodOfDay =
     ? "afternoon"
     : "night";
     
+const salvarDisplayName = async (rawName: string) => {
+  const trimmed = String(rawName ?? "").trim();
+
+  if (!trimmed) return;
+
+  const user = session?.user;
+  if (!user) return;
+
+  const { error } = await supabase.auth.updateUser({
+    data: {
+      ...user.user_metadata,
+      display_name: trimmed,
+    },
+  });
+
+  if (error) {
+    console.error("Erro ao salvar nome do usuário:", error);
+    return;
+  }
+
+  setDisplayName(trimmed);
+  setConfirmedDisplayName(trimmed);
+  setIsEditingDisplayName(false);
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.DISPLAY_NAME, trimmed);
+  } catch {}
+};
+
   return (
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
    
@@ -3848,15 +3935,19 @@ containerStyle={{
   type="text"
   value={displayName}
   onChange={(e) => setDisplayName(e.target.value)}
-onKeyDown={(e) => {
+onKeyDown={async (e) => {
   if (e.key === "Enter") {
-    const finalName = String(displayName ?? "").trim();
-    setDisplayName(finalName);
-    setConfirmedDisplayName(finalName);
+    await salvarDisplayName(displayName);
+  }
+}}
+  onBlur={async () => {
+  if (String(displayName ?? "").trim()) {
+    await salvarDisplayName(displayName);
+  } else {
     setIsEditingDisplayName(false);
   }
 }}
-  //onBlur={() => setIsEditingDisplayName(false)}
+
   placeholder="Insira seu nome aqui"
   autoFocus
   className={`h-11 w-full rounded-2xl border bg-white px-4 text-base font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 ${
@@ -4195,7 +4286,8 @@ const statusMiniCard: "normal" | "atrasada" | "zerada" =
     : emAberto > 0
     ? "normal"
     : "zerada";
-          return (
+          
+    return (
             <div key={c.id} className="relative group w-full max-w-[360px]">
               {/* CARTÃO (clicável) */}
               <button

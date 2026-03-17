@@ -234,77 +234,78 @@ const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>([
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
-useEffect(() => {
-  supabase.auth.getSession().then(async ({ data }) => {
-    setSession(data.session);
-    setSessionLoading(false);
-
-      const userId = data.session?.user?.id;
+const carregarDadosUsuario = async (userId: string) => {
   if (!userId) return;
 
-    try {
-const creditCardsPromise = fetchCreditCards(userId);
-const rowsPromise = fetchAccounts(userId);
-const txRowsPromise = fetchTransactions(userId);
-const invoicePaymentRowsPromise = fetchInvoicePayments(userId);
-const invoiceInstallmentsRowsPromise = fetchInvoiceInstallments(userId);
-const invoiceManualStatusRowsPromise = fetchInvoiceManualStatus(userId);
+  try {
+    const creditCardRows = await fetchCreditCards(userId);
+    setCreditCards(creditCardRows.map(mapCreditCardRowToApp) as any);
+    setCreditCardsLoaded(true);
 
-const creditCardRows = await creditCardsPromise;
-setCreditCards(creditCardRows.map(mapCreditCardRowToApp) as any);
-setCreditCardsLoaded(true);
+    const [
+      rows,
+      txRows,
+      invoicePaymentRows,
+      invoiceInstallmentsRows,
+      invoiceManualStatusRows,
+    ] = await Promise.all([
+      fetchAccounts(userId),
+      fetchTransactions(userId),
+      fetchInvoicePayments(userId),
+      fetchInvoiceInstallments(userId),
+      fetchInvoiceManualStatus(userId),
+    ]);
 
-const [
-  rows,
-  txRows,
-  invoicePaymentRows,
-  invoiceInstallmentsRows,
-  invoiceManualStatusRows,
-] = await Promise.all([
-  rowsPromise,
-  txRowsPromise,
-  invoicePaymentRowsPromise,
-  invoiceInstallmentsRowsPromise,
-  invoiceManualStatusRowsPromise,
-]);
-const profilesFromDb = rows.map(mapAccountRowToProfile);
-if (profilesFromDb.length > 0) {
-  setProfiles(profilesFromDb as any);
-}
+    const profilesFromDb = rows.map(mapAccountRowToProfile);
+    setProfiles((profilesFromDb ?? []) as any);
+    setAccountsLoaded(true);
 
-setAccountsLoaded(true);
+    const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
+    setTransacoes((appTransactionsFromDb ?? []) as any);
 
-const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
-if (appTransactionsFromDb.length > 0) {
-  setTransacoes(appTransactionsFromDb as any);
-}
-setPagamentosFatura(
-  (invoicePaymentRows ?? []).map(mapInvoicePaymentRowToApp) as any
-);
-setParcelamentosFatura(
-  (invoiceInstallmentsRows ?? []).map(mapInvoiceInstallmentRowToApp) as any
-);
-setFaturasStatusManual(
-  (invoiceManualStatusRows ?? []).map(mapInvoiceManualStatusRowToApp) as any
-);
-} catch (err) {
-  console.error("ERRO SUPABASE ACCOUNTS:", err);
-  setAccountsLoaded(true);
-  setCreditCardsLoaded(true);
-}
+    setPagamentosFatura(
+      (invoicePaymentRows ?? []).map(mapInvoicePaymentRowToApp) as any
+    );
+    setParcelamentosFatura(
+      (invoiceInstallmentsRows ?? []).map(mapInvoiceInstallmentRowToApp) as any
+    );
+    setFaturasStatusManual(
+      (invoiceManualStatusRows ?? []).map(mapInvoiceManualStatusRowToApp) as any
+    );
+  } catch (err) {
+    console.error("ERRO AO CARREGAR DADOS DO USUARIO:", err);
+    setAccountsLoaded(true);
+    setCreditCardsLoaded(true);
+  }
+};
 
-  });
+useEffect(() => {
+supabase.auth.getSession().then(async ({ data }) => {
+  setSession(data.session);
+  setSessionLoading(false);
 
-  const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
-    setSession(sess);
-    setSessionLoading(false);
-  });
+  const userId = data.session?.user?.id;
+  if (!userId) return;
+
+  await carregarDadosUsuario(userId);
+});
+
+const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
+  setSession(sess);
+  setSessionLoading(false);
+
+  const userId = sess?.user?.id;
+  if (!userId) return;
+
+  setTimeout(() => {
+    carregarDadosUsuario(userId);
+  }, 0);
+});
 
   return () => {
     data.subscription.unsubscribe();
   };
 }, []);
-
   
 const handleRegistrarPagamentoFatura = async (payload: {
   cartaoId: string;

@@ -73,29 +73,6 @@ function EyeIcon({ open }: { open: boolean }) {
   );
 }
 
-function UserMiniIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M20 21a8 8 0 10-16 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path
-        d="M12 13a4 4 0 100-8 4 4 0 000 8z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function LockMiniIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M7 11V8a5 5 0 0110 0v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M6 11h12v10H6V11z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export default function AuthPage() {
   const [mode, setMode] = useState<Mode>("login");
 
@@ -345,47 +322,41 @@ async function onEntrar(e: FormEvent) {
         <div className="px-8 pb-8">
           {mode === "login" && (
             <form onSubmit={onEntrar} className="space-y-2">
-              <div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
-                <div className="w-12 grid place-items-center text-white/70 border-r border-white/15">
-                  <UserMiniIcon />
-                </div>
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1 h-12 px-4 bg-transparent text-white placeholder:text-white/50 outline-none"
-                  placeholder="E-mail"
-                  autoComplete="email"
-                />
-              </div>
+<div className="rounded-xl overflow-hidden border border-white/20 bg-white/10">
+  <input
+    value={email}
+    onChange={(e) => setEmail(e.target.value)}
+    className="w-full h-10 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+    placeholder="E-mail"
+    autoComplete="email"
+  />
+</div>
 
-              <div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
-                <div className="w-12 grid place-items-center text-white/70 border-r border-white/15">
-                  <LockMiniIcon />
-                </div>
-                <input
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                  type={showPass1 ? "text" : "password"}
-                  className="flex-1 h-12 px-4 bg-transparent text-white placeholder:text-white/50 outline-none"
-                  placeholder="Senha"
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass1((v) => !v)}
-                  className="w-12 grid place-items-center text-white/70 hover:text-white transition"
-                  aria-label={showPass1 ? "Ocultar senha" : "Mostrar senha"}
-                  title={showPass1 ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  <EyeIcon open={showPass1} />
-                </button>
-              </div>
+<div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
+  <input
+    value={senha}
+    onChange={(e) => setSenha(e.target.value)}
+    type={showPass1 ? "text" : "password"}
+    className="flex-1 h-10 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+    placeholder="Senha"
+    autoComplete="current-password"
+  />
+  <button
+    type="button"
+    onClick={() => setShowPass1((v) => !v)}
+    className="w-12 grid place-items-center text-white/70 hover:text-white transition"
+    aria-label={showPass1 ? "Ocultar senha" : "Mostrar senha"}
+    title={showPass1 ? "Ocultar senha" : "Mostrar senha"}
+  >
+    <EyeIcon open={showPass1} />
+  </button>
+</div>
 
-<div className="flex items-center justify-start -mt-1">
+<div className="flex items-center justify-start mt-2 mb-4">
   <button
     type="button"
     onClick={irParaForgot}
-    className="text-white/70 text-sm hover:text-white hover:underline transition"
+    className="text-white/65 text-xs hover:text-white hover:underline transition"
   >
     Esqueci minha senha
   </button>
@@ -394,10 +365,10 @@ async function onEntrar(e: FormEvent) {
               {/* BOTÃO ENTRAR (marca) */}
               <button
                 disabled={loading}
-className="group relative overflow-hidden mt-6 h-12 max-w-[280px] w-full mx-auto block rounded-xl
-           text-white font-semibold tracking-wide
-           transition transform hover:scale-[1.01]
-           hover:shadow-[0_14px_40px_rgba(70,0,172,0.22)]
+className="group relative overflow-hidden mt-0 h-10 max-w-[280px] w-full mx-auto block rounded-xl
+           text-sm text-white font-semibold tracking-wide
+           transition hover:brightness-110
+           hover:shadow-[0_12px_30px_rgba(70,0,172,0.20)]
            disabled:opacity-60"
                 style={{
                   background: `linear-gradient(135deg,
@@ -453,73 +424,64 @@ className="group relative overflow-hidden mt-6 h-12 max-w-[280px] w-full mx-auto
 
           {mode === "signup" && (
             <form onSubmit={onCriarConta} className="space-y-3">
-              <div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
-                <div className="w-12 grid place-items-center text-white/70 border-r border-white/15">
-                  <UserMiniIcon />
-                </div>
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1 h-12 px-4 bg-transparent text-white placeholder:text-white/50 outline-none"
-                  placeholder="Cadastre seu e-mail de acesso"
-                  autoComplete="email"
-                />
-              </div>
+<div className="rounded-xl overflow-hidden border border-white/20 bg-white/10">
+  <input
+    value={email}
+    onChange={(e) => setEmail(e.target.value)}
+    className="w-full h-10 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+    placeholder="Cadastre seu e-mail de acesso"
+    autoComplete="email"
+  />
+</div>
 
-              <div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
-                <div className="w-12 grid place-items-center text-white/70 border-r border-white/15">
-                  <LockMiniIcon />
-                </div>
-                <input
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                  type={showPass1 ? "text" : "password"}
-                  className="flex-1 h-12 px-4 bg-transparent text-white placeholder:text-white/50 outline-none"
-                  placeholder="Insira sua senha de acesso"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass1((v) => !v)}
-                  className="w-12 grid place-items-center text-white/70 hover:text-white transition"
-                  aria-label={showPass1 ? "Ocultar senha" : "Mostrar senha"}
-                  title={showPass1 ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  <EyeIcon open={showPass1} />
-                </button>
-              </div>
+<div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
+  <input
+    value={senha}
+    onChange={(e) => setSenha(e.target.value)}
+    type={showPass1 ? "text" : "password"}
+    className="flex-1 h-10 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+    placeholder="Insira sua senha de acesso"
+    autoComplete="new-password"
+  />
+  <button
+    type="button"
+    onClick={() => setShowPass1((v) => !v)}
+    className="w-12 grid place-items-center text-white/70 hover:text-white transition"
+    aria-label={showPass1 ? "Ocultar senha" : "Mostrar senha"}
+    title={showPass1 ? "Ocultar senha" : "Mostrar senha"}
+  >
+    <EyeIcon open={showPass1} />
+  </button>
+</div>
 
-              <div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
-                <div className="w-12 grid place-items-center text-white/70 border-r border-white/15">
-                  <LockMiniIcon />
-                </div>
-                <input
-                  value={confirmar}
-                  onChange={(e) => setConfirmar(e.target.value)}
-                  type={showPass2 ? "text" : "password"}
-                  className="flex-1 h-12 px-4 bg-transparent text-white placeholder:text-white/50 outline-none"
-                  placeholder="Confirme sua senha de acesso"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass2((v) => !v)}
-                  className="w-12 grid place-items-center text-white/70 hover:text-white transition"
-                  aria-label={showPass2 ? "Ocultar senha" : "Mostrar senha"}
-                  title={showPass2 ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  <EyeIcon open={showPass2} />
-                </button>
-              </div>
+<div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
+  <input
+    value={confirmar}
+    onChange={(e) => setConfirmar(e.target.value)}
+    type={showPass2 ? "text" : "password"}
+    className="flex-1 h-10 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+    placeholder="Confirme sua senha de acesso"
+    autoComplete="new-password"
+  />
+  <button
+    type="button"
+    onClick={() => setShowPass2((v) => !v)}
+    className="w-12 grid place-items-center text-white/70 hover:text-white transition"
+    aria-label={showPass2 ? "Ocultar senha" : "Mostrar senha"}
+    title={showPass2 ? "Ocultar senha" : "Mostrar senha"}
+  >
+    <EyeIcon open={showPass2} />
+  </button>
+</div>
 
               {/* BOTÃO CRIAR CONTA (marca) */}
               <button
                 disabled={loading}
-                className="group relative overflow-hidden mt-4 h-12 max-w-[280px] w-full mx-auto block rounded-xl
-                           text-white font-semibold tracking-wide
-                           transition transform hover:scale-[1.01]
-                           hover:shadow-[0_14px_40px_rgba(70,0,172,0.22)]
-                           disabled:opacity-60"
+className="group relative overflow-hidden mt-4 h-10 max-w-[280px] w-full mx-auto block rounded-xl
+           text-sm text-white font-semibold tracking-wide
+           transition hover:brightness-110
+           hover:shadow-[0_12px_30px_rgba(70,0,172,0.20)]
+           disabled:opacity-60"
                 style={{
                   background: `linear-gradient(135deg,
                     ${BRAND.from} 0%,
@@ -567,27 +529,24 @@ className="group relative overflow-hidden mt-6 h-12 max-w-[280px] w-full mx-auto
 
           {mode === "forgot" && (
             <form onSubmit={onEnviarReset} className="space-y-3">
-              <div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
-                <div className="w-12 grid place-items-center text-white/70 border-r border-white/15">
-                  <UserMiniIcon />
-                </div>
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1 h-12 px-4 bg-transparent text-white placeholder:text-white/50 outline-none"
-                  placeholder="Seu e-mail"
-                  autoComplete="email"
-                />
-              </div>
+<div className="rounded-xl overflow-hidden border border-white/20 bg-white/10">
+  <input
+    value={email}
+    onChange={(e) => setEmail(e.target.value)}
+    className="w-full h-10 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+    placeholder="Seu e-mail"
+    autoComplete="email"
+  />
+</div>
 
               {/* BOTÃO ENVIAR LINK (marca) */}
               <button
                 disabled={loading}
-                className="group relative overflow-hidden mt-4 h-12 max-w-[280px] w-full mx-auto block rounded-xl
-                           text-white font-semibold tracking-wide
-                           transition transform hover:scale-[1.01]
-                           hover:shadow-[0_14px_40px_rgba(70,0,172,0.22)]
-                           disabled:opacity-60"
+className="group relative overflow-hidden mt-4 h-10 max-w-[280px] w-full mx-auto block rounded-xl
+           text-sm text-white font-semibold tracking-wide
+           transition hover:brightness-110
+           hover:shadow-[0_12px_30px_rgba(70,0,172,0.20)]
+           disabled:opacity-60"
                 style={{
                   background: `linear-gradient(135deg,
                     ${BRAND.from} 0%,

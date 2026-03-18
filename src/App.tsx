@@ -2904,8 +2904,16 @@ const profileIdResolved = String(
         activeProfileId ??
         ""
       )
-    : (formBancoId || activeProfileId || "")
-).trim();
+: (
+    profiles.find(
+      (p: any) => String(p?.id ?? "") === String(formBancoId ?? "")
+    )?.perfilConta ??
+    activeProfileId ??
+    ""
+  )
+)
+  .trim()
+  .toLowerCase();
 
 if (!userId) {
   toastCompact("Sessão inválida para salvar categoria.", "error");
@@ -2975,26 +2983,47 @@ const removerCategoria = async (
 
   if (!nomeAlvo) return;
 
-  const userId = session?.user?.id;
-  const profileId = String(activeProfileId ?? "").trim();
+const userId = session?.user?.id;
 
-  if (!userId) {
-    toastCompact("Sessão inválida para remover categoria.", "error");
-    return;
-  }
+const profileIdResolved = String(
+  formTipo === "cartao_credito"
+    ? (
+        creditCards.find(
+          (c: any) =>
+            String(c?.id ?? "") ===
+            String(selectedCreditCardId ?? formQualCartao ?? "")
+        )?.perfil ??
+        activeProfileId ??
+        ""
+      )
+    : (
+profiles.find(
+  (p: any) => String(p?.id ?? "") === String(formBancoId ?? "")
+)?.perfilConta ??
+activeProfileId ??
+""
+      )
+)
+  .trim()
+  .toLowerCase();
 
-  if (!profileId) {
-    toastCompact("Selecione uma conta antes de remover categoria.", "info");
-    return;
-  }
+if (!userId) {
+  toastCompact("Sessão inválida para remover categoria.", "error");
+  return;
+}
+
+if (!profileIdResolved) {
+  toastCompact("Selecione uma conta antes de remover categoria.", "info");
+  return;
+}
 
   try {
-    await deleteUserCategory({
-      userId,
-      profileId,
-      tipo,
-      nome: nomeAlvo,
-    });
+await deleteUserCategory({
+  userId,
+  profileId: profileIdResolved,
+  tipo,
+  nome: nomeAlvo,
+});
 
     setCategorias((prev: Categories) => {
       const lista = [...(prev[tipo] ?? [])].filter(

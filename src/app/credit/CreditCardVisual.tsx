@@ -146,7 +146,7 @@ const mostrarAtraso = statusMiniCard === "atrasada";
           <ContactlessIcon className="h-6 w-6 text-white/85" />
         </div>
 
-<div className="mb-2 flex items-center gap-2 text-[11px] text-white/70 whitespace-nowrap flex-wrap">
+<div className="mb-2 flex items-center gap-2 text-[11px] text-white/80 whitespace-nowrap flex-wrap">
   {mostrarAtraso && (
     <span className="inline-flex items-center rounded-full border border-rose-300/40 bg-rose-500/18 px-2 py-[3px] text-[10px] font-bold leading-none text-rose-100 backdrop-blur-sm">
       Em atraso
@@ -154,14 +154,14 @@ const mostrarAtraso = statusMiniCard === "atrasada";
   )}
 
   {mostrarSaldo && (
-    <span className="font-extrabold text-white drop-shadow-sm">
-      Em aberto: {formatBRL(open)}
-    </span>
+<span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/14 px-2.5 py-1 text-[11px] font-semibold leading-none text-white shadow-sm backdrop-blur-sm">
+  <span className="text-white/85">Fatura</span>
+  <span className="font-extrabold text-white">{formatBRL(open)}</span>
+</span>
   )}
-
-  <span className="text-white/80">
-    Próx. venc.: {dueLabel}
-  </span>
+<span className="text-white/85 text-[11px] font-medium">
+  Próx. venc.: {dueLabel}
+</span>
 </div>
 
         <div className="text-white/90 text-sm font-semibold tracking-wide">

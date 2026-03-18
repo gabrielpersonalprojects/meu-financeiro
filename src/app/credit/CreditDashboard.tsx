@@ -1701,23 +1701,22 @@ const podeExcluirCompra = (tx: any) => {
                               {formatBRDate(t.data)}
                             </span>
 
-                            {catLabel ? (
-                              <span
-                                className="text-slate-700 text-xs px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200
-                                dark:text-white/70 dark:bg-white/5 dark:border-white/10"
-                              >
-                                {catLabel}
-                              </span>
-                            ) : null}
+{catLabel ? (
+  <span
+    className="inline-flex items-center rounded-full bg-black px-2 py-0.5 text-[10px] font-bold text-white
+    dark:bg-white dark:text-black"
+  >
+    {catLabel}
+  </span>
+) : null}
 
-                            {t.tag ? (
-                              <span
-                                className="text-violet-700 text-xs px-2 py-0.5 rounded-lg bg-violet-50 border border-violet-200
-                                dark:text-white/80 dark:bg-violet-500/10 dark:border-violet-400/20"
-                              >
-                                {t.tag}
-                              </span>
-                            ) : null}
+{t.tag ? (
+  <span
+    className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-600 to-purple-500 px-2 py-0.5 text-[10px] font-bold text-white"
+  >
+    {t.tag}
+  </span>
+) : null}
 
                             {isParcelado ? (
                               <span

@@ -2906,6 +2906,14 @@ if (!userId) {
   return;
 }
 
+console.log("DEBUG adicionarCategoria", {
+  formTipo,
+  formBancoId,
+  activeProfileId,
+  selectedCreditCardId,
+  profileIdResolved,
+});
+
 if (!profileIdResolved) {
   toastCompact("Selecione uma conta antes de criar categoria.", "info");
   return;

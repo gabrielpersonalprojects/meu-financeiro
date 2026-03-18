@@ -2897,7 +2897,13 @@ const userId = session?.user?.id;
 
 const profileIdResolved = String(
   formTipo === "cartao_credito"
-    ? (activeProfileId ?? "")
+    ? (
+        creditCards.find(
+          (c: any) => String(c?.id ?? "") === String(selectedCreditCardId ?? "")
+        )?.perfil ??
+        activeProfileId ??
+        ""
+      )
     : (formBancoId || activeProfileId || "")
 ).trim();
 

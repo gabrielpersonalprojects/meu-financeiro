@@ -58,7 +58,16 @@ import {
   upsertInvoiceManualStatus,
   deleteInvoiceManualStatusByCycle,
 } from "./services/invoiceManualStatus";
-
+import {
+  fetchUserCategories,
+  insertUserCategory,
+  deleteUserCategory,
+} from "./services/categories";
+import {
+  fetchUserTags,
+  insertUserTag,
+  deleteUserTag,
+} from "./services/tags";
 import { sortStringsAsc } from "./app/utils/sort";
 import { computeSpendingByCategoryData } from "./app/transactions/summary";
 import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
@@ -153,37 +162,41 @@ const hojeStr = getHojeLocal();
   const App: FC = () => {
     const addTxLockRef = useRef(false);
     const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
-    const [ccTags, setCcTags] = useState<string[]>(() => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.CC_TAGS);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-});
-
+const [ccTags, setCcTags] = useState<string[]>([]);
 const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
-const removeCCTag = (tag: string) => {
-  const target = (tag || "").trim().toLowerCase();
-  setCcTags((prev) => {
-    const next = prev.filter((t) => t.trim().toLowerCase() !== target);
-    persistCCTags(next);
-    return next;
-  });
+const removeCCTag = async (tag: string) => {
+  const target = (tag || "").trim();
+  if (!target) return;
 
-  // se a tag removida estiver selecionada no formulário, limpa
-  if ((formTagCC || "").trim().toLowerCase() === target) {
-    setFormTagCC("");
+  const userId = session?.user?.id;
+  if (!userId) {
+    toastCompact("Sessão inválida para remover tag.", "error");
+    return;
+  }
+
+  try {
+    await deleteUserTag({
+      userId,
+      nome: target,
+    });
+
+setCcTags((prev) =>
+  prev.filter((t) => t.trim().toLowerCase() !== target.toLowerCase())
+);
+
+    if ((formTagCC || "").trim().toLowerCase() === target.toLowerCase()) {
+      setFormTagCC("");
+    }
+
+    toastCompact("Tag removida.", "success");
+  } catch (err) {
+    console.error("ERRO AO REMOVER TAG:", err);
+    toastCompact("Erro ao remover tag do banco.", "error");
   }
 };
 
-const persistCCTags = (tags: string[]) => {
-  try {
-    localStorage.setItem(STORAGE_KEYS.CC_TAGS, JSON.stringify(tags));
-  } catch {}
-};
+const persistCCTags = (_tags: string[]) => {};
 
 type ConfirmState = {
   title: string;
@@ -242,19 +255,23 @@ const carregarDadosUsuario = async (userId: string) => {
     setCreditCards(creditCardRows.map(mapCreditCardRowToApp) as any);
     setCreditCardsLoaded(true);
 
-    const [
-      rows,
-      txRows,
-      invoicePaymentRows,
-      invoiceInstallmentsRows,
-      invoiceManualStatusRows,
-    ] = await Promise.all([
-      fetchAccounts(userId),
-      fetchTransactions(userId),
-      fetchInvoicePayments(userId),
-      fetchInvoiceInstallments(userId),
-      fetchInvoiceManualStatus(userId),
-    ]);
+const [
+  rows,
+  txRows,
+  invoicePaymentRows,
+  invoiceInstallmentsRows,
+  invoiceManualStatusRows,
+  categoryRows,
+  tagRows,
+] = await Promise.all([
+  fetchAccounts(userId),
+  fetchTransactions(userId),
+  fetchInvoicePayments(userId),
+  fetchInvoiceInstallments(userId),
+  fetchInvoiceManualStatus(userId),
+  fetchUserCategories(userId),
+  fetchUserTags(userId),
+]);
 
     const profilesFromDb = rows.map(mapAccountRowToProfile);
     setProfiles((profilesFromDb ?? []) as any);
@@ -272,6 +289,40 @@ const carregarDadosUsuario = async (userId: string) => {
     setFaturasStatusManual(
       (invoiceManualStatusRows ?? []).map(mapInvoiceManualStatusRowToApp) as any
     );
+
+    const nextCategorias = {
+  receita: Array.from(
+    new Set([
+      ...((CATEGORIAS_PADRAO?.receita ?? []).filter(Boolean)),
+      ...(categoryRows ?? [])
+        .filter((item) => item.tipo === "receita")
+        .map((item) => String(item.nome ?? "").trim())
+        .filter(Boolean),
+    ])
+  ).sort((a, b) => a.localeCompare(b, "pt-BR")),
+  despesa: Array.from(
+    new Set([
+      ...((CATEGORIAS_PADRAO?.despesa ?? []).filter(Boolean)),
+      ...(categoryRows ?? [])
+        .filter((item) => item.tipo === "despesa")
+        .map((item) => String(item.nome ?? "").trim())
+        .filter(Boolean),
+    ])
+  ).sort((a, b) => a.localeCompare(b, "pt-BR")),
+};
+
+setCategorias(nextCategorias as any);
+
+setCcTags(
+  Array.from(
+    new Set(
+      (tagRows ?? [])
+        .map((item) => String(item.nome ?? "").trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, "pt-BR"))
+);
+
   } catch (err) {
     console.error("ERRO AO CARREGAR DADOS DO USUARIO:", err);
     setAccountsLoaded(true);
@@ -1339,33 +1390,6 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const transactions = transacoes;
   const setTransactions = setTransacoes;
 
-useEffect(() => {
-  const tagsDasTransacoes = (transacoes ?? [])
-    .filter((t: any) => String(t?.tipo ?? "").toLowerCase() === "cartao_credito")
-    .map((t: any) => String(t?.tag ?? "").trim())
-    .filter(Boolean);
-
-  if (!tagsDasTransacoes.length) return;
-
-  setCcTags((prev) => {
-    const merged = Array.from(
-      new Set(
-        [...prev, ...tagsDasTransacoes].map((tag) => String(tag).trim()).filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
-
-    const igual =
-      merged.length === prev.length &&
-      merged.every((tag, index) => tag === prev[index]);
-
-    if (igual) return prev;
-
-    persistCCTags(merged);
-    return merged;
-  });
-}, [transacoes]);
-
-
   const [activeTab, setActiveTab] = useState<TabType>("transacoes");
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -2020,12 +2044,6 @@ useEffect(() => {
 
 const safeProfileId = activeProfileId?.trim();
 
-const savedCats =
-  (safeProfileId
-    ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "categorias"))
-    : null) ??
-  localStorage.getItem("meu-financeiro-categorias");
-
 const savedMetodos =
   (safeProfileId
     ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "metodosPagamento"))
@@ -2037,10 +2055,8 @@ const savedName =
     ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "userName"))
     : null) ??
   localStorage.getItem("meu-financeiro-username");
-
-    const parsedCats = savedCats ? JSON.parse(savedCats) : null;
-    const catsOk = parsedCats && Array.isArray(parsedCats.despesa) && Array.isArray(parsedCats.receita);
-    setCategorias(catsOk ? parsedCats : CATEGORIAS_PADRAO);
+  
+  setCategorias(CATEGORIAS_PADRAO);
 
     const parsedMet = savedMetodos ? JSON.parse(savedMetodos) : null;
     const metOk = parsedMet && Array.isArray(parsedMet.credito) && Array.isArray(parsedMet.debito);
@@ -2864,64 +2880,128 @@ await deleteTransactionById(String(deletingTransaction.id), userId);
   // --- Categorias ---
   type CategoriaKey = "receita" | "despesa";
 
-const adicionarCategoria = () => {
+const adicionarCategoria = async () => {
   const nome = inputNovaCat.trim();
-  console.log("[DEBUG adicionarCategoria] nome:", nome);
-  console.log("[DEBUG adicionarCategoria] formTipo:", formTipo);
 
-  if (!nome) {
-    console.log("[DEBUG adicionarCategoria] saiu por nome vazio");
+  if (!nome) return;
+
+  if (
+    formTipo !== "receita" &&
+    formTipo !== "despesa" &&
+    formTipo !== "cartao_credito"
+  ) {
     return;
   }
 
-if (
-  formTipo !== "receita" &&
-  formTipo !== "despesa" &&
-  formTipo !== "cartao_credito"
-) {
-  console.log("[DEBUG adicionarCategoria] saiu por formTipo inválido:", formTipo);
-  return;
-}
+  const userId = session?.user?.id;
+  const profileId = String(activeProfileId ?? "").trim();
 
- const key = (formTipo === "cartao_credito" ? "despesa" : formTipo) as CategoriaKey;
+  if (!userId) {
+    toastCompact("Sessão inválida para salvar categoria.", "error");
+    return;
+  }
 
-  setCategorias((prev: Categories) => {
-    const lista = prev[key] ?? [];
-    console.log("[DEBUG adicionarCategoria] lista antes:", lista);
+  if (!profileId) {
+    toastCompact("Selecione uma conta antes de criar categoria.", "info");
+    return;
+  }
 
-    if (lista.includes(nome)) {
-      console.log("[DEBUG adicionarCategoria] categoria já existe");
-      return prev;
-    }
+  const key = (formTipo === "cartao_credito" ? "despesa" : formTipo) as
+    | "receita"
+    | "despesa";
 
-    const next = { ...prev, [key]: [...lista, nome] };
-    console.log("[DEBUG adicionarCategoria] next:", next);
-    return next;
-  });
+  const listaAtual = categorias[key] ?? [];
+  const exists = listaAtual.some(
+    (item) => item.trim().toLowerCase() === nome.toLowerCase()
+  );
 
-  setFormCat(nome);
+  if (exists) {
+    setFormCat(nome);
+    setInputNovaCat("");
+    setShowModalCategoria(false);
+    return;
+  }
 
-  console.log("[DEBUG adicionarCategoria] fechando modal");
-  setInputNovaCat("");
-  setShowModalCategoria(false);
+  try {
+    await insertUserCategory({
+      userId,
+      profileId,
+      tipo: key,
+      nome,
+    });
+
+    setCategorias((prev: Categories) => {
+      const lista = prev[key] ?? [];
+      return {
+        ...prev,
+        [key]: [...lista, nome].sort((a, b) => a.localeCompare(b, "pt-BR")),
+      };
+    });
+
+    setFormCat(nome);
+    setInputNovaCat("");
+    setShowModalCategoria(false);
+    toastCompact("Categoria adicionada.", "success");
+  } catch (err) {
+    console.error("ERRO AO ADICIONAR CATEGORIA:", err);
+    toastCompact("Erro ao salvar categoria no banco.", "error");
+  }
 };
 
-const removerCategoria = (tipo: "despesa" | "receita", valueOrIndex: string | number) => {
-  setCategorias((prev: Categories) => {
-    const lista = [...prev[tipo]];
+const removerCategoria = async (
+  tipo: "despesa" | "receita",
+  valueOrIndex: string | number
+) => {
+  const listaAtual = [...(categorias[tipo] ?? [])];
 
-    if (typeof valueOrIndex === "number") {
-      // remove por índice
-      lista.splice(valueOrIndex, 1);
-    } else {
-      // remove por valor (string)
-      const val = String(valueOrIndex);
-      const i = lista.findIndex((c) => c === val);
-      if (i >= 0) lista.splice(i, 1);
+  let nomeAlvo = "";
+
+  if (typeof valueOrIndex === "number") {
+    nomeAlvo = String(listaAtual[valueOrIndex] ?? "").trim();
+  } else {
+    nomeAlvo = String(valueOrIndex ?? "").trim();
+  }
+
+  if (!nomeAlvo) return;
+
+  const userId = session?.user?.id;
+  const profileId = String(activeProfileId ?? "").trim();
+
+  if (!userId) {
+    toastCompact("Sessão inválida para remover categoria.", "error");
+    return;
+  }
+
+  if (!profileId) {
+    toastCompact("Selecione uma conta antes de remover categoria.", "info");
+    return;
+  }
+
+  try {
+    await deleteUserCategory({
+      userId,
+      profileId,
+      tipo,
+      nome: nomeAlvo,
+    });
+
+    setCategorias((prev: Categories) => {
+      const lista = [...(prev[tipo] ?? [])].filter(
+        (item) => item.trim().toLowerCase() !== nomeAlvo.toLowerCase()
+      );
+
+      return { ...prev, [tipo]: lista };
+    });
+
+    if (String(formCat ?? "").trim().toLowerCase() === nomeAlvo.toLowerCase()) {
+      setFormCat("");
     }
 
-    return { ...prev, [tipo]: lista };
-  });
+    toastCompact("Categoria removida.", "success");
+  } catch (err) {
+    console.error("ERRO AO REMOVER CATEGORIA:", err);
+    toastCompact("Erro ao remover categoria do banco.", "error");
+  }
 };
 
 // --- Métodos / Cartões ---
@@ -3400,15 +3480,35 @@ novos.push({
         } as any);
       }
 
-      if (tagCC) {
-        setCcTags((prev) => {
-          const normalized = tagCC.trim();
-          const exists = prev.some((t) => t.toLowerCase() === normalized.toLowerCase());
-          const next = exists ? prev : [...prev, normalized].sort((a, b) => a.localeCompare(b, "pt-BR"));
-          persistCCTags(next);
-          return next;
-        });
+if (tagCC && session?.user?.id) {
+  const normalized = tagCC.trim();
+  const exists = ccTags.some(
+    (t) => t.trim().toLowerCase() === normalized.toLowerCase()
+  );
+
+  if (!exists) {
+    try {
+      await insertUserTag({
+        userId: session.user.id,
+        nome: normalized,
+      });
+
+setCcTags((prev) =>
+  [...prev, normalized].sort((a, b) => a.localeCompare(b, "pt-BR"))
+);
+
+    } catch (err: any) {
+      const msg = String(err?.message ?? "").toLowerCase();
+      const isDuplicated =
+        msg.includes("duplicate") || msg.includes("unique");
+
+      if (!isDuplicated) {
+        console.error("ERRO AO SALVAR TAG:", err);
+        toastCompact("Erro ao salvar tag no banco.", "error");
       }
+    }
+  }
+}
 
 const criadas = await salvarNoSupabase(novos);
 setTransacoes((prev) => [...prev, ...(criadas as any)]);

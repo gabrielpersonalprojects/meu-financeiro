@@ -3,7 +3,11 @@ import type { FC, ReactNode } from "react";
 import { PlusIcon, TrashIcon, EditIcon } from "./LucideIcons";
 
 // --- DROPDOWN PRO (aceita label JSX e também string) ---
-type DropdownOption = { label: ReactNode; value: string };
+type DropdownOption = {
+  label: ReactNode;
+  value: string;
+  isFixed?: boolean;
+};
 type DropdownOptionLike = string | DropdownOption;
 
 type CustomDropdownProps = {
@@ -47,14 +51,20 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
 
 const normalized = useMemo<DropdownOption[]>(() => {
   const base = options.map((opt: any) =>
-    typeof opt === "string" ? { label: opt, value: opt } : opt
+    typeof opt === "string"
+      ? { label: opt, value: opt, isFixed: false }
+      : { ...opt, isFixed: Boolean(opt?.isFixed) }
   );
 
-  const isCategoryField = String(label ?? "").trim().toLowerCase() === "categoria";
-  const hasEmptyOption = base.some((opt: any) => String(opt?.value ?? "") === "");
+  const isCategoryField =
+    String(label ?? "").trim().toLowerCase() === "categoria";
+
+  const hasEmptyOption = base.some(
+    (opt: any) => String(opt?.value ?? "") === ""
+  );
 
   if (isCategoryField && !hasEmptyOption) {
-    return [{ label: "Nenhuma", value: "" }, ...base];
+    return [{ label: "Nenhuma", value: "", isFixed: true }, ...base];
   }
 
   return base;
@@ -165,8 +175,8 @@ const displayValue = useMemo(() => {
             )}
 
             {normalized.map((opt, idx) => {
-              const optValue = opt.value;
-              const isFixed = optValue === "todas" || optValue === "";
+const optValue = opt.value;
+const isFixed = Boolean(opt.isFixed) || optValue === "todas" || optValue === "";
 
               return (
                 <div
@@ -205,11 +215,9 @@ const displayValue = useMemo(() => {
                     {onDelete && !isFixed && (
                       <button
                         type="button"
-                        onClick={() => {
-                          const original = options[idx] as any;
-                          const payload = typeof original === "string" ? idx : optValue;
-                          onDelete(payload);
-                        }}
+onClick={() => {
+  onDelete(optValue);
+}}
                         className="p-1.5 text-rose-600 hover:text-rose-700
                           dark:text-rose-500 dark:hover:text-rose-400"
                         title="Excluir"

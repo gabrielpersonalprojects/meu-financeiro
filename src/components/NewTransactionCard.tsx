@@ -1,4 +1,5 @@
 import type { Categories, PaymentMethod, Profile, TransactionType } from "../app/types";
+import { CATEGORIAS_PADRAO } from "../constants";
 import CustomDateInput from "./CustomDateInput";
 import CustomDropdown from "./CustomDropdown";
 import { PlusIcon } from "./LucideIcons";
@@ -379,7 +380,27 @@ useEffect(() => {
       ? selectedCreditCardId
       : "";
 
-const ccCategoryOptions = (categorias as any).despesa as any; // gasto no cartão é despesa
+const DESPESA_PADRAO = new Set(
+  (CATEGORIAS_PADRAO?.despesa ?? []).map((item: string) => String(item))
+);
+
+const RECEITA_PADRAO = new Set(
+  (CATEGORIAS_PADRAO?.receita ?? []).map((item: string) => String(item))
+);
+
+const despesaCategoryOptions = ((categorias as any).despesa ?? []).map((cat: string) => ({
+  label: cat,
+  value: cat,
+  isFixed: DESPESA_PADRAO.has(String(cat)),
+}));
+
+const receitaCategoryOptions = ((categorias as any).receita ?? []).map((cat: string) => ({
+  label: cat,
+  value: cat,
+  isFixed: RECEITA_PADRAO.has(String(cat)),
+}));
+
+const ccCategoryOptions = despesaCategoryOptions;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 lg:p-5">
@@ -707,14 +728,14 @@ onClick={() => {
                 />
               )}
 
-              <CustomDropdown
-                label="Categoria"
-                value={formCat}
-                options={ccCategoryOptions as any}
-                onSelect={(val) => setFormCat(normalizeCategory(val))}
-                onDelete={(idx) => removerCategoria("despesa", idx)}
-                onAddNew={onOpenCategoriaModal}
-              />
+<CustomDropdown
+  label="Categoria"
+  value={formCat}
+  options={ccCategoryOptions as any}
+  onSelect={(val) => setFormCat(normalizeCategory(val))}
+  onDelete={(value) => removerCategoria("despesa", value)}
+  onAddNew={onOpenCategoriaModal}
+/>
             </div>
 
             {/* Cartão: Fixo -> Com prazo / Sem prazo (igual despesa) */}
@@ -801,14 +822,14 @@ onClick={() => {
         }}
       />
     ) : (
-      <CustomDropdown
-        label="Categoria"
-        value={formCat}
-        options={(categorias as any).receita as any}
-        onSelect={(val) => setFormCat(normalizeCategory(val))}
-        onDelete={(idx) => removerCategoria("receita", idx)}
-        onAddNew={onOpenCategoriaModal}
-      />
+<CustomDropdown
+  label="Categoria"
+  value={formCat}
+  options={receitaCategoryOptions as any}
+  onSelect={(val) => setFormCat(normalizeCategory(val))}
+  onDelete={(value) => removerCategoria("receita", value)}
+  onAddNew={onOpenCategoriaModal}
+/>
     )}
 
     {/* Direita: Despesa = Método | Receita = Conta */}
@@ -932,9 +953,9 @@ onClick={() => {
 <CustomDropdown
   label="Categoria"
   value={formCat}
-  options={(categorias as any).despesa as any}
+  options={despesaCategoryOptions as any}
   onSelect={(val) => setFormCat(normalizeCategory(val))}
-  onDelete={(idx) => removerCategoria("despesa", idx)}
+  onDelete={(value) => removerCategoria("despesa", value)}
   onAddNew={onOpenCategoriaModal}
 />
               </div>

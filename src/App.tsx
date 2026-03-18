@@ -2893,18 +2893,23 @@ const adicionarCategoria = async () => {
     return;
   }
 
-  const userId = session?.user?.id;
-  const profileId = String(activeProfileId ?? "").trim();
+const userId = session?.user?.id;
 
-  if (!userId) {
-    toastCompact("Sessão inválida para salvar categoria.", "error");
-    return;
-  }
+const profileIdResolved = String(
+  formTipo === "cartao_credito"
+    ? (activeProfileId ?? "")
+    : (formBancoId || activeProfileId || "")
+).trim();
 
-  if (!profileId) {
-    toastCompact("Selecione uma conta antes de criar categoria.", "info");
-    return;
-  }
+if (!userId) {
+  toastCompact("Sessão inválida para salvar categoria.", "error");
+  return;
+}
+
+if (!profileIdResolved) {
+  toastCompact("Selecione uma conta antes de criar categoria.", "info");
+  return;
+}
 
   const key = (formTipo === "cartao_credito" ? "despesa" : formTipo) as
     | "receita"
@@ -2923,12 +2928,12 @@ const adicionarCategoria = async () => {
   }
 
   try {
-    await insertUserCategory({
-      userId,
-      profileId,
-      tipo: key,
-      nome,
-    });
+await insertUserCategory({
+  userId,
+  profileId: profileIdResolved,
+  tipo: key,
+  nome,
+});
 
     setCategorias((prev: Categories) => {
       const lista = prev[key] ?? [];

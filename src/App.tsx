@@ -2905,11 +2905,11 @@ const profileIdResolved = String(
         ""
       )
 : (
-    profiles.find(
-      (p: any) => String(p?.id ?? "") === String(formBancoId ?? "")
-    )?.perfilConta ??
-    activeProfileId ??
-    ""
+profiles.find(
+  (p: any) => String(p?.id ?? "") === String(formQualCartao ?? "")
+)?.perfilConta ??
+activeProfileId ??
+""
   )
 )
   .trim()
@@ -2998,7 +2998,7 @@ const profileIdResolved = String(
       )
     : (
 profiles.find(
-  (p: any) => String(p?.id ?? "") === String(formBancoId ?? "")
+  (p: any) => String(p?.id ?? "") === String(formQualCartao ?? "")
 )?.perfilConta ??
 activeProfileId ??
 ""

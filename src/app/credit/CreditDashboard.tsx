@@ -429,8 +429,9 @@ const txMes = (transacoes || []).filter((t) => {
   const txFaturaCiclo = txMes;
   const valorFaturaTotal = txFaturaCiclo.reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
 
-  const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
-  const [filtroTagCC, setFiltroTagCC] = useState<string>("todas");
+const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
+const [filtroTagCC, setFiltroTagCC] = useState<string>("todas");
+const [filtroTipoGastoCC, setFiltroTipoGastoCC] = useState<string>("todas");
 
   const categoriasCC = useMemo(() => {
     return Array.from(
@@ -457,28 +458,67 @@ const txMes = (transacoes || []).filter((t) => {
     ).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [txMes]);
 
-  const txMesFiltradas = useMemo(() => {
-    return txMes.filter((t) => {
-      const c: any = (t as any).categoria;
-      const cLabel =
-        !c
-          ? ""
-          : typeof c === "string"
-          ? c.trim()
-          : String(c.nome ?? c.label ?? c.value ?? "").trim();
+  const tiposGastoCC = [
+  { label: "Todos", value: "todas" },
+  { label: "Variável", value: "normal" },
+  { label: "Fixo/Mensal", value: "fixo" },
+  { label: "Parcelado", value: "parcelado" },
+];
 
-      const tag = String((t as any).tag ?? "").trim();
+const resolveTipoGastoCC = (t: any): "normal" | "fixo" | "parcelado" => {
+  const payloadTipo = String(t?.payload?.tipoGasto ?? "").trim().toLowerCase();
+  const raizTipo = String(t?.tipoGasto ?? "").trim().toLowerCase();
 
-      const okCat = filtroCategoriaCC === "todas" || cLabel === filtroCategoriaCC;
-      const okTag = filtroTagCC === "todas" || tag === filtroTagCC;
+  const parcelaAtual = Number(
+    t?.parcelaAtual ?? t?.payload?.parcelaAtual ?? 0
+  );
 
-      return okCat && okTag;
-    });
-  }, [txMes, filtroCategoriaCC, filtroTagCC]);
+  const parcelasTotal = Number(
+    t?.parcelasTotal ??
+      t?.totalParcelas ??
+      t?.payload?.parcelasTotal ??
+      t?.payload?.totalParcelas ??
+      0
+  );
 
-  useEffect(() => {
-    setPaginaAtual(1);
-  }, [baseMonthKey, filtroCategoriaCC, filtroTagCC, cartao.id]);
+  const isParcelado =
+    parcelasTotal > 1 ||
+    parcelaAtual > 0 ||
+    String(t?.origemLancamento ?? "").trim().toLowerCase() === "compra_parcelada";
+
+  if (isParcelado) return "parcelado";
+
+  if (payloadTipo === "fixo" || raizTipo === "fixo") return "fixo";
+  if (payloadTipo === "parcelado" || raizTipo === "parcelado") return "parcelado";
+
+  return "normal";
+};
+
+const txMesFiltradas = useMemo(() => {
+  return txMes.filter((t) => {
+    const c: any = (t as any).categoria;
+    const cLabel =
+      !c
+        ? ""
+        : typeof c === "string"
+        ? c.trim()
+        : String(c.nome ?? c.label ?? c.value ?? "").trim();
+
+    const tag = String((t as any).tag ?? "").trim();
+    const tipoGasto = resolveTipoGastoCC(t);
+
+    const okCat = filtroCategoriaCC === "todas" || cLabel === filtroCategoriaCC;
+    const okTag = filtroTagCC === "todas" || tag === filtroTagCC;
+    const okTipo =
+      filtroTipoGastoCC === "todas" || tipoGasto === filtroTipoGastoCC;
+
+    return okCat && okTag && okTipo;
+  });
+}, [txMes, filtroCategoriaCC, filtroTagCC, filtroTipoGastoCC]);
+
+useEffect(() => {
+  setPaginaAtual(1);
+}, [baseMonthKey, filtroCategoriaCC, filtroTagCC, filtroTipoGastoCC, cartao.id]);
 
   const totalPaginas = Math.max(1, Math.ceil(txMesFiltradas.length / ITENS_POR_PAGINA));
 
@@ -1563,6 +1603,7 @@ statusMiniCard={faturaStatus === "ATRASADA" ? "atrasada" : valorFaturaTotal <= 0
           {txMes.length ? (
             <div className="mb-3 flex flex-col gap-2">
               <div className="flex flex-col gap-2 md:flex-row md:items-end">
+
                 <div className="flex flex-col">
                   <span className="text-slate-700 text-xs mb-1 dark:text-white/70">Categoria</span>
                   <CustomDropdown
@@ -1589,14 +1630,28 @@ statusMiniCard={faturaStatus === "ATRASADA" ? "atrasada" : valorFaturaTotal <= 0
                   />
                 </div>
 
-                {filtroCategoriaCC !== "todas" || filtroTagCC !== "todas" ? (
+                            <div className="flex flex-col">
+  <span className="text-slate-700 text-xs mb-1 dark:text-white/70">Tipo</span>
+  <CustomDropdown
+    value={filtroTipoGastoCC}
+    onSelect={(v) => setFiltroTipoGastoCC(String(v))}
+    options={tiposGastoCC}
+    placeholder="Todos"
+  />
+</div>
+
+
+                {filtroCategoriaCC !== "todas" ||
+filtroTagCC !== "todas" ||
+filtroTipoGastoCC !== "todas" ? (
                   <div className="md:ml-auto">
                     <button
                       type="button"
-                      onClick={() => {
-                        setFiltroCategoriaCC("todas");
-                        setFiltroTagCC("todas");
-                      }}
+onClick={() => {
+  setFiltroCategoriaCC("todas");
+  setFiltroTagCC("todas");
+  setFiltroTipoGastoCC("todas");
+}}
                       className="h-9 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 px-3 text-xs text-slate-700
                         dark:bg-white/10 dark:hover:bg-white/15 dark:border-white/10 dark:text-white/80"
                     >
@@ -1684,6 +1739,9 @@ const podeExcluirCompra = (tx: any) => {
   return txTs > Number(snapshotBloqueioMaisRecente);
 };
 
+const descricaoLimpa = String(t.descricao ?? "")
+  .replace(/\s*\(\d+\/\d+\)\s*$/, "")
+  .trim();
                   return (
                     <li
                       key={t.id}
@@ -1692,9 +1750,9 @@ const podeExcluirCompra = (tx: any) => {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-slate-900 text-sm font-medium truncate dark:text-white/90">
-                            {t.descricao || "—"}
-                          </div>
+<div className="text-slate-900 text-sm font-medium truncate dark:text-white/90">
+  {descricaoLimpa || "—"}
+</div>
 
                           <div className="mt-1 flex flex-wrap items-center gap-2">
                             <span className="text-slate-500 text-xs dark:text-white/60">

@@ -113,7 +113,7 @@ const mostrarAtraso = statusMiniCard === "atrasada";
 
   return (
     <div
-      className="relative w-full max-w-[320px] mx-auto overflow-hidden rounded-[28px] border border-white/10 shadow-sm"
+      className="relative w-full max-w-[320px] mx-auto overflow-hidden rounded-[28px] shadow-sm"
       style={{
         backgroundImage: `linear-gradient(135deg, ${d.from}, ${d.to})`,
         aspectRatio: "85.6 / 54",

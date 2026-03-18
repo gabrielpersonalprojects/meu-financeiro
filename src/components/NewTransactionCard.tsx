@@ -267,12 +267,12 @@ export default function NewTransactionCard({
     if (tipo !== "cartao_credito") setCcIsParceladoMode(null);
 
     // ao entrar no cartão, defaults bons
-    if (tipo === "cartao_credito") {
-      // default: à vista
-      if (ccIsParceladoMode === null) setCcIsParceladoMode(false);
-      setPrazoMode(null);
-      setFormDataTerminoFixa("");
-    }
+if (tipo === "cartao_credito") {
+  // entra neutro: usuário escolhe À vista ou Parcelado
+  setCcIsParceladoMode(null);
+  setPrazoMode(null);
+  setFormDataTerminoFixa("");
+}
   };
 
   // ✅ digitação “normal” + formatação no blur (sem explodir zeros)
@@ -346,11 +346,11 @@ const canSubmit =
       ? true
       : contaNormalSelecionada);
 
-  useEffect(() => {
+useEffect(() => {
   if (!isCC) {
     setFormTipoGasto("");
     setPrazoMode("sem_prazo");
-    setCcIsParceladoMode(false);
+    setCcIsParceladoMode(null);
     setFormParcelas(1);
   }
 }, [isCC]);
@@ -696,47 +696,49 @@ onClick={() => {
             </div>
 
             {/* Tipo de Gasto (esq) + Categoria (dir) SEMPRE aqui, abaixo dos botões */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {ccIsParceladoMode === true ? (
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                    Número de parcelas
-                  </label>
-                  <input
-                    type="number"
-                    min={2}
-                    value={formParcelas}
-                    onChange={(e) => {
-                      const n = parseInt(e.target.value || "2", 10);
-                      setFormParcelas(Number.isFinite(n) ? Math.max(2, n) : 2);
-                    }}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none focus:ring-2 focus:ring-violet-100 dark:focus:ring-violet-900"
-                  />
-                </div>
-              ) : (
-                <CustomDropdown
-                  label="Tipo de Gasto"
-                  value={formTipoGasto}
-                  options={["Variável", "Fixo"] as any}
-                  onSelect={(val) => {
-                    setFormTipoGasto(val);
-                    if (String(val) !== "Fixo") {
-                      setPrazoMode(null);
-                      setFormDataTerminoFixa("");
-                    }
-                  }}
-                />
-              )}
+{ccIsParceladoMode !== null && (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    {ccIsParceladoMode === true ? (
+      <div>
+        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+          Número de parcelas
+        </label>
+        <input
+          type="number"
+          min={2}
+          value={formParcelas}
+          onChange={(e) => {
+            const n = parseInt(e.target.value || "2", 10);
+            setFormParcelas(Number.isFinite(n) ? Math.max(2, n) : 2);
+          }}
+          className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none focus:ring-2 focus:ring-violet-100 dark:focus:ring-violet-900"
+        />
+      </div>
+    ) : (
+      <CustomDropdown
+        label="Tipo de Gasto"
+        value={formTipoGasto}
+        options={["Variável", "Fixo"] as any}
+        onSelect={(val) => {
+          setFormTipoGasto(val);
+          if (String(val) !== "Fixo") {
+            setPrazoMode(null);
+            setFormDataTerminoFixa("");
+          }
+        }}
+      />
+    )}
 
-<CustomDropdown
-  label="Categoria"
-  value={formCat}
-  options={ccCategoryOptions as any}
-  onSelect={(val) => setFormCat(normalizeCategory(val))}
-  onDelete={(value) => removerCategoria("despesa", value)}
-  onAddNew={onOpenCategoriaModal}
-/>
-            </div>
+    <CustomDropdown
+      label="Categoria"
+      value={formCat}
+      options={ccCategoryOptions as any}
+      onSelect={(val) => setFormCat(normalizeCategory(val))}
+      onDelete={(value) => removerCategoria("despesa", value)}
+      onAddNew={onOpenCategoriaModal}
+    />
+  </div>
+)}
 
             {/* Cartão: Fixo -> Com prazo / Sem prazo (igual despesa) */}
             {ccIsParceladoMode === false && String(formTipoGasto) === "Fixo" && (

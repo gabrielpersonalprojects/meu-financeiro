@@ -4329,7 +4329,7 @@ containerStyle={{
     <span className="font-bold text-[#4300ff] dark:text-white">Cartões</span>
   </div>
 
-  <div className="flex flex-wrap items-center gap-1.5 text-[11px] leading-4 text-slate-700 dark:text-slate-200">
+<div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] leading-4 text-slate-700 dark:text-slate-200">
     <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
       <span className="font-medium text-slate-500 dark:text-slate-400">Hoje:</span>{" "}
       <span className="font-bold text-slate-800 dark:text-slate-100">{resumoHojeLabel}</span>
@@ -4348,9 +4348,9 @@ containerStyle={{
 
   <div className="h-px w-full bg-[#b2b2b2]/30 dark:bg-white/15" />
 
-  <div className="flex flex-wrap items-center gap-1.5 text-[11px] leading-4 text-slate-700 dark:text-slate-200">
+<div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] leading-4 text-slate-700 dark:text-slate-200">
     <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-      <span className="font-medium text-slate-500 dark:text-slate-400">Em aberto:</span>{" "}
+      <span className="font-medium text-slate-500 dark:text-slate-400">Faturas:</span>{" "}
       <span className="font-bold text-slate-800 dark:text-slate-100">{resumoCartoesEmAbertoLabel}</span>
     </span>
 
@@ -5242,19 +5242,19 @@ await deleteTransactionById(String(id), userId);
     {/* TRANSACOES */}
 {/* Tabs */}
 <div className="px-0 pt-2 pb-3">
- <div className="grid grid-cols-3 gap-3">
+  <div className="grid grid-cols-3 gap-2 sm:gap-3">
     {(["transacoes", "gastos", "projecao"] as TabType[]).map((tab) => (
       <button
         key={tab}
         type="button"
         onClick={() => {
-  if (activeTab === "gastos" && tab !== "gastos") {
-    setFiltroMesAnalise(getHojeLocal().substring(0, 7));
-  }
+          if (activeTab === "gastos" && tab !== "gastos") {
+            setFiltroMesAnalise(getHojeLocal().substring(0, 7));
+          }
 
-  setActiveTab(tab);
-}}
-        className={`h-14 px-5 rounded-2xl transition-all whitespace-nowrap
+          setActiveTab(tab);
+        }}
+        className={`h-12 sm:h-14 px-2 sm:px-5 rounded-2xl transition-all whitespace-nowrap text-[13px] sm:text-base font-medium
           ${
             activeTab === tab
               ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"

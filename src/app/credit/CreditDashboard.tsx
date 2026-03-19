@@ -1797,7 +1797,7 @@ const descricaoLimpa = String(t.descricao ?? "")
 </div>
                         </div>
 
-                     <div className="text-right shrink-0 flex items-start gap-2.5 sm:items-center sm:gap-2">
+                    <div className="text-right shrink-0 flex items-center gap-2">
                           <div
                             className={`text-sm font-semibold ${
                               isNeg ? "text-rose-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"
@@ -1816,7 +1816,7 @@ const descricaoLimpa = String(t.descricao ?? "")
       if (!podeExcluirCompra(t)) return;
       onDeleteTransacao(t.id);
     }}
-  className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
+className="h-8 w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
     title="Excluir transação"
     aria-label="Excluir transação"
   >

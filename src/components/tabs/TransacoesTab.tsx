@@ -497,10 +497,10 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
         </div>
       </div>
 
-      <div className="space-y-3">
+    <div>
         {getFilteredTransactions.length > 0 ? (
           <>
-            <div className="relative space-y-3">
+          <div className="relative">
               {perfilCardsSelecionado && (
                 <div className="pointer-events-none absolute inset-0 z-20 rounded-[1.75rem] bg-white/22 backdrop-blur-[3px] dark:bg-slate-950/22" />
               )}

@@ -10,12 +10,12 @@ export function TransactionsList({
   renderItem: (t: Transaction) => ReactNode;
 }) {
   return (
-    <>
-      {items.map((t) => (
-        <Fragment key={String(t.id)}>
-          {renderItem(t)}
-        </Fragment>
-      ))}
-    </>
+<div className="space-y-3 sm:space-y-3">
+  {items.map((t) => (
+    <div key={String(t.id)} className="mb-0">
+      {renderItem(t)}
+    </div>
+  ))}
+</div>
   );
 }

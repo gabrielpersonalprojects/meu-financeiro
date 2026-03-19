@@ -83,7 +83,7 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
       paid ? "opacity-80" : ""
     } ${glowAtraso}`}
   >
-    <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+   <div className="flex flex-col gap-4 p-4 sm:gap-5 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
       {/* ESQUERDA */}
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-3">
@@ -101,7 +101,7 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="mb-1.5 flex items-start gap-2 font-bold leading-tight text-slate-800 dark:text-slate-100">
+           <p className="mb-2.5 flex items-start gap-2 font-bold leading-snug text-slate-800 dark:text-slate-100">
               {isTransacaoFatura && (
                 <span className="mt-0.5 inline-flex shrink-0 items-center text-indigo-500 dark:text-indigo-300">
                   <CreditCardIcon className="h-4 w-4" />
@@ -110,7 +110,7 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
               <span className="break-words">{t.descricao}</span>
             </p>
 
-<div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide">
+<div className="flex flex-wrap items-center gap-x-2 gap-y-2.5 text-[10px] leading-relaxed uppercase tracking-wide">
   <span
     className={`px-2 py-0.5 rounded-full font-black ${
       paid
@@ -209,17 +209,23 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
               </span>
             )}
 
-            {info.numero && (
-              <span className="text-slate-500 dark:text-slate-400">
-                - {info.numero}
-              </span>
-            )}
+{info.numero && (
+  <>
+    <span className="text-slate-500 dark:text-slate-400">•</span>
+    <span className="text-slate-500 dark:text-slate-400">
+      {info.numero}
+    </span>
+  </>
+)}
 
-            {info.agencia && (
-              <span className="text-slate-500 dark:text-slate-400">
-                - {info.agencia}
-              </span>
-            )}
+{info.agencia && (
+  <>
+    <span className="text-slate-500 dark:text-slate-400">•</span>
+    <span className="text-slate-500 dark:text-slate-400">
+      {info.agencia}
+    </span>
+  </>
+)}
           </span>
         )}
       </>
@@ -231,7 +237,7 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
       </div>
 
       {/* DIREITA */}
-      <div className="flex items-center justify-between gap-3 border-t border-slate-200/10 pt-3 sm:justify-end sm:border-t-0 sm:pt-0">
+  <div className="flex items-center justify-between gap-3 border-t border-slate-200/10 pt-4 mt-1 sm:mt-0 sm:justify-end sm:border-t-0 sm:pt-0">
         {(onEdit || onDelete) && (
           <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
             {onEdit &&

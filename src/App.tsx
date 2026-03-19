@@ -4128,7 +4128,7 @@ containerStyle={{
       {/* COLUNA ESQUERDA */}
 {/* COLUNA ESQUERDA */}
 <div className="lg:col-span-4 space-y-5">
- <div className="relative rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm overflow-hidden dark:border-slate-800/70 dark:bg-slate-900/90">
+ <div className="relative rounded-3xl border border-slate-200/70 bg-white/90 p-3 sm:p-4 shadow-sm overflow-hidden dark:border-slate-800/70 dark:bg-slate-900/90">
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
     
@@ -4303,7 +4303,7 @@ containerStyle={{
   {displayName?.trim() && !isEditingDisplayName && onboardingStep !== "nome" ? (
 <div className="space-y-0">
   <div className="flex items-center gap-2">
-    <h3 className="text-[24px] font-black tracking-tight text-slate-800 dark:text-slate-100">
+    <h3 className="text-[20px] sm:text-[24px] font-black tracking-tight text-slate-800 dark:text-slate-100">
       {displayName ? `${greetingText}, ${displayName}` : greetingText}
     </h3>
 
@@ -4319,7 +4319,7 @@ containerStyle={{
   </div>
 
 <p className="-mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-  Aqui está o seu resumo financeiro atual:
+  Aqui está o seu resumo financeiro:
 </p>
 
 <div className="pt-4 space-y-2.5">
@@ -4329,7 +4329,7 @@ containerStyle={{
     <span className="font-bold text-[#4300ff] dark:text-white">Cartões</span>
   </div>
 
-  <div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] leading-4 text-slate-700 dark:text-slate-200">
+  <div className="flex flex-wrap items-center gap-1.5 text-[11px] leading-4 text-slate-700 dark:text-slate-200">
     <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
       <span className="font-medium text-slate-500 dark:text-slate-400">Hoje:</span>{" "}
       <span className="font-bold text-slate-800 dark:text-slate-100">{resumoHojeLabel}</span>
@@ -4348,7 +4348,7 @@ containerStyle={{
 
   <div className="h-px w-full bg-[#b2b2b2]/30 dark:bg-white/15" />
 
-  <div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] leading-4 text-slate-700 dark:text-slate-200">
+  <div className="flex flex-wrap items-center gap-1.5 text-[11px] leading-4 text-slate-700 dark:text-slate-200">
     <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
       <span className="font-medium text-slate-500 dark:text-slate-400">Em aberto:</span>{" "}
       <span className="font-bold text-slate-800 dark:text-slate-100">{resumoCartoesEmAbertoLabel}</span>
@@ -4396,7 +4396,7 @@ containerStyle={{
 
     </div>
 
-<div className="relative h-16 w-20 shrink-0">
+<div className="relative h-12 w-12 shrink-0 sm:h-16 sm:w-20">
 </div>
 </div>
 </div>

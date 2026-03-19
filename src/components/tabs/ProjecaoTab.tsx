@@ -109,71 +109,65 @@ export default function ProjecaoTab({
         </p>
       </div>
 
-      <div className="min-w-[800px] bg-slate-50/50 dark:bg-slate-800/20 rounded-[2rem] p-4 border border-slate-100 dark:border-slate-800">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-              <th className="px-6 py-4">Mês / Ano</th>
-              <th className="px-6 py-4">Entradas</th>
-              <th className="px-6 py-4">Saídas Fixas</th>
-              <th className="px-6 py-4">Saídas Variáveis</th>
-              <th className="px-6 py-4 text-right">{lastColTitle}</th>
-            </tr>
-          </thead>
+<div className="min-w-[800px] rounded-[2rem] border border-violet-100/80 bg-white p-4 shadow-[0_10px_28px_rgba(34,0,85,0.04)] dark:border-violet-400/10 dark:bg-[#0f0a1f]/80">
+  <table className="w-full text-left border-separate border-spacing-y-2">
+    <thead>
+      <tr className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-400 dark:text-violet-300/70">
+        <th className="px-6 py-4">Mês / Ano</th>
+        <th className="px-6 py-4">Entradas</th>
+        <th className="px-6 py-4">Saídas Fixas</th>
+        <th className="px-6 py-4">Saídas Variáveis</th>
+        <th className="px-6 py-4 text-right">{lastColTitle}</th>
+      </tr>
+    </thead>
 
-          <tbody className="divide-y divide-slate-100/50 dark:divide-slate-800/50">
-            {projection12Months.map((row, idx) => {
-              const receitas = Number(row.receitas) || 0;
-              const fixas = Number(row.fixas) || 0;
-              const variaveis = Number(row.variaveis) || 0;
+    <tbody>
+      {projection12Months.map((row, idx) => {
+        const receitas = Number(row.receitas) || 0;
+        const fixas = Number(row.fixas) || 0;
+        const variaveis = Number(row.variaveis) || 0;
 
-              // no mensal, a “última coluna” é o resultado do mês
-              const resultadoMes = receitas - (fixas + variaveis);
+        const resultadoMes = receitas - (fixas + variaveis);
 
-              // no acumulado, a “última coluna” é o total disponível (running saldo)
-              const valorFinal =
-                projectionMode === "acumulado"
-                  ? Number(row.saldo) || 0
-                  : resultadoMes;
+        const valorFinal =
+          projectionMode === "acumulado"
+            ? Number(row.saldo) || 0
+            : resultadoMes;
 
-              return (
-                <tr
-                  key={idx}
-                  className="group hover:bg-white dark:hover:bg-slate-800 transition-all duration-300"
-                >
-                  <td className="px-6 py-5 text-sm font-black text-slate-800 dark:text-slate-200">
-                    {row.mesAno}
-                  </td>
+        return (
+          <tr
+            key={idx}
+            className="group transition-all duration-300"
+          >
+            <td className="px-6 py-5 text-sm font-black text-slate-800 dark:text-white rounded-l-2xl bg-violet-50/55 group-hover:bg-violet-50 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07] border-y border-l border-violet-100/70 dark:border-violet-400/10">
+              {row.mesAno}
+            </td>
 
-                  <td className="px-6 py-5 text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                    {formatarMoeda(receitas)}
-                  </td>
+            <td className="px-6 py-5 text-sm font-bold text-violet-700 dark:text-violet-300 bg-violet-50/55 group-hover:bg-violet-50 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07] border-y border-violet-100/70 dark:border-violet-400/10">
+              {formatarMoeda(receitas)}
+            </td>
 
-                  <td className="px-6 py-5 text-sm font-bold text-rose-500 dark:text-rose-400">
-                    {formatarMoeda(fixas)}
-                  </td>
+            <td className="px-6 py-5 text-sm font-bold text-slate-700 dark:text-slate-300 bg-violet-50/55 group-hover:bg-violet-50 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07] border-y border-violet-100/70 dark:border-violet-400/10">
+              {formatarMoeda(fixas)}
+            </td>
 
-                  <td className="px-6 py-5 text-sm font-bold text-amber-500 dark:text-amber-400">
-                    {formatarMoeda(variaveis)}
-                  </td>
+            <td className="px-6 py-5 text-sm font-bold text-violet-500 dark:text-violet-400 bg-violet-50/55 group-hover:bg-violet-50 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07] border-y border-violet-100/70 dark:border-violet-400/10">
+              {formatarMoeda(variaveis)}
+            </td>
 
-                  <td className="px-6 py-5 text-right">
-                    <span
-                      className={`inline-block px-4 py-1.5 rounded-full text-sm font-black transition-all ${
-                        valorFinal >= 0
-                          ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 shadow-sm"
-                          : "bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 shadow-sm"
-                      }`}
-                    >
-                      {formatarMoeda(valorFinal)}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+            <td className="px-6 py-5 text-right rounded-r-2xl bg-violet-50/55 group-hover:bg-violet-50 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07] border-y border-r border-violet-100/70 dark:border-violet-400/10">
+              <span
+className="inline-flex min-w-[132px] items-center justify-center rounded-full px-4 py-1.5 text-sm font-black text-white transition-all bg-gradient-to-r from-[#220055] to-[#4600ac] shadow-[0_4px_10px_rgba(70,0,172,0.12)]"
+              >
+                {formatarMoeda(valorFinal)}
+              </span>
+            </td>
+          </tr>
+        );
+      })}
+    </tbody>
+  </table>
+</div>
     </div>
   );
 }

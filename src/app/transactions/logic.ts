@@ -47,7 +47,7 @@ export const maskLast4 = (v: string) => {
   if (!v) return "";
   const digits = String(v).replace(/\D/g, "");
   if (digits.length <= 4) return digits;
-  return "****" + digits.slice(-4);
+  return "***" + digits.slice(-4);
 };
 const normAccId = (v: any) => String(v ?? "").trim().replace(/^acc_/, "");
 export const getContaPartsById = (accountId: string, contas: any[]) => {
@@ -58,7 +58,7 @@ export const getContaPartsById = (accountId: string, contas: any[]) => {
   const perfil = (c.tipoConta || "").toUpperCase(); // PF ou PJ
   const tipo = (c.perfilConta || "").toUpperCase(); // CONTA CORRENTE, POUPANÇA...
 
-  const numero = c.numeroConta ? `Nº da conta: ${maskLast4(c.numeroConta)}` : "";
+  const numero = c.numeroConta ? `Conta: ${maskLast4(c.numeroConta)}` : "";
   const agencia = c.numeroAgencia ? `Ag: ${c.numeroAgencia}` : "";
 
   return { banco, perfil, tipo, numero, agencia };

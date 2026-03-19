@@ -3801,6 +3801,251 @@ const greetingText =
     ? "Boa tarde"
     : "Boa noite";
 
+const formatResumoBRL = (valor: number) =>
+  `R$ ${Number(valor || 0).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+const hojeResumoStr = getHojeLocal();
+const hojeResumoDate = new Date(`${hojeResumoStr}T00:00:00`);
+const diaSemanaResumo = hojeResumoDate.getDay();
+const fimSemanaResumoDate = new Date(hojeResumoDate);
+fimSemanaResumoDate.setDate(hojeResumoDate.getDate() + (7 - diaSemanaResumo === 7 ? 0 : 7 - diaSemanaResumo));
+fimSemanaResumoDate.setHours(23, 59, 59, 999);
+
+const despesasEmAberto = (transacoes ?? []).filter((t: any) => {
+  const tipo = String(t?.tipo ?? "").trim().toLowerCase();
+  if (tipo !== "despesa") return false;
+  if (Boolean(t?.pago)) return false;
+
+  const data = String(t?.data ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return false;
+
+  return true;
+});
+
+const resumoHojeValor = despesasEmAberto.reduce((acc: number, t: any) => {
+  const data = String(t?.data ?? "").trim();
+  return data === hojeResumoStr ? acc + Math.abs(Number(t?.valor || 0)) : acc;
+}, 0);
+
+const resumoSemanaValor = despesasEmAberto.reduce((acc: number, t: any) => {
+  const data = String(t?.data ?? "").trim();
+  const dataObj = new Date(`${data}T00:00:00`);
+  if (Number.isNaN(dataObj.getTime())) return acc;
+
+  return dataObj >= hojeResumoDate && dataObj <= fimSemanaResumoDate
+    ? acc + Math.abs(Number(t?.valor || 0))
+    : acc;
+}, 0);
+
+const resumoAtrasadosValor = despesasEmAberto.reduce((acc: number, t: any) => {
+  const data = String(t?.data ?? "").trim();
+  const dataObj = new Date(`${data}T00:00:00`);
+  if (Number.isNaN(dataObj.getTime())) return acc;
+
+  return dataObj < hojeResumoDate ? acc + Math.abs(Number(t?.valor || 0)) : acc;
+}, 0);
+const normalizeCycleResumo = (raw: any): string => {
+  const value = String(raw ?? "").trim();
+  if (!value) return "";
+
+  if (/^\d{4}-\d{2}$/.test(value)) return value;
+
+  if (value.includes("__")) {
+    const parts = value.split("__");
+    const endIso = String(parts[2] ?? "").trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
+      const endDate = new Date(`${endIso}T12:00:00`);
+      if (!Number.isNaN(endDate.getTime())) {
+        endDate.setMonth(endDate.getMonth() + 1);
+        return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
+      }
+    }
+  }
+
+  return value;
+};
+
+const calcCycleResumoYm = (dateStr: string, diaFechamento: number): string => {
+  const value = String(dateStr ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+
+  const [anoStr, mesStr, diaStr] = value.split("-");
+  let ano = Number(anoStr);
+  let mes = Number(mesStr);
+  const dia = Number(diaStr);
+
+  if (!ano || !mes || !dia) return "";
+
+  if (dia > Number(diaFechamento || 1)) {
+    mes += 1;
+    if (mes > 12) {
+      mes = 1;
+      ano += 1;
+    }
+  }
+
+  return `${ano}-${String(mes).padStart(2, "0")}`;
+};
+
+const inferirCicloResumo = (t: any, diaFechamento: number): string => {
+  const ciclo = String((t as any)?.faturaMes ?? "").trim();
+  if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
+
+  const dataRaw = String((t as any)?.data ?? "").trim();
+  if (!dataRaw) return "";
+
+  return calcCycleResumoYm(dataRaw, Number(diaFechamento || 1));
+};
+
+const statusManualResumoPorCartaoECiclo = new Map<string, string>();
+
+(faturasStatusManual ?? []).forEach((item: any) => {
+  const cartaoId = String(item?.cartaoId ?? "").trim();
+  const ciclo = normalizeCycleResumo(item?.cicloKey);
+  const status = String(item?.statusManual ?? "").trim().toLowerCase();
+
+  if (!cartaoId || !ciclo || !status) return;
+
+  statusManualResumoPorCartaoECiclo.set(`${cartaoId}__${ciclo}`, status);
+});
+
+let resumoCartoesEmAbertoValor = 0;
+let resumoCartoesPendentesValor = 0;
+let resumoCartoesAtrasadasValor = 0;
+
+(creditCards ?? []).forEach((c: any) => {
+  const cartaoId = String(c?.id ?? "").trim();
+  if (!cartaoId) return;
+
+const cicloAtual = calcCycleResumoYm(hojeResumoStr, Number(c?.diaFechamento ?? 1));
+
+const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
+  const cartaoTxId = String(
+    (t as any)?.qualCartao ??
+    (t as any)?.cartaoId ??
+    (t as any)?.qualConta ??
+    (t as any)?.payload?.qualCartao ??
+    (t as any)?.payload?.cartaoId ??
+    (t as any)?.payload?.qualConta ??
+    ""
+  ).trim();
+
+  const tipo = String((t as any)?.tipo ?? "").trim().toLowerCase();
+  const parcelamentoFaturaId = String((t as any)?.parcelamentoFaturaId ?? "").trim();
+
+  const pertenceAoCartaoDiretamente =
+    cartaoTxId === String(c?.id ?? "").trim() &&
+    tipo === "cartao_credito";
+
+  const pertenceAoCartaoViaParcelamento =
+    Boolean(parcelamentoFaturaId) &&
+    (parcelamentosFatura ?? []).some(
+      (p: any) =>
+        String(p?.id ?? "").trim() === parcelamentoFaturaId &&
+        String(p?.cartaoId ?? "").trim() === String(c?.id ?? "").trim()
+    );
+
+  return pertenceAoCartaoDiretamente || pertenceAoCartaoViaParcelamento;
+});
+
+  const totaisPorCiclo = new Map<string, { total: number; pago: number }>();
+
+  transacoesDoCartao.forEach((t: any) => {
+    const ciclo = inferirCicloResumo(t, Number(c?.diaFechamento ?? 1));
+    if (!ciclo) return;
+
+    const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
+    atual.total += Math.abs(Number(t?.valor || 0));
+    totaisPorCiclo.set(ciclo, atual);
+  });
+
+  (pagamentosFatura ?? []).forEach((p: any) => {
+    if (String(p?.cartaoId ?? "").trim() !== cartaoId) return;
+
+    const ciclo = normalizeCycleResumo(p?.cicloKey);
+    if (!ciclo) return;
+
+    const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
+    atual.pago += Math.abs(Number(p?.valor || 0));
+    totaisPorCiclo.set(ciclo, atual);
+  });
+
+  Array.from(totaisPorCiclo.entries()).forEach(([ciclo, info]) => {
+    const statusManual = String(
+      statusManualResumoPorCartaoECiclo.get(`${cartaoId}__${ciclo}`) ?? ""
+    ).toLowerCase();
+
+    if (statusManual === "paga" || statusManual === "parcelada") return;
+
+    const saldo = Math.max(0, Number(info?.total || 0) - Number(info?.pago || 0));
+    if (saldo <= 0) return;
+
+if (ciclo === cicloAtual) {
+  resumoCartoesEmAbertoValor += saldo;
+  return;
+}
+
+// ciclos futuros não entram no resumo curto de cartões
+if (String(ciclo) > String(cicloAtual)) {
+  return;
+}
+
+const [anoStr, mesStr] = String(ciclo).split("-");
+const ano = Number(anoStr);
+const mes = Number(mesStr);
+if (!ano || !mes) return;
+
+const vencimento = new Date(
+  ano,
+  mes - 1,
+  Math.min(28, Math.max(1, Number(c?.diaVencimento ?? 10)))
+);
+vencimento.setHours(0, 0, 0, 0);
+
+// aqui só sobram ciclos passados:
+// - vencimento passado => atrasada
+// - vencimento ainda não passou => pendente
+if (vencimento < hojeResumoDate) {
+  console.log("DEBUG_ATRASADA_CARTAO", {
+    cartaoId,
+    emissor: c?.emissor,
+    nome: c?.name,
+    ciclo,
+    cicloAtual,
+    saldo,
+    info,
+    diaVencimento: c?.diaVencimento,
+    vencimento: vencimento.toISOString().slice(0, 10),
+  });
+
+  resumoCartoesAtrasadasValor += saldo;
+} else {
+  resumoCartoesPendentesValor += saldo;
+}
+  });
+});
+
+const resumoHojeLabel = formatResumoBRL(resumoHojeValor);
+const resumoSemanaLabel = formatResumoBRL(resumoSemanaValor);
+const resumoAtrasadosLabel = formatResumoBRL(resumoAtrasadosValor);
+
+const resumoCartoesEmAbertoLabel = formatResumoBRL(resumoCartoesEmAbertoValor);
+const resumoCartoesPendentesLabel = formatResumoBRL(resumoCartoesPendentesValor);
+const resumoCartoesAtrasadasLabel = formatResumoBRL(resumoCartoesAtrasadasValor);
+console.log("DEBUG_RESUMO_CARTOES", {
+  creditCards,
+  pagamentosFatura,
+  faturasStatusManual,
+  transacoes,
+  resumoCartoesEmAbertoValor,
+  resumoCartoesPendentesValor,
+  resumoCartoesAtrasadasValor,
+});
+
 const periodOfDay =
   currentHour < 12
     ? "morning"
@@ -4055,48 +4300,97 @@ containerStyle={{
 </div>
 
 <div className="mt-1">
- {displayName?.trim() && !isEditingDisplayName && onboardingStep !== "nome" ? (
-    <div className="flex items-center gap-2">
-      <h3 className="text-[24px] font-black tracking-tight text-slate-800 dark:text-slate-100">
-        {displayName ? `${greetingText}, ${displayName}` : greetingText}
-      </h3>
+  {displayName?.trim() && !isEditingDisplayName && onboardingStep !== "nome" ? (
+<div className="space-y-0">
+  <div className="flex items-center gap-2">
+    <h3 className="text-[24px] font-black tracking-tight text-slate-800 dark:text-slate-100">
+      {displayName ? `${greetingText}, ${displayName}` : greetingText}
+    </h3>
 
-      <button
-        type="button"
-        onClick={() => setIsEditingDisplayName(true)}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-violet-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-violet-300"
-        aria-label="Editar nome exibido"
-        title="Editar nome exibido"
-      >
-        <PencilLine className="h-3.5 w-3.5" strokeWidth={2.2} />
-      </button>
+    <button
+      type="button"
+      onClick={() => setIsEditingDisplayName(true)}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-violet-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-violet-300"
+      aria-label="Editar nome exibido"
+      title="Editar nome exibido"
+    >
+      <PencilLine className="h-3.5 w-3.5" strokeWidth={2.2} />
+    </button>
+  </div>
+
+<p className="-mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+  Aqui está o seu resumo financeiro atual:
+</p>
+
+<div className="pt-4 space-y-2.5">
+  <div className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em]">
+    <span className="font-bold text-[#4300ff] dark:text-white">Despesas</span>
+   <span className="text-[#4300ff]/70 dark:text-white/70">|</span>
+    <span className="font-bold text-[#4300ff] dark:text-white">Cartões</span>
+  </div>
+
+  <div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] leading-4 text-slate-700 dark:text-slate-200">
+    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+      <span className="font-medium text-slate-500 dark:text-slate-400">Hoje:</span>{" "}
+      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoHojeLabel}</span>
+    </span>
+
+    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+      <span className="font-medium text-slate-500 dark:text-slate-400">Semana:</span>{" "}
+      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoSemanaLabel}</span>
+    </span>
+
+    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+      <span className="font-medium text-slate-500 dark:text-slate-400">Atrasados:</span>{" "}
+      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoAtrasadosLabel}</span>
+    </span>
+  </div>
+
+  <div className="h-px w-full bg-[#b2b2b2]/30 dark:bg-white/15" />
+
+  <div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] leading-4 text-slate-700 dark:text-slate-200">
+    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+      <span className="font-medium text-slate-500 dark:text-slate-400">Em aberto:</span>{" "}
+      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoCartoesEmAbertoLabel}</span>
+    </span>
+
+    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+      <span className="font-medium text-slate-500 dark:text-slate-400">Pendentes:</span>{" "}
+      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoCartoesPendentesLabel}</span>
+    </span>
+
+    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+      <span className="font-medium text-slate-500 dark:text-slate-400">Atrasadas:</span>{" "}
+      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoCartoesAtrasadasLabel}</span>
+    </span>
+  </div>
+</div>
     </div>
   ) : (
-<input
-  type="text"
-  value={displayName}
-  onChange={(e) => setDisplayName(e.target.value)}
-onKeyDown={async (e) => {
-  if (e.key === "Enter") {
-    await salvarDisplayName(displayName);
-  }
-}}
-  onBlur={async () => {
-  if (String(displayName ?? "").trim()) {
-    await salvarDisplayName(displayName);
-  } else {
-    setIsEditingDisplayName(false);
-  }
-}}
-
-  placeholder="Insira seu nome aqui"
-  autoFocus
-  className={`h-11 w-full rounded-2xl border bg-white px-4 text-base font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 ${
-  onboardingStep === "nome"
-    ? "animate-[pulse_1.4s_ease-in-out_infinite] border-violet-500 bg-white ring-4 ring-violet-300 shadow-[0_0_0_4px_rgba(139,92,246,0.16),0_0_24px_rgba(139,92,246,0.30)] focus:border-violet-600 focus:ring-4 focus:ring-violet-300 dark:border-violet-400 dark:bg-slate-800 dark:ring-violet-500/30 dark:shadow-[0_0_0_4px_rgba(139,92,246,0.18),0_0_28px_rgba(139,92,246,0.32)] dark:focus:border-violet-300 dark:focus:ring-violet-500/35"
-    : "border-slate-200 focus:border-violet-300 focus:ring-2 focus:ring-violet-200 dark:border-slate-700 dark:focus:border-violet-500/50 dark:focus:ring-violet-500/20"
-}`}
-/>
+    <input
+      type="text"
+      value={displayName}
+      onChange={(e) => setDisplayName(e.target.value)}
+      onKeyDown={async (e) => {
+        if (e.key === "Enter") {
+          await salvarDisplayName(displayName);
+        }
+      }}
+      onBlur={async () => {
+        if (String(displayName ?? "").trim()) {
+          await salvarDisplayName(displayName);
+        } else {
+          setIsEditingDisplayName(false);
+        }
+      }}
+      placeholder="Insira seu nome aqui"
+      autoFocus
+      className={`h-11 w-full rounded-2xl border bg-white px-4 text-base font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+        onboardingStep === "nome"
+          ? "animate-[pulse_1.4s_ease-in-out_infinite] border-violet-500 bg-white ring-4 ring-violet-300 shadow-[0_0_0_4px_rgba(139,92,246,0.16),0_0_24px_rgba(139,92,246,0.30)] focus:border-violet-600 focus:ring-4 focus:ring-violet-300 dark:border-violet-400 dark:bg-slate-800 dark:ring-violet-500/30 dark:shadow-[0_0_0_4px_rgba(139,92,246,0.18),0_0_28px_rgba(139,92,246,0.32)] dark:focus:border-violet-300 dark:focus:ring-violet-500/35"
+          : "border-slate-200 focus:border-violet-300 focus:ring-2 focus:ring-violet-200 dark:border-slate-700 dark:focus:border-violet-500/50 dark:focus:ring-violet-500/20"
+      }`}
+    />
   )}
 </div>
 
@@ -4388,7 +4682,7 @@ transacoesAteHoje.forEach((t: any) => {
 (pagamentosFatura ?? []).forEach((p: any) => {
   if (String(p?.cartaoId ?? "") !== String(c.id)) return;
 
-  const ciclo = normalizePaymentCycleKeyToYm(p?.cicloKey);
+  const ciclo = normalizeCycleResumo(p?.cicloKey);
   if (!ciclo) return;
 
   const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };

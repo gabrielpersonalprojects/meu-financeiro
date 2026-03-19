@@ -256,15 +256,16 @@ async function onEntrar(e: FormEvent) {
   }
 
   return (
-    <div
-      className="min-h-screen w-full flex items-center justify-center px-4"
-      style={{
-        background: `linear-gradient(180deg,
-          ${BRAND.from} 0%,
-          ${BRAND.to} 58%,
-          #07031b 100%)`,
-      }}
-    >
+<div
+  className="w-full flex items-center justify-center px-4 py-6 sm:py-8"
+  style={{
+    minHeight: "100dvh",
+    background: `linear-gradient(180deg,
+      ${BRAND.from} 0%,
+      ${BRAND.to} 58%,
+      #07031b 100%)`,
+  }}
+>
       {/* Glow roxo sutil (inferior direito) */}
       <div
         className="fixed inset-0 -z-10 pointer-events-none"
@@ -284,7 +285,7 @@ async function onEntrar(e: FormEvent) {
         }}
       />
 
-      <div className="w-full max-w-[380px] rounded-[24px] overflow-hidden shadow-2xl border border-white/15 bg-white/5 backdrop-blur-xl">
+      <div className="w-full max-w-[380px] rounded-[24px] overflow-hidden shadow-2xl border border-white/15 bg-white/5 backdrop-blur-xl my-auto">
         {/* Header */}
         <div className="px-7 pt-6 pb-3">
           <div className="flex flex-col items-center">
@@ -332,19 +333,19 @@ async function onEntrar(e: FormEvent) {
   />
 </div>
 
-<div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
+<div className="flex items-center rounded-xl border border-white/20 bg-white/10 pr-2">
   <input
     value={senha}
     onChange={(e) => setSenha(e.target.value)}
     type={showPass1 ? "text" : "password"}
-    className="flex-1 h-10 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+    className="flex-1 h-10 min-w-0 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
     placeholder="Senha"
     autoComplete="current-password"
   />
   <button
     type="button"
     onClick={() => setShowPass1((v) => !v)}
-    className="w-12 grid place-items-center text-white/70 hover:text-white transition"
+    className="shrink-0 w-10 h-10 grid place-items-center text-white/70 hover:text-white transition"
     aria-label={showPass1 ? "Ocultar senha" : "Mostrar senha"}
     title={showPass1 ? "Ocultar senha" : "Mostrar senha"}
   >
@@ -434,19 +435,19 @@ className="group relative overflow-hidden mt-0 h-10 max-w-[280px] w-full mx-auto
   />
 </div>
 
-<div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
+<div className="flex items-center rounded-xl border border-white/20 bg-white/10 pr-2">
   <input
     value={senha}
     onChange={(e) => setSenha(e.target.value)}
     type={showPass1 ? "text" : "password"}
-    className="flex-1 h-10 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+    className="flex-1 h-10 min-w-0 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
     placeholder="Insira sua senha de acesso"
     autoComplete="new-password"
   />
   <button
     type="button"
     onClick={() => setShowPass1((v) => !v)}
-    className="w-12 grid place-items-center text-white/70 hover:text-white transition"
+    className="shrink-0 w-10 h-10 grid place-items-center text-white/70 hover:text-white transition"
     aria-label={showPass1 ? "Ocultar senha" : "Mostrar senha"}
     title={showPass1 ? "Ocultar senha" : "Mostrar senha"}
   >
@@ -454,19 +455,19 @@ className="group relative overflow-hidden mt-0 h-10 max-w-[280px] w-full mx-auto
   </button>
 </div>
 
-<div className="flex rounded-xl overflow-hidden border border-white/20 bg-white/10">
+<div className="flex items-center rounded-xl border border-white/20 bg-white/10 pr-2">
   <input
     value={confirmar}
     onChange={(e) => setConfirmar(e.target.value)}
     type={showPass2 ? "text" : "password"}
-    className="flex-1 h-10 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+    className="flex-1 h-10 min-w-0 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
     placeholder="Confirme sua senha de acesso"
     autoComplete="new-password"
   />
   <button
     type="button"
     onClick={() => setShowPass2((v) => !v)}
-    className="w-12 grid place-items-center text-white/70 hover:text-white transition"
+    className="shrink-0 w-10 h-10 grid place-items-center text-white/70 hover:text-white transition"
     aria-label={showPass2 ? "Ocultar senha" : "Mostrar senha"}
     title={showPass2 ? "Ocultar senha" : "Mostrar senha"}
   >

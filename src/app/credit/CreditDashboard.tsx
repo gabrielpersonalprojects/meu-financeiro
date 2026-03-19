@@ -1351,7 +1351,7 @@ return (
                   className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2
                     dark:border-white/10 dark:bg-black/20"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                 <div className="flex items-start justify-between gap-3.5 sm:gap-3">
                     <div className="min-w-0">
                       <div className="text-slate-900 text-[12px] font-medium truncate dark:text-white/85">
                         {p.contaLabel}
@@ -1401,8 +1401,8 @@ return (
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start text-slate-900 dark:text-white">
-        <div className="w-full max-w-[320px] justify-self-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start justify-items-center lg:justify-items-stretch text-slate-900 dark:text-white">
+       <div className="w-full max-w-[320px] justify-self-center lg:justify-self-start">
           <div>
             {onPickOtherCard ? (
               <button type="button" onClick={onPickOtherCard} className="w-full text-left">
@@ -1511,7 +1511,7 @@ statusMiniCard={faturaStatus === "ATRASADA" ? "atrasada" : valorFaturaTotal <= 0
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-black/20">
                   <div className="text-[11px] text-slate-600 dark:text-white/60">Saldo pendente</div>
                   <div
-                    className={`text-sm font-semibold ${
+            className={`text-[15px] sm:text-sm font-semibold leading-none ${
                       saldoRestanteFatura <= 0
                         ? "text-emerald-700 dark:text-emerald-300"
                         : "text-slate-900 dark:text-white"
@@ -1569,7 +1569,7 @@ statusMiniCard={faturaStatus === "ATRASADA" ? "atrasada" : valorFaturaTotal <= 0
           </div>
         </div>
 
-        <div className="w-full space-y-3">
+     <div className="w-full max-w-[560px] lg:max-w-none space-y-3 justify-self-center lg:justify-self-auto">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -1750,18 +1750,19 @@ const descricaoLimpa = String(t.descricao ?? "")
   .replace(/\s*\(\d+\/\d+\)\s*$/, "")
   .trim();
                   return (
-                    <li
-                      key={t.id}
-                      className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition px-3 py-2
-                        dark:border-white/10 dark:bg-black/20 dark:hover:bg-black/25"
-                    >
+<li
+  key={t.id}
+  className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition px-3.5 py-3
+    sm:px-3 sm:py-2
+    dark:border-white/10 dark:bg-black/20 dark:hover:bg-black/25"
+>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-<div className="text-slate-900 text-sm font-medium truncate dark:text-white/90">
+<div className="text-slate-900 text-[15px] sm:text-sm font-medium leading-snug truncate dark:text-white/90">
   {descricaoLimpa || "—"}
 </div>
 
-                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-2 sm:mt-1 sm:gap-2">
                             <span className="text-slate-500 text-xs dark:text-white/60">
                               {formatBRDate(t.data)}
                             </span>
@@ -1794,7 +1795,7 @@ const descricaoLimpa = String(t.descricao ?? "")
                           </div>
                         </div>
 
-                        <div className="text-right shrink-0 flex items-center gap-2">
+                     <div className="text-right shrink-0 flex items-start gap-2.5 sm:items-center sm:gap-2">
                           <div
                             className={`text-sm font-semibold ${
                               isNeg ? "text-rose-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"
@@ -1813,7 +1814,7 @@ const descricaoLimpa = String(t.descricao ?? "")
       if (!podeExcluirCompra(t)) return;
       onDeleteTransacao(t.id);
     }}
-    className="h-8 w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
+  className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
     title="Excluir transação"
     aria-label="Excluir transação"
   >

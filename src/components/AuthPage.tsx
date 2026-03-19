@@ -353,19 +353,20 @@ async function onEntrar(e: FormEvent) {
   </button>
 </div>
 
-<div className="flex items-center justify-start mt-2 mb-4">
+<div className="flex items-center justify-start mt-2">
   <button
     type="button"
     onClick={irParaForgot}
-    className="text-white/65 text-xs hover:text-white hover:underline transition"
+    className="text-white/55 text-[11px] hover:text-white/80 hover:underline transition"
   >
     Esqueci minha senha
   </button>
 </div>
 
-              {/* BOTÃO ENTRAR (marca) */}
-              <button
-                disabled={loading}
+<div className="pt-4">
+  {/* BOTÃO ENTRAR (marca) */}
+  <button
+    disabled={loading}
 className="group relative overflow-hidden mt-0 h-10 max-w-[280px] w-full mx-auto block rounded-xl
            text-sm text-white font-semibold tracking-wide
            transition hover:brightness-110
@@ -399,8 +400,9 @@ className="group relative overflow-hidden mt-0 h-10 max-w-[280px] w-full mx-auto
                       rgba(139,92,246,0.00) 70%)`,
                   }}
                 />
-                <span className="relative z-10">{loading ? "Entrando..." : "ENTRAR"}</span>
+<span className="relative z-10">{loading ? "Entrando..." : "ENTRAR"}</span>
               </button>
+</div>
 
               {mostrarReenviar && (
                 <button
@@ -416,7 +418,7 @@ className="group relative overflow-hidden mt-0 h-10 max-w-[280px] w-full mx-auto
               <button
                 type="button"
                 onClick={irParaCadastro}
-                className="w-full text-center text-white/70 text-sm hover:text-white hover:underline transition"
+                className="w-full text-center text-white/55 text-[11px] hover:text-white/80 hover:underline transition"
               >
                 Criar conta
               </button>

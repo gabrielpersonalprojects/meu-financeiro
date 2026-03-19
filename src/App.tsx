@@ -3914,6 +3914,7 @@ const statusManualResumoPorCartaoECiclo = new Map<string, string>();
 });
 
 let resumoCartoesEmAbertoValor = 0;
+let resumoCartoesVencendoHojeValor = 0;
 let resumoCartoesPendentesValor = 0;
 let resumoCartoesAtrasadasValor = 0;
 
@@ -3984,16 +3985,6 @@ const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
     const saldo = Math.max(0, Number(info?.total || 0) - Number(info?.pago || 0));
     if (saldo <= 0) return;
 
-if (ciclo === cicloAtual) {
-  resumoCartoesEmAbertoValor += saldo;
-  return;
-}
-
-// ciclos futuros não entram no resumo curto de cartões
-if (String(ciclo) > String(cicloAtual)) {
-  return;
-}
-
 const [anoStr, mesStr] = String(ciclo).split("-");
 const ano = Number(anoStr);
 const mes = Number(mesStr);
@@ -4005,6 +3996,21 @@ const vencimento = new Date(
   Math.min(28, Math.max(1, Number(c?.diaVencimento ?? 10)))
 );
 vencimento.setHours(0, 0, 0, 0);
+
+if (ciclo === cicloAtual) {
+  resumoCartoesEmAbertoValor += saldo;
+
+  if (vencimento.getTime() === hojeResumoDate.getTime()) {
+    resumoCartoesVencendoHojeValor += saldo;
+  }
+
+  return;
+}
+
+// ciclos futuros não entram no resumo curto de cartões
+if (String(ciclo) > String(cicloAtual)) {
+  return;
+}
 
 // aqui só sobram ciclos passados:
 // - vencimento passado => atrasada
@@ -4034,6 +4040,7 @@ const resumoSemanaLabel = formatResumoBRL(resumoSemanaValor);
 const resumoAtrasadosLabel = formatResumoBRL(resumoAtrasadosValor);
 
 const resumoCartoesEmAbertoLabel = formatResumoBRL(resumoCartoesEmAbertoValor);
+const resumoCartoesVencendoHojeLabel = formatResumoBRL(resumoCartoesVencendoHojeValor);
 const resumoCartoesPendentesLabel = formatResumoBRL(resumoCartoesPendentesValor);
 const resumoCartoesAtrasadasLabel = formatResumoBRL(resumoCartoesAtrasadasValor);
 console.log("DEBUG_RESUMO_CARTOES", {
@@ -4319,50 +4326,64 @@ containerStyle={{
   </div>
 
 <p className="-mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-  Aqui está o seu resumo financeiro:
+  Aqui está o seu resumo diário:
 </p>
 
 <div className="pt-4 space-y-2.5">
   <div className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em]">
     <span className="font-bold text-[#4300ff] dark:text-white">Despesas</span>
-   <span className="text-[#4300ff]/70 dark:text-white/70">|</span>
+    <span className="text-[#4300ff]/70 dark:text-white/70">|</span>
     <span className="font-bold text-[#4300ff] dark:text-white">Cartões</span>
   </div>
 
-<div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] leading-4 text-slate-700 dark:text-slate-200">
-    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-      <span className="font-medium text-slate-500 dark:text-slate-400">Hoje:</span>{" "}
-      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoHojeLabel}</span>
-    </span>
+  <div className="space-y-2">
+    <div className="rounded-full border border-slate-200/80 bg-white/60 px-3 py-1.5 text-[11px] leading-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+      <span className="font-medium text-slate-500 dark:text-slate-400">Despesas vencendo hoje:</span>{" "}
+      <span
+  className={
+    resumoHojeLabel !== "R$ 0,00"
+      ? "font-bold text-rose-600 dark:text-rose-400"
+      : "font-bold text-slate-800 dark:text-slate-100"
+  }
+>
+  {resumoHojeLabel}
+</span>{" "}
+      <span className="text-slate-400 dark:text-slate-500">•</span>{" "}
+      <span className="font-medium text-slate-500 dark:text-slate-400">Em atraso:</span>{" "}
+     <span
+  className={
+    resumoAtrasadosLabel !== "R$ 0,00"
+      ? "font-bold text-rose-600 dark:text-rose-400"
+      : "font-bold text-slate-800 dark:text-slate-100"
+  }
+>
+  {resumoAtrasadosLabel}
+</span>
+    </div>
 
-    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-      <span className="font-medium text-slate-500 dark:text-slate-400">Semana:</span>{" "}
-      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoSemanaLabel}</span>
-    </span>
-
-    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-      <span className="font-medium text-slate-500 dark:text-slate-400">Atrasados:</span>{" "}
-      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoAtrasadosLabel}</span>
-    </span>
-  </div>
-
-  <div className="h-px w-full bg-[#b2b2b2]/30 dark:bg-white/15" />
-
-<div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] leading-4 text-slate-700 dark:text-slate-200">
-    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-      <span className="font-medium text-slate-500 dark:text-slate-400">Faturas:</span>{" "}
-      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoCartoesEmAbertoLabel}</span>
-    </span>
-
-    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-      <span className="font-medium text-slate-500 dark:text-slate-400">Pendentes:</span>{" "}
-      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoCartoesPendentesLabel}</span>
-    </span>
-
-    <span className="rounded-full border border-slate-200/80 bg-white/60 px-2 py-0.5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-      <span className="font-medium text-slate-500 dark:text-slate-400">Atrasadas:</span>{" "}
-      <span className="font-bold text-slate-800 dark:text-slate-100">{resumoCartoesAtrasadasLabel}</span>
-    </span>
+    <div className="rounded-full border border-slate-200/80 bg-white/60 px-3 py-1.5 text-[11px] leading-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+      <span className="font-medium text-slate-500 dark:text-slate-400">Faturas vencendo hoje:</span>{" "}
+   <span
+  className={
+    resumoCartoesVencendoHojeLabel !== "R$ 0,00"
+      ? "font-bold text-rose-600 dark:text-rose-400"
+      : "font-bold text-slate-800 dark:text-slate-100"
+  }
+>
+  {resumoCartoesVencendoHojeLabel}
+</span>{" "}
+      <span className="text-slate-400 dark:text-slate-500">•</span>{" "}
+      <span className="font-medium text-slate-500 dark:text-slate-400">Em atraso:</span>{" "}
+      <span
+  className={
+    resumoCartoesAtrasadasLabel !== "R$ 0,00"
+      ? "font-bold text-rose-600 dark:text-rose-400"
+      : "font-bold text-slate-800 dark:text-slate-100"
+  }
+>
+  {resumoCartoesAtrasadasLabel}
+</span>
+    </div>
   </div>
 </div>
     </div>

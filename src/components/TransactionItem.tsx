@@ -110,118 +110,122 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
               <span className="break-words">{t.descricao}</span>
             </p>
 
-            <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide">
-              <span
-                className={`px-2 py-0.5 rounded-full font-black ${
-                  paid
-                    ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
-                    : atrasada
-                    ? "bg-rose-100/80 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300"
-                    : "bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                }`}
-              >
-                {paid ? "Pago" : atrasada ? "Em Atraso" : "Pendente"}
-              </span>
+<div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide">
+  <span
+    className={`px-2 py-0.5 rounded-full font-black ${
+      paid
+        ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+        : atrasada
+        ? "bg-rose-100/80 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300"
+        : "bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+    }`}
+  >
+    {paid ? "Pago" : atrasada ? "Em Atraso" : "Pendente"}
+  </span>
 
-<span className="text-slate-500 dark:text-slate-400 font-bold">
-  {String(metodoPgto).toLowerCase() === "debito_conta" ? "Debito" : metodoPgto}
-</span>
+  <span className="text-slate-500 dark:text-slate-400 font-bold break-words">
+    {t.categoria}
+  </span>
 
-              <span className="text-slate-500 dark:text-slate-400">•</span>
-
-              <span className="text-slate-500 dark:text-slate-400 font-bold break-words">
-                {t.categoria}
-              </span>
-
-              {metodoPgto ? (
-                <>
-<span className="text-slate-500 dark:text-slate-400 font-bold">
-  {String(metodoPgto).toLowerCase() === "debito_conta" ? "Debito" : metodoPgto}
-</span>
-                </>
-              ) : null}
-
-              {isTransacaoFatura && t.qualConta && (
-                <>
-                  <span className="text-slate-500 dark:text-slate-400">•</span>
-                  {(() => {
-                    const infoContaPagante = getContaPartsById(String(t.qualConta), profiles);
-                    const nomeContaPagante =
-                      infoContaPagante?.banco || infoContaPagante?.perfil || "Conta";
-
-                    return (
-                      <span className="font-semibold text-emerald-600 dark:text-emerald-300">
-                        Pago por {nomeContaPagante}
-                      </span>
-                    );
-                  })()}
-                </>
-              )}
-
-{(() => {
-  const contaRef = String(
-    (t as any).contaId ??
-      (t as any).profileId ??
-      (t as any).qualConta ??
-      (t as any).conta ??
-      ""
-  ).trim();
-
-  const cartaoRef = String((t as any).qualCartao ?? "").trim();
-
-  const refParaExibir =
-    (t as any).tipo === "cartao_credito" ? cartaoRef || contaRef : contaRef || cartaoRef;
-
-  if (!refParaExibir || isTransacaoFatura) return null;
-
-  const info = getContaPartsById(refParaExibir, profiles);
-
-  return (
+  {metodoPgto ? (
     <>
       <span className="text-slate-500 dark:text-slate-400">•</span>
-
-      {!info ? (
-        <span className="normal-case text-slate-500 dark:text-slate-400">
-          Conta
-        </span>
-      ) : (
-        <span className="inline-flex flex-wrap items-center gap-2 normal-case">
-          <span
-            className="rounded-full bg-indigo-600/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600
-                       dark:bg-indigo-400/15 dark:text-indigo-300"
-          >
-            {info.banco}
-          </span>
-
-{!!info.tipo && (
-  <span className="uppercase text-slate-500 dark:text-slate-400">
-    {String(info.tipo).toLowerCase() === "debito_conta" ? "Debito" : info.tipo}
-  </span>
-)}
-
-          {!!info.perfil && (
-            <span className="font-semibold uppercase text-slate-500 dark:text-slate-400">
-              {info.perfil}
-            </span>
-          )}
-
-          {info.numero && (
-            <span className="text-slate-500 dark:text-slate-400">
-              - {info.numero}
-            </span>
-          )}
-
-          {info.agencia && (
-            <span className="text-slate-500 dark:text-slate-400">
-              - {info.agencia}
-            </span>
-          )}
-        </span>
-      )}
+      <span className="text-slate-500 dark:text-slate-400 font-bold">
+        {String(metodoPgto).toLowerCase() === "debito_conta" ? "Debito" : metodoPgto}
+      </span>
     </>
-  );
-})()}
-            </div>
+  ) : null}
+
+  {t.data ? (
+    <>
+      <span className="text-slate-500 dark:text-slate-400">•</span>
+      <span className="text-slate-500 dark:text-slate-400 font-bold normal-case">
+        {formatarData(t.data)}
+      </span>
+    </>
+  ) : null}
+
+  {isTransacaoFatura && t.qualConta && (
+    <>
+      <span className="text-slate-500 dark:text-slate-400">•</span>
+      {(() => {
+        const infoContaPagante = getContaPartsById(String(t.qualConta), profiles);
+        const nomeContaPagante =
+          infoContaPagante?.banco || infoContaPagante?.perfil || "Conta";
+
+        return (
+          <span className="font-semibold text-emerald-600 dark:text-emerald-300">
+            Pago por {nomeContaPagante}
+          </span>
+        );
+      })()}
+    </>
+  )}
+
+  {(() => {
+    const contaRef = String(
+      (t as any).contaId ??
+        (t as any).profileId ??
+        (t as any).qualConta ??
+        (t as any).conta ??
+        ""
+    ).trim();
+
+    const cartaoRef = String((t as any).qualCartao ?? "").trim();
+
+    const refParaExibir =
+      (t as any).tipo === "cartao_credito" ? cartaoRef || contaRef : contaRef || cartaoRef;
+
+    if (!refParaExibir || isTransacaoFatura) return null;
+
+    const info = getContaPartsById(refParaExibir, profiles);
+
+    return (
+      <>
+        <span className="text-slate-500 dark:text-slate-400">•</span>
+
+        {!info ? (
+          <span className="normal-case text-slate-500 dark:text-slate-400">
+            Conta
+          </span>
+        ) : (
+          <span className="inline-flex flex-wrap items-center gap-2 normal-case">
+            <span
+              className="rounded-full bg-indigo-600/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600
+                         dark:bg-indigo-400/15 dark:text-indigo-300"
+            >
+              {info.banco}
+            </span>
+
+            {!!info.tipo && (
+              <span className="uppercase text-slate-500 dark:text-slate-400">
+                {String(info.tipo).toLowerCase() === "debito_conta" ? "Debito" : info.tipo}
+              </span>
+            )}
+
+            {!!info.perfil && (
+              <span className="font-semibold uppercase text-slate-500 dark:text-slate-400">
+                {info.perfil}
+              </span>
+            )}
+
+            {info.numero && (
+              <span className="text-slate-500 dark:text-slate-400">
+                - {info.numero}
+              </span>
+            )}
+
+            {info.agencia && (
+              <span className="text-slate-500 dark:text-slate-400">
+                - {info.agencia}
+              </span>
+            )}
+          </span>
+        )}
+      </>
+    );
+  })()}
+</div>
           </div>
         </div>
       </div>

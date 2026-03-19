@@ -318,30 +318,35 @@ const baseMonth = addMonths(baseMonthInicial, invoiceMonthOffset);
   const labelNext = monthLabelPT(addMonths(baseMonth, +1));
 
 
-  const vencimentoFaturaAtual = makeDate(
-    baseMonth.getFullYear(),
-    baseMonth.getMonth(),
-    diaVencimento
-  );
-  vencimentoFaturaAtual.setHours(0, 0, 0, 0);
+const vencimentoFaturaAtual = makeDate(
+  baseMonth.getFullYear(),
+  baseMonth.getMonth(),
+  diaVencimento
+);
+vencimentoFaturaAtual.setHours(0, 0, 0, 0);
 
-  const cicloFim = makeDate(
-    baseMonth.getFullYear(),
-    baseMonth.getMonth() - 1,
-    diaFechamento
-  );
-  cicloFim.setHours(0, 0, 0, 0);
+// Regra:
+// - vencimento > fechamento  => fechamento no mesmo mês da fatura
+// - vencimento <= fechamento => fechamento no mês anterior à fatura
+const fechamentoOffsetMesFatura = diaVencimento > diaFechamento ? 0 : -1;
 
-  const fechamentoDoisMesesAntes = makeDate(
-    baseMonth.getFullYear(),
-    baseMonth.getMonth() - 2,
-    diaFechamento
-  );
-  fechamentoDoisMesesAntes.setHours(0, 0, 0, 0);
+const cicloFim = makeDate(
+  baseMonth.getFullYear(),
+  baseMonth.getMonth() + fechamentoOffsetMesFatura,
+  diaFechamento
+);
+cicloFim.setHours(0, 0, 0, 0);
 
-  const cicloInicio = new Date(fechamentoDoisMesesAntes);
-  cicloInicio.setDate(cicloInicio.getDate() + 1);
-  cicloInicio.setHours(0, 0, 0, 0);
+const fechamentoAnteriorAoCiclo = makeDate(
+  baseMonth.getFullYear(),
+  baseMonth.getMonth() + fechamentoOffsetMesFatura - 1,
+  diaFechamento
+);
+fechamentoAnteriorAoCiclo.setHours(0, 0, 0, 0);
+
+const cicloInicio = new Date(fechamentoAnteriorAoCiclo);
+cicloInicio.setDate(cicloInicio.getDate() + 1);
+cicloInicio.setHours(0, 0, 0, 0);
 
   const cicloLabel = `${formatBRDate(formatDateOnlyISO(cicloInicio))} até ${formatBRDate(
     formatDateOnlyISO(cicloFim)
@@ -612,21 +617,23 @@ const vencimentoFaturaAnterior = makeDate(
 );
 vencimentoFaturaAnterior.setHours(0, 0, 0, 0);
 
+const fechamentoOffsetMesFaturaAnterior = diaVencimento > diaFechamento ? 0 : -1;
+
 const cicloFimAnterior = makeDate(
   previousBaseMonth.getFullYear(),
-  previousBaseMonth.getMonth() - 1,
+  previousBaseMonth.getMonth() + fechamentoOffsetMesFaturaAnterior,
   diaFechamento
 );
 cicloFimAnterior.setHours(0, 0, 0, 0);
 
-const fechamentoTresMesesAntes = makeDate(
+const fechamentoAnteriorAoCicloAnterior = makeDate(
   previousBaseMonth.getFullYear(),
-  previousBaseMonth.getMonth() - 2,
+  previousBaseMonth.getMonth() + fechamentoOffsetMesFaturaAnterior - 1,
   diaFechamento
 );
-fechamentoTresMesesAntes.setHours(0, 0, 0, 0);
+fechamentoAnteriorAoCicloAnterior.setHours(0, 0, 0, 0);
 
-const cicloInicioAnterior = new Date(fechamentoTresMesesAntes);
+const cicloInicioAnterior = new Date(fechamentoAnteriorAoCicloAnterior);
 cicloInicioAnterior.setDate(cicloInicioAnterior.getDate() + 1);
 cicloInicioAnterior.setHours(0, 0, 0, 0);
 

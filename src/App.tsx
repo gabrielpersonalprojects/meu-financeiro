@@ -1561,11 +1561,11 @@ const getCardCycleMonthOnOpen = (card: any) => {
 
   const fechamento = Number(card?.diaFechamento ?? 31);
 
-  // No app, o mês exibido é o mês da FATURA (vencimento), não o mês calendário.
-  // Então:
-  // - antes/até o fechamento: compras de hoje caem na fatura do próximo mês
-  // - depois do fechamento: compras de hoje caem na fatura do mês seguinte ao próximo
-  const offsetMeses = dia > fechamento ? 2 : 1;
+  // O mês exibido no dashboard é o mês da próxima fatura válida.
+  // Regra:
+  // - até o dia de fechamento: compra ainda cai na fatura do próximo vencimento
+  // - após o fechamento: compra cai na fatura do mês seguinte
+  const offsetMeses = dia > fechamento ? 1 : 0;
 
   const base = new Date(ano, mes - 1 + offsetMeses, 1);
 
@@ -3136,10 +3136,10 @@ const getCardCycleMonthFromDate = (dataISO: string, diaFechamento: number) => {
 
   const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
 
-  // Regra atual do app:
-  // - até o fechamento => próxima fatura
-  // - depois do fechamento => fatura do mês seguinte
-  base.setMonth(base.getMonth() + (dia > fechamento ? 2 : 1));
+  // Regra correta:
+  // - até o fechamento: cai na fatura do próximo mês
+  // - após o fechamento: continua caindo só na fatura imediatamente seguinte
+  base.setMonth(base.getMonth() + 1);
 
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
 };
@@ -4700,17 +4700,33 @@ const existeFaturaAtrasada = Array.from(totaisPorCiclo.entries()).some(([ciclo, 
   const saldo = Math.max(0, Number(info.total || 0) - Number(info.pago || 0));
   if (saldo <= 0) return false;
 
+  // Nunca marcar como atrasada a fatura atual aberta nem ciclos futuros
+  if (String(ciclo) >= String(cicloBase)) return false;
+
   const [anoStr, mesStr] = String(ciclo).split("-");
   const ano = Number(anoStr);
   const mes = Number(mesStr);
   if (!ano || !mes) return false;
 
-  const vencimentoDoCiclo = new Date(
-    ano,
-    mes - 1,
-    Math.min(28, Math.max(1, Number(c.diaVencimento ?? 10)))
-  );
-  vencimentoDoCiclo.setHours(0, 0, 0, 0);
+const diaVencimentoNum = Math.max(1, Math.min(31, Number(c.diaVencimento ?? 10)));
+const diaFechamentoNum = Math.max(1, Math.min(31, Number(c.diaFechamento ?? 1)));
+
+// Se o vencimento acontece antes ou no mesmo "bloco" do fechamento,
+// então o ciclo YYYY-MM vence no mês seguinte.
+// Ex.: fechamento 23 / vencimento 03:
+// ciclo 2026-03 vence em 03/04, não em 03/03.
+const offsetMesVencimento = diaVencimentoNum <= diaFechamentoNum ? 1 : 0;
+
+const vencimentoDoCiclo = new Date(
+  ano,
+  mes - 1 + offsetMesVencimento,
+  diaVencimentoNum,
+  12,
+  0,
+  0,
+  0
+);
+vencimentoDoCiclo.setHours(0, 0, 0, 0);
 
   return hoje.getTime() > vencimentoDoCiclo.getTime();
 });
@@ -4721,7 +4737,27 @@ const statusMiniCard: "normal" | "atrasada" | "zerada" =
     : emAberto > 0
     ? "normal"
     : "zerada";
-          
+if (String(c.emissor ?? "").trim().toLowerCase().includes("sam")) {
+  console.log("[MINI CARD DEBUG]", {
+    cartao: c.id,
+    nome: c.name,
+    emissor: c.emissor,
+    fechamento: c.diaFechamento,
+    vencimento: c.diaVencimento,
+    cicloBase,
+    emAberto,
+    statusMiniCard,
+    totaisPorCiclo: Array.from(totaisPorCiclo.entries()),
+    statusManualPorCiclo: Array.from(statusManualPorCiclo.entries()),
+    pagamentosDoCartao: (pagamentosFatura ?? [])
+      .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
+      .map((p: any) => ({
+        id: p?.id,
+        cicloKey: p?.cicloKey,
+        valor: p?.valor,
+      })),
+  });
+}
     return (
             <div key={c.id} className="relative group w-full max-w-[360px]">
               {/* CARTÃO (clicável) */}
@@ -4948,9 +4984,10 @@ limiteDisponivelReal={Math.max(
               const mesTx = dataTx.getMonth();
               const diaTx = dataTx.getDate();
 
-              return diaTx > Number(selectedCcCard.diaFechamento ?? 1)
-                ? `${anoTx}-${String(mesTx + 3).padStart(2, "0")}`
-                : `${anoTx}-${String(mesTx + 2).padStart(2, "0")}`;
+return getCardCycleMonthFromDate(
+  dataRaw,
+  Number(selectedCcCard.diaFechamento ?? 1)
+);
             })();
 
         const statusDoCiclo = String(

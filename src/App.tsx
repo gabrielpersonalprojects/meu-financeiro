@@ -5247,7 +5247,13 @@ await deleteTransactionById(String(id), userId);
       <button
         key={tab}
         type="button"
-        onClick={() => setActiveTab(tab)}
+        onClick={() => {
+  if (activeTab === "gastos" && tab !== "gastos") {
+    setFiltroMesAnalise(getHojeLocal().substring(0, 7));
+  }
+
+  setActiveTab(tab);
+}}
         className={`h-14 px-5 rounded-2xl transition-all whitespace-nowrap
           ${
             activeTab === tab

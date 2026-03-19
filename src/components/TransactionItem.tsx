@@ -123,9 +123,9 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
                 {paid ? "Pago" : atrasada ? "Em Atraso" : "Pendente"}
               </span>
 
-              <span className="text-slate-500 dark:text-slate-400 font-bold">
-                {formatarData(t.data)}
-              </span>
+<span className="text-slate-500 dark:text-slate-400 font-bold">
+  {String(metodoPgto).toLowerCase() === "debito_conta" ? "Debito" : metodoPgto}
+</span>
 
               <span className="text-slate-500 dark:text-slate-400">•</span>
 
@@ -135,10 +135,9 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
 
               {metodoPgto ? (
                 <>
-                  <span className="text-slate-500 dark:text-slate-400">•</span>
-                  <span className="text-slate-500 dark:text-slate-400 font-bold">
-                    {metodoPgto}
-                  </span>
+<span className="text-slate-500 dark:text-slate-400 font-bold">
+  {String(metodoPgto).toLowerCase() === "debito_conta" ? "Debito" : metodoPgto}
+</span>
                 </>
               ) : null}
 
@@ -194,11 +193,11 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
             {info.banco}
           </span>
 
-          {!!info.tipo && (
-            <span className="uppercase text-slate-500 dark:text-slate-400">
-              {info.tipo}
-            </span>
-          )}
+{!!info.tipo && (
+  <span className="uppercase text-slate-500 dark:text-slate-400">
+    {String(info.tipo).toLowerCase() === "debito_conta" ? "Debito" : info.tipo}
+  </span>
+)}
 
           {!!info.perfil && (
             <span className="font-semibold uppercase text-slate-500 dark:text-slate-400">

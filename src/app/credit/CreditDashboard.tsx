@@ -1762,37 +1762,39 @@ const descricaoLimpa = String(t.descricao ?? "")
   {descricaoLimpa || "—"}
 </div>
 
-                         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-2 sm:mt-1 sm:gap-2">
-                            <span className="text-slate-500 text-xs dark:text-white/60">
-                              {formatBRDate(t.data)}
-                            </span>
+<div className="mt-1.5 space-y-1.5 sm:mt-1 sm:space-y-1">
+  <div className="text-slate-500 text-xs dark:text-white/60">
+    {formatBRDate(t.data)}
+  </div>
 
-{catLabel ? (
-  <span
-    className="inline-flex items-center rounded-full bg-black px-2 py-0.5 text-[10px] font-bold text-white
-    dark:bg-white dark:text-black"
-  >
-    {catLabel}
-  </span>
-) : null}
+  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-2">
+    {catLabel ? (
+      <span
+        className="inline-flex items-center rounded-full bg-black px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white
+        dark:bg-white dark:text-black"
+      >
+        {catLabel}
+      </span>
+    ) : null}
 
-{t.tag ? (
-  <span
-    className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-600 to-purple-500 px-2 py-0.5 text-[10px] font-bold text-white"
-  >
-    {t.tag}
-  </span>
-) : null}
+    {t.tag ? (
+      <span
+        className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-600 to-purple-500 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white"
+      >
+        {t.tag}
+      </span>
+    ) : null}
 
-                            {isParcelado ? (
-                              <span
-                                className="text-purple-700 text-xs px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200
-                                dark:text-white/80 dark:bg-purple-500/10 dark:border-purple-400/20"
-                              >
-                                Parcelado {parcelaAtual}/{parcelasTotal}
-                              </span>
-                            ) : null}
-                          </div>
+    {isParcelado ? (
+      <span
+        className="inline-flex items-center text-purple-700 text-[9px] sm:text-xs px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200
+        dark:text-white/80 dark:bg-purple-500/10 dark:border-purple-400/20"
+      >
+        Parcelado {parcelaAtual}/{parcelasTotal}
+      </span>
+    ) : null}
+  </div>
+</div>
                         </div>
 
                      <div className="text-right shrink-0 flex items-start gap-2.5 sm:items-center sm:gap-2">

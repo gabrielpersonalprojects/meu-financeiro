@@ -11,8 +11,9 @@ type CartaoUI = {
   diaVencimento: number;
   bankText?: string;
   categoria?: string;
-  brand?: string;
-  last4?: string;
+brand: string;
+perfil?: "pf" | "pj";
+last4: string;
   gradientFrom?: string;
   gradientTo?: string;
 };
@@ -1420,6 +1421,7 @@ return (
                   vencimentoDia={cartao.diaVencimento}
                   emissor={cartao.bankText ?? ""}
                   categoria={cartao.categoria ?? ""}
+                  perfil={cartao.perfil ?? cartao.brand ?? "pf"}
                   design={{
                     from: cartao.gradientFrom ?? "#220055",
                     to: cartao.gradientTo ?? "#4600ac",
@@ -1430,7 +1432,7 @@ return (
 <CreditCardVisual
   nome={cartao.nome}
   categoria={cartao.categoria ?? ""}
-  perfil={cartao.brand ?? "pf"}
+  perfil={cartao.perfil ?? cartao.brand ?? "pf"}
   limite={cartao.limiteTotal}
   limiteDisponivel={limiteDisponivel}
   fechamentoDia={cartao.diaFechamento}

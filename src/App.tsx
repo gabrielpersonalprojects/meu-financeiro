@@ -252,7 +252,23 @@ const carregarDadosUsuario = async (userId: string) => {
 
   try {
     const creditCardRows = await fetchCreditCards(userId);
-    setCreditCards(creditCardRows.map(mapCreditCardRowToApp) as any);
+    setCreditCards(
+  creditCardRows.map((row: any) => {
+    const mapped = mapCreditCardRowToApp(row) as any;
+
+    return {
+      ...mapped,
+      perfil: String(
+        mapped?.perfil ??
+        row?.perfil ??
+        row?.brand ??
+        "pf"
+      ).toLowerCase() === "pj"
+        ? "pj"
+        : "pf",
+    };
+  }) as any
+);
     setCreditCardsLoaded(true);
 
 const [
@@ -1465,6 +1481,8 @@ const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
 });
 
 const [transacoesCardsPerfilView, setTransacoesCardsPerfilView] = useState<"geral" | "PF" | "PJ">("geral");
+const [resumoPerfilView, setResumoPerfilView] = useState<"geral" | "PF" | "PJ">("geral");
+const resumoPerfilRef = useRef<HTMLDivElement | null>(null);
 
 useEffect(() => {
   const isGeralConta =
@@ -1474,6 +1492,25 @@ useEffect(() => {
     setTransacoesCardsPerfilView("geral");
   }
 }, [filtroConta, transacoesCardsPerfilView]);
+
+useEffect(() => {
+  const handleClickOutsideResumo = (event: MouseEvent) => {
+    if (resumoPerfilView === "geral") return;
+
+    const target = event.target as Node | null;
+    if (!target) return;
+
+    if (resumoPerfilRef.current && !resumoPerfilRef.current.contains(target)) {
+      setResumoPerfilView("geral");
+    }
+  };
+
+  document.addEventListener("mousedown", handleClickOutsideResumo);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutsideResumo);
+  };
+}, [resumoPerfilView]);
 
 // helpers p/ mexer no localStorage de OUTRA conta (sem precisar trocar a conta ativa)
 
@@ -1933,7 +1970,18 @@ if (!userId) return;
       savedRow = data;
     }
 
-    const savedCard = mapCreditCardRowToApp(savedRow as any);
+    const savedCard = {
+  ...(mapCreditCardRowToApp(savedRow as any) as any),
+  perfil:
+    String(
+      (savedRow as any)?.perfil ??
+      (savedRow as any)?.brand ??
+      card.perfil ??
+      "pf"
+    ).toLowerCase() === "pj"
+      ? "pj"
+      : "pf",
+} as any;
 
     setCreditCards((prev) => {
       if (!isEditingLimite) return [...prev, savedCard];
@@ -3814,6 +3862,30 @@ const fimSemanaResumoDate = new Date(hojeResumoDate);
 fimSemanaResumoDate.setDate(hojeResumoDate.getDate() + (7 - diaSemanaResumo === 7 ? 0 : 7 - diaSemanaResumo));
 fimSemanaResumoDate.setHours(23, 59, 59, 999);
 
+const resolvePerfilContaResumo = (rawId: any): "PF" | "PJ" | "" => {
+  const id = String(rawId ?? "").trim();
+  if (!id) return "";
+
+  const conta = (profiles ?? []).find(
+    (p: any) => String(p?.id ?? "").trim() === id
+  );
+
+  if (!conta) return "";
+
+  return String(conta?.perfilConta ?? "").trim().toUpperCase() === "PJ"
+    ? "PJ"
+    : "PF";
+};
+
+const pertenceAoResumoPerfil = (perfilRaw: any) => {
+  if (resumoPerfilView === "geral") return true;
+
+  return (
+    String(perfilRaw ?? "").trim().toUpperCase() ===
+    String(resumoPerfilView).trim().toUpperCase()
+  );
+};
+
 const despesasEmAberto = (transacoes ?? []).filter((t: any) => {
   const tipo = String(t?.tipo ?? "").trim().toLowerCase();
   if (tipo !== "despesa") return false;
@@ -3822,7 +3894,21 @@ const despesasEmAberto = (transacoes ?? []).filter((t: any) => {
   const data = String(t?.data ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return false;
 
-  return true;
+  const idsRelacionados = [
+    t?.profileId,
+    t?.contaId,
+    t?.contaOrigemId,
+    t?.transferFromId,
+  ]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
+
+  if (resumoPerfilView === "geral") return true;
+  if (idsRelacionados.length === 0) return false;
+
+  return idsRelacionados.some((id) =>
+    pertenceAoResumoPerfil(resolvePerfilContaResumo(id))
+  );
 });
 
 const resumoHojeValor = despesasEmAberto.reduce((acc: number, t: any) => {
@@ -3922,6 +4008,12 @@ let resumoCartoesAtrasadasValor = 0;
   const cartaoId = String(c?.id ?? "").trim();
   if (!cartaoId) return;
 
+  const perfilCartao =
+    String(c?.perfil ?? "").trim().toUpperCase() ||
+    resolvePerfilContaResumo(c?.profileId);
+
+  if (!pertenceAoResumoPerfil(perfilCartao)) return;
+
 const cicloAtual = calcCycleResumoYm(hojeResumoStr, Number(c?.diaFechamento ?? 1));
 
 const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
@@ -3997,13 +4089,13 @@ const vencimento = new Date(
 );
 vencimento.setHours(0, 0, 0, 0);
 
+if (vencimento.getTime() === hojeResumoDate.getTime()) {
+  resumoCartoesVencendoHojeValor += saldo;
+  return;
+}
+
 if (ciclo === cicloAtual) {
   resumoCartoesEmAbertoValor += saldo;
-
-  if (vencimento.getTime() === hojeResumoDate.getTime()) {
-    resumoCartoesVencendoHojeValor += saldo;
-  }
-
   return;
 }
 
@@ -4135,7 +4227,10 @@ containerStyle={{
       {/* COLUNA ESQUERDA */}
 {/* COLUNA ESQUERDA */}
 <div className="lg:col-span-4 space-y-5">
- <div className="relative rounded-3xl border border-slate-200/70 bg-white/90 p-3 sm:p-4 shadow-sm overflow-hidden dark:border-slate-800/70 dark:bg-slate-900/90">
+ <div
+   ref={resumoPerfilRef}
+   className="relative rounded-3xl border border-slate-200/70 bg-white/90 p-3 sm:p-4 shadow-sm overflow-hidden dark:border-slate-800/70 dark:bg-slate-900/90"
+ >
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
     
@@ -4330,11 +4425,39 @@ containerStyle={{
 </p>
 
 <div className="pt-4 space-y-2.5">
-  <div className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em]">
+<div className="mt-3 flex items-center gap-2">
+  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em]">
     <span className="font-bold text-[#4300ff] dark:text-white">Despesas</span>
     <span className="text-[#4300ff]/70 dark:text-white/70">|</span>
     <span className="font-bold text-[#4300ff] dark:text-white">Cartões</span>
   </div>
+
+  <div className="ml-2 flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/70 p-1 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/40 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+    <button
+      type="button"
+      onClick={() => setResumoPerfilView("PF")}
+      className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] transition ${
+        resumoPerfilView === "PF"
+          ? "bg-[#5b21b6] text-white shadow-[0_8px_18px_rgba(91,33,182,0.34)]"
+          : "text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+      }`}
+    >
+      PF
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setResumoPerfilView("PJ")}
+      className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] transition ${
+        resumoPerfilView === "PJ"
+          ? "bg-[#5b21b6] text-white shadow-[0_8px_18px_rgba(91,33,182,0.34)]"
+          : "text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+      }`}
+    >
+      PJ
+    </button>
+  </div>
+</div>
 
   <div className="space-y-2">
     <div className="rounded-full border border-slate-200/80 bg-white/60 px-3 py-1.5 text-[11px] leading-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
@@ -5033,12 +5156,16 @@ if (!userId) return;
       limiteTotal: selectedCcCard.limite ?? 0,
       diaFechamento: selectedCcCard.diaFechamento ?? 10,
       diaVencimento: selectedCcCard.diaVencimento ?? 10,
-      bankText: selectedCcCard.emissor ?? "",
-      brand: "Mastercard",
-      last4: "1234",
-      gradientFrom: selectedCcCard.gradientFrom ?? "#220055",
-      gradientTo: selectedCcCard.gradientTo ?? "#4600ac",
-      categoria: selectedCard?.categoria ?? "",
+bankText: selectedCcCard.emissor ?? "",
+brand: "Mastercard",
+perfil:
+  String((selectedCcCard as any)?.perfil ?? (selectedCcCard as any)?.brand ?? "pf").toLowerCase() === "pj"
+    ? "pj"
+    : "pf",
+last4: "1234",
+gradientFrom: selectedCcCard.gradientFrom ?? "#220055",
+gradientTo: selectedCcCard.gradientTo ?? "#4600ac",
+categoria: selectedCcCard.categoria ?? "",
     }}
 limiteDisponivelReal={Math.max(
   0,

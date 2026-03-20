@@ -48,7 +48,7 @@ export const mapCreditCardRowToApp = (row: CreditCardRow): CreditCardApp => {
     gradientFrom: row.gradient_from ?? "#220055",
     gradientTo: row.gradient_to ?? "#4600ac",
     categoria: row.categoria ?? "",
-    perfil: row.categoria?.toLowerCase() === "pj" ? "pj" : "pf",
+    perfil: String((row as any).brand ?? "pf").toLowerCase() === "pj" ? "pj" : "pf",
   };
 };
 
@@ -104,6 +104,7 @@ type UpdateCreditCardInput = {
   bank_text?: string | null;
   categoria?: string | null;
   validade?: string | null;
+  brand?: string | null;
   gradient_from?: string | null;
   gradient_to?: string | null;
 };
@@ -124,9 +125,10 @@ export async function updateCreditCardById(
   ...(input.dia_fechamento !== undefined ? { dia_fechamento: input.dia_fechamento } : {}),
   ...(input.bank_text !== undefined ? { bank_text: input.bank_text } : {}),
   ...(input.categoria !== undefined ? { categoria: input.categoria } : {}),
-  ...(input.validade !== undefined ? { validade: input.validade } : {}),
-  ...(input.gradient_from !== undefined ? { gradient_from: input.gradient_from } : {}),
-  ...(input.gradient_to !== undefined ? { gradient_to: input.gradient_to } : {}),
+...(input.validade !== undefined ? { validade: input.validade } : {}),
+...(input.brand !== undefined ? { brand: input.brand } : {}),
+...(input.gradient_from !== undefined ? { gradient_from: input.gradient_from } : {}),
+...(input.gradient_to !== undefined ? { gradient_to: input.gradient_to } : {}),
 })
     .eq("id", id)
     .eq("user_id", userId)

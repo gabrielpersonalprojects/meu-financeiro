@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CustomDropdown from "../../components/CustomDropdown";
 import { CreditCardVisual } from "./CreditCardVisual";
+import { createPortal } from "react-dom";
 
 type CartaoUI = {
   id: string;
@@ -326,6 +327,10 @@ const vencimentoFaturaAtual = makeDate(
 );
 vencimentoFaturaAtual.setHours(0, 0, 0, 0);
 
+const miniCardDueLabelExpandido = `${pad2(vencimentoFaturaAtual.getDate())}/${pad2(
+  vencimentoFaturaAtual.getMonth() + 1
+)}`;
+
 // Regra:
 // - vencimento > fechamento  => fechamento no mesmo mês da fatura
 // - vencimento <= fechamento => fechamento no mês anterior à fatura
@@ -558,10 +563,10 @@ useEffect(() => {
     return paginas;
   }, [paginaAtual, totalPaginas]);
 
-  const totalFiltradoCC = txMesFiltradas.reduce(
-    (acc, t) => acc + (Number((t as any).valor) || 0),
-    0
-  );
+const totalFiltradoCC = txMesFiltradas.reduce(
+  (acc, t) => acc + Math.abs(Number((t as any).valor) || 0),
+  0
+);
 
   useEffect(() => {
     if (filtroCategoriaCC !== "todas" && !categoriasCC.includes(filtroCategoriaCC)) {
@@ -716,6 +721,7 @@ const faturaAnteriorFechadaAguardandoPagamento =
   agoraAnterior0 > cicloFimAnteriorEOD &&
   agoraAnterior0 <= startOfDay(vencimentoFaturaAnterior).getTime();
 
+
   useEffect(() => {
     onSaldoRestanteChange?.(Number(saldoRestanteFatura ?? 0));
   }, [saldoRestanteFatura, onSaldoRestanteChange, cartao?.id]);
@@ -775,10 +781,83 @@ const faturaAnteriorFechadaAguardandoPagamento =
         ) ?? null
       : null;
 
-  const faturaStatus =
-    statusManualAtualObj?.statusManual === "parcelada" ? "FECHADA" : getFaturaStatus();
+const faturaStatus =
+  statusManualAtualObj?.statusManual === "parcelada" ? "FECHADA" : getFaturaStatus();
 
-  const faturaStatusLabel: Record<FaturaStatus, string> = {
+const miniCardTemAtraso =
+  faturaStatus === "ATRASADA" || faturaAnteriorEstaAtrasada;
+
+const miniCardFechadaAguardandoPagamento =
+  !miniCardTemAtraso &&
+  (faturaStatus === "FECHADA" || faturaAnteriorFechadaAguardandoPagamento);
+
+const miniCardStatus: "normal" | "atrasada" | "zerada" =
+  miniCardTemAtraso
+    ? "atrasada"
+    : miniCardFechadaAguardandoPagamento
+      ? "zerada"
+      : "normal";
+
+const miniCardValor =
+  miniCardTemAtraso
+    ? Math.max(
+        0,
+        faturaAnteriorEstaAtrasada ? saldoFaturaAnterior : saldoRestanteFatura
+      )
+    : miniCardFechadaAguardandoPagamento
+      ? Math.max(
+          0,
+          faturaAnteriorFechadaAguardandoPagamento
+            ? valorTotalFaturaAnterior
+            : valorFaturaTotal
+        )
+      : Math.max(0, saldoRestanteFatura);
+
+/**
+ * REGRA EXCLUSIVA DO CARD EXPANDIDO:
+ * ao abrir o cartão, o mini card deve refletir o ciclo atual aberto no dashboard,
+ * sem puxar valor/status da fatura anterior para dentro dele.
+ */
+const miniCardExpandidoTemAtraso =
+  faturaStatus === "ATRASADA";
+
+const miniCardExpandidoFechadaAguardandoPagamento =
+  !miniCardExpandidoTemAtraso &&
+  faturaStatus === "FECHADA";
+
+const miniCardExpandidoEhMesPassado =
+  baseMonth.getFullYear() < now0.getFullYear() ||
+  (baseMonth.getFullYear() === now0.getFullYear() &&
+    baseMonth.getMonth() < now0.getMonth());
+
+const miniCardExpandidoEhMesFuturo =
+  baseMonth.getFullYear() > now0.getFullYear() ||
+  (baseMonth.getFullYear() === now0.getFullYear() &&
+    baseMonth.getMonth() > now0.getMonth());
+
+const miniCardExpandidoSemValor =
+  Math.max(0, valorFaturaTotal) <= 0 &&
+  Math.max(0, saldoRestanteFatura) <= 0;
+
+const miniCardExpandidoStatus: "normal" | "atrasada" | "zerada" | "futura" | "oculta" =
+  miniCardExpandidoTemAtraso
+    ? "atrasada"
+    : miniCardExpandidoFechadaAguardandoPagamento
+      ? "zerada"
+      : miniCardExpandidoSemValor && miniCardExpandidoEhMesPassado
+        ? "oculta"
+        : miniCardExpandidoSemValor && miniCardExpandidoEhMesFuturo
+          ? "futura"
+          : "normal";
+
+const miniCardExpandidoValor =
+  miniCardExpandidoTemAtraso
+    ? Math.max(0, saldoRestanteFatura)
+    : miniCardExpandidoFechadaAguardandoPagamento
+      ? Math.max(0, valorFaturaTotal)
+      : Math.max(0, saldoRestanteFatura);
+
+const faturaStatusLabel: Record<FaturaStatus, string> = {
     PAGA: "Paga",
     FUTURA: "Futura",
     EM_ABERTO: "Em aberto",
@@ -862,6 +941,8 @@ useEffect(() => {
   parcelamentoAtual,
   saldoRestanteFatura,
 ]);
+
+
 
 const resetInvoiceModalState = () => {
   setInvoiceActionMode("pagamento");
@@ -1412,23 +1493,8 @@ return (
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start justify-items-center lg:justify-items-stretch text-slate-900 dark:text-white">
        <div className="w-full max-w-[320px] justify-self-center lg:justify-self-start">
           <div>
-            {onPickOtherCard ? (
-              <button type="button" onClick={onPickOtherCard} className="w-full text-left">
-                <CreditCardVisual
-                  nome={cartao.nome}
-                  limite={cartao.limiteTotal}
-                  fechamentoDia={cartao.diaFechamento}
-                  vencimentoDia={cartao.diaVencimento}
-                  emissor={cartao.bankText ?? ""}
-                  categoria={cartao.categoria ?? ""}
-                  perfil={cartao.perfil ?? cartao.brand ?? "pf"}
-                  design={{
-                    from: cartao.gradientFrom ?? "#220055",
-                    to: cartao.gradientTo ?? "#4600ac",
-                  }}
-                />
-              </button>
-            ) : (
+{onPickOtherCard ? (
+  <button type="button" onClick={onPickOtherCard} className="w-full text-left">
 <CreditCardVisual
   nome={cartao.nome}
   categoria={cartao.categoria ?? ""}
@@ -1438,8 +1504,27 @@ return (
   fechamentoDia={cartao.diaFechamento}
   vencimentoDia={cartao.diaVencimento}
   emissor={cartao.bankText ?? ""}
-emAberto={valorFaturaTotal}
-statusMiniCard={faturaStatus === "ATRASADA" ? "atrasada" : valorFaturaTotal <= 0 ? "zerada" : "normal"}
+  emAberto={miniCardExpandidoValor}
+  statusMiniCard={miniCardExpandidoStatus}
+miniCardDueLabel={miniCardDueLabelExpandido}
+  design={{
+    from: cartao.gradientFrom ?? "#220055",
+    to: cartao.gradientTo ?? "#4600ac",
+  }}
+/>
+  </button>
+) : (
+<CreditCardVisual
+  nome={cartao.nome}
+  categoria={cartao.categoria ?? ""}
+  perfil={cartao.perfil ?? cartao.brand ?? "pf"}
+  limite={cartao.limiteTotal}
+  limiteDisponivel={limiteDisponivel}
+  fechamentoDia={cartao.diaFechamento}
+  vencimentoDia={cartao.diaVencimento}
+  emissor={cartao.bankText ?? ""}
+emAberto={miniCardExpandidoValor}
+statusMiniCard={miniCardExpandidoStatus}
   design={{
     from: cartao.gradientFrom ?? "#220055",
     to: cartao.gradientTo ?? "#4600ac",
@@ -1942,109 +2027,112 @@ className="h-8 w-8 inline-flex items-center justify-center transition text-slate
         </div>
       </div>
 
-      {isInvoiceModalOpen ? (
+{isInvoiceModalOpen
+  ? createPortal(
+      <div
+        className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-[2px] overscroll-contain"
+        onClick={handleCloseInvoiceModal}
+      >
+        <div className="flex h-screen w-screen items-center justify-center p-3 sm:p-6">
           <div
-  className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-[2px] flex items-start justify-center px-4 pt-12 pb-4"
-          onClick={handleCloseInvoiceModal}
-        >
-          <div
-            className="w-full max-w-[660px] rounded-[2rem] border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-white/10 dark:bg-[#071235] dark:text-white"
+            className="flex w-full max-w-[600px] max-h-[calc(100vh-24px)] flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-white/10 dark:bg-[#071235] dark:text-white sm:max-h-[calc(100vh-48px)]"
             onClick={(e) => e.stopPropagation()}
           >
-<div
-  className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 pt-5 pb-4 dark:border-white/10"
->
-  <div className="min-w-0 pr-4">
-    <div className="text-slate-600 text-[11px] font-medium leading-none dark:text-white/60">
-      Pagamento da fatura
-    </div>
-    <div className="mt-1.5 text-slate-900 font-semibold text-[22px] leading-none dark:text-white">
-      Acessar fatura
-    </div>
-  </div>
+            <div className="shrink-0 flex items-start justify-between gap-4 border-b border-slate-200 px-5 pt-4 pb-4 dark:border-white/10 sm:px-6 sm:pt-5">
+              <div className="min-w-0 pr-4">
+                <div className="text-slate-600 text-[11px] font-medium leading-none dark:text-white/60">
+                  Pagamento da fatura
+                </div>
+                <div className="mt-1.5 text-slate-900 font-semibold text-[22px] leading-none dark:text-white">
+                  Acessar fatura
+                </div>
+              </div>
 
-  <button
-    type="button"
-    onClick={handleCloseInvoiceModal}
-    className="h-11 w-11 shrink-0 flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
-    aria-label="Fechar modal"
-    title="Fechar"
-  >
-    ✕
-  </button>
-</div>
+              <button
+                type="button"
+                onClick={handleCloseInvoiceModal}
+                className="h-11 w-11 shrink-0 flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+                aria-label="Fechar modal"
+                title="Fechar"
+              >
+                ✕
+              </button>
+            </div>
 
-<div className="px-8 pt-7 pb-6">
-  {renderPagamentoFaturaModalContent()}
-</div>
+            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4 sm:px-6 sm:pt-5 sm:pb-5">
+              {renderPagamentoFaturaModalContent()}
+            </div>
 
-<div className="border-t border-slate-200 px-6 py-4 flex items-center justify-between gap-3 dark:border-white/10">
-  {!parcelamentoAtual ? (
-    <>
-      <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5">
-        <button
-          type="button"
-          onClick={() => {
-            setInvoiceActionMode("pagamento");
-            setErroPagamentoFatura("");
-            setSucessoPagamentoFatura("");
-          }}
-          className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition ${
-            invoiceActionMode === "pagamento"
-              ? "bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900"
-              : "text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
-          }`}
-        >
-          À vista
-        </button>
+            <div className="shrink-0 border-t border-slate-200 px-4 py-4 flex items-center justify-between gap-3 dark:border-white/10 sm:px-6">
+              {!parcelamentoAtual ? (
+                <>
+                  <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvoiceActionMode("pagamento");
+                        setErroPagamentoFatura("");
+                        setSucessoPagamentoFatura("");
+                      }}
+                      className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition ${
+                        invoiceActionMode === "pagamento"
+                          ? "bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900"
+                          : "text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
+                      }`}
+                    >
+                      À vista
+                    </button>
 
-        <button
-          type="button"
-onClick={() => {
-  setSucessoPagamentoFatura("");
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSucessoPagamentoFatura("");
 
-  if (!podeParcelarFatura) {
-    setErroPagamentoFatura(
-      "O parcelamento só está disponível para faturas fechadas ou atrasadas."
-    );
-    setInvoiceActionMode("pagamento");
-    return;
-  }
+                        if (!podeParcelarFatura) {
+                          setErroPagamentoFatura(
+                            "O parcelamento só está disponível para faturas fechadas ou atrasadas."
+                          );
+                          setInvoiceActionMode("pagamento");
+                          return;
+                        }
 
-  setErroPagamentoFatura("");
-  setInvoiceActionMode("parcelamento");
-}}
-          className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition ${
-            invoiceActionMode === "parcelamento"
-              ? "bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900"
-              : "text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
-          }`}
-        >
-          Parcelado
-        </button>
-      </div>
+                        setErroPagamentoFatura("");
+                        setInvoiceActionMode("parcelamento");
+                      }}
+                      className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition ${
+                        invoiceActionMode === "parcelamento"
+                          ? "bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900"
+                          : "text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
+                      }`}
+                    >
+                      Parcelado
+                    </button>
+                  </div>
 
-      <button
-        type="button"
-        onClick={
-          invoiceActionMode === "pagamento"
-            ? registrarPagamentoFatura
-            : registrarParcelamentoFatura
-        }
-        className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold"
-      >
-        {invoiceActionMode === "pagamento"
-          ? "Registrar pagamento"
-          : "Registrar parcelamento"}
-      </button>
-    </>
-  ) : (
-    <div />
-  )}
-</div>
+                  <button
+                    type="button"
+                    onClick={
+                      invoiceActionMode === "pagamento"
+                        ? registrarPagamentoFatura
+                        : registrarParcelamentoFatura
+                    }
+                    className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold"
+                  >
+                    {invoiceActionMode === "pagamento"
+                      ? "Registrar pagamento"
+                      : "Registrar parcelamento"}
+                  </button>
+                </>
+              ) : (
+                <div />
+              )}
+            </div>
           </div>
         </div>
-      ) : null}
+      </div>,
+      document.body
+    )
+  : null}
 
 {confirmCancelarNegociacao && parcelamentoAtual ? (
   <div
@@ -2082,48 +2170,49 @@ onClick={() => {
   </div>
 ) : null}
 
-      {confirmExcluirPagamentoId && (
+{confirmExcluirPagamentoId
+  ? createPortal(
+      <div
+        className="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4"
+        onClick={() => setConfirmExcluirPagamentoId(null)}
+      >
         <div
-          className="fixed inset-0 z-[95] bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4"
-          onClick={() => setConfirmExcluirPagamentoId(null)}
+          className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden dark:border-white/10 dark:bg-[#071235] dark:text-white"
+          onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden
-              dark:border-white/10 dark:bg-[#071235] dark:text-white"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b border-slate-200 dark:border-white/10">
-              <div className="font-semibold">Excluir pagamento?</div>
-              <div className="text-slate-600 text-sm mt-1 dark:text-white/70">
-                Excluir este pagamento da fatura? Isso também removerá a transação relacionada.
-              </div>
-            </div>
-
-            <div className="p-4 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmExcluirPagamentoId(null)}
-                className="px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold
-                  dark:border-white/10 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
-              >
-                Cancelar
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const id = confirmExcluirPagamentoId;
-                  setConfirmExcluirPagamentoId(null);
-                  removerPagamentoFatura(id);
-                }}
-                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold"
-              >
-                Excluir
-              </button>
+          <div className="p-4 border-b border-slate-200 dark:border-white/10">
+            <div className="font-semibold">Excluir pagamento?</div>
+            <div className="text-slate-600 text-sm mt-1 dark:text-white/70">
+              Excluir este pagamento da fatura? Isso também removerá a transação relacionada.
             </div>
           </div>
+
+          <div className="p-4 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmExcluirPagamentoId(null)}
+              className="px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold dark:border-white/10 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const id = confirmExcluirPagamentoId;
+                setConfirmExcluirPagamentoId(null);
+                removerPagamentoFatura(id);
+              }}
+              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold"
+            >
+              Excluir
+            </button>
+          </div>
         </div>
-      )}
+      </div>,
+      document.body
+    )
+  : null}
     </>
   );
 }

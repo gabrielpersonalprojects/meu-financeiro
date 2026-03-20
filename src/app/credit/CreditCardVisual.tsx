@@ -13,7 +13,8 @@ type Props = {
   vencimentoDia: number;
 
   emAberto?: number;
-  statusMiniCard?: "normal" | "atrasada" | "zerada";
+  statusMiniCard?: "normal" | "atrasada" | "zerada" | "futura" | "oculta";
+  miniCardDueLabel?: string;
 };
 
 function ContactlessIcon({ className = "" }: { className?: string }) {
@@ -93,14 +94,15 @@ export function CreditCardVisual({
   vencimentoDia,
   emAberto,
   statusMiniCard = "normal",
+  miniCardDueLabel,
 }: Props) {
   const fallback: CardDesign = { from: "#220055", to: "#4600ac" };
   const d = design?.from && design?.to ? design : fallback;
 
   const labelPerfil = String(perfil || "PF").toUpperCase();
 
-  const due = getNextDueDate(vencimentoDia);
-  const dueLabel = formatDateDDMM(due);
+const due = getNextDueDate(vencimentoDia);
+const dueLabel = miniCardDueLabel?.trim() || formatDateDDMM(due);
 
 const openNum = Number(emAberto);
 const open = Number.isFinite(openNum) ? Math.max(0, openNum) : 0;
@@ -108,8 +110,11 @@ const open = Number.isFinite(openNum) ? Math.max(0, openNum) : 0;
 const availableNum = Number(limiteDisponivel);
 const available = Number.isFinite(availableNum) ? Math.max(0, availableNum) : 0;
 
-const mostrarSaldo = statusMiniCard === "normal" && open > 0;
-const mostrarAtraso = statusMiniCard === "atrasada";
+const mostrarOculto = statusMiniCard === "oculta";
+const mostrarAtraso = !mostrarOculto && statusMiniCard === "atrasada";
+const mostrarVencimento = !mostrarOculto && statusMiniCard === "zerada";
+const mostrarSaldo = !mostrarOculto && statusMiniCard === "normal";
+const mostrarFutura = !mostrarOculto && statusMiniCard === "futura";
 
   return (
     <div
@@ -141,27 +146,37 @@ const mostrarAtraso = statusMiniCard === "atrasada";
           </div>
         </div>
 
-        <div className="mt-10 -translate-y-2 flex items-center gap-3">
+        <div className="mt-8 -translate-y-3 flex items-center gap-3">
           <div className="h-9 w-12 rounded-lg border border-white/25 bg-white/10" />
           <ContactlessIcon className="h-6 w-6 text-white/85" />
         </div>
 
-<div className="mb-2 flex items-center gap-2 text-[11px] text-white/80 whitespace-nowrap flex-wrap">
+<div className="mt-[-2px] mb-2 flex items-center gap-2 text-[11px] text-white/80 whitespace-nowrap flex-wrap">
   {mostrarAtraso && (
-    <span className="inline-flex items-center rounded-full border border-rose-300/40 bg-rose-500/18 px-2 py-[3px] text-[10px] font-bold leading-none text-rose-100 backdrop-blur-sm">
+    <span className="inline-flex items-center rounded-full border border-rose-300/40 bg-rose-500/18 px-3 py-[5px] text-[11px] font-bold leading-none text-rose-100 shadow-sm backdrop-blur-sm">
       Em atraso
     </span>
   )}
 
-  {mostrarSaldo && (
-<span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/14 px-2.5 py-1 text-[11px] font-semibold leading-none text-white shadow-sm backdrop-blur-sm">
-  <span className="text-white/85">Fatura</span>
-  <span className="font-extrabold text-white">{formatBRL(open)}</span>
-</span>
+  {mostrarVencimento && (
+    <span className="inline-flex items-center gap-2 rounded-full border border-amber-200/30 bg-white/14 px-3 py-[5px] text-[11px] font-semibold leading-none text-white shadow-sm backdrop-blur-sm">
+      <span className="text-white/85">Venc. {dueLabel}</span>
+      <span className="font-extrabold text-white">Total: {formatBRL(open)}</span>
+    </span>
   )}
-<span className="text-white/85 text-[11px] font-medium">
-  Próx. venc.: {dueLabel}
-</span>
+
+  {mostrarSaldo && (
+    <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/14 px-3 py-[5px] text-[11px] font-semibold leading-none text-white shadow-sm backdrop-blur-sm">
+      <span className="text-white/85">Em aberto</span>
+      <span className="font-extrabold text-white">{formatBRL(open)}</span>
+    </span>
+  )}
+
+  {mostrarFutura && (
+    <span className="inline-flex items-center rounded-full border border-sky-200/30 bg-white/14 px-3 py-[5px] text-[11px] font-semibold leading-none text-white shadow-sm backdrop-blur-sm">
+      <span className="text-white/85">Futura</span>
+    </span>
+  )}
 </div>
 
         <div className="text-white/90 text-sm font-semibold tracking-wide">

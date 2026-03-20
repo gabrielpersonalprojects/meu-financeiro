@@ -49,6 +49,7 @@ import {
   insertInvoiceInstallment,
   mapInvoiceInstallmentAppToInsert,
   updateInvoiceInstallmentStatusById,
+  deleteInvoiceInstallmentById
 } from "./services/invoiceInstallments";
 
 import {
@@ -105,6 +106,7 @@ import {
   buildProfilePrefix,
   buildProfileStorageKey,
   normalizeFiltroContaValue,
+  CATEGORIAS_PADRAO,
 } from "./app/constants";
 
 import { asId } from "./utils/asId";
@@ -127,9 +129,6 @@ import type {
   Profile,
 } from "./app/types";
 
-
-
-import { CATEGORIAS_PADRAO } from "./app/constants";
 import {
   formatarMoeda,
   extrairValorMoeda,
@@ -149,8 +148,6 @@ import {
 
 
 const SEM_PRAZO_MESES = 12;
-const hojeStr = getHojeLocal();
-
 
 /* =========================
    PARTE 2/3 — APP: STATES + EFFECTS + FUNÇÕES (SEM DUPLICAÇÃO)
@@ -160,6 +157,8 @@ const hojeStr = getHojeLocal();
 
 
   const App: FC = () => {
+    const authLoadInFlightRef = useRef<string>("");
+const lastLoadedUserRef = useRef<string>("");
     const addTxLockRef = useRef(false);
     const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
 const [ccTags, setCcTags] = useState<string[]>([]);
@@ -195,8 +194,6 @@ setCcTags((prev) =>
     toastCompact("Erro ao remover tag do banco.", "error");
   }
 };
-
-const persistCCTags = (_tags: string[]) => {};
 
 type ConfirmState = {
   title: string;
@@ -248,46 +245,52 @@ const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>([
   const [sessionLoading, setSessionLoading] = useState(true);
 
 const carregarDadosUsuario = async (userId: string) => {
-  if (!userId) return;
+  const cleanUserId = String(userId ?? "").trim();
+  if (!cleanUserId) return;
+
+  if (authLoadInFlightRef.current === cleanUserId) return;
+
+  authLoadInFlightRef.current = cleanUserId;
 
   try {
-    const creditCardRows = await fetchCreditCards(userId);
+    const creditCardRows = await fetchCreditCards(cleanUserId);
     setCreditCards(
-  creditCardRows.map((row: any) => {
-    const mapped = mapCreditCardRowToApp(row) as any;
+      creditCardRows.map((row: any) => {
+        const mapped = mapCreditCardRowToApp(row) as any;
 
-    return {
-      ...mapped,
-      perfil: String(
-        mapped?.perfil ??
-        row?.perfil ??
-        row?.brand ??
-        "pf"
-      ).toLowerCase() === "pj"
-        ? "pj"
-        : "pf",
-    };
-  }) as any
-);
+        return {
+          ...mapped,
+          perfil:
+            String(
+              mapped?.perfil ??
+                row?.perfil ??
+                row?.brand ??
+                "pf"
+            ).toLowerCase() === "pj"
+              ? "pj"
+              : "pf",
+        };
+      }) as any
+    );
     setCreditCardsLoaded(true);
 
-const [
-  rows,
-  txRows,
-  invoicePaymentRows,
-  invoiceInstallmentsRows,
-  invoiceManualStatusRows,
-  categoryRows,
-  tagRows,
-] = await Promise.all([
-  fetchAccounts(userId),
-  fetchTransactions(userId),
-  fetchInvoicePayments(userId),
-  fetchInvoiceInstallments(userId),
-  fetchInvoiceManualStatus(userId),
-  fetchUserCategories(userId),
-  fetchUserTags(userId),
-]);
+    const [
+      rows,
+      txRows,
+      invoicePaymentRows,
+      invoiceInstallmentsRows,
+      invoiceManualStatusRows,
+      categoryRows,
+      tagRows,
+    ] = await Promise.all([
+      fetchAccounts(cleanUserId),
+      fetchTransactions(cleanUserId),
+      fetchInvoicePayments(cleanUserId),
+      fetchInvoiceInstallments(cleanUserId),
+      fetchInvoiceManualStatus(cleanUserId),
+      fetchUserCategories(cleanUserId),
+      fetchUserTags(cleanUserId),
+    ]);
 
     const profilesFromDb = rows.map(mapAccountRowToProfile);
     setProfiles((profilesFromDb ?? []) as any);
@@ -307,67 +310,99 @@ const [
     );
 
     const nextCategorias = {
-  receita: Array.from(
-    new Set([
-      ...((CATEGORIAS_PADRAO?.receita ?? []).filter(Boolean)),
-      ...(categoryRows ?? [])
-        .filter((item) => item.tipo === "receita")
-        .map((item) => String(item.nome ?? "").trim())
-        .filter(Boolean),
-    ])
-  ).sort((a, b) => a.localeCompare(b, "pt-BR")),
-  despesa: Array.from(
-    new Set([
-      ...((CATEGORIAS_PADRAO?.despesa ?? []).filter(Boolean)),
-      ...(categoryRows ?? [])
-        .filter((item) => item.tipo === "despesa")
-        .map((item) => String(item.nome ?? "").trim())
-        .filter(Boolean),
-    ])
-  ).sort((a, b) => a.localeCompare(b, "pt-BR")),
-};
+      receita: Array.from(
+        new Set([
+          ...((CATEGORIAS_PADRAO?.receita ?? []).filter(Boolean)),
+          ...(categoryRows ?? [])
+            .filter((item) => item.tipo === "receita")
+            .map((item) => String(item.nome ?? "").trim())
+            .filter(Boolean),
+        ])
+      ).sort((a, b) => a.localeCompare(b, "pt-BR")),
+      despesa: Array.from(
+        new Set([
+          ...((CATEGORIAS_PADRAO?.despesa ?? []).filter(Boolean)),
+          ...(categoryRows ?? [])
+            .filter((item) => item.tipo === "despesa")
+            .map((item) => String(item.nome ?? "").trim())
+            .filter(Boolean),
+        ])
+      ).sort((a, b) => a.localeCompare(b, "pt-BR")),
+    };
 
-setCategorias(nextCategorias as any);
+    setCategorias(nextCategorias as any);
 
-setCcTags(
-  Array.from(
-    new Set(
-      (tagRows ?? [])
-        .map((item) => String(item.nome ?? "").trim())
-        .filter(Boolean)
-    )
-  ).sort((a, b) => a.localeCompare(b, "pt-BR"))
-);
+    setCcTags(
+      Array.from(
+        new Set(
+          (tagRows ?? [])
+            .map((item) => String(item.nome ?? "").trim())
+            .filter(Boolean)
+        )
+      ).sort((a, b) => a.localeCompare(b, "pt-BR"))
+    );
 
+    lastLoadedUserRef.current = cleanUserId;
   } catch (err) {
     console.error("ERRO AO CARREGAR DADOS DO USUARIO:", err);
     setAccountsLoaded(true);
     setCreditCardsLoaded(true);
+  } finally {
+    if (authLoadInFlightRef.current === cleanUserId) {
+      authLoadInFlightRef.current = "";
+    }
   }
 };
 
 useEffect(() => {
-supabase.auth.getSession().then(async ({ data }) => {
-  setSession(data.session);
-  setSessionLoading(false);
+const limparEstadoUsuario = () => {
+  authLoadInFlightRef.current = "";
+  lastLoadedUserRef.current = "";
 
-  const userId = data.session?.user?.id;
-  if (!userId) return;
+  setProfiles([]);
+  setTransacoes([]);
+  setCreditCards([]);
+  setPagamentosFatura([]);
+  setParcelamentosFatura([]);
+  setFaturasStatusManual([]);
+  setCategorias(CATEGORIAS_PADRAO);
+  setCcTags([]);
+  setAccountsLoaded(false);
+  setCreditCardsLoaded(false);
+};
 
-  await carregarDadosUsuario(userId);
-});
+  supabase.auth.getSession().then(async ({ data }) => {
+    const sess = data.session;
+    setSession(sess);
+    setSessionLoading(false);
 
-const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
-  setSession(sess);
-  setSessionLoading(false);
+    const userId = String(sess?.user?.id ?? "").trim();
+    if (!userId) {
+      limparEstadoUsuario();
+      return;
+    }
 
-  const userId = sess?.user?.id;
-  if (!userId) return;
+    await carregarDadosUsuario(userId);
+  });
 
-  setTimeout(() => {
-    carregarDadosUsuario(userId);
-  }, 0);
-});
+  const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
+    setSession(sess);
+    setSessionLoading(false);
+
+    const userId = String(sess?.user?.id ?? "").trim();
+    if (!userId) {
+      limparEstadoUsuario();
+      return;
+    }
+
+if (authLoadInFlightRef.current === userId) {
+  return;
+}
+
+    setTimeout(() => {
+      carregarDadosUsuario(userId);
+    }, 0);
+  });
 
   return () => {
     data.subscription.unsubscribe();
@@ -423,49 +458,49 @@ const handleRegistrarPagamentoFatura = async (payload: {
     profileId: payload.contaId,
   };
 
+try {
+  // 1) salva a transação de despesa no Supabase
+  const txRow = await insertTransaction({
+    user_id: session.user.id,
+    tipo: novaTransacao.tipo,
+    valor: Number(novaTransacao.valor ?? 0),
+    data: String(novaTransacao.data ?? ""),
+    descricao: String(novaTransacao.descricao ?? ""),
+    categoria:
+      typeof novaTransacao.categoria === "string"
+        ? novaTransacao.categoria
+        : String((novaTransacao as any).categoria?.nome ?? ""),
+    tag: String((novaTransacao as any).tag ?? ""),
+    pago: true,
+
+    conta_id: novaTransacao.contaId ? String(novaTransacao.contaId) : null,
+    conta_origem_id: null,
+    conta_destino_id: null,
+    cartao_id: null,
+
+    transfer_from_id: "",
+    transfer_to_id: "",
+    qual_conta: String(novaTransacao.qualConta ?? novaTransacao.contaId ?? ""),
+    criado_em: Date.now(),
+
+    payload: {
+      metodoPagamento: "",
+      tipoGasto: "",
+      recorrenciaId: "",
+      isRecorrente: false,
+      contraParte: "",
+      transferId: "",
+      observacoes: "",
+      parcelaAtual: null,
+      totalParcelas: null,
+      qualCartao: "",
+    },
+  });
+
+  const txApp = mapTransactionRowToApp(txRow);
+  const txIdSalva = String((txApp as any)?.id ?? "").trim();
+
   try {
-    // 1) salva a transação de despesa no Supabase
-    const txRow = await insertTransaction({
-      user_id: session.user.id,
-      tipo: novaTransacao.tipo,
-      valor: Number(novaTransacao.valor ?? 0),
-      data: String(novaTransacao.data ?? ""),
-      descricao: String(novaTransacao.descricao ?? ""),
-      categoria:
-        typeof novaTransacao.categoria === "string"
-          ? novaTransacao.categoria
-          : String((novaTransacao as any).categoria?.nome ?? ""),
-      tag: String((novaTransacao as any).tag ?? ""),
-      pago: true,
-
-      conta_id: novaTransacao.contaId ? String(novaTransacao.contaId) : null,
-      conta_origem_id: null,
-      conta_destino_id: null,
-      cartao_id: null,
-
-      transfer_from_id: "",
-      transfer_to_id: "",
-      qual_conta: String(novaTransacao.qualConta ?? novaTransacao.contaId ?? ""),
-      criado_em: Date.now(),
-
-      payload: {
-        metodoPagamento: "",
-        tipoGasto: "",
-        recorrenciaId: "",
-        isRecorrente: false,
-        contraParte: "",
-        transferId: "",
-        observacoes: "",
-        parcelaAtual: null,
-        totalParcelas: null,
-        qualCartao: "",
-      },
-    });
-
-    const txApp = mapTransactionRowToApp(txRow);
-
-    setTransacoes((prev) => [txApp as any, ...prev]);
-
     // 2) salva o registro de pagamento da fatura no Supabase
     const novoPagamento: PagamentoFaturaApp = {
       id: globalThis.crypto.randomUUID(),
@@ -477,7 +512,7 @@ const handleRegistrarPagamentoFatura = async (payload: {
       contaLabel: payload.contaLabel,
       criadoEm: Date.now(),
       snapshotCreatedAtMs: Date.now(),
-      transacaoId: String((txApp as any).id ?? nextTxId),
+      transacaoId: txIdSalva || String(nextTxId),
     };
 
     const invoicePayload = mapInvoicePaymentAppToInsert(
@@ -488,14 +523,30 @@ const handleRegistrarPagamentoFatura = async (payload: {
     const savedRow = await insertInvoicePayment(invoicePayload);
     const savedPagamento = mapInvoicePaymentRowToApp(savedRow as any);
 
+    setTransacoes((prev) => [txApp as any, ...prev]);
+
     setPagamentosFatura((prev) => {
       const base = Array.isArray(prev) ? prev : [];
       return [...base, savedPagamento as any];
     });
-  } catch (err) {
-    console.error("ERRO AO REGISTRAR PAGAMENTO DE FATURA:", err);
-    toastCompact("Erro ao registrar pagamento da fatura.", "error");
+  } catch (invoiceErr) {
+    if (txIdSalva && isUuid(txIdSalva)) {
+      try {
+        await deleteTransactionById(txIdSalva, session.user.id);
+      } catch (rollbackErr) {
+        console.error(
+          "ERRO NO ROLLBACK DA TRANSACAO APOS FALHA NO PAGAMENTO DE FATURA:",
+          rollbackErr
+        );
+      }
+    }
+
+    throw invoiceErr;
   }
+} catch (err) {
+  console.error("ERRO AO REGISTRAR PAGAMENTO DE FATURA:", err);
+  toastCompact("Erro ao registrar pagamento da fatura.", "error");
+}
 };
 
 const handleRegistrarParcelamentoFatura = async ({
@@ -517,16 +568,6 @@ const handleRegistrarParcelamentoFatura = async ({
   quantidadeParcelas: number;
   valorParcela: number;
 }) => {
-  console.log("[PARCELAMENTO] entrou no handle", {
-    cartaoId,
-    cicloKey,
-    dataAcordo,
-    valorOriginal,
-    valorEntrada,
-    saldoParcelado,
-    quantidadeParcelas,
-    valorParcela,
-  });
 
   try {
     if (!session?.user?.id) {
@@ -579,164 +620,191 @@ const handleRegistrarParcelamentoFatura = async ({
       status: "ativo",
     };
 
-    const installmentPayload = mapInvoiceInstallmentAppToInsert(
-      acordo,
-      session.user.id
-    );
+const installmentPayload = mapInvoiceInstallmentAppToInsert(
+  acordo,
+  session.user.id
+);
 
-    const savedInstallmentRow = await insertInvoiceInstallment(
-      installmentPayload
-    );
+const savedInstallmentRow = await insertInvoiceInstallment(
+  installmentPayload
+);
 
-    const savedInstallment = mapInvoiceInstallmentRowToApp(
-      savedInstallmentRow as any
-    );
+const savedInstallment = mapInvoiceInstallmentRowToApp(
+  savedInstallmentRow as any
+);
 
-    console.log("[PARCELAMENTO] acordo salvo no supabase", savedInstallment);
+const savedInstallmentId = String((savedInstallment as any)?.id ?? "").trim();
 
-    const baseDate = new Date(`${dataAcordo}T12:00:00`);
+const baseDate = new Date(`${dataAcordo}T12:00:00`);
 
-    const novasParcelasBase: Transaction[] = Array.from(
-      { length: qtd },
-      (_, idx) => {
-        const parcelaNumero = idx + 1;
-        const dataParcela = new Date(baseDate);
-        dataParcela.setMonth(dataParcela.getMonth() + idx);
+const novasParcelasBase: Transaction[] = Array.from(
+  { length: qtd },
+  (_, idx) => {
+    const parcelaNumero = idx + 1;
+    const dataParcela = new Date(baseDate);
+    dataParcela.setMonth(dataParcela.getMonth() + idx);
 
-        const yyyy = dataParcela.getFullYear();
-        const mm = String(dataParcela.getMonth() + 1).padStart(2, "0");
-        const dd = String(dataParcela.getDate()).padStart(2, "0");
-        const data = `${yyyy}-${mm}-${dd}`;
+    const yyyy = dataParcela.getFullYear();
+    const mm = String(dataParcela.getMonth() + 1).padStart(2, "0");
+    const dd = String(dataParcela.getDate()).padStart(2, "0");
+    const data = `${yyyy}-${mm}-${dd}`;
 
-        const txId =
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `tx_pf_${Date.now()}_${idx}_${Math.random()
-                .toString(36)
-                .slice(2, 9)}`;
+    const txId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `tx_pf_${Date.now()}_${idx}_${Math.random()
+            .toString(36)
+            .slice(2, 9)}`;
 
-        return {
-          id: txId,
-          tipo: "cartao_credito",
-          descricao: `Parcelamento de fatura ${parcelaNumero}/${qtd}`,
-          valor: valorParc,
-          data,
-          categoria: "Parcelamento de fatura",
-          qualCartao: nomeCartao,
-          cartaoId: String(cartaoId),
-          tipoGasto: "parcelado",
-          pago: false,
-          createdAt: Date.now() + idx,
-          criadoEm: Date.now() + idx,
-          parcelaAtual: parcelaNumero,
-          totalParcelas: qtd,
-          origemLancamento: "parcelamento_fatura",
-          parcelamentoFaturaId: parcelamentoId,
-          faturaOrigemCicloKey: String(cicloKey),
-        } as any;
-      }
-    );
-
-    const txRows = await Promise.all(
-      novasParcelasBase.map((tx: any) =>
-        insertTransaction({
-          user_id: session.user.id,
-          tipo: tx.tipo,
-          valor: Number(tx.valor ?? 0),
-          data: String(tx.data ?? ""),
-          descricao: String(tx.descricao ?? ""),
-          categoria:
-            typeof tx.categoria === "string"
-              ? tx.categoria
-              : String(tx.categoria?.nome ?? ""),
-          tag: String(tx.tag ?? ""),
-          pago: !!tx.pago,
-
-          conta_id: tx.contaId ? String(tx.contaId) : null,
-          conta_origem_id: tx.contaOrigemId ? String(tx.contaOrigemId) : null,
-          conta_destino_id: tx.contaDestinoId
-            ? String(tx.contaDestinoId)
-            : null,
-          cartao_id: tx.cartaoId ? String(tx.cartaoId) : null,
-
-          transfer_from_id: String(tx.transferFromId ?? ""),
-          transfer_to_id: String(tx.transferToId ?? ""),
-          qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
-          criado_em: Number(tx.criadoEm ?? Date.now()),
-
-          payload: {
-            metodoPagamento: tx.metodoPagamento ?? "",
-            tipoGasto: tx.tipoGasto ?? "",
-            recorrenciaId: tx.recorrenciaId ?? "",
-            isRecorrente: !!tx.isRecorrente,
-            contraParte: tx.contraParte ?? "",
-            transferId: tx.transferId ?? "",
-            observacoes: tx.observacoes ?? "",
-            parcelaAtual: tx.parcelaAtual ?? null,
-            totalParcelas: tx.totalParcelas ?? null,
-            qualCartao: String(tx.qualCartao ?? ""),
-            origemLancamento: tx.origemLancamento ?? "",
-            parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
-            faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
-          },
-        })
-      )
-    );
-
-    const savedTransactions = txRows.map(mapTransactionRowToApp);
-
-    console.log("[PARCELAMENTO] parcelas criadas no supabase", savedTransactions);
-
-    const statusManualApp = {
-      id:
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `fsm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    return {
+      id: txId,
+      tipo: "cartao_credito",
+      descricao: `Parcelamento de fatura ${parcelaNumero}/${qtd}`,
+      valor: valorParc,
+      data,
+      categoria: "Parcelamento de fatura",
+      qualCartao: nomeCartao,
       cartaoId: String(cartaoId),
-      cicloKey: String(cicloKey),
-      statusManual: "parcelada",
+      tipoGasto: "parcelado",
+      pago: false,
+      createdAt: Date.now() + idx,
+      criadoEm: Date.now() + idx,
+      parcelaAtual: parcelaNumero,
+      totalParcelas: qtd,
+      origemLancamento: "parcelamento_fatura",
       parcelamentoFaturaId: parcelamentoId,
-      criadoEm,
-    };
+      faturaOrigemCicloKey: String(cicloKey),
+    } as any;
+  }
+);
 
-    const savedManualStatusRow = await upsertInvoiceManualStatus(
-      mapInvoiceManualStatusAppToInsert(statusManualApp as any, session.user.id)
+let txRows: any[] = [];
+let savedTransactions: any[] = [];
+
+try {
+  txRows = await Promise.all(
+    novasParcelasBase.map((tx: any) =>
+      insertTransaction({
+        user_id: session.user.id,
+        tipo: tx.tipo,
+        valor: Number(tx.valor ?? 0),
+        data: String(tx.data ?? ""),
+        descricao: String(tx.descricao ?? ""),
+        categoria:
+          typeof tx.categoria === "string"
+            ? tx.categoria
+            : String(tx.categoria?.nome ?? ""),
+        tag: String(tx.tag ?? ""),
+        pago: !!tx.pago,
+
+        conta_id: tx.contaId ? String(tx.contaId) : null,
+        conta_origem_id: tx.contaOrigemId ? String(tx.contaOrigemId) : null,
+        conta_destino_id: tx.contaDestinoId
+          ? String(tx.contaDestinoId)
+          : null,
+        cartao_id: tx.cartaoId ? String(tx.cartaoId) : null,
+
+        transfer_from_id: String(tx.transferFromId ?? ""),
+        transfer_to_id: String(tx.transferToId ?? ""),
+        qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
+        criado_em: Number(tx.criadoEm ?? Date.now()),
+
+        payload: {
+          metodoPagamento: tx.metodoPagamento ?? "",
+          tipoGasto: tx.tipoGasto ?? "",
+          recorrenciaId: tx.recorrenciaId ?? "",
+          isRecorrente: !!tx.isRecorrente,
+          contraParte: tx.contraParte ?? "",
+          transferId: tx.transferId ?? "",
+          observacoes: tx.observacoes ?? "",
+          parcelaAtual: tx.parcelaAtual ?? null,
+          totalParcelas: tx.totalParcelas ?? null,
+          qualCartao: String(tx.qualCartao ?? ""),
+          origemLancamento: tx.origemLancamento ?? "",
+          parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
+          faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
+        },
+      })
+    )
+  );
+
+  savedTransactions = txRows.map(mapTransactionRowToApp);
+
+  const statusManualApp = {
+    id:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `fsm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    cartaoId: String(cartaoId),
+    cicloKey: String(cicloKey),
+    statusManual: "parcelada",
+    parcelamentoFaturaId: parcelamentoId,
+    criadoEm,
+  };
+
+  const savedManualStatusRow = await upsertInvoiceManualStatus(
+    mapInvoiceManualStatusAppToInsert(statusManualApp as any, session.user.id)
+  );
+
+  const savedManualStatus = mapInvoiceManualStatusRowToApp(
+    savedManualStatusRow as any
+  );
+
+  setParcelamentosFatura((prev) => {
+    const base = Array.isArray(prev) ? prev : [];
+    const semAtual = base.filter(
+      (item: any) => String(item?.id ?? "") !== String(savedInstallment.id)
     );
+    return [...semAtual, savedInstallment as any];
+  });
 
-    const savedManualStatus = mapInvoiceManualStatusRowToApp(
-      savedManualStatusRow as any
+  setTransacoes((prev) => {
+    const base = Array.isArray(prev) ? prev : [];
+    return [...base, ...(savedTransactions as any)];
+  });
+
+  setFaturasStatusManual((prev) => {
+    const base = Array.isArray(prev) ? prev : [];
+    const semAtual = base.filter(
+      (item: any) =>
+        !(
+          String(item?.cartaoId ?? "") === String(cartaoId) &&
+          String(item?.cicloKey ?? "") === String(cicloKey)
+        )
     );
+    return [...semAtual, savedManualStatus as any];
+  });
+} catch (innerErr) {
+  const txIdsCriadas = (txRows ?? [])
+    .map((row: any) => String(row?.id ?? "").trim())
+    .filter((id: string) => !!id && isUuid(id));
 
-    setParcelamentosFatura((prev) => {
-      const base = Array.isArray(prev) ? prev : [];
-      const semAtual = base.filter(
-        (item: any) => String(item?.id ?? "") !== String(savedInstallment.id)
+  if (txIdsCriadas.length > 0) {
+    for (const txId of txIdsCriadas) {
+      try {
+        await deleteTransactionById(txId, session.user.id);
+      } catch (rollbackTxErr) {
+        console.error(
+          "ERRO NO ROLLBACK DAS PARCELAS DO PARCELAMENTO:",
+          rollbackTxErr
+        );
+      }
+    }
+  }
+
+  if (savedInstallmentId && isUuid(savedInstallmentId)) {
+    try {
+      await deleteInvoiceInstallmentById(savedInstallmentId, session.user.id);
+    } catch (rollbackInstallmentErr) {
+      console.error(
+        "ERRO NO ROLLBACK DO ACORDO DE PARCELAMENTO:",
+        rollbackInstallmentErr
       );
-      return [...semAtual, savedInstallment as any];
-    });
+    }
+  }
 
-    setTransacoes((prev) => {
-      const base = Array.isArray(prev) ? prev : [];
-      return [...base, ...(savedTransactions as any)];
-    });
-
-    setFaturasStatusManual((prev) => {
-      const base = Array.isArray(prev) ? prev : [];
-      const semAtual = base.filter(
-        (item: any) =>
-          !(
-            String(item?.cartaoId ?? "") === String(cartaoId) &&
-            String(item?.cicloKey ?? "") === String(cicloKey)
-          )
-      );
-      return [...semAtual, savedManualStatus as any];
-    });
-
-    console.log("[PARCELAMENTO] status manual salvo no supabase", {
-      cartaoId,
-      cicloKey,
-      parcelamentoId,
-    });
+  throw innerErr;
+}
   } catch (err) {
     console.error("ERRO AO REGISTRAR PARCELAMENTO DE FATURA:", err);
     toastCompact("Erro ao registrar parcelamento da fatura.", "error");
@@ -1243,30 +1311,7 @@ const handleDeleteAccount = async (idOrName: string) => {
   const contaId = String(conta.id ?? "").trim();
   if (!contaId) return;
 
-  try {
-  const userId = session?.user?.id;
-if (!userId) return;
-
-await deleteAccountById(contaId, userId);
-
-} catch (err) {
-  console.error("ERRO AO EXCLUIR CONTA NO SUPABASE:", err);
-  toastCompact("Erro ao excluir conta no banco.", "error");
-  return;
-}
-
-  setProfiles((prev) => {
-    const next = prev.filter((p) => String(p?.id ?? "").trim() !== contaId);
-
-    if (String(activeProfileId ?? "").trim() === contaId) {
-      setActiveProfileId(next[0]?.id ?? "");
-    }
-
-    return next;
-  });
-
-setTransacoes((prev: any[]) => {
-  return prev.filter((t: any) => {
+  const temTransacoesRelacionadas = (transacoes ?? []).some((t: any) => {
     const idsRelacionados = [
       t?.profileId,
       t?.contaId,
@@ -1281,51 +1326,66 @@ setTransacoes((prev: any[]) => {
       .map((v) => String(v ?? "").trim())
       .filter(Boolean);
 
-    return !idsRelacionados.includes(contaId);
+    return idsRelacionados.includes(contaId);
   });
-});
 
-setPagamentosFatura((prev: any[]) =>
-  (Array.isArray(prev) ? prev : []).filter((p: any) => {
-    const idsRelacionados = [
-      p?.contaId,
-      p?.contaPagamentoId,
-      p?.profileId,
-    ]
+  const temPagamentosRelacionados = (pagamentosFatura ?? []).some((p: any) => {
+    const idsRelacionados = [p?.contaId, p?.contaPagamentoId, p?.profileId]
       .map((v) => String(v ?? "").trim())
       .filter(Boolean);
 
-    return !idsRelacionados.includes(contaId);
-  })
-);
+    return idsRelacionados.includes(contaId);
+  });
 
-setFaturasStatusManual((prev: any[]) =>
-  (Array.isArray(prev) ? prev : []).filter((item: any) => {
-    const idsRelacionados = [
-      item?.contaId,
-      item?.contaPagamentoId,
-      item?.profileId,
-    ]
+  const temStatusRelacionados = (faturasStatusManual ?? []).some((item: any) => {
+    const idsRelacionados = [item?.contaId, item?.contaPagamentoId, item?.profileId]
       .map((v) => String(v ?? "").trim())
       .filter(Boolean);
 
-    return !idsRelacionados.includes(contaId);
-  })
-);
+    return idsRelacionados.includes(contaId);
+  });
 
-setParcelamentosFatura((prev: any[]) =>
-  (Array.isArray(prev) ? prev : []).filter((item: any) => {
-    const idsRelacionados = [
-      item?.contaId,
-      item?.contaPagamentoId,
-      item?.profileId,
-    ]
+  const temParcelamentosRelacionados = (parcelamentosFatura ?? []).some((item: any) => {
+    const idsRelacionados = [item?.contaId, item?.contaPagamentoId, item?.profileId]
       .map((v) => String(v ?? "").trim())
       .filter(Boolean);
 
-    return !idsRelacionados.includes(contaId);
-  })
-);
+    return idsRelacionados.includes(contaId);
+  });
+
+  if (
+    temTransacoesRelacionadas ||
+    temPagamentosRelacionados ||
+    temStatusRelacionados ||
+    temParcelamentosRelacionados
+  ) {
+    toastCompact(
+      "Esta conta possui vínculos financeiros e não pode ser excluída. Edite, desative ou remova primeiro os vínculos relacionados.",
+      "error"
+    );
+    return;
+  }
+
+  try {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    await deleteAccountById(contaId, userId);
+  } catch (err) {
+    console.error("ERRO AO EXCLUIR CONTA NO SUPABASE:", err);
+    toastCompact("Erro ao excluir conta no banco.", "error");
+    return;
+  }
+
+  setProfiles((prev) => {
+    const next = prev.filter((p) => String(p?.id ?? "").trim() !== contaId);
+
+    if (String(activeProfileId ?? "").trim() === contaId) {
+      setActiveProfileId(next[0]?.id ?? "");
+    }
+
+    return next;
+  });
 
   if (String(filtroConta ?? "").trim() === contaId) {
     setFiltroConta("todas");
@@ -1762,7 +1822,6 @@ const resetAddCardModal = () => {
   };
 
 const openAddCardModal = () => {
-  //console.log("openAddCardModal", creditCards.length);
 if (creditCards.length >= 20) {
   toastCompact("Você atingiu o limite de 20 cartões cadastrados.", "info");
   return;
@@ -2288,8 +2347,23 @@ const executarLimpezaTotal = async () => {
     setDeletingTransaction(null);
 
     // 6) limpa storage local
-    localStorage.clear();
-    sessionStorage.clear();
+const storagePrefixes = [
+  "meu-financeiro",
+  "fluxmoney",
+  "mf_",
+];
+
+for (const key of Object.keys(localStorage)) {
+  if (storagePrefixes.some((prefix) => key.startsWith(prefix))) {
+    localStorage.removeItem(key);
+  }
+}
+
+for (const key of Object.keys(sessionStorage)) {
+  if (storagePrefixes.some((prefix) => key.startsWith(prefix))) {
+    sessionStorage.removeItem(key);
+  }
+}
 
     toastCompact("Dados apagados com sucesso.", "success");
 
@@ -2553,9 +2627,13 @@ const saldoInicialProjecao = useMemo(() => {
     return 0;
   };
 
-const filteredProfiles = profiles.filter((p: any) => {
+const filteredProfiles = (profiles ?? []).filter((p: any) => {
   const perfil = String(
-    p?.perfil ?? p?.profileType ?? p?.tipo ?? ""
+    p?.perfilConta ??
+    p?.perfil ??
+    p?.profileType ??
+    p?.tipo ??
+    ""
   ).trim().toLowerCase();
 
   if (projecaoPerfilView === "pf") return perfil === "pf";
@@ -2711,7 +2789,6 @@ const confirmDelete = (t: Transaction) => {
 // ✅ INSERIDO AQUI (logo após o confirmDelete)
 const togglePago = async (payload: any) => {
   try {
-    console.log("TOGGLE PAGO PAYLOAD:", payload);
 const id = String(payload?.id ?? payload?.transactionId ?? "").trim();
 const sourceIds = Array.isArray((payload as any)?._sourceIds)
   ? (payload as any)._sourceIds.map((v: any) => String(v))
@@ -2731,7 +2808,18 @@ const transferId = String(
 ).trim();
 
     if (transferId) {
-      await updateTransactionsPagoByTransferId(transferId, novoPago);
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      const relacionadas = transacoes.filter(
+        (t: any) => String(t?.transferId ?? "").trim() === transferId
+      );
+
+      await Promise.all(
+        relacionadas.map((t: any) =>
+          updateTransactionPago(String(t?.id ?? ""), userId, novoPago)
+        )
+      );
 
       setTransacoes((prev: any[]) =>
         prev.map((t: any) =>
@@ -3180,14 +3268,16 @@ const getCardCycleMonthFromDate = (dataISO: string, diaFechamento: number) => {
   if (Number.isNaN(dt.getTime())) return getHojeLocal().slice(0, 7);
 
   const dia = dt.getDate();
-  const fechamento = Number(diaFechamento ?? 1);
+  const fechamento = Math.max(1, Math.min(31, Number(diaFechamento ?? 1)));
 
   const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
 
   // Regra correta:
-  // - até o fechamento: cai na fatura do próximo mês
-  // - após o fechamento: continua caindo só na fatura imediatamente seguinte
-  base.setMonth(base.getMonth() + 1);
+  // - até o dia de fechamento: permanece na fatura do mês atual
+  // - após o fechamento: vai para a fatura do mês seguinte
+  if (dia > fechamento) {
+    base.setMonth(base.getMonth() + 1);
+  }
 
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
 };
@@ -3891,6 +3981,19 @@ const despesasEmAberto = (transacoes ?? []).filter((t: any) => {
   if (tipo !== "despesa") return false;
   if (Boolean(t?.pago)) return false;
 
+  const categoriaNorm = String(t?.categoria ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+  const isTransfer =
+    Boolean(t?.transferId) ||
+    categoriaNorm === "transferencia" ||
+    categoriaNorm.includes("transfer");
+
+  if (isTransfer) return false;
+
   const data = String(t?.data ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return false;
 
@@ -4108,18 +4211,6 @@ if (String(ciclo) > String(cicloAtual)) {
 // - vencimento passado => atrasada
 // - vencimento ainda não passou => pendente
 if (vencimento < hojeResumoDate) {
-  console.log("DEBUG_ATRASADA_CARTAO", {
-    cartaoId,
-    emissor: c?.emissor,
-    nome: c?.name,
-    ciclo,
-    cicloAtual,
-    saldo,
-    info,
-    diaVencimento: c?.diaVencimento,
-    vencimento: vencimento.toISOString().slice(0, 10),
-  });
-
   resumoCartoesAtrasadasValor += saldo;
 } else {
   resumoCartoesPendentesValor += saldo;
@@ -4135,16 +4226,6 @@ const resumoCartoesEmAbertoLabel = formatResumoBRL(resumoCartoesEmAbertoValor);
 const resumoCartoesVencendoHojeLabel = formatResumoBRL(resumoCartoesVencendoHojeValor);
 const resumoCartoesPendentesLabel = formatResumoBRL(resumoCartoesPendentesValor);
 const resumoCartoesAtrasadasLabel = formatResumoBRL(resumoCartoesAtrasadasValor);
-console.log("DEBUG_RESUMO_CARTOES", {
-  creditCards,
-  pagamentosFatura,
-  faturasStatusManual,
-  transacoes,
-  resumoCartoesEmAbertoValor,
-  resumoCartoesPendentesValor,
-  resumoCartoesAtrasadasValor,
-});
-
 const periodOfDay =
   currentHour < 12
     ? "morning"
@@ -4687,7 +4768,6 @@ function normalizePaymentCycleKeyToYm(raw: any): string {
     if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
       const endDate = new Date(`${endIso}T12:00:00`);
       if (!Number.isNaN(endDate.getTime())) {
-        endDate.setMonth(endDate.getMonth() + 1);
         return toYm(endDate);
       }
     }
@@ -4778,12 +4858,6 @@ const parcelasNegociacaoDoCartao = transacoes.filter(
   (t: any) => Boolean((t as any)?.parcelamentoFaturaId)
 );
 
-console.log("[PARCELAS NEGOCIACAO DEBUG]", {
-  cartaoAtual: c.id,
-  parcelasNegociacaoDoCartao,
-  transacoesDoCartao,
-});
-
 const transacoesAteHoje = transacoesDoCartao.filter((t: any) => {
   const dataRaw = String((t as any).data ?? "").trim();
   const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
@@ -4863,7 +4937,7 @@ transacoesAteHoje.forEach((t: any) => {
 (pagamentosFatura ?? []).forEach((p: any) => {
   if (String(p?.cartaoId ?? "") !== String(c.id)) return;
 
-  const ciclo = normalizeCycleResumo(p?.cicloKey);
+  const ciclo = normalizePaymentCycleKeyToYm(p?.cicloKey);
   if (!ciclo) return;
 
   const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
@@ -4871,87 +4945,136 @@ transacoesAteHoje.forEach((t: any) => {
   totaisPorCiclo.set(ciclo, atual);
 });
 
-const existeFaturaAtrasada = Array.from(totaisPorCiclo.entries()).some(([ciclo, info]) => {
-  if (!/^\d{4}-\d{2}$/.test(String(ciclo))) return false;
-  if ((info?.total ?? 0) <= 0) return false;
-
-  const statusManualDoCiclo = String(statusManualPorCiclo.get(ciclo) ?? "").toLowerCase();
-  if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") return false;
-
-  const saldo = Math.max(0, Number(info.total || 0) - Number(info.pago || 0));
-  if (saldo <= 0) return false;
-
-  // Nunca marcar como atrasada a fatura atual aberta nem ciclos futuros
-  if (String(ciclo) >= String(cicloBase)) return false;
-
-  const [anoStr, mesStr] = String(ciclo).split("-");
-  const ano = Number(anoStr);
-  const mes = Number(mesStr);
-  if (!ano || !mes) return false;
+const hojeSemHora = new Date();
+hojeSemHora.setHours(0, 0, 0, 0);
 
 const diaVencimentoNum = Math.max(1, Math.min(31, Number(c.diaVencimento ?? 10)));
 const diaFechamentoNum = Math.max(1, Math.min(31, Number(c.diaFechamento ?? 1)));
 
-// Se o vencimento acontece antes ou no mesmo "bloco" do fechamento,
-// então o ciclo YYYY-MM vence no mês seguinte.
-// Ex.: fechamento 23 / vencimento 03:
-// ciclo 2026-03 vence em 03/04, não em 03/03.
-const offsetMesVencimento = diaVencimentoNum <= diaFechamentoNum ? 1 : 0;
+const offsetMesVencimento =
+  diaVencimentoNum <= diaFechamentoNum ? 1 : 0;
 
-const vencimentoDoCiclo = new Date(
-  ano,
-  mes - 1 + offsetMesVencimento,
-  diaVencimentoNum,
-  12,
-  0,
-  0,
+const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
+  .map(([ciclo, info]) => {
+    if (!/^\d{4}-\d{2}$/.test(String(ciclo))) return null;
+    if ((info?.total ?? 0) <= 0) return null;
+
+    const statusManualDoCiclo = String(statusManualPorCiclo.get(ciclo) ?? "").toLowerCase();
+    if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") return null;
+
+    const saldo = Math.max(0, Number(info.total || 0) - Number(info.pago || 0));
+    if (saldo <= 0) return null;
+
+    // só considerar ciclos já fechados, nunca o ciclo atual aberto nem futuros
+    if (String(ciclo) >= String(cicloBase)) return null;
+
+    const [anoStr, mesStr] = String(ciclo).split("-");
+    const ano = Number(anoStr);
+    const mes = Number(mesStr);
+    if (!ano || !mes) return null;
+
+    const vencimento = new Date(
+      ano,
+      mes - 1 + offsetMesVencimento,
+      diaVencimentoNum,
+      12,
+      0,
+      0,
+      0
+    );
+    vencimento.setHours(0, 0, 0, 0);
+
+    return {
+      ciclo: String(ciclo),
+      total: Math.max(0, Number(info.total || 0)),
+      saldo,
+      vencimento,
+    };
+  })
+  .filter(Boolean)
+  .sort((a: any, b: any) => String(b.ciclo).localeCompare(String(a.ciclo))) as Array<{
+    ciclo: string;
+    total: number;
+    saldo: number;
+    vencimento: Date;
+  }>;
+
+const faturaFechadaMaisRecente =
+  ciclosFechadosPendentes.length > 0 ? ciclosFechadosPendentes[0] : undefined;
+
+const faturasFechadasAnterioresPendentes =
+  ciclosFechadosPendentes.length > 1 ? ciclosFechadosPendentes.slice(1) : [];
+
+const existeFaturaAtrasada = faturasFechadasAnterioresPendentes.length > 0;
+
+const valorEmAtraso = faturasFechadasAnterioresPendentes.reduce(
+  (acc, item) => acc + Math.max(0, item.saldo),
   0
 );
-vencimentoDoCiclo.setHours(0, 0, 0, 0);
 
-  return hoje.getTime() > vencimentoDoCiclo.getTime();
-});
+const faturaFechadaAguardandoPagamento =
+  !existeFaturaAtrasada ? faturaFechadaMaisRecente : undefined;
+
+const aguardandoVencimento =
+  !existeFaturaAtrasada &&
+  Boolean(faturaFechadaAguardandoPagamento);
 
 const statusMiniCard: "normal" | "atrasada" | "zerada" =
   existeFaturaAtrasada
     ? "atrasada"
-    : emAberto > 0
-    ? "normal"
-    : "zerada";
-if (String(c.emissor ?? "").trim().toLowerCase().includes("sam")) {
-  console.log("[MINI CARD DEBUG]", {
-    cartao: c.id,
-    nome: c.name,
-    emissor: c.emissor,
-    fechamento: c.diaFechamento,
-    vencimento: c.diaVencimento,
+    : aguardandoVencimento
+      ? "zerada"
+      : "normal";
+
+const miniCardValor =
+  statusMiniCard === "atrasada"
+    ? Math.max(0, valorEmAtraso)
+    : statusMiniCard === "zerada"
+      ? Math.max(0, Number(faturaFechadaAguardandoPagamento?.total || 0))
+      : Math.max(0, Number(emAberto || 0));
+
+const miniCardDueLabel =
+  statusMiniCard === "zerada" && faturaFechadaAguardandoPagamento
+    ? `${String(faturaFechadaAguardandoPagamento.vencimento.getDate()).padStart(2, "0")}/${String(
+        faturaFechadaAguardandoPagamento.vencimento.getMonth() + 1
+      ).padStart(2, "0")}`
+    : undefined;
+if (String((c as any).name ?? "").trim().toLowerCase() === "teste") {
+  console.log("DEBUG CARD FECHADO TESTE", {
     cicloBase,
-    emAberto,
-    statusMiniCard,
+    transacoesDoCartao: transacoesDoCartao.map((t: any) => ({
+      id: String(t?.id ?? ""),
+      data: String(t?.data ?? ""),
+      valor: Number(t?.valor || 0),
+      faturaMes: String(t?.faturaMes ?? ""),
+      cicloInferido: inferirCicloDaTransacao(t),
+      parcelamentoFaturaId: String(t?.parcelamentoFaturaId ?? ""),
+      tipo: String(t?.tipo ?? ""),
+    })),
+pagamentosDoCartao: (pagamentosFatura ?? [])
+  .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
+  .map((p: any) => ({
+    id: String(p?.id ?? ""),
+    cicloKey: String(p?.cicloKey ?? ""),
+    cicloNormalizadoResumo: normalizeCycleResumo(p?.cicloKey),
+    cicloNormalizadoYm: normalizePaymentCycleKeyToYm(p?.cicloKey),
+    valor: Number(p?.valor || 0),
+  })),
     totaisPorCiclo: Array.from(totaisPorCiclo.entries()),
-    statusManualPorCiclo: Array.from(statusManualPorCiclo.entries()),
-    pagamentosDoCartao: (pagamentosFatura ?? [])
-      .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
-      .map((p: any) => ({
-        id: p?.id,
-        cicloKey: p?.cicloKey,
-        valor: p?.valor,
-      })),
+    ciclosFechadosPendentes,
+    faturaFechadaMaisRecente,
+    faturasFechadasAnterioresPendentes,
+    existeFaturaAtrasada,
+    valorEmAtraso,
+    faturaFechadaAguardandoPagamento,
+    statusMiniCard,
+    miniCardValor,
+    miniCardDueLabel,
   });
 }
+if (String(c.emissor ?? "").trim().toLowerCase().includes("sam")) {
+}
 if (String(c.id) === String(selectedCreditCardId) || String(c.name ?? "").toLowerCase().includes("sam")) {
-  console.log("[MINI CARD DEBUG]", {
-    cartao: c.name,
-    cartaoId: c.id,
-    cicloBase,
-    totalFatura,
-    totalPago,
-    emAberto,
-    statusMiniCard,
-    transacoesDoCartao,
-    transacoesDaFaturaAtual,
-    pagamentosDaFaturaAtual,
-  });
 }
     return (
             <div key={c.id} className="relative group w-full max-w-[360px]">
@@ -4986,8 +5109,9 @@ onClick={() => {
   limiteDisponivel={limiteDisponivelReal}
   fechamentoDia={c.diaFechamento ?? 1}
   vencimentoDia={c.diaVencimento ?? 10}
-  emAberto={totalFatura > 0 ? totalFatura : 0}
+  emAberto={miniCardValor}
   statusMiniCard={statusMiniCard}
+  miniCardDueLabel={miniCardDueLabel}
   design={{
     from: c.gradientFrom ?? "#220055",
     to: c.gradientTo ?? "#4600ac",

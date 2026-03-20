@@ -2029,15 +2029,15 @@ className="h-8 w-8 inline-flex items-center justify-center transition text-slate
 
 {isInvoiceModalOpen
   ? createPortal(
-      <div
-        className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-[2px] overscroll-contain"
-        onClick={handleCloseInvoiceModal}
-      >
-        <div className="flex h-screen w-screen items-center justify-center p-3 sm:p-6">
-          <div
-            className="flex w-full max-w-[600px] max-h-[calc(100vh-24px)] flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-white/10 dark:bg-[#071235] dark:text-white sm:max-h-[calc(100vh-48px)]"
-            onClick={(e) => e.stopPropagation()}
-          >
+<div
+  className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-[2px] overscroll-contain"
+  onClick={handleCloseInvoiceModal}
+>
+  <div className="flex h-[100dvh] w-full items-end justify-center p-0 sm:h-[100dvh] sm:items-center sm:p-6">
+    <div
+      className="flex h-[100dvh] w-full max-w-[600px] min-h-0 flex-col overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-white/10 dark:bg-[#071235] dark:text-white sm:h-auto sm:max-h-[calc(100dvh-48px)] sm:rounded-[2rem]"
+      onClick={(e) => e.stopPropagation()}
+    >
             <div className="shrink-0 flex items-start justify-between gap-4 border-b border-slate-200 px-5 pt-4 pb-4 dark:border-white/10 sm:px-6 sm:pt-5">
               <div className="min-w-0 pr-4">
                 <div className="text-slate-600 text-[11px] font-medium leading-none dark:text-white/60">

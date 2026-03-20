@@ -13,7 +13,6 @@ import { mergeTransfers } from "./app/transactions/logic";
 import { createPortal } from "react-dom";
 import {
   fetchAccounts,
-  insertAccount,
   mapAccountRowToProfile,
   createAccountAndReturnProfile,
   updateAccountById,
@@ -157,8 +156,7 @@ const SEM_PRAZO_MESES = 12;
 
 
   const App: FC = () => {
-    const authLoadInFlightRef = useRef<string>("");
-const lastLoadedUserRef = useRef<string>("");
+const authLoadInFlightRef = useRef<string>("");
     const addTxLockRef = useRef(false);
     const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
 const [ccTags, setCcTags] = useState<string[]>([]);
@@ -342,7 +340,6 @@ const carregarDadosUsuario = async (userId: string) => {
       ).sort((a, b) => a.localeCompare(b, "pt-BR"))
     );
 
-    lastLoadedUserRef.current = cleanUserId;
   } catch (err) {
     console.error("ERRO AO CARREGAR DADOS DO USUARIO:", err);
     setAccountsLoaded(true);
@@ -357,7 +354,6 @@ const carregarDadosUsuario = async (userId: string) => {
 useEffect(() => {
 const limparEstadoUsuario = () => {
   authLoadInFlightRef.current = "";
-  lastLoadedUserRef.current = "";
 
   setProfiles([]);
   setTransacoes([]);
@@ -1505,8 +1501,7 @@ const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
   const [showModalMetodo, setShowModalMetodo] = useState(false);
   const [showModalCategoria, setShowModalCategoria] = useState(false);
 
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showProfileMenuNew, setShowProfileMenuNew] = useState(false);
+const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const [compact, setCompact] = useState(true);
 
@@ -1571,39 +1566,6 @@ useEffect(() => {
     document.removeEventListener("mousedown", handleClickOutsideResumo);
   };
 }, [resumoPerfilView]);
-
-// helpers p/ mexer no localStorage de OUTRA conta (sem precisar trocar a conta ativa)
-
-const loadTransacoesByProfile = (pid: string): Transaction[] => {
-  try {
-
-    const candidates = [
-      buildProfileStorageKey(pid, "transacoes"),
-      buildProfileStorageKey(pid, "transactions"),
-      "transactions",
-      "transacoes",
-    ];
-
-    for (const k of candidates) {
-      const raw = localStorage.getItem(k === "transacoes" ? STORAGE_KEYS.TRANSACOES : k);
-      if (!raw) continue;
-
-      const parsed = JSON.parse(raw);
-      const list = Array.isArray(parsed) ? (parsed as Transaction[]) : [];
-
-      // migra para a chave nova, se veio de outra
-     if (k !== buildProfileStorageKey(pid, "transacoes")) {
-        localStorage.setItem(buildProfileStorageKey(pid, "transacoes"), JSON.stringify(list));
-      }
-
-      return list;
-    }
-
-    return [];
-  } catch {
-    return [];
-  }
-};
 
   // --- Form ---
   const [formTipo, setFormTipo] = useState<TransactionType>("despesa");
@@ -5039,39 +5001,7 @@ const miniCardDueLabel =
         faturaFechadaAguardandoPagamento.vencimento.getMonth() + 1
       ).padStart(2, "0")}`
     : undefined;
-if (String((c as any).name ?? "").trim().toLowerCase() === "teste") {
-  console.log("DEBUG CARD FECHADO TESTE", {
-    cicloBase,
-    transacoesDoCartao: transacoesDoCartao.map((t: any) => ({
-      id: String(t?.id ?? ""),
-      data: String(t?.data ?? ""),
-      valor: Number(t?.valor || 0),
-      faturaMes: String(t?.faturaMes ?? ""),
-      cicloInferido: inferirCicloDaTransacao(t),
-      parcelamentoFaturaId: String(t?.parcelamentoFaturaId ?? ""),
-      tipo: String(t?.tipo ?? ""),
-    })),
-pagamentosDoCartao: (pagamentosFatura ?? [])
-  .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
-  .map((p: any) => ({
-    id: String(p?.id ?? ""),
-    cicloKey: String(p?.cicloKey ?? ""),
-    cicloNormalizadoResumo: normalizeCycleResumo(p?.cicloKey),
-    cicloNormalizadoYm: normalizePaymentCycleKeyToYm(p?.cicloKey),
-    valor: Number(p?.valor || 0),
-  })),
-    totaisPorCiclo: Array.from(totaisPorCiclo.entries()),
-    ciclosFechadosPendentes,
-    faturaFechadaMaisRecente,
-    faturasFechadasAnterioresPendentes,
-    existeFaturaAtrasada,
-    valorEmAtraso,
-    faturaFechadaAguardandoPagamento,
-    statusMiniCard,
-    miniCardValor,
-    miniCardDueLabel,
-  });
-}
+
 if (String(c.emissor ?? "").trim().toLowerCase().includes("sam")) {
 }
 if (String(c.id) === String(selectedCreditCardId) || String(c.name ?? "").toLowerCase().includes("sam")) {

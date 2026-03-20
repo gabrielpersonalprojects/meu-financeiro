@@ -123,11 +123,17 @@ export async function deleteInvoiceInstallmentById(
   id: string,
   userId: string
 ) {
+  const cleanId = String(id ?? "").trim();
+  const cleanUserId = String(userId ?? "").trim();
+
+  if (!cleanId) throw new Error("ID do parcelamento não informado.");
+  if (!cleanUserId) throw new Error("Usuário não informado.");
+
   const { error } = await supabase
     .from("invoice_installments")
     .delete()
-    .eq("id", id)
-    .eq("user_id", userId);
+    .eq("id", cleanId)
+    .eq("user_id", cleanUserId);
 
   if (error) throw error;
 }

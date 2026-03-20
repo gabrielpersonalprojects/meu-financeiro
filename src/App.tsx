@@ -4581,6 +4581,39 @@ const cicloBase = getCardCycleMonthFromDate(
   Number(c.diaFechamento ?? 1)
 );
 
+const diaFechamentoAtual = Math.max(1, Math.min(31, Number(c.diaFechamento ?? 1)));
+
+const makeDateSafe = (year: number, month: number, day: number) => {
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return new Date(year, month, Math.min(day, lastDay), 12, 0, 0, 0);
+};
+
+const hojeRefRaw = String(getHojeLocal() ?? "").trim();
+const hojeRef = hojeRefRaw ? new Date(`${hojeRefRaw}T12:00:00`) : new Date();
+
+const anoRef = hojeRef.getFullYear();
+const mesRef = hojeRef.getMonth();
+
+const cicloFimReal =
+  hojeRef.getDate() > diaFechamentoAtual
+    ? makeDateSafe(anoRef, mesRef + 1, diaFechamentoAtual)
+    : makeDateSafe(anoRef, mesRef, diaFechamentoAtual);
+
+const cicloFimAnterior = makeDateSafe(
+  cicloFimReal.getFullYear(),
+  cicloFimReal.getMonth() - 1,
+  diaFechamentoAtual
+);
+
+const cicloInicioReal = new Date(
+  cicloFimAnterior.getFullYear(),
+  cicloFimAnterior.getMonth(),
+  cicloFimAnterior.getDate() + 1,
+  0, 0, 0, 0
+);
+
+cicloFimReal.setHours(23, 59, 59, 999);
+
 const inferirCicloDaTransacao = (t: any): string => {
   const ciclo = String((t as any).faturaMes ?? "").trim();
   if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
@@ -4635,9 +4668,13 @@ const transacoesAteHoje = transacoesDoCartao.filter((t: any) => {
   return dataTx.getTime() <= hojeFiltro.getTime();
 });
 
-const transacoesDaFaturaAtual = transacoesDoCartao.filter(
-  (t: any) => inferirCicloDaTransacao(t) === cicloBase
-);
+const transacoesDaFaturaAtual = transacoesDoCartao.filter((t: any) => {
+  const dataRaw = String((t as any).data ?? "").trim();
+  const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
+  if (!dataTx || Number.isNaN(dataTx.getTime())) return false;
+
+  return dataTx.getTime() >= cicloInicioReal.getTime() && dataTx.getTime() <= cicloFimReal.getTime();
+});
 
 const pagamentosDaFaturaAtual = (pagamentosFatura ?? []).filter((p: any) => {
   if (String(p?.cartaoId ?? "") !== String(c.id)) return false;
@@ -4779,6 +4816,20 @@ if (String(c.emissor ?? "").trim().toLowerCase().includes("sam")) {
       })),
   });
 }
+if (String(c.id) === String(selectedCreditCardId) || String(c.name ?? "").toLowerCase().includes("sam")) {
+  console.log("[MINI CARD DEBUG]", {
+    cartao: c.name,
+    cartaoId: c.id,
+    cicloBase,
+    totalFatura,
+    totalPago,
+    emAberto,
+    statusMiniCard,
+    transacoesDoCartao,
+    transacoesDaFaturaAtual,
+    pagamentosDaFaturaAtual,
+  });
+}
     return (
             <div key={c.id} className="relative group w-full max-w-[360px]">
               {/* CARTÃO (clicável) */}
@@ -4802,6 +4853,7 @@ onClick={() => {
                   "hover:bg-white/5",
                 ].join(" ")}
               >
+            
 <CreditCardVisual
   nome={(c as any).name || (c as any).nome || "Cartão"}
   emissor={c.emissor || "Banco"}
@@ -4811,7 +4863,7 @@ onClick={() => {
   limiteDisponivel={limiteDisponivelReal}
   fechamentoDia={c.diaFechamento ?? 1}
   vencimentoDia={c.diaVencimento ?? 10}
-  emAberto={emAberto > 0 ? emAberto : 0}
+  emAberto={totalFatura > 0 ? totalFatura : 0}
   statusMiniCard={statusMiniCard}
   design={{
     from: c.gradientFrom ?? "#220055",

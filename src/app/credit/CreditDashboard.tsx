@@ -372,8 +372,15 @@ cicloInicio.setHours(0, 0, 0, 0);
     return `${mesVencimento.getFullYear()}-${pad2(mesVencimento.getMonth() + 1)}`;
   };
 
-const txMes = (transacoes || []).filter((t) => {
-  if (t.tipo !== "cartao_credito") return false;
+const txMes = (transacoes || []).filter((t: any) => {
+  if (String(t?.tipo ?? "").toLowerCase() !== "cartao_credito") return false;
+
+  const refCartaoId = String(t?.cartaoId ?? "").trim();
+  const refQualCartao = String(t?.qualCartao ?? "").trim();
+  const cartaoAtualId = String(cartao.id ?? "").trim();
+
+  if (refCartaoId !== cartaoAtualId && refQualCartao !== cartaoAtualId) return false;
+
   const dt = parseISODateLocal(t.data);
   if (Number.isNaN(dt.getTime())) return false;
 

@@ -19,6 +19,54 @@ async function getRawBody(readable) {
   return Buffer.concat(chunks);
 }
 
+function toIsoFromUnix(unixValue) {
+  if (!unixValue) return null;
+  return new Date(unixValue * 1000).toISOString();
+}
+
+async function findSubscriptionRow({
+  userId,
+  stripeCustomerId,
+  stripeSubscriptionId,
+}) {
+  let result = null;
+
+  if (stripeSubscriptionId) {
+    result = await supabase
+      .from("subscriptions")
+      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
+      .eq("stripe_subscription_id", stripeSubscriptionId)
+      .maybeSingle();
+
+    if (result.error) throw result.error;
+    if (result.data) return result.data;
+  }
+
+  if (stripeCustomerId) {
+    result = await supabase
+      .from("subscriptions")
+      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
+      .eq("stripe_customer_id", stripeCustomerId)
+      .maybeSingle();
+
+    if (result.error) throw result.error;
+    if (result.data) return result.data;
+  }
+
+  if (userId) {
+    result = await supabase
+      .from("subscriptions")
+      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (result.error) throw result.error;
+    if (result.data) return result.data;
+  }
+
+  return null;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).send("Method not allowed");
@@ -42,174 +90,175 @@ module.exports = async function handler(req, res) {
         const session = event.data.object;
 
         const userId = session?.metadata?.userId || null;
-        const stripeCustomerId = session.customer || null;
-        const stripeSubscriptionId = session.subscription || null;
+        const stripeCustomerId = session?.customer || null;
+        const stripeSubscriptionId = session?.subscription || null;
 
-        if (userId) {
-          const { error } = await supabase
-            .from("subscriptions")
-.update({
-  stripe_customer_id: stripeCustomerId,
-  stripe_subscription_id: stripeSubscriptionId,
-  status: "active",
-  updated_at: new Date().toISOString(),
-})
-            .eq("user_id", userId);
+        if (!userId) {
+          console.warn("checkout.session.completed sem userId no metadata", {
+            sessionId: session?.id,
+            stripeCustomerId,
+            stripeSubscriptionId,
+          });
+          break;
+        }
 
-          if (error) {
-            console.error("Erro ao atualizar checkout.session.completed:", error);
-            throw error;
-          }
+        let subscriptionDetails = null;
+
+        if (stripeSubscriptionId) {
+          subscriptionDetails = await stripe.subscriptions.retrieve(
+            stripeSubscriptionId
+          );
+        }
+
+        const priceId =
+          subscriptionDetails?.items?.data?.[0]?.price?.id || null;
+
+        const currentPeriodEndUnix =
+          subscriptionDetails?.current_period_end ||
+          subscriptionDetails?.items?.data?.[0]?.current_period_end ||
+          subscriptionDetails?.cancel_at ||
+          null;
+
+        const currentPeriodEnd = toIsoFromUnix(currentPeriodEndUnix);
+        const cancelAtPeriodEnd = Boolean(
+          subscriptionDetails?.cancel_at_period_end
+        );
+
+        const targetRow = await findSubscriptionRow({
+          userId,
+          stripeCustomerId,
+          stripeSubscriptionId,
+        });
+
+        if (!targetRow?.id) {
+          throw new Error(
+            "checkout.session.completed recebido, mas nenhuma subscription foi encontrada no Supabase"
+          );
+        }
+
+        const payloadToUpdate = {
+          stripe_customer_id: stripeCustomerId,
+          stripe_subscription_id: stripeSubscriptionId,
+          status: subscriptionDetails?.status || "active",
+          price_id: priceId,
+          current_period_end: currentPeriodEnd,
+          cancel_at_period_end: cancelAtPeriodEnd,
+          updated_at: new Date().toISOString(),
+        };
+
+        console.log("[checkout.session.completed] atualizando assinatura", {
+          rowId: targetRow.id,
+          userId: targetRow.user_id,
+          ...payloadToUpdate,
+        });
+
+        const { error } = await supabase
+          .from("subscriptions")
+          .update(payloadToUpdate)
+          .eq("id", targetRow.id);
+
+        if (error) {
+          console.error("Erro ao atualizar checkout.session.completed:", error);
+          throw error;
         }
 
         break;
       }
 
-case "customer.subscription.created":
-case "customer.subscription.updated":
-case "customer.subscription.deleted": {
-  const subscription = event.data.object;
-  console.log("=== STRIPE SUBSCRIPTION EVENT ===");
-console.log("event.type:", event.type);
-console.log("subscription.id:", subscription?.id);
-console.log("subscription.status:", subscription?.status);
-console.log("subscription.cancel_at_period_end:", subscription?.cancel_at_period_end);
-console.log("subscription.current_period_end:", subscription?.current_period_end);
-console.log("subscription.cancel_at:", subscription?.cancel_at);
-console.log(
-  "subscription.items.data[0].current_period_end:",
-  subscription?.items?.data?.[0]?.current_period_end
-);
-console.log(
-  "event.previous_attributes:",
-  event?.data?.previous_attributes || null
-);
-console.log(
-  "subscription payload:",
-  JSON.stringify(subscription, null, 2)
-);
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object;
 
-  const userIdFromMetadata = subscription?.metadata?.userId || null;
-  const stripeCustomerId = subscription.customer || null;
-  const stripeSubscriptionId = subscription.id || null;
-  const status = subscription.status || "inactive";
-  const priceId = subscription?.items?.data?.[0]?.price?.id || null;
+        const userIdFromMetadata = subscription?.metadata?.userId || null;
+        const stripeCustomerId = subscription?.customer || null;
+        const stripeSubscriptionId = subscription?.id || null;
+        const status = subscription?.status || "inactive";
+        const priceId = subscription?.items?.data?.[0]?.price?.id || null;
 
-  // Stripe pode trazer o fim do período no item da assinatura.
-  const currentPeriodEndUnix =
-    subscription?.current_period_end ||
-    subscription?.items?.data?.[0]?.current_period_end ||
-    subscription?.cancel_at ||
-    null;
+        const currentPeriodEndUnix =
+          subscription?.current_period_end ||
+          subscription?.items?.data?.[0]?.current_period_end ||
+          subscription?.cancel_at ||
+          null;
 
-  const currentPeriodEnd = currentPeriodEndUnix
-    ? new Date(currentPeriodEndUnix * 1000).toISOString()
-    : null;
+        const currentPeriodEnd = toIsoFromUnix(currentPeriodEndUnix);
+        const cancelAtPeriodEnd = Boolean(subscription?.cancel_at_period_end);
 
-  const cancelAtPeriodEnd = Boolean(subscription?.cancel_at_period_end);
+        console.log("[subscription webhook] evento recebido", {
+          eventType: event.type,
+          subscriptionId: stripeSubscriptionId,
+          customerId: stripeCustomerId,
+          userIdFromMetadata,
+          status,
+          cancelAtPeriodEnd,
+          currentPeriodEnd,
+          previousAttributes: event?.data?.previous_attributes || null,
+        });
 
-  let targetRow = null;
-  let findError = null;
+        const targetRow = await findSubscriptionRow({
+          userId: userIdFromMetadata,
+          stripeCustomerId,
+          stripeSubscriptionId,
+        });
 
-  if (userIdFromMetadata) {
-    const result = await supabase
-      .from("subscriptions")
-      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
-      .eq("user_id", userIdFromMetadata)
-      .maybeSingle();
+        if (!targetRow?.id) {
+          console.error("Nenhuma assinatura encontrada para atualizar", {
+            eventType: event.type,
+            userIdFromMetadata,
+            stripeCustomerId,
+            stripeSubscriptionId,
+            status,
+            cancelAtPeriodEnd,
+            currentPeriodEnd,
+          });
 
-    targetRow = result.data;
-    findError = result.error;
-  }
+          throw new Error(
+            `Webhook recebeu ${event.type}, mas não encontrou subscription no Supabase`
+          );
+        }
 
-  if (!targetRow && stripeSubscriptionId) {
-    const result = await supabase
-      .from("subscriptions")
-      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
-      .eq("stripe_subscription_id", stripeSubscriptionId)
-      .maybeSingle();
+        console.log("[subscription webhook] linha encontrada", {
+          id: targetRow.id,
+          user_id: targetRow.user_id,
+          stripe_customer_id: targetRow.stripe_customer_id,
+          stripe_subscription_id: targetRow.stripe_subscription_id,
+        });
 
-    targetRow = result.data;
-    findError = result.error;
-  }
+        const payloadToUpdate = {
+          stripe_customer_id: stripeCustomerId,
+          stripe_subscription_id: stripeSubscriptionId,
+          status,
+          price_id: priceId,
+          current_period_end: currentPeriodEnd,
+          cancel_at_period_end: cancelAtPeriodEnd,
+          updated_at: new Date().toISOString(),
+        };
 
-  if (!targetRow && stripeCustomerId) {
-    const result = await supabase
-      .from("subscriptions")
-      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
-      .eq("stripe_customer_id", stripeCustomerId)
-      .maybeSingle();
+        console.log("[subscription webhook] payload para Supabase", {
+          rowId: targetRow.id,
+          userId: targetRow.user_id,
+          ...payloadToUpdate,
+        });
 
-    targetRow = result.data;
-    findError = result.error;
-  }
+        const { error } = await supabase
+          .from("subscriptions")
+          .update(payloadToUpdate)
+          .eq("id", targetRow.id);
 
-  if (findError) {
-    console.error(`Erro ao localizar assinatura para ${event.type}:`, findError);
-    throw findError;
-  }
+        if (error) {
+          console.error(`Erro ao atualizar ${event.type}:`, error);
+          throw error;
+        }
 
-  if (!targetRow?.id) {
-    console.error(`Nenhuma assinatura encontrada para ${event.type}`, {
-      userIdFromMetadata,
-      stripeCustomerId,
-      stripeSubscriptionId,
-      status,
-      cancelAtPeriodEnd,
-      currentPeriodEnd,
-      previousAttributes: event?.data?.previous_attributes || null,
-    });
-    break;
-  }
+        console.log(`Assinatura atualizada com sucesso para ${event.type}`, {
+          rowId: targetRow.id,
+          userId: targetRow.user_id,
+          ...payloadToUpdate,
+        });
 
-  console.log("=== PAYLOAD QUE VAI PARA O SUPABASE ===", {
-  stripe_customer_id: stripeCustomerId,
-  stripe_subscription_id: stripeSubscriptionId,
-  status,
-  price_id: priceId,
-  current_period_end: currentPeriodEnd,
-  cancel_at_period_end: cancelAtPeriodEnd,
-});
-
-  const payloadToUpdate = {
-    stripe_customer_id: stripeCustomerId,
-    stripe_subscription_id: stripeSubscriptionId,
-    status,
-    price_id: priceId,
-    current_period_end: currentPeriodEnd,
-    cancel_at_period_end: cancelAtPeriodEnd,
-    updated_at: new Date().toISOString(),
-  };
-
-  console.log(`[${event.type}] payload normalizado`, {
-    rowId: targetRow.id,
-    userId: targetRow.user_id,
-    stripeCustomerId,
-    stripeSubscriptionId,
-    status,
-    cancelAtPeriodEnd,
-    currentPeriodEnd,
-    previousAttributes: event?.data?.previous_attributes || null,
-  });
-
-  const { error } = await supabase
-    .from("subscriptions")
-    .update(payloadToUpdate)
-    .eq("id", targetRow.id);
-
-  if (error) {
-    console.error(`Erro ao atualizar ${event.type}:`, error);
-    throw error;
-  }
-
-  console.log(`Assinatura atualizada com sucesso para ${event.type}`, {
-    rowId: targetRow.id,
-    userId: targetRow.user_id,
-    ...payloadToUpdate,
-  });
-
-  break;
-}
+        break;
+      }
 
       default:
         console.log(`Evento ignorado: ${event.type}`);

@@ -128,8 +128,17 @@ try {
     });
 
     return res.status(200).json({ url: session.url });
-  } catch (error) {
-    console.error("Erro ao criar checkout session:", error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
+} catch (error) {
+  console.error("Erro ao criar checkout session:", error);
+
+  return res.status(500).json({
+    error: error?.message || "Internal server error",
+    type: error?.type || null,
+    code: error?.code || null,
+    param: error?.param || null,
+    stripePriceId,
+    stripeSecretKeyStartsWith: stripeSecretKey?.slice(0, 8),
+    appUrl,
+  });
+}
 };

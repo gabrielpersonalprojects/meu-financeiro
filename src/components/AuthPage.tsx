@@ -275,7 +275,7 @@ async function onEntrar(e: FormEvent) {
 
   return (
 <div
-  className="w-full flex items-center justify-center px-4 py-6 sm:py-8"
+  className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-6 sm:py-8"
   style={{
     minHeight: "100dvh",
     background: `linear-gradient(180deg,
@@ -303,7 +303,7 @@ async function onEntrar(e: FormEvent) {
         }}
       />
 
-      <div className="w-full max-w-[380px] rounded-[24px] overflow-hidden shadow-2xl border border-white/15 bg-white/5 backdrop-blur-xl my-auto">
+     <div className="w-full max-w-[380px] rounded-[24px] overflow-hidden shadow-2xl border border-white/15 bg-white/5 backdrop-blur-xl">
         {/* Header */}
         <div className="px-7 pt-6 pb-3">
           <div className="flex flex-col items-center">
@@ -623,11 +623,16 @@ className="group relative overflow-hidden mt-4 h-10 max-w-[280px] w-full mx-auto
               </button>
             </form>
           )}
+
+        </div>
+      </div>
+<div className="mt-6 text-center text-[11px] text-white/25 tracking-wide select-none">
+  Desenvolvido por Inpulso Digital LTDA
+</div>
           <div className="pt-4 text-center text-[11px] text-white/25 tracking-wide">
   v0.01
 </div>
-        </div>
-      </div>
     </div>
+    
   );
 }

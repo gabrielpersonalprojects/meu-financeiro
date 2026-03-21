@@ -249,6 +249,8 @@ const [accessLoading, setAccessLoading] = useState(true);
 const [checkoutSuccessVisible, setCheckoutSuccessVisible] = useState(false);
 const [checkoutSyncing, setCheckoutSyncing] = useState(false);
 const checkoutHandledRef = useRef(false);
+const [billingReturnVisible, setBillingReturnVisible] = useState(false);
+const billingHandledRef = useRef(false);
 
 const carregarDadosUsuario = async (userId: string) => {
   const cleanUserId = String(userId ?? "").trim();
@@ -4030,6 +4032,22 @@ useEffect(() => {
   void syncCheckoutSuccess();
 }, [session]);
 
+useEffect(() => {
+  if (billingHandledRef.current) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const billing = params.get("billing");
+
+  if (billing !== "returned") return;
+
+  billingHandledRef.current = true;
+  setBillingReturnVisible(true);
+  toast.success("Gerenciamento da assinatura concluído.");
+
+  const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
+  window.history.replaceState({}, document.title, cleanUrl);
+}, []);
+
 // --- Loading/Auth guard ---
 if (sessionLoading || accessLoading) {
   return (
@@ -4262,6 +4280,29 @@ const checkoutSuccessBanner = checkoutSuccessVisible ? (
         type="button"
         onClick={() => setCheckoutSuccessVisible(false)}
         className="rounded-xl border border-emerald-300/80 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
+      >
+        Fechar
+      </button>
+    </div>
+  </div>
+) : null;
+
+const billingReturnBanner = billingReturnVisible ? (
+  <div className="mx-auto mb-4 w-full max-w-6xl px-4">
+    <div className="flex items-start justify-between gap-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4 text-left shadow-sm dark:border-violet-900/60 dark:bg-violet-950/30">
+      <div>
+        <h3 className="text-sm font-bold text-violet-800 dark:text-violet-300">
+          Assinatura atualizada
+        </h3>
+        <p className="mt-1 text-sm text-violet-700 dark:text-violet-200/90">
+          Você voltou da área de gerenciamento da assinatura.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setBillingReturnVisible(false)}
+        className="rounded-xl border border-violet-300/80 px-3 py-1.5 text-xs font-semibold text-violet-800 transition hover:bg-violet-100 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-900/40"
       >
         Fechar
       </button>
@@ -4624,6 +4665,7 @@ const salvarDisplayName = async (rawName: string) => {
 return (
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
     {checkoutSuccessBanner}
+        {billingReturnBanner}
    
 
 <Toaster

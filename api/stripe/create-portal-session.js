@@ -52,10 +52,11 @@ module.exports = async function handler(req, res) {
       return res.status(404).json({ error: "Stripe customer not found" });
     }
 
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: subscription.stripe_customer_id,
-      return_url: `${appUrl}/?billing=returned`,
-    });
+const portalSession = await stripe.billingPortal.sessions.create({
+  customer: subscription.stripe_customer_id,
+  return_url: `${appUrl}/?billing=returned`,
+  locale: "pt-BR",
+});
 
     return res.status(200).json({ url: portalSession.url });
   } catch (error) {

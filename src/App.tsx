@@ -426,6 +426,11 @@ const handleRegistrarPagamentoFatura = async (payload: {
   contaLabel: string;
   criadoEm?: number;
 }) => {
+  if (invoicePaymentInFlightRef.current) {
+  return;
+}
+
+invoicePaymentInFlightRef.current = true;
   const valor = Number(payload.valor) || 0;
 
   if (valor <= 0) {

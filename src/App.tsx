@@ -240,11 +240,15 @@ const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>([
 
   // --- Auth Session ---
   const [session, setSession] = useState<Session | null>(null);
-  const [sessionLoading, setSessionLoading] = useState(true);
+const [sessionLoading, setSessionLoading] = useState(true);
 
-    const [accessRole, setAccessRole] = useState<"admin" | "user" | null>(null);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
-  const [accessLoading, setAccessLoading] = useState(true);
+const [accessRole, setAccessRole] = useState<"admin" | "user" | null>(null);
+const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+const [accessLoading, setAccessLoading] = useState(true);
+
+const [checkoutSuccessVisible, setCheckoutSuccessVisible] = useState(false);
+const [checkoutSyncing, setCheckoutSyncing] = useState(false);
+const checkoutHandledRef = useRef(false);
 
 const carregarDadosUsuario = async (userId: string) => {
   const cleanUserId = String(userId ?? "").trim();
@@ -3930,19 +3934,21 @@ useEffect(() => {
 
     const userId = session.user.id;
 
-    const [{ data: accessData, error: accessError }, { data: subscriptionData, error: subscriptionError }] =
-      await Promise.all([
-        supabase
-          .from("user_access")
-          .select("role")
-          .eq("user_id", userId)
-          .maybeSingle(),
-        supabase
-          .from("subscriptions")
-          .select("status")
-          .eq("user_id", userId)
-          .maybeSingle(),
-      ]);
+    const [
+      { data: accessData, error: accessError },
+      { data: subscriptionData, error: subscriptionError },
+    ] = await Promise.all([
+      supabase
+        .from("user_access")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabase
+        .from("subscriptions")
+        .select("status")
+        .eq("user_id", userId)
+        .maybeSingle(),
+    ]);
 
     if (!isMounted) return;
 
@@ -3966,6 +3972,64 @@ useEffect(() => {
   };
 }, [session]);
 
+useEffect(() => {
+  if (!session?.user?.id) return;
+  if (checkoutHandledRef.current) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const checkout = params.get("checkout");
+
+  if (checkout !== "success") return;
+
+  checkoutHandledRef.current = true;
+  setCheckoutSyncing(true);
+
+  const syncCheckoutSuccess = async () => {
+    try {
+      const userId = session.user.id;
+      let nextStatus: string | null = null;
+
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const { data, error } = await supabase
+          .from("subscriptions")
+          .select("status")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (error) {
+          console.error("Erro ao consultar assinatura após checkout:", error);
+        }
+
+        nextStatus = data?.status ?? null;
+
+        if (nextStatus === "active") {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+
+      if (nextStatus === "active") {
+        setSubscriptionStatus("active");
+        setCheckoutSuccessVisible(true);
+        toast.success("Assinatura ativada com sucesso!");
+      } else {
+        toast("Pagamento recebido. Estamos sincronizando sua assinatura...");
+      }
+    } catch (error) {
+      console.error("Erro ao sincronizar retorno do checkout:", error);
+      toast.error("Não foi possível validar sua assinatura agora.");
+    } finally {
+      setCheckoutSyncing(false);
+
+      const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+  };
+
+  void syncCheckoutSuccess();
+}, [session]);
+
 // --- Loading/Auth guard ---
 if (sessionLoading || accessLoading) {
   return (
@@ -3983,6 +4047,32 @@ if (!session) {
   return (
     <>
       <AuthPage />
+    </>
+  );
+}
+
+if (checkoutSyncing) {
+  return (
+    <>
+      <div className="min-h-screen grid place-items-center bg-slate-50 dark:bg-slate-950 px-6">
+        <div className="w-full max-w-md rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-xl p-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 dark:bg-violet-950/60">
+            <span className="text-xl font-bold text-violet-700 dark:text-violet-300">F</span>
+          </div>
+
+          <h1 className="text-2xl font-bold tracking-tight">
+            Confirmando sua assinatura...
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            Seu pagamento foi recebido. Estamos liberando seu acesso ao FluxMoney.
+          </p>
+
+          <div className="mt-6">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-violet-600 dark:border-slate-700 dark:border-t-violet-400" />
+          </div>
+        </div>
+      </div>
     </>
   );
 }
@@ -4072,6 +4162,83 @@ onClick={handleCheckoutAssinatura}
   );
 }
 
+if (accessRole !== "admin" && subscriptionStatus !== "active") {
+  return (
+    <>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 grid place-items-center px-6">
+        <div className="w-full max-w-md rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-xl p-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 dark:bg-violet-950/60">
+            <span className="text-xl font-bold text-violet-700 dark:text-violet-300">F</span>
+          </div>
+
+          <h1 className="text-2xl font-bold tracking-tight">
+            Sua assinatura não está ativa
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            Para acessar o FluxMoney, você precisa ter uma assinatura ativa.
+          </p>
+
+          <div className="mt-6 rounded-2xl bg-slate-100 dark:bg-slate-800/70 px-4 py-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500 dark:text-slate-400">Plano mensal</span>
+              <span className="font-semibold">R$ 16,99/mês</span>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <button
+              type="button"
+              className="w-full rounded-2xl px-4 py-3 font-semibold text-white shadow-lg transition hover:opacity-95"
+              style={{
+                background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
+              }}
+              onClick={handleCheckoutAssinatura}
+            >
+              Assinar agora
+            </button>
+
+            <button
+              type="button"
+              className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-3 font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-slate-800"
+              onClick={async () => {
+                await supabase.auth.signOut();
+              }}
+            >
+              Sair
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+const checkoutSuccessBanner = checkoutSuccessVisible ? (
+  <div className="mx-auto mb-4 w-full max-w-6xl px-4">
+    <div className="flex items-start justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-left shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/30">
+      <div>
+        <h3 className="text-sm font-bold text-emerald-800 dark:text-emerald-300">
+          Assinatura ativada com sucesso
+        </h3>
+        <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-200/90">
+          Seu acesso completo ao FluxMoney já foi liberado.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setCheckoutSuccessVisible(false)}
+        className="rounded-xl border border-emerald-300/80 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
+      >
+        Fechar
+      </button>
+    </div>
+  </div>
+) : null;
+
+/* =========================
+   PARTE 3/3 — JSX (UI) + MODAIS + EXPORT
 
   /* =========================
    PARTE 3/3 — JSX (UI) + MODAIS + EXPORT
@@ -4422,8 +4589,9 @@ const salvarDisplayName = async (rawName: string) => {
   } catch {}
 };
 
-  return (
+return (
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+    {checkoutSuccessBanner}
    
 
 <Toaster

@@ -4046,10 +4046,15 @@ useEffect(() => {
 
   billingHandledRef.current = true;
 
-  if (!(subscriptionStatus === "active" && cancelAtPeriodEnd)) {
-    setBillingReturnVisible(true);
-    toast.success("Gerenciamento da assinatura concluído.");
-  }
+const hasScheduledCancellation =
+  subscriptionStatus === "active" && cancelAtPeriodEnd === true;
+
+if (!hasScheduledCancellation) {
+  setBillingReturnVisible(true);
+  toast.success("Gerenciamento da assinatura concluído.");
+} else {
+  setBillingReturnVisible(false);
+}
 
   const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
   window.history.replaceState({}, document.title, cleanUrl);

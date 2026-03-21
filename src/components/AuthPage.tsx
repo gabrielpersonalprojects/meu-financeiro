@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 
 type Mode = "login" | "signup" | "forgot";
@@ -12,6 +12,9 @@ const BRAND = {
   to: "#4600ac",
   glow: "#8b5cf6", // roxo claro p/ efeitos suaves
 };
+
+const REMEMBER_EMAIL_KEY = "fluxmoney-remember-email";
+const REMEMBER_EMAIL_ENABLED_KEY = "fluxmoney-remember-email-enabled";
 
 function traduzirErroSupabase(message?: string) {
   const m = (message || "").toLowerCase();
@@ -127,9 +130,17 @@ export default function AuthPage() {
 
   const mostrarReenviar = !!lastEmail && !!erro && erro.toLowerCase().includes("confirmar seu e-mail");
 
-  const hintRemember = useMemo(() => {
-    return rememberMe ? "Manter conectado" : "Não manter conectado (visual)";
-  }, [rememberMe]);
+  useEffect(() => {
+  const savedRemember = localStorage.getItem(REMEMBER_EMAIL_ENABLED_KEY) === "true";
+  const savedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY) || "";
+
+  if (savedRemember && savedEmail) {
+    setRememberMe(true);
+    setEmail(savedEmail);
+  } else {
+    setRememberMe(false);
+  }
+}, []);
 
 async function onEntrar(e: FormEvent) {
   e.preventDefault();
@@ -147,6 +158,13 @@ async function onEntrar(e: FormEvent) {
     return;
   }
 
+    if (rememberMe) {
+    localStorage.setItem(REMEMBER_EMAIL_ENABLED_KEY, "true");
+    localStorage.setItem(REMEMBER_EMAIL_KEY, emailTrim);
+  } else {
+    localStorage.removeItem(REMEMBER_EMAIL_ENABLED_KEY);
+    localStorage.removeItem(REMEMBER_EMAIL_KEY);
+  }
   setLoading(true);
   try {
     const { error } = await supabase.auth.signInWithPassword({
@@ -353,7 +371,17 @@ async function onEntrar(e: FormEvent) {
   </button>
 </div>
 
-<div className="flex items-center justify-start mt-2">
+<div className="flex items-center justify-between mt-2 gap-3">
+  <label className="flex items-center gap-2 text-[11px] text-white/65 select-none">
+    <input
+      type="checkbox"
+      checked={rememberMe}
+      onChange={(e) => setRememberMe(e.target.checked)}
+      className="h-3.5 w-3.5 rounded border-white/30 bg-transparent accent-white/90"
+    />
+    Lembrar e-mail
+  </label>
+
   <button
     type="button"
     onClick={irParaForgot}
@@ -364,6 +392,7 @@ async function onEntrar(e: FormEvent) {
 </div>
 
 <div className="pt-4">
+
   {/* BOTÃO ENTRAR (marca) */}
   <button
     disabled={loading}

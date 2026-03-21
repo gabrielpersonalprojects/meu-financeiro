@@ -76,12 +76,18 @@ case "customer.subscription.deleted": {
   const status = subscription.status || "inactive";
   const priceId = subscription?.items?.data?.[0]?.price?.id || null;
 
-  const currentPeriodEndUnix = subscription.current_period_end || null;
+  // Stripe pode trazer o fim do período no item da assinatura.
+  const currentPeriodEndUnix =
+    subscription?.current_period_end ||
+    subscription?.items?.data?.[0]?.current_period_end ||
+    subscription?.cancel_at ||
+    null;
+
   const currentPeriodEnd = currentPeriodEndUnix
     ? new Date(currentPeriodEndUnix * 1000).toISOString()
     : null;
 
-  const cancelAtPeriodEnd = !!subscription.cancel_at_period_end;
+  const cancelAtPeriodEnd = Boolean(subscription?.cancel_at_period_end);
 
   let targetRow = null;
   let findError = null;
@@ -132,21 +138,35 @@ case "customer.subscription.deleted": {
       status,
       cancelAtPeriodEnd,
       currentPeriodEnd,
+      previousAttributes: event?.data?.previous_attributes || null,
     });
     break;
   }
 
+  const payloadToUpdate = {
+    stripe_customer_id: stripeCustomerId,
+    stripe_subscription_id: stripeSubscriptionId,
+    status,
+    price_id: priceId,
+    current_period_end: currentPeriodEnd,
+    cancel_at_period_end: cancelAtPeriodEnd,
+    updated_at: new Date().toISOString(),
+  };
+
+  console.log(`[${event.type}] payload normalizado`, {
+    rowId: targetRow.id,
+    userId: targetRow.user_id,
+    stripeCustomerId,
+    stripeSubscriptionId,
+    status,
+    cancelAtPeriodEnd,
+    currentPeriodEnd,
+    previousAttributes: event?.data?.previous_attributes || null,
+  });
+
   const { error } = await supabase
     .from("subscriptions")
-    .update({
-      stripe_customer_id: stripeCustomerId,
-      stripe_subscription_id: stripeSubscriptionId,
-      status,
-      price_id: priceId,
-      current_period_end: currentPeriodEnd,
-      cancel_at_period_end: cancelAtPeriodEnd,
-      updated_at: new Date().toISOString(),
-    })
+    .update(payloadToUpdate)
     .eq("id", targetRow.id);
 
   if (error) {
@@ -157,11 +177,7 @@ case "customer.subscription.deleted": {
   console.log(`Assinatura atualizada com sucesso para ${event.type}`, {
     rowId: targetRow.id,
     userId: targetRow.user_id,
-    stripeCustomerId,
-    stripeSubscriptionId,
-    status,
-    cancelAtPeriodEnd,
-    currentPeriodEnd,
+    ...payloadToUpdate,
   });
 
   break;

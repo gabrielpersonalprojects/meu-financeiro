@@ -30,8 +30,6 @@ import {
 import {
   fetchCreditCards,
   mapCreditCardRowToApp,
-  insertCreditCard,
-  mapCreditCardAppToInsert,
   updateCreditCardById,
   deleteCreditCardById,
 } from "./services/creditCards";
@@ -96,9 +94,7 @@ import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
-import { Pencil, Trash2 } from "lucide-react";
-import { PencilLine } from "lucide-react";
-import { Moon } from "lucide-react";
+import { Moon, Pencil, PencilLine, Trash2 } from "lucide-react";
 import {
   STORAGE_KEYS,
   PROFILE_KEYS,
@@ -157,7 +153,11 @@ const SEM_PRAZO_MESES = 12;
 
   const App: FC = () => {
 const authLoadInFlightRef = useRef<string>("");
-    const addTxLockRef = useRef(false);
+const authLoadRequestIdRef = useRef(0);
+   const addTxLockRef = useRef(false);
+const invoicePaymentInFlightRef = useRef(false);
+const invoiceInstallmentInFlightRef = useRef(false);
+const invoicePaymentRemovalInFlightRef = useRef(false);
     const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
 const [ccTags, setCcTags] = useState<string[]>([]);
 const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -249,6 +249,7 @@ const carregarDadosUsuario = async (userId: string) => {
   if (authLoadInFlightRef.current === cleanUserId) return;
 
   authLoadInFlightRef.current = cleanUserId;
+  const requestId = ++authLoadRequestIdRef.current;
 
   try {
     const creditCardRows = await fetchCreditCards(cleanUserId);
@@ -289,6 +290,10 @@ const carregarDadosUsuario = async (userId: string) => {
       fetchUserCategories(cleanUserId),
       fetchUserTags(cleanUserId),
     ]);
+
+    if (requestId !== authLoadRequestIdRef.current) {
+      return;
+    }
 
     const profilesFromDb = rows.map(mapAccountRowToProfile);
     setProfiles((profilesFromDb ?? []) as any);
@@ -340,6 +345,10 @@ const carregarDadosUsuario = async (userId: string) => {
       ).sort((a, b) => a.localeCompare(b, "pt-BR"))
     );
 
+    if (requestId !== authLoadRequestIdRef.current) {
+      return;
+    }
+
   } catch (err) {
     console.error("ERRO AO CARREGAR DADOS DO USUARIO:", err);
     setAccountsLoaded(true);
@@ -352,8 +361,11 @@ const carregarDadosUsuario = async (userId: string) => {
 };
 
 useEffect(() => {
+  let isAlive = true;
+
 const limparEstadoUsuario = () => {
   authLoadInFlightRef.current = "";
+  authLoadRequestIdRef.current += 1;
 
   setProfiles([]);
   setTransacoes([]);
@@ -367,40 +379,39 @@ const limparEstadoUsuario = () => {
   setCreditCardsLoaded(false);
 };
 
-  supabase.auth.getSession().then(async ({ data }) => {
-    const sess = data.session;
+  const aplicarSessao = async (sess: Session | null) => {
+    if (!isAlive) return;
+
     setSession(sess);
     setSessionLoading(false);
 
     const userId = String(sess?.user?.id ?? "").trim();
     if (!userId) {
       limparEstadoUsuario();
+      return;
+    }
+
+    if (authLoadInFlightRef.current === userId) {
       return;
     }
 
     await carregarDadosUsuario(userId);
-  });
+  };
+
+  void supabase.auth
+    .getSession()
+    .then(({ data }) => aplicarSessao(data.session));
 
   const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
-    setSession(sess);
-    setSessionLoading(false);
-
-    const userId = String(sess?.user?.id ?? "").trim();
-    if (!userId) {
-      limparEstadoUsuario();
-      return;
-    }
-
-if (authLoadInFlightRef.current === userId) {
-  return;
-}
-
-    setTimeout(() => {
-      carregarDadosUsuario(userId);
-    }, 0);
+    void aplicarSessao(sess).catch((err) => {
+      console.error("Erro ao aplicar sessão:", err);
+      authLoadInFlightRef.current = "";
+      setSessionLoading(false);
+    });
   });
 
   return () => {
+    isAlive = false;
     data.subscription.unsubscribe();
   };
 }, []);
@@ -542,6 +553,8 @@ try {
 } catch (err) {
   console.error("ERRO AO REGISTRAR PAGAMENTO DE FATURA:", err);
   toastCompact("Erro ao registrar pagamento da fatura.", "error");
+} finally {
+  invoicePaymentInFlightRef.current = false;
 }
 };
 
@@ -564,6 +577,11 @@ const handleRegistrarParcelamentoFatura = async ({
   quantidadeParcelas: number;
   valorParcela: number;
 }) => {
+  if (invoiceInstallmentInFlightRef.current) {
+    return;
+  }
+
+  invoiceInstallmentInFlightRef.current = true;
 
   try {
     if (!session?.user?.id) {
@@ -801,31 +819,44 @@ try {
 
   throw innerErr;
 }
-  } catch (err) {
-    console.error("ERRO AO REGISTRAR PARCELAMENTO DE FATURA:", err);
-    toastCompact("Erro ao registrar parcelamento da fatura.", "error");
-  }
+} catch (err) {
+  console.error("ERRO AO REGISTRAR PARCELAMENTO:", err);
+  toastCompact("Erro ao registrar parcelamento da fatura.", "error");
+} finally {
+  invoiceInstallmentInFlightRef.current = false;
+}
 };
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     String(value || "").trim()
   );
 const handleRemoverPagamentoFatura = async (pagamentoId: string) => {
+  if (invoicePaymentRemovalInFlightRef.current) {
+    return;
+  }
+
+  invoicePaymentRemovalInFlightRef.current = true;
   const alvo = (pagamentosFatura ?? []).find(
     (p: any) => String(p?.id ?? "") === String(pagamentoId)
   );
 
   if (!alvo) return;
 
-  try {
-    const userId = session?.user?.id;
-if (!userId) return;
+try {
+  const userId = session?.user?.id;
+  if (!userId) {
+    invoicePaymentRemovalInFlightRef.current = false;
+    return;
+  }
 
-await deleteInvoicePaymentById(String(alvo.id), userId);
+  await deleteInvoicePaymentById(String(alvo.id), userId);
 
 if (alvo.transacaoId && isUuid(String(alvo.transacaoId))) {
-  const userId = session?.user?.id;
-if (!userId) return;
+const userId = session?.user?.id;
+if (!userId) {
+  invoicePaymentRemovalInFlightRef.current = false;
+  return;
+}
 
 await deleteTransactionById(String(alvo.transacaoId), userId);
 }
@@ -843,10 +874,12 @@ if (alvo.transacaoId) {
 }
 
     toastCompact("Pagamento removido.", "success");
-  } catch (err) {
-    console.error("ERRO AO REMOVER PAGAMENTO DE FATURA:", err);
-    toastCompact("Erro ao remover pagamento da fatura.", "error");
-  }
+} catch (err) {
+  console.error("ERRO AO REMOVER PAGAMENTO DE FATURA:", err);
+  toastCompact("Erro ao remover pagamento da fatura.", "error");
+} finally {
+  invoicePaymentRemovalInFlightRef.current = false;
+}
 };
 
 const handleCancelarParcelamentoFatura = async ({
@@ -858,11 +891,20 @@ const handleCancelarParcelamentoFatura = async ({
   cicloKey: string;
   parcelamentoFaturaId: string;
 }) => {
+  if (invoiceInstallmentInFlightRef.current) {
+    return;
+  }
+
+  invoiceInstallmentInFlightRef.current = true;
+
   const parcelamentoId = String(parcelamentoFaturaId ?? "").trim();
   const cartaoIdSafe = String(cartaoId ?? "").trim();
   const cicloKeySafe = String(cicloKey ?? "").trim();
 
-  if (!parcelamentoId) return;
+  if (!parcelamentoId) {
+    invoiceInstallmentInFlightRef.current = false;
+    return;
+  }
 
   try {
     const userId = session?.user?.id;
@@ -1049,10 +1091,12 @@ await Promise.all(
 );
 
     toastCompact("Parcelamento cancelado.", "success");
-  } catch (err) {
-    console.error("ERRO AO CANCELAR PARCELAMENTO DE FATURA:", err);
-    toastCompact("Erro ao cancelar parcelamento da fatura.", "error");
-  }
+} catch (err) {
+  console.error("ERRO AO CANCELAR PARCELAMENTO DE FATURA:", err);
+  toastCompact("Erro ao cancelar parcelamento da fatura.", "error");
+} finally {
+  invoiceInstallmentInFlightRef.current = false;
+}
 };
 
   // --- Perfis ---
@@ -2111,50 +2155,58 @@ useEffect(() => {
   useEffect(() => {
     isDataLoadedRef.current = false;
 
-const safeProfileId = activeProfileId?.trim();
+    const safeProfileId = activeProfileId?.trim();
 
-const savedMetodos =
-  (safeProfileId
-    ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "metodosPagamento"))
-    : null) ??
-  localStorage.getItem("meu-financeiro-metodos");
+    const savedMetodos =
+      (safeProfileId
+        ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "metodosPagamento"))
+        : null) ??
+      localStorage.getItem("meu-financeiro-metodos");
 
-const savedName =
-  (safeProfileId
-    ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "userName"))
-    : null) ??
-  localStorage.getItem("meu-financeiro-username");
-  
-  setCategorias(CATEGORIAS_PADRAO);
+    const savedName =
+      (safeProfileId
+        ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "userName"))
+        : null) ??
+      localStorage.getItem("meu-financeiro-username");
 
-    const parsedMet = savedMetodos ? JSON.parse(savedMetodos) : null;
-    const metOk = parsedMet && Array.isArray(parsedMet.credito) && Array.isArray(parsedMet.debito);
+    let parsedMet: any = null;
+
+    try {
+      parsedMet = savedMetodos ? JSON.parse(savedMetodos) : null;
+    } catch {
+      parsedMet = null;
+    }
+
+    const metOk =
+      parsedMet &&
+      Array.isArray(parsedMet.credito) &&
+      Array.isArray(parsedMet.debito);
+
     setMetodosPagamento(metOk ? parsedMet : { credito: [], debito: [] });
 
     setUserName(savedName === null ? "" : savedName);
     setNameInput(savedName === null ? "" : savedName);
     setIsEditingName(savedName === null);
 
-   if (safeProfileId) {
-  localStorage.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, safeProfileId);
-} else {
-  localStorage.removeItem(STORAGE_KEYS.ACTIVE_PROFILE_ID);
-}
+    if (safeProfileId) {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, safeProfileId);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_PROFILE_ID);
+    }
 
-    setTimeout(() => {
-      isDataLoadedRef.current = true;
-    }, 0);
+    isDataLoadedRef.current = true;
   }, [activeProfileId]);
 
 useEffect(() => {
   if (!isDataLoadedRef.current) return;
   const safeProfileId = activeProfileId?.trim();
 
-  localStorage.setItem("meu-financeiro-categorias", JSON.stringify(categorias));
-  localStorage.setItem("meu-financeiro-metodos", JSON.stringify(metodosPagamento));
-  localStorage.setItem("meu-financeiro-username", userName);
-
-  if (!safeProfileId) return;
+  if (!safeProfileId) {
+    localStorage.setItem("meu-financeiro-categorias", JSON.stringify(categorias));
+    localStorage.setItem("meu-financeiro-metodos", JSON.stringify(metodosPagamento));
+    localStorage.setItem("meu-financeiro-username", userName);
+    return;
+  }
 
   localStorage.setItem(
     buildProfileStorageKey(safeProfileId, "categorias"),

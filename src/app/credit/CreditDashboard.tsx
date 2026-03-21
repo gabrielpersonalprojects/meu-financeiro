@@ -2134,41 +2134,44 @@ className="h-8 w-8 inline-flex items-center justify-center transition text-slate
     )
   : null}
 
-{confirmCancelarNegociacao && parcelamentoAtual ? (
-  <div
-    className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 px-4 backdrop-blur-[2px]"
-    onClick={() => setConfirmCancelarNegociacao(false)}
-  >
-    <div
-      className="w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-white/10 dark:bg-[#071235] dark:text-white"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="text-[18px] font-bold">Cancelar negociação?</div>
-
-      <div className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-white/70">
-        Isso vai desfazer o parcelamento desta fatura e remover a negociação vinculada.
-      </div>
-
-      <div className="mt-6 flex items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={() => setConfirmCancelarNegociacao(false)}
-          className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white/80 dark:hover:bg-white/10"
+{confirmCancelarNegociacao && parcelamentoAtual
+  ? createPortal(
+      <div
+        className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 px-4 backdrop-blur-[2px]"
+        onClick={() => setConfirmCancelarNegociacao(false)}
+      >
+        <div
+          className="w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-white/10 dark:bg-[#071235] dark:text-white"
+          onClick={(e) => e.stopPropagation()}
         >
-          Voltar
-        </button>
+          <div className="text-[18px] font-bold">Cancelar negociação?</div>
 
-        <button
-          type="button"
-          onClick={cancelarNegociacaoFatura}
-          className="h-10 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700"
-        >
-          Confirmar cancelamento
-        </button>
-      </div>
-    </div>
-  </div>
-) : null}
+          <div className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-white/70">
+            Isso vai desfazer o parcelamento desta fatura e remover a negociação vinculada.
+          </div>
+
+          <div className="mt-6 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setConfirmCancelarNegociacao(false)}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+            >
+              Voltar
+            </button>
+
+            <button
+              type="button"
+              onClick={cancelarNegociacaoFatura}
+              className="h-10 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700"
+            >
+              Confirmar cancelamento
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )
+  : null}
 
 {confirmExcluirPagamentoId
   ? createPortal(

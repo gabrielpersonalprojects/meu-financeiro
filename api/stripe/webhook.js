@@ -183,26 +183,32 @@ case "customer.subscription.deleted": {
   const status = subscription?.status || "inactive";
   const priceId = subscription?.items?.data?.[0]?.price?.id || null;
 
-  const currentPeriodEndUnix =
-    subscription?.current_period_end ||
-    subscription?.items?.data?.[0]?.current_period_end ||
-    subscription?.cancel_at ||
-    null;
+const cancelAtUnix = subscription?.cancel_at || null;
 
-  const currentPeriodEnd = toIsoFromUnix(currentPeriodEndUnix);
-  const cancelAtPeriodEnd = Boolean(subscription?.cancel_at_period_end);
+const currentPeriodEndUnix =
+  subscription?.current_period_end ||
+  subscription?.items?.data?.[0]?.current_period_end ||
+  cancelAtUnix ||
+  null;
 
-  console.log("[subscription webhook] evento recebido + estado atual da Stripe", {
-    eventType: event.type,
-    subscriptionId: stripeSubscriptionId,
-    customerId: stripeCustomerId,
-    userIdFromMetadata,
-    status,
-    cancelAtPeriodEnd,
-    cancelAt: subscription?.cancel_at || null,
-    currentPeriodEnd,
-    previousAttributes: event?.data?.previous_attributes || null,
-  });
+const currentPeriodEnd = toIsoFromUnix(currentPeriodEndUnix);
+
+const cancelAtPeriodEnd = Boolean(
+  subscription?.cancel_at_period_end || cancelAtUnix
+);
+
+console.log("[subscription webhook] evento recebido + estado atual da Stripe", {
+  eventType: event.type,
+  subscriptionId: stripeSubscriptionId,
+  customerId: stripeCustomerId,
+  userIdFromMetadata,
+  status,
+  cancel_at_period_end_raw: subscription?.cancel_at_period_end ?? null,
+  cancel_at_raw: subscription?.cancel_at || null,
+  cancelAtPeriodEnd,
+  currentPeriodEnd,
+  previousAttributes: event?.data?.previous_attributes || null,
+});
 
   const targetRow = await findSubscriptionRow({
     userId: userIdFromMetadata,

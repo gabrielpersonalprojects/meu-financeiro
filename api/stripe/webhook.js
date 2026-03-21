@@ -165,100 +165,108 @@ module.exports = async function handler(req, res) {
         break;
       }
 
-      case "customer.subscription.created":
-      case "customer.subscription.updated":
-      case "customer.subscription.deleted": {
-        const subscription = event.data.object;
+case "customer.subscription.created":
+case "customer.subscription.updated":
+case "customer.subscription.deleted": {
+  const subscriptionFromEvent = event.data.object;
+  const subscriptionIdFromEvent = subscriptionFromEvent?.id || null;
 
-        const userIdFromMetadata = subscription?.metadata?.userId || null;
-        const stripeCustomerId = subscription?.customer || null;
-        const stripeSubscriptionId = subscription?.id || null;
-        const status = subscription?.status || "inactive";
-        const priceId = subscription?.items?.data?.[0]?.price?.id || null;
+  if (!subscriptionIdFromEvent) {
+    throw new Error(`Evento ${event.type} chegou sem subscription id`);
+  }
 
-        const currentPeriodEndUnix =
-          subscription?.current_period_end ||
-          subscription?.items?.data?.[0]?.current_period_end ||
-          subscription?.cancel_at ||
-          null;
+  const subscription = await stripe.subscriptions.retrieve(subscriptionIdFromEvent);
 
-        const currentPeriodEnd = toIsoFromUnix(currentPeriodEndUnix);
-        const cancelAtPeriodEnd = Boolean(subscription?.cancel_at_period_end);
+  const userIdFromMetadata = subscription?.metadata?.userId || null;
+  const stripeCustomerId = subscription?.customer || null;
+  const stripeSubscriptionId = subscription?.id || null;
+  const status = subscription?.status || "inactive";
+  const priceId = subscription?.items?.data?.[0]?.price?.id || null;
 
-        console.log("[subscription webhook] evento recebido", {
-          eventType: event.type,
-          subscriptionId: stripeSubscriptionId,
-          customerId: stripeCustomerId,
-          userIdFromMetadata,
-          status,
-          cancelAtPeriodEnd,
-          currentPeriodEnd,
-          previousAttributes: event?.data?.previous_attributes || null,
-        });
+  const currentPeriodEndUnix =
+    subscription?.current_period_end ||
+    subscription?.items?.data?.[0]?.current_period_end ||
+    subscription?.cancel_at ||
+    null;
 
-        const targetRow = await findSubscriptionRow({
-          userId: userIdFromMetadata,
-          stripeCustomerId,
-          stripeSubscriptionId,
-        });
+  const currentPeriodEnd = toIsoFromUnix(currentPeriodEndUnix);
+  const cancelAtPeriodEnd = Boolean(subscription?.cancel_at_period_end);
 
-        if (!targetRow?.id) {
-          console.error("Nenhuma assinatura encontrada para atualizar", {
-            eventType: event.type,
-            userIdFromMetadata,
-            stripeCustomerId,
-            stripeSubscriptionId,
-            status,
-            cancelAtPeriodEnd,
-            currentPeriodEnd,
-          });
+  console.log("[subscription webhook] evento recebido + estado atual da Stripe", {
+    eventType: event.type,
+    subscriptionId: stripeSubscriptionId,
+    customerId: stripeCustomerId,
+    userIdFromMetadata,
+    status,
+    cancelAtPeriodEnd,
+    cancelAt: subscription?.cancel_at || null,
+    currentPeriodEnd,
+    previousAttributes: event?.data?.previous_attributes || null,
+  });
 
-          throw new Error(
-            `Webhook recebeu ${event.type}, mas não encontrou subscription no Supabase`
-          );
-        }
+  const targetRow = await findSubscriptionRow({
+    userId: userIdFromMetadata,
+    stripeCustomerId,
+    stripeSubscriptionId,
+  });
 
-        console.log("[subscription webhook] linha encontrada", {
-          id: targetRow.id,
-          user_id: targetRow.user_id,
-          stripe_customer_id: targetRow.stripe_customer_id,
-          stripe_subscription_id: targetRow.stripe_subscription_id,
-        });
+  if (!targetRow?.id) {
+    console.error("Nenhuma assinatura encontrada para atualizar", {
+      eventType: event.type,
+      userIdFromMetadata,
+      stripeCustomerId,
+      stripeSubscriptionId,
+      status,
+      cancelAtPeriodEnd,
+      currentPeriodEnd,
+    });
 
-        const payloadToUpdate = {
-          stripe_customer_id: stripeCustomerId,
-          stripe_subscription_id: stripeSubscriptionId,
-          status,
-          price_id: priceId,
-          current_period_end: currentPeriodEnd,
-          cancel_at_period_end: cancelAtPeriodEnd,
-          updated_at: new Date().toISOString(),
-        };
+    throw new Error(
+      `Webhook recebeu ${event.type}, mas não encontrou subscription no Supabase`
+    );
+  }
 
-        console.log("[subscription webhook] payload para Supabase", {
-          rowId: targetRow.id,
-          userId: targetRow.user_id,
-          ...payloadToUpdate,
-        });
+  console.log("[subscription webhook] linha encontrada", {
+    id: targetRow.id,
+    user_id: targetRow.user_id,
+    stripe_customer_id: targetRow.stripe_customer_id,
+    stripe_subscription_id: targetRow.stripe_subscription_id,
+  });
 
-        const { error } = await supabase
-          .from("subscriptions")
-          .update(payloadToUpdate)
-          .eq("id", targetRow.id);
+  const payloadToUpdate = {
+    stripe_customer_id: stripeCustomerId,
+    stripe_subscription_id: stripeSubscriptionId,
+    status,
+    price_id: priceId,
+    current_period_end: currentPeriodEnd,
+    cancel_at_period_end: cancelAtPeriodEnd,
+    updated_at: new Date().toISOString(),
+  };
 
-        if (error) {
-          console.error(`Erro ao atualizar ${event.type}:`, error);
-          throw error;
-        }
+  console.log("[subscription webhook] payload para Supabase", {
+    rowId: targetRow.id,
+    userId: targetRow.user_id,
+    ...payloadToUpdate,
+  });
 
-        console.log(`Assinatura atualizada com sucesso para ${event.type}`, {
-          rowId: targetRow.id,
-          userId: targetRow.user_id,
-          ...payloadToUpdate,
-        });
+  const { error } = await supabase
+    .from("subscriptions")
+    .update(payloadToUpdate)
+    .eq("id", targetRow.id);
 
-        break;
-      }
+  if (error) {
+    console.error(`Erro ao atualizar ${event.type}:`, error);
+    throw error;
+  }
+
+  console.log(`Assinatura atualizada com sucesso para ${event.type}`, {
+    rowId: targetRow.id,
+    userId: targetRow.user_id,
+    ...payloadToUpdate,
+  });
+
+  break;
+}
 
       default:
         console.log(`Evento ignorado: ${event.type}`);

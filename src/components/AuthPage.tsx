@@ -623,6 +623,9 @@ className="group relative overflow-hidden mt-4 h-10 max-w-[280px] w-full mx-auto
               </button>
             </form>
           )}
+          <div className="pt-4 text-center text-[11px] text-white/25 tracking-wide">
+  v0.01
+</div>
         </div>
       </div>
     </div>

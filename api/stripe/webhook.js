@@ -69,6 +69,25 @@ case "customer.subscription.created":
 case "customer.subscription.updated":
 case "customer.subscription.deleted": {
   const subscription = event.data.object;
+  console.log("=== STRIPE SUBSCRIPTION EVENT ===");
+console.log("event.type:", event.type);
+console.log("subscription.id:", subscription?.id);
+console.log("subscription.status:", subscription?.status);
+console.log("subscription.cancel_at_period_end:", subscription?.cancel_at_period_end);
+console.log("subscription.current_period_end:", subscription?.current_period_end);
+console.log("subscription.cancel_at:", subscription?.cancel_at);
+console.log(
+  "subscription.items.data[0].current_period_end:",
+  subscription?.items?.data?.[0]?.current_period_end
+);
+console.log(
+  "event.previous_attributes:",
+  event?.data?.previous_attributes || null
+);
+console.log(
+  "subscription payload:",
+  JSON.stringify(subscription, null, 2)
+);
 
   const userIdFromMetadata = subscription?.metadata?.userId || null;
   const stripeCustomerId = subscription.customer || null;
@@ -142,6 +161,15 @@ case "customer.subscription.deleted": {
     });
     break;
   }
+
+  console.log("=== PAYLOAD QUE VAI PARA O SUPABASE ===", {
+  stripe_customer_id: stripeCustomerId,
+  stripe_subscription_id: stripeSubscriptionId,
+  status,
+  price_id: priceId,
+  current_period_end: currentPeriodEnd,
+  cancel_at_period_end: cancelAtPeriodEnd,
+});
 
   const payloadToUpdate = {
     stripe_customer_id: stripeCustomerId,

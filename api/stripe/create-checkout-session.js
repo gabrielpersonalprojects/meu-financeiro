@@ -67,7 +67,43 @@ module.exports = async function handler(req, res) {
       console.error("DEBUG SELECTED PRICE ERROR", selectedPriceError);
       throw selectedPriceError;
     }
+console.error("DEBUG CHECKOUT ENV", {
+  stripePriceId,
+  stripeSecretKeyStartsWith: stripeSecretKey?.slice(0, 8),
+  appUrl,
+});
 
+try {
+  const prices = await stripe.prices.list({ limit: 10 });
+  console.error(
+    "DEBUG STRIPE PRICES",
+    prices.data.map((p) => ({
+      id: p.id,
+      product: p.product,
+      active: p.active,
+      livemode: p.livemode,
+      unit_amount: p.unit_amount,
+      recurring: p.recurring?.interval || null,
+    }))
+  );
+} catch (priceListError) {
+  console.error("DEBUG STRIPE PRICES ERROR", priceListError);
+}
+
+try {
+  const selectedPrice = await stripe.prices.retrieve(stripePriceId);
+  console.error("DEBUG SELECTED PRICE", {
+    id: selectedPrice.id,
+    product: selectedPrice.product,
+    active: selectedPrice.active,
+    livemode: selectedPrice.livemode,
+    unit_amount: selectedPrice.unit_amount,
+    recurring: selectedPrice.recurring?.interval || null,
+  });
+} catch (selectedPriceError) {
+  console.error("DEBUG SELECTED PRICE ERROR", selectedPriceError);
+  throw selectedPriceError;
+}
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       locale: "pt-BR",

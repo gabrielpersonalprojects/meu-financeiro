@@ -4110,6 +4110,38 @@ const handleCheckoutAssinatura = async () => {
   }
 };
 
+const handleGerenciarAssinatura = async () => {
+  try {
+    if (!session?.user?.id) {
+      alert("Sessão inválida. Faça login novamente.");
+      return;
+    }
+
+    const response = await fetch("/api/stripe/create-portal-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId: session.user.id,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data?.url) {
+      console.error("Erro ao abrir portal da assinatura:", data);
+      alert("Não foi possível abrir o gerenciamento da assinatura.");
+      return;
+    }
+
+    window.location.href = data.url;
+  } catch (error) {
+    console.error("Erro ao abrir portal da assinatura:", error);
+    alert("Erro ao abrir gerenciamento da assinatura.");
+  }
+};
+
 if (accessRole !== "admin" && subscriptionStatus !== "active") {
   return (
     <>
@@ -6315,6 +6347,31 @@ await deleteTransactionById(String(id), userId);
                     Limpar dados
                   </button>
                 </div>
+
+                <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-3 flex items-center justify-between gap-4">
+  <div>
+    <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Assinatura</p>
+    <p className="text-[12px] text-slate-500 dark:text-slate-400">
+      Atualize cartão, veja cobranças ou cancele seu plano
+    </p>
+  </div>
+
+  <button
+    type="button"
+    onClick={() => {
+      setSettingsOpen(false);
+      void handleGerenciarAssinatura();
+    }}
+    className="h-9 px-3 rounded-xl text-[13px] font-semibold whitespace-nowrap
+      text-white shadow-lg transition hover:opacity-95
+      focus:outline-none focus:ring-2 focus:ring-violet-200/70 dark:focus:ring-violet-900/60"
+    style={{
+      background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
+    }}
+  >
+    Gerenciar assinatura
+  </button>
+</div>
 
                 <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/40 px-4 py-3 flex items-center justify-between gap-4">
                   <div>

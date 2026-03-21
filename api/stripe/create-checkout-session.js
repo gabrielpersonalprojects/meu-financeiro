@@ -29,7 +29,11 @@ module.exports = async function handler(req, res) {
     if (!email || !userId) {
       return res.status(400).json({ error: "Missing email or userId" });
     }
-
+console.log("DEBUG CHECKOUT ENV", {
+  stripePriceId,
+  stripeSecretKeyStartsWith: stripeSecretKey?.slice(0, 8),
+  appUrl,
+});
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       locale: "pt-BR",

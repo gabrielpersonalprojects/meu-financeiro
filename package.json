@@ -14,12 +14,14 @@
     "react-day-picker": "^9.14.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.6.0",
-    "recharts": "^2.15.4"
+    "recharts": "^2.15.4",
+    "stripe": "^20.4.1"
   },
   "devDependencies": {
     "@types/node": "^25.0.7",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
+    "@vercel/node": "^5.6.18",
     "@vitejs/plugin-react": "^4.0.0",
     "autoprefixer": "^10.4.14",
     "postcss": "^8.4.21",

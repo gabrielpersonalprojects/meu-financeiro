@@ -3987,6 +3987,39 @@ if (!session) {
   );
 }
 
+const handleCheckoutAssinatura = async () => {
+  try {
+    if (!session?.user?.email || !session?.user?.id) {
+      alert("Sessão inválida. Faça login novamente.");
+      return;
+    }
+
+    const response = await fetch("/api/stripe/create-checkout-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: session.user.email,
+        userId: session.user.id,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data?.url) {
+      console.error("Erro ao iniciar checkout:", data);
+      alert("Não foi possível iniciar o checkout.");
+      return;
+    }
+
+    window.location.href = data.url;
+  } catch (error) {
+    console.error("Erro ao iniciar checkout:", error);
+    alert("Erro ao iniciar checkout.");
+  }
+};
+
 if (accessRole !== "admin" && subscriptionStatus !== "active") {
   return (
     <>
@@ -4018,9 +4051,7 @@ if (accessRole !== "admin" && subscriptionStatus !== "active") {
               style={{
                 background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
               }}
-              onClick={() => {
-                alert("Próximo passo: conectar checkout do Stripe.");
-              }}
+onClick={handleCheckoutAssinatura}
             >
               Assinar agora
             </button>

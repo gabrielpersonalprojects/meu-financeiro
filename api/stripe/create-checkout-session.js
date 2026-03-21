@@ -30,81 +30,6 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: "Missing email or userId" });
     }
 
-    console.log("DEBUG CHECKOUT ENV", {
-      stripePriceId,
-      stripeSecretKeyStartsWith: stripeSecretKey?.slice(0, 8),
-      appUrl,
-    });
-
-    try {
-      const prices = await stripe.prices.list({ limit: 10 });
-      console.log(
-        "DEBUG STRIPE PRICES",
-        prices.data.map((p) => ({
-          id: p.id,
-          product: p.product,
-          active: p.active,
-          livemode: p.livemode,
-          unit_amount: p.unit_amount,
-          recurring: p.recurring?.interval || null,
-        }))
-      );
-    } catch (priceListError) {
-      console.error("DEBUG STRIPE PRICES ERROR", priceListError);
-    }
-
-    try {
-      const selectedPrice = await stripe.prices.retrieve(stripePriceId);
-      console.log("DEBUG SELECTED PRICE", {
-        id: selectedPrice.id,
-        product: selectedPrice.product,
-        active: selectedPrice.active,
-        livemode: selectedPrice.livemode,
-        unit_amount: selectedPrice.unit_amount,
-        recurring: selectedPrice.recurring?.interval || null,
-      });
-    } catch (selectedPriceError) {
-      console.error("DEBUG SELECTED PRICE ERROR", selectedPriceError);
-      throw selectedPriceError;
-    }
-console.error("DEBUG CHECKOUT ENV", {
-  stripePriceId,
-  stripeSecretKeyStartsWith: stripeSecretKey?.slice(0, 8),
-  appUrl,
-});
-
-try {
-  const prices = await stripe.prices.list({ limit: 10 });
-  console.error(
-    "DEBUG STRIPE PRICES",
-    prices.data.map((p) => ({
-      id: p.id,
-      product: p.product,
-      active: p.active,
-      livemode: p.livemode,
-      unit_amount: p.unit_amount,
-      recurring: p.recurring?.interval || null,
-    }))
-  );
-} catch (priceListError) {
-  console.error("DEBUG STRIPE PRICES ERROR", priceListError);
-}
-
-try {
-  const selectedPrice = await stripe.prices.retrieve(stripePriceId);
-  console.error("DEBUG SELECTED PRICE", {
-    id: selectedPrice.id,
-    product: selectedPrice.product,
-    active: selectedPrice.active,
-    livemode: selectedPrice.livemode,
-    unit_amount: selectedPrice.unit_amount,
-    recurring: selectedPrice.recurring?.interval || null,
-  });
-} catch (selectedPriceError) {
-  console.error("DEBUG SELECTED PRICE ERROR", selectedPriceError);
-  throw selectedPriceError;
-}
-const stripeAccount = await stripe.accounts.retrieve();
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       locale: "pt-BR",
@@ -129,28 +54,14 @@ const stripeAccount = await stripe.accounts.retrieve();
     });
 
     return res.status(200).json({ url: session.url });
-} catch (error) {
-  console.error("Erro ao criar checkout session:", error);
+  } catch (error) {
+    console.error("Erro ao criar checkout session:", error);
 
-  let stripeAccountId = null;
-  let stripeAccountEmail = null;
-
-  try {
-    const stripeAccount = await stripe.accounts.retrieve();
-    stripeAccountId = stripeAccount?.id || null;
-    stripeAccountEmail = stripeAccount?.email || null;
-  } catch (_) {}
-
-  return res.status(500).json({
-    error: error?.message || "Internal server error",
-    type: error?.type || null,
-    code: error?.code || null,
-    param: error?.param || null,
-    stripePriceId,
-    stripeSecretKeyStartsWith: stripeSecretKey?.slice(0, 8),
-    stripeAccountId,
-    stripeAccountEmail,
-    appUrl,
-  });
-}
+    return res.status(500).json({
+      error: error?.message || "Internal server error",
+      type: error?.type || null,
+      code: error?.code || null,
+      param: error?.param || null,
+    });
+  }
 };

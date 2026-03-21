@@ -244,6 +244,8 @@ const [sessionLoading, setSessionLoading] = useState(true);
 
 const [accessRole, setAccessRole] = useState<"admin" | "user" | null>(null);
 const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+const [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(null);
+const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
 const [accessLoading, setAccessLoading] = useState(true);
 
 const [checkoutSuccessVisible, setCheckoutSuccessVisible] = useState(false);
@@ -3936,21 +3938,21 @@ useEffect(() => {
 
     const userId = session.user.id;
 
-    const [
-      { data: accessData, error: accessError },
-      { data: subscriptionData, error: subscriptionError },
-    ] = await Promise.all([
-      supabase
-        .from("user_access")
-        .select("role")
-        .eq("user_id", userId)
-        .maybeSingle(),
-      supabase
-        .from("subscriptions")
-        .select("status")
-        .eq("user_id", userId)
-        .maybeSingle(),
-    ]);
+const [
+  { data: accessData, error: accessError },
+  { data: subscriptionData, error: subscriptionError },
+] = await Promise.all([
+  supabase
+    .from("user_access")
+    .select("role")
+    .eq("user_id", userId)
+    .maybeSingle(),
+  supabase
+    .from("subscriptions")
+    .select("status, cancel_at_period_end, current_period_end")
+    .eq("user_id", userId)
+    .maybeSingle(),
+]);
 
     if (!isMounted) return;
 
@@ -3962,9 +3964,11 @@ useEffect(() => {
       console.error("Erro ao carregar subscriptions:", subscriptionError);
     }
 
-    setAccessRole((accessData?.role as "admin" | "user" | null) ?? null);
-    setSubscriptionStatus(subscriptionData?.status ?? null);
-    setAccessLoading(false);
+setAccessRole((accessData?.role as "admin" | "user" | null) ?? null);
+setSubscriptionStatus(subscriptionData?.status ?? null);
+setCancelAtPeriodEnd(!!subscriptionData?.cancel_at_period_end);
+setSubscriptionPeriodEnd(subscriptionData?.current_period_end ?? null);
+setAccessLoading(false);
   }
 
   void carregarAcesso();
@@ -4041,12 +4045,15 @@ useEffect(() => {
   if (billing !== "returned") return;
 
   billingHandledRef.current = true;
-  setBillingReturnVisible(true);
-  toast.success("Gerenciamento da assinatura concluído.");
+
+  if (!(subscriptionStatus === "active" && cancelAtPeriodEnd)) {
+    setBillingReturnVisible(true);
+    toast.success("Gerenciamento da assinatura concluído.");
+  }
 
   const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
   window.history.replaceState({}, document.title, cleanUrl);
-}, []);
+}, [subscriptionStatus, cancelAtPeriodEnd]);
 
 // --- Loading/Auth guard ---
 if (sessionLoading || accessLoading) {
@@ -4264,6 +4271,19 @@ if (accessRole !== "admin" && subscriptionStatus !== "active") {
   );
 }
 
+const formatSubscriptionDate = (value: string | null) => {
+  if (!value) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
 const checkoutSuccessBanner = checkoutSuccessVisible ? (
   <div className="mx-auto mb-4 w-full max-w-6xl px-4">
     <div className="flex items-start justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-left shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/30">
@@ -4309,6 +4329,39 @@ const billingReturnBanner = billingReturnVisible ? (
     </div>
   </div>
 ) : null;
+
+const cancelScheduledDateLabel = formatSubscriptionDate(subscriptionPeriodEnd);
+
+const cancelScheduledBanner =
+  subscriptionStatus === "active" && cancelAtPeriodEnd ? (
+    <div className="mx-auto mb-4 w-full max-w-6xl px-4">
+      <div className="flex items-start justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-left shadow-sm dark:border-amber-900/60 dark:bg-amber-950/30">
+        <div>
+          <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300">
+            Sua assinatura foi cancelada
+          </h3>
+          <p className="mt-1 text-sm text-amber-800 dark:text-amber-200/90">
+            {cancelScheduledDateLabel
+              ? `Seu acesso continuará disponível até ${cancelScheduledDateLabel}.`
+              : "Seu acesso continuará disponível até o fim do período já pago."}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            void handleGerenciarAssinatura();
+          }}
+          className="rounded-xl px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition hover:opacity-95"
+          style={{
+            background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
+          }}
+        >
+          Reativar assinatura
+        </button>
+      </div>
+    </div>
+  ) : null;
 
 /* =========================
    PARTE 3/3 — JSX (UI) + MODAIS + EXPORT
@@ -4665,7 +4718,8 @@ const salvarDisplayName = async (rawName: string) => {
 return (
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
     {checkoutSuccessBanner}
-        {billingReturnBanner}
+    {cancelScheduledBanner}
+    {billingReturnBanner}
    
 
 <Toaster

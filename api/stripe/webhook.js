@@ -83,7 +83,60 @@ case "customer.subscription.deleted": {
 
   const cancelAtPeriodEnd = !!subscription.cancel_at_period_end;
 
-  let updateQuery = supabase
+  let targetRow = null;
+  let findError = null;
+
+  if (userIdFromMetadata) {
+    const result = await supabase
+      .from("subscriptions")
+      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
+      .eq("user_id", userIdFromMetadata)
+      .maybeSingle();
+
+    targetRow = result.data;
+    findError = result.error;
+  }
+
+  if (!targetRow && stripeSubscriptionId) {
+    const result = await supabase
+      .from("subscriptions")
+      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
+      .eq("stripe_subscription_id", stripeSubscriptionId)
+      .maybeSingle();
+
+    targetRow = result.data;
+    findError = result.error;
+  }
+
+  if (!targetRow && stripeCustomerId) {
+    const result = await supabase
+      .from("subscriptions")
+      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
+      .eq("stripe_customer_id", stripeCustomerId)
+      .maybeSingle();
+
+    targetRow = result.data;
+    findError = result.error;
+  }
+
+  if (findError) {
+    console.error(`Erro ao localizar assinatura para ${event.type}:`, findError);
+    throw findError;
+  }
+
+  if (!targetRow?.id) {
+    console.error(`Nenhuma assinatura encontrada para ${event.type}`, {
+      userIdFromMetadata,
+      stripeCustomerId,
+      stripeSubscriptionId,
+      status,
+      cancelAtPeriodEnd,
+      currentPeriodEnd,
+    });
+    break;
+  }
+
+  const { error } = await supabase
     .from("subscriptions")
     .update({
       stripe_customer_id: stripeCustomerId,
@@ -93,25 +146,23 @@ case "customer.subscription.deleted": {
       current_period_end: currentPeriodEnd,
       cancel_at_period_end: cancelAtPeriodEnd,
       updated_at: new Date().toISOString(),
-    });
-
-  if (userIdFromMetadata) {
-    updateQuery = updateQuery.eq("user_id", userIdFromMetadata);
-  } else if (stripeSubscriptionId) {
-    updateQuery = updateQuery.eq("stripe_subscription_id", stripeSubscriptionId);
-  } else if (stripeCustomerId) {
-    updateQuery = updateQuery.eq("stripe_customer_id", stripeCustomerId);
-  } else {
-    console.error(`Não foi possível identificar assinatura para ${event.type}`);
-    break;
-  }
-
-  const { error } = await updateQuery;
+    })
+    .eq("id", targetRow.id);
 
   if (error) {
     console.error(`Erro ao atualizar ${event.type}:`, error);
     throw error;
   }
+
+  console.log(`Assinatura atualizada com sucesso para ${event.type}`, {
+    rowId: targetRow.id,
+    userId: targetRow.user_id,
+    stripeCustomerId,
+    stripeSubscriptionId,
+    status,
+    cancelAtPeriodEnd,
+    currentPeriodEnd,
+  });
 
   break;
 }

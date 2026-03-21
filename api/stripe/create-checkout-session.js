@@ -104,6 +104,7 @@ try {
   console.error("DEBUG SELECTED PRICE ERROR", selectedPriceError);
   throw selectedPriceError;
 }
+const stripeAccount = await stripe.accounts.retrieve();
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       locale: "pt-BR",
@@ -131,6 +132,15 @@ try {
 } catch (error) {
   console.error("Erro ao criar checkout session:", error);
 
+  let stripeAccountId = null;
+  let stripeAccountEmail = null;
+
+  try {
+    const stripeAccount = await stripe.accounts.retrieve();
+    stripeAccountId = stripeAccount?.id || null;
+    stripeAccountEmail = stripeAccount?.email || null;
+  } catch (_) {}
+
   return res.status(500).json({
     error: error?.message || "Internal server error",
     type: error?.type || null,
@@ -138,6 +148,8 @@ try {
     param: error?.param || null,
     stripePriceId,
     stripeSecretKeyStartsWith: stripeSecretKey?.slice(0, 8),
+    stripeAccountId,
+    stripeAccountEmail,
     appUrl,
   });
 }

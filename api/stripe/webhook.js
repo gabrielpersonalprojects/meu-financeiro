@@ -9,6 +9,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+async function getRawBody(readable) {
+  const chunks = [];
+
+  for await (const chunk of readable) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+
+  return Buffer.concat(chunks);
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).send("Method not allowed");
@@ -19,7 +29,8 @@ module.exports = async function handler(req, res) {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    const rawBody = await getRawBody(req);
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err) {
     console.error("Webhook signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -30,11 +41,7 @@ module.exports = async function handler(req, res) {
       case "checkout.session.completed": {
         const session = event.data.object;
 
-        const userId =
-          session?.metadata?.userId ||
-          session?.subscription_data?.metadata?.userId ||
-          null;
-
+        const userId = session?.metadata?.userId || null;
         const stripeCustomerId = session.customer || null;
         const stripeSubscriptionId = session.subscription || null;
 

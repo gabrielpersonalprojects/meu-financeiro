@@ -1,5 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import Stripe from "stripe";
+const Stripe = require("stripe");
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const appUrl = process.env.APP_URL;
@@ -17,17 +16,15 @@ if (!stripePriceId) {
   throw new Error("Missing STRIPE_PRICE_ID");
 }
 
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2026-02-25.clover",
-});
+const stripe = new Stripe(stripeSecretKey);
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { email, userId } = req.body ?? {};
+    const { email, userId } = req.body || {};
 
     if (!email || !userId) {
       return res.status(400).json({ error: "Missing email or userId" });
@@ -60,4 +57,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error("Erro ao criar checkout session:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
-}
+};

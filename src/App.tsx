@@ -1167,17 +1167,19 @@ const [confirmedDisplayName, setConfirmedDisplayName] = useState("");
 const [isEditingDisplayName, setIsEditingDisplayName] = useState(true);
 
 useEffect(() => {
-  const nomeDoUsuario =
-    String(
-      session?.user?.user_metadata?.display_name ??
-      session?.user?.user_metadata?.name ??
-      ""
-    ).trim();
+  const nomeDoUsuario = String(
+    session?.user?.user_metadata?.display_name ?? ""
+  ).trim();
 
   if (!nomeDoUsuario) {
     setDisplayName("");
     setConfirmedDisplayName("");
     setIsEditingDisplayName(true);
+
+    try {
+      localStorage.removeItem(STORAGE_KEYS.DISPLAY_NAME);
+    } catch {}
+
     return;
   }
 
@@ -2365,36 +2367,78 @@ const executarLimpezaTotal = async () => {
 
     if (errAccounts) throw errAccounts;
 
-    // 5) limpa estados em memória
+    // 5) limpa categorias customizadas
+    const { error: errCategories } = await supabase
+      .from("user_categories")
+      .delete()
+      .eq("user_id", userId);
+
+    if (errCategories) throw errCategories;
+
+    // 6) limpa tags customizadas
+    const { error: errTags } = await supabase
+      .from("user_tags")
+      .delete()
+      .eq("user_id", userId);
+
+    if (errTags) throw errTags;
+
+    // 7) limpa display_name salvo no auth
+    const { error: errAuthUser } = await supabase.auth.updateUser({
+      data: {
+        ...session?.user?.user_metadata,
+        display_name: "",
+      },
+    });
+
+    if (errAuthUser) throw errAuthUser;
+
+    // 8) limpa estados em memória
     setTransacoes([]);
     setPagamentosFatura([]);
     setParcelamentosFatura([]);
     setFaturasStatusManual([]);
     setCreditCards([]);
     setProfiles([]);
+    setCategorias(CATEGORIAS_PADRAO);
+    setCcTags([]);
+    setMetodosPagamento({ credito: [], debito: [] });
+
+    setUserName("");
+    setNameInput("");
+    setIsEditingName(true);
+
+    setDisplayName("");
+    setConfirmedDisplayName("");
+    setIsEditingDisplayName(true);
+
     setSelectedCreditCardId("");
     setActiveProfileId("");
     setEditingTransaction(null);
     setDeletingTransaction(null);
 
-    // 6) limpa storage local
-const storagePrefixes = [
-  "meu-financeiro",
-  "fluxmoney",
-  "mf_",
-];
+    // 9) limpa storage local
+    const storagePrefixes = ["meu-financeiro", "fluxmoney", "mf_"];
 
-for (const key of Object.keys(localStorage)) {
-  if (storagePrefixes.some((prefix) => key.startsWith(prefix))) {
-    localStorage.removeItem(key);
-  }
-}
+    for (const key of Object.keys(localStorage)) {
+      if (storagePrefixes.some((prefix) => key.startsWith(prefix))) {
+        localStorage.removeItem(key);
+      }
+    }
 
-for (const key of Object.keys(sessionStorage)) {
-  if (storagePrefixes.some((prefix) => key.startsWith(prefix))) {
-    sessionStorage.removeItem(key);
-  }
-}
+    for (const key of Object.keys(sessionStorage)) {
+      if (storagePrefixes.some((prefix) => key.startsWith(prefix))) {
+        sessionStorage.removeItem(key);
+      }
+    }
+
+    localStorage.removeItem(STORAGE_KEYS.DISPLAY_NAME);
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_PROFILE_ID);
+
+    localStorage.removeItem("meu-financeiro-categorias");
+    localStorage.removeItem("meu-financeiro-metodos");
+    localStorage.removeItem("meu-financeiro-username");
+    localStorage.removeItem("meu-financeiro-tags");
 
     toastCompact("Dados apagados com sucesso.", "success");
 

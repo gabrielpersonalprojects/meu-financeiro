@@ -252,6 +252,7 @@ const now = new Date();
 
 const diaFechamento = Number(cartao.diaFechamento || 1);
 const diaVencimento = Number(cartao.diaVencimento || 1);
+const invoiceStartOffset = diaVencimento > diaFechamento ? 0 : 1;
 
 const getInitialInvoiceOffset = () => {
   if (!initialMonth || !/^\d{4}-\d{2}$/.test(initialMonth)) return 0;
@@ -269,9 +270,12 @@ const getInitialInvoiceOffset = () => {
       ? addMonths(new Date(now.getFullYear(), now.getMonth(), 1), 1)
       : new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const baseMonthInicialBase = addMonths(mesFechamentoAtualBase, 1);
+  const baseMonthInicialBase = addMonths(mesFechamentoAtualBase, invoiceStartOffset);
 
-  return (ano - baseMonthInicialBase.getFullYear()) * 12 + (mes - 1 - baseMonthInicialBase.getMonth());
+  return (
+    (ano - baseMonthInicialBase.getFullYear()) * 12 +
+    (mes - 1 - baseMonthInicialBase.getMonth())
+  );
 };
 
 const [invoiceMonthOffset, setInvoiceMonthOffset] = useState(getInitialInvoiceOffset);
@@ -279,29 +283,9 @@ const [paginaAtual, setPaginaAtual] = useState(1);
 const autoJumpRef = useRef<string>("");
 
 useEffect(() => {
-  if (!initialMonth || !/^\d{4}-\d{2}$/.test(initialMonth)) return;
-
-  const [anoStr, mesStr] = initialMonth.split("-");
-  const ano = Number(anoStr);
-  const mes = Number(mesStr);
-
-  if (!ano || !mes) return;
-
-  const fechamentoAtualHoje = makeDate(now.getFullYear(), now.getMonth(), diaFechamento);
-
-  const mesFechamentoAtualBase =
-    now.getTime() > fechamentoAtualHoje.getTime()
-      ? addMonths(new Date(now.getFullYear(), now.getMonth(), 1), 1)
-      : new Date(now.getFullYear(), now.getMonth(), 1);
-
-  const baseMonthInicialBase = addMonths(mesFechamentoAtualBase, 1);
-
-  const novoOffset =
-    (ano - baseMonthInicialBase.getFullYear()) * 12 +
-    (mes - 1 - baseMonthInicialBase.getMonth());
-
-  setInvoiceMonthOffset(novoOffset);
-}, [initialMonth, diaFechamento]);
+  setInvoiceMonthOffset(getInitialInvoiceOffset());
+  setPaginaAtual(1);
+}, [cartao.id, initialMonth, diaFechamento]);
 const fechamentoAtualHoje = makeDate(now.getFullYear(), now.getMonth(), diaFechamento);
 
 const mesFechamentoAtual =
@@ -309,7 +293,7 @@ const mesFechamentoAtual =
     ? addMonths(new Date(now.getFullYear(), now.getMonth(), 1), 1)
     : new Date(now.getFullYear(), now.getMonth(), 1);
 
-const baseMonthInicial = addMonths(mesFechamentoAtual, 1);
+const baseMonthInicial = addMonths(mesFechamentoAtual, invoiceStartOffset);
 const baseMonth = addMonths(baseMonthInicial, invoiceMonthOffset);
   const baseMonthKey = `${baseMonth.getFullYear()}-${pad2(baseMonth.getMonth() + 1)}`;
   const nextBaseMonth = addMonths(baseMonth, 1);
@@ -684,7 +668,12 @@ const valorPagoFaturaAnterior = pagamentosDaFaturaAnterior.reduce(
 const txFaturaAnterior = txDoCartao.filter((t) => {
   const dt = parseISODateLocal(t.data);
   if (Number.isNaN(dt.getTime())) return false;
-  return dt >= cicloInicioAnterior && dt <= cicloFimAnterior;
+
+  const dt0 = startOfDay(dt);
+  const cicloInicioAnterior0 = startOfDay(cicloInicioAnterior);
+  const cicloFimAnterior0 = startOfDay(cicloFimAnterior);
+
+  return dt0 >= cicloInicioAnterior0 && dt0 <= cicloFimAnterior0;
 });
 
 const valorTotalFaturaAnterior = txFaturaAnterior.reduce(

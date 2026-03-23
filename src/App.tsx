@@ -1675,25 +1675,11 @@ useEffect(() => {
 }, [totalCreditCardsPages]);
 
 const getCardCycleMonthOnOpen = (card: any) => {
-  const hoje = getHojeLocal();
-  const [anoStr, mesStr, diaStr] = hoje.split("-");
-  const ano = Number(anoStr);
-  const mes = Number(mesStr);
-  const dia = Number(diaStr);
-
-  const fechamento = Number(card?.diaFechamento ?? 31);
-
-  // O mês exibido no dashboard é o mês da próxima fatura válida.
-  // Regra:
-  // - até o dia de fechamento: compra ainda cai na fatura do próximo vencimento
-  // - após o fechamento: compra cai na fatura do mês seguinte
-  const offsetMeses = dia > fechamento ? 1 : 0;
-
-  const base = new Date(ano, mes - 1 + offsetMeses, 1);
-
-  const y = base.getFullYear();
-  const m = String(base.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
+  return getCardCycleMonthFromDate(
+    getHojeLocal(),
+    Number(card?.diaFechamento ?? 1),
+    Number(card?.diaVencimento ?? 1)
+  );
 };
 
 const toggleCcExpanded = () => setIsCcExpanded((v) => !v);
@@ -3338,12 +3324,18 @@ function dedupeById<T extends { id: string }>(arr: T[]): T[] {
   }
   return out;
 }
-const getCardCycleMonthFromDate = (dataISO: string, diaFechamento: number) => {
+const getCardCycleMonthFromDate = (
+  dataISO: string,
+  diaFechamento: number,
+  diaVencimento?: number
+) => {
   const dt = new Date(`${dataISO}T12:00:00`);
   if (Number.isNaN(dt.getTime())) return getHojeLocal().slice(0, 7);
 
-  const dia = dt.getDate();
-  const fechamento = Math.max(1, Math.min(31, Number(diaFechamento ?? 1)));
+const dia = dt.getDate();
+const fechamento = Math.max(1, Math.min(31, Number(diaFechamento ?? 1)));
+const vencimento = Math.max(1, Math.min(31, Number(diaVencimento ?? 1)));
+const invoiceStartOffset = vencimento > fechamento ? 0 : 1;
 
   const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
 
@@ -3353,7 +3345,7 @@ const getCardCycleMonthFromDate = (dataISO: string, diaFechamento: number) => {
   if (dia > fechamento) {
     base.setMonth(base.getMonth() + 1);
   }
-
+base.setMonth(base.getMonth() + invoiceStartOffset);
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
 };
 
@@ -3630,10 +3622,11 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
       const total = Math.abs(valorNum);
       const getFaturaMesTx = (dataIso: string) =>
-  getCardCycleMonthFromDate(
-    dataIso,
-    Number(selectedCard?.diaFechamento ?? 1)
-  );
+getCardCycleMonthFromDate(
+  dataIso,
+  Number(selectedCard?.diaFechamento ?? 1),
+  Number(selectedCard?.diaVencimento ?? 1)
+)
 
       const makeId = (suffix: string) => {
         try {
@@ -3768,7 +3761,8 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
 const mesDestinoCartao = getCardCycleMonthFromDate(
   formData,
-  Number(selectedCard?.diaFechamento ?? 1)
+  Number(selectedCard?.diaFechamento ?? 1),
+  Number(selectedCard?.diaVencimento ?? 1)
 );
 
 setSelectedCreditCardId(String(selectedCreditCardId));
@@ -5286,7 +5280,8 @@ const mesAtual = agora.getMonth();
 
 const cicloBase = getCardCycleMonthFromDate(
   getHojeLocal(),
-  Number(c.diaFechamento ?? 1)
+  Number(c.diaFechamento ?? 1),
+  Number(c.diaVencimento ?? 1)
 );
 
 const diaFechamentoAtual = Math.max(1, Math.min(31, Number(c.diaFechamento ?? 1)));
@@ -5329,10 +5324,11 @@ const inferirCicloDaTransacao = (t: any): string => {
   const dataRaw = String((t as any).data ?? "").trim();
   if (!dataRaw) return "";
 
-  return getCardCycleMonthFromDate(
-    dataRaw,
-    Number(c.diaFechamento ?? 1)
-  );
+return getCardCycleMonthFromDate(
+  dataRaw,
+  Number(c.diaFechamento ?? 1),
+  Number(c.diaVencimento ?? 1)
+);
 };
 
 const transacoesDoCartao = transacoes.filter((t: any) => {
@@ -5555,7 +5551,8 @@ if (String(c.id) === String(selectedCreditCardId) || String(c.name ?? "").toLowe
               <button
                 type="button"
 onClick={() => {
-  setCreditJumpMonth(cicloBase);
+  const cicloCorreto = getCardCycleMonthOnOpen(c);
+  setCreditJumpMonth(cicloCorreto);
 
   // clicou no mesmo cartão -> alterna abrir/fechar
   if (c.id === selectedCreditCardId) {

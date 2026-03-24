@@ -4554,36 +4554,34 @@ const normalizeCycleResumo = (raw: any): string => {
   return value;
 };
 
-const calcCycleResumoYm = (dateStr: string, diaFechamento: number): string => {
-  const value = String(dateStr ?? "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
-
-  const [anoStr, mesStr, diaStr] = value.split("-");
-  let ano = Number(anoStr);
-  let mes = Number(mesStr);
-  const dia = Number(diaStr);
-
-  if (!ano || !mes || !dia) return "";
-
-  if (dia > Number(diaFechamento || 1)) {
-    mes += 1;
-    if (mes > 12) {
-      mes = 1;
-      ano += 1;
-    }
-  }
-
-  return `${ano}-${String(mes).padStart(2, "0")}`;
+const calcCycleResumoYm = (
+  value: string,
+  diaFechamento: number,
+  diaVencimento?: number
+): string => {
+  return getCardCycleMonthFromDate(
+    String(value ?? "").trim(),
+    Number(diaFechamento || 1),
+    Number(diaVencimento || 1)
+  );
 };
 
-const inferirCicloResumo = (t: any, diaFechamento: number): string => {
+const inferirCicloResumo = (
+  t: any,
+  diaFechamento: number,
+  diaVencimento?: number
+): string => {
   const ciclo = String((t as any)?.faturaMes ?? "").trim();
   if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
 
   const dataRaw = String((t as any)?.data ?? "").trim();
   if (!dataRaw) return "";
 
-  return calcCycleResumoYm(dataRaw, Number(diaFechamento || 1));
+  return calcCycleResumoYm(
+    dataRaw,
+    Number(diaFechamento || 1),
+    Number(diaVencimento || 1)
+  );
 };
 
 const statusManualResumoPorCartaoECiclo = new Map<string, string>();
@@ -4613,7 +4611,11 @@ let resumoCartoesAtrasadasValor = 0;
 
   if (!pertenceAoResumoPerfil(perfilCartao)) return;
 
-const cicloAtual = calcCycleResumoYm(hojeResumoStr, Number(c?.diaFechamento ?? 1));
+const cicloAtual = calcCycleResumoYm(
+  hojeResumoStr,
+  Number(c?.diaFechamento ?? 1),
+  Number(c?.diaVencimento ?? 1)
+);
 
 const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
   const cartaoTxId = String(
@@ -4647,7 +4649,11 @@ const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
   const totaisPorCiclo = new Map<string, { total: number; pago: number }>();
 
   transacoesDoCartao.forEach((t: any) => {
-    const ciclo = inferirCicloResumo(t, Number(c?.diaFechamento ?? 1));
+    const ciclo = inferirCicloResumo(
+  t,
+  Number(c?.diaFechamento ?? 1),
+  Number(c?.diaVencimento ?? 1)
+);
     if (!ciclo) return;
 
     const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
@@ -5450,10 +5456,6 @@ const hojeSemHora = new Date();
 hojeSemHora.setHours(0, 0, 0, 0);
 
 const diaVencimentoNum = Math.max(1, Math.min(31, Number(c.diaVencimento ?? 10)));
-const diaFechamentoNum = Math.max(1, Math.min(31, Number(c.diaFechamento ?? 1)));
-
-const offsetMesVencimento =
-  diaVencimentoNum <= diaFechamentoNum ? 1 : 0;
 
 const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
   .map(([ciclo, info]) => {
@@ -5474,15 +5476,15 @@ const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
     const mes = Number(mesStr);
     if (!ano || !mes) return null;
 
-    const vencimento = new Date(
-      ano,
-      mes - 1 + offsetMesVencimento,
-      diaVencimentoNum,
-      12,
-      0,
-      0,
-      0
-    );
+const vencimento = new Date(
+  ano,
+  mes - 1,
+  diaVencimentoNum,
+  12,
+  0,
+  0,
+  0
+);
     vencimento.setHours(0, 0, 0, 0);
 
     return {

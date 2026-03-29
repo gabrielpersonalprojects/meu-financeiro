@@ -76,6 +76,34 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
   .trim()
   .startsWith("fatura:");
 
+const descricaoRaw = String((t as any)?.descricao ?? "").trim();
+
+const matchParcelaDescricao = descricaoRaw.match(/\((\d+)\s*\/\s*(\d+)\)\s*$/);
+
+const parcelaAtualEstruturada = Number(
+  (t as any)?.parcelaAtual ?? (t as any)?.payload?.parcelaAtual ?? 0
+);
+
+const totalParcelasEstruturada = Number(
+  (t as any)?.totalParcelas ?? (t as any)?.payload?.totalParcelas ?? 0
+);
+
+const parcelaAtualNum =
+  parcelaAtualEstruturada > 0
+    ? parcelaAtualEstruturada
+    : Number(matchParcelaDescricao?.[1] ?? 0);
+
+const totalParcelasNum =
+  totalParcelasEstruturada > 0
+    ? totalParcelasEstruturada
+    : Number(matchParcelaDescricao?.[2] ?? 0);
+
+const isParceladoVisual = totalParcelasNum > 1 && parcelaAtualNum > 0;
+
+const descricaoSemParcela = isParceladoVisual
+  ? descricaoRaw.replace(/\s*\(\d+\s*\/\s*\d+\)\s*$/g, "").trim()
+  : descricaoRaw;
+
   return (
   <div
     key={t.id}
@@ -101,14 +129,38 @@ const isTransacaoFatura = String((t as any)?.descricao ?? "")
           </button>
 
           <div className="min-w-0 flex-1">
-           <p className="mb-2.5 flex items-start gap-2 font-bold leading-snug text-slate-800 dark:text-slate-100">
-              {isTransacaoFatura && (
-                <span className="mt-0.5 inline-flex shrink-0 items-center text-indigo-500 dark:text-indigo-300">
-                  <CreditCardIcon className="h-4 w-4" />
-                </span>
-              )}
-              <span className="break-words">{t.descricao}</span>
-            </p>
+<div className="mb-2.5 flex items-start gap-2">
+  {isTransacaoFatura && (
+    <span className="mt-0.5 inline-flex shrink-0 items-center text-indigo-500 dark:text-indigo-300">
+      <CreditCardIcon className="h-4 w-4" />
+    </span>
+  )}
+
+  <div className="min-w-0 flex-1">
+    <div className="flex flex-wrap items-center gap-2">
+      <p className="font-bold leading-snug text-slate-800 dark:text-slate-100 break-words">
+        {descricaoSemParcela || descricaoRaw}
+      </p>
+
+      {isParceladoVisual && (
+        <span
+          className="
+            inline-flex items-center rounded-full
+            border border-indigo-200/80 dark:border-indigo-400/20
+            bg-indigo-50 dark:bg-indigo-500/10
+            px-2.5 py-1
+            text-[10px] font-black uppercase tracking-[0.12em]
+            text-indigo-700 dark:text-indigo-300
+            shadow-sm
+          "
+          title={`Parcela ${parcelaAtualNum} de ${totalParcelasNum}`}
+        >
+          {parcelaAtualNum} de {totalParcelasNum}
+        </span>
+      )}
+    </div>
+  </div>
+</div>
 
 <div className="flex flex-wrap items-center gap-x-2 gap-y-2.5 text-[10px] leading-relaxed uppercase tracking-wide">
   <span

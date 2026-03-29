@@ -58,21 +58,23 @@ const getFilteredTransactionsAno = useMemo(() => {
   return buildFilteredTransactionsByYear(
     transacoes,
     anoRef,
-    {
-      filtroLancamento,
-      filtroCategoria,
-      filtroMetodo,
-      _filtroConta: filtroConta,
-    },
-    isTodas ? mergeTransfers : (list: any[]) => list,
+{
+  filtroLancamento,
+  filtroCategoria,
+  filtroMetodo,
+  filtroTipoGasto,
+  _filtroConta: filtroConta,
+},
+    isTodas ? mergeTransfers : ((list: any[]) => list),
     passarFiltroConta
   );
-}, [
+},[
   transacoes,
   anoRef,
   filtroLancamento,
   filtroCategoria,
   filtroMetodo,
+  filtroTipoGasto,
   filtroConta,
   mergeTransfers,
   passarFiltroConta,

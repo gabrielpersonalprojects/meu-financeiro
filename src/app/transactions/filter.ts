@@ -31,12 +31,24 @@ export const buildFilteredTransactions = (
     filtroTipoGasto,
   } = params;
 
+  const normalizeText = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
   let list = [...transacoes];
 
   if (filtroMes) list = list.filter((t) => String(t.data ?? "").startsWith(filtroMes));
   if (filtroCategoria) list = list.filter((t) => t.categoria === filtroCategoria);
   if (filtroMetodo) list = list.filter((t: any) => t.metodoPagamento === filtroMetodo);
-  if (filtroTipoGasto) list = list.filter((t: any) => t.tipoGasto === filtroTipoGasto);
+  if (filtroTipoGasto) {
+  const tipoGastoFiltroNorm = normalizeText(filtroTipoGasto);
+  list = list.filter(
+    (t: any) => normalizeText(t?.tipoGasto) === tipoGastoFiltroNorm
+  );
+}
 
   list = list.filter(passarFiltroConta);
   list = mergeTransfers(list);
@@ -74,12 +86,23 @@ export const buildFilteredTransactionsByYear = (
   passarFiltroConta: PassarFiltroContaFn
 ): Transaction[] => {
   const { filtroLancamento, filtroCategoria, filtroMetodo, filtroTipoGasto } = params;
+  const normalizeText = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
   let list = [...transacoes];
 
   if (filtroCategoria) list = list.filter((t) => t.categoria === filtroCategoria);
   if (filtroMetodo) list = list.filter((t: any) => t.metodoPagamento === filtroMetodo);
-  if (filtroTipoGasto) list = list.filter((t: any) => t.tipoGasto === filtroTipoGasto);
+  if (filtroTipoGasto) {
+  const tipoGastoFiltroNorm = normalizeText(filtroTipoGasto);
+  list = list.filter(
+    (t: any) => normalizeText(t?.tipoGasto) === tipoGastoFiltroNorm
+  );
+}
 
   list = mergeTransfers(list);
   list = list.filter(passarFiltroConta);

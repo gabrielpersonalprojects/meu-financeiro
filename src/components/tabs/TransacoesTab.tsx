@@ -270,53 +270,53 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
             <CustomDateInput type="month" value={filtroMes} onChange={setFiltroMes} className="w-full" />
           </div>
 
-          <div className="w-full lg:col-span-3">
-            <CustomDropdown
-              placeholder="Lançamento"
-              value={
-                filtroLancamento === "todos"
-                  ? "Entradas + Saídas"
-                  : filtroLancamento === "receita"
-                  ? "Somente Entradas"
-                  : filtroLancamento === "despesa"
-                  ? "Somente Saídas"
-                  : "Transferências"
-              }
-              options={["Entradas + Saídas", "Somente Entradas", "Somente Saídas", "Transferências"]}
-              onSelect={(val) => {
-                if (val === "Somente Entradas") setFiltroLancamento("receita");
-                else if (val === "Somente Saídas") setFiltroLancamento("despesa");
-                else if (val === "Transferências") setFiltroLancamento("transferencia");
-                else setFiltroLancamento("todos");
-              }}
-              className="w-full"
-            />
-          </div>
+<div className="w-full lg:col-span-3">
+  <CustomDropdown
+    placeholder="Conta"
+    value={filtroConta}
+    options={[
+      {
+        label: (
+          <span className="inline-flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600/25 text-indigo-300 border border-indigo-500/20">
+              TODAS
+            </span>
+            <span className="text-slate-100">as contas</span>
+          </span>
+        ),
+        value: "todas",
+      },
+      ...profiles.map((p) => ({ label: renderContaOptionLabel(p), value: p.id })),
+    ]}
+    onSelect={(val) => setFiltroConta(String(val))}
+    className="w-full"
+  />
+</div>
 
           {!isFiltroTransferencias && (
             <>
-              <div className="w-full lg:col-span-3">
-                <CustomDropdown
-                  placeholder="Conta"
-                  value={filtroConta}
-                  options={[
-                    {
-                      label: (
-                        <span className="inline-flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600/25 text-indigo-300 border border-indigo-500/20">
-                            TODAS
-                          </span>
-                          <span className="text-slate-100">as contas</span>
-                        </span>
-                      ),
-                      value: "todas",
-                    },
-                    ...profiles.map((p) => ({ label: renderContaOptionLabel(p), value: p.id })),
-                  ]}
-                  onSelect={(val) => setFiltroConta(String(val))}
-                  className="w-full"
-                />
-              </div>
+<div className="w-full lg:col-span-3">
+  <CustomDropdown
+    placeholder="Lançamento"
+    value={
+      filtroLancamento === "todos"
+        ? "Entradas + Saídas"
+        : filtroLancamento === "receita"
+        ? "Somente Entradas"
+        : filtroLancamento === "despesa"
+        ? "Somente Saídas"
+        : "Transferências"
+    }
+    options={["Entradas + Saídas", "Somente Entradas", "Somente Saídas", "Transferências"]}
+    onSelect={(val) => {
+      if (val === "Somente Entradas") setFiltroLancamento("receita");
+      else if (val === "Somente Saídas") setFiltroLancamento("despesa");
+      else if (val === "Transferências") setFiltroLancamento("transferencia");
+      else setFiltroLancamento("todos");
+    }}
+    className="w-full"
+  />
+</div>
 
               {filtroLancamento !== "todos" && (
                 <div className="w-full lg:col-span-3">

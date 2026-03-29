@@ -158,12 +158,12 @@ const mostrarFutura = !mostrarOculto && statusMiniCard === "futura";
     </span>
   )}
 
-  {mostrarVencimento && (
-    <span className="inline-flex items-center gap-2 rounded-full border border-amber-200/30 bg-white/14 px-3 py-[5px] text-[11px] font-semibold leading-none text-white shadow-sm backdrop-blur-sm">
-      <span className="text-white/85">Venc. {dueLabel}</span>
-      <span className="font-extrabold text-white">Total: {formatBRL(open)}</span>
-    </span>
-  )}
+{mostrarVencimento && (
+  <span className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white px-3 py-[5px] text-[11px] font-semibold leading-none text-slate-900 shadow-sm">
+    <span className="text-slate-700">Venc. {dueLabel}</span>
+    <span className="font-extrabold text-slate-950">Total: {formatBRL(open)}</span>
+  </span>
+)}
 
   {mostrarSaldo && (
     <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/14 px-3 py-[5px] text-[11px] font-semibold leading-none text-white shadow-sm backdrop-blur-sm">

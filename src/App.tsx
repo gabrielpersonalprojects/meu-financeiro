@@ -2462,45 +2462,65 @@ const handleLimparDados = () => {
 
 
 
-const passaFiltroConta = useMemo(() => {
-  // 1) Todas as contas: não filtra por conta
-  if (filtroConta === "todas") return (_t: any) => true;
-
+const passaFiltroConta = useCallback((t: any) => {
   const alvo = asId(filtroConta);
 
-  // 3) Conta específica: filtro DIRECIONAL para transferências
-  return (t: any) => {
-    const tipo = String(t?.tipo ?? "");
-    const hasTransfer = Boolean(t?.transferId);
+  if (!alvo || alvo === "todas") return true;
 
-    // card mesclado (tipo "transferencia") -> aparece se for origem OU destino
-    if (tipo === "transferencia") {
-      const ids = [
-        t?.contaOrigemId,
-        t?.contaDestinoId,
-        t?.transferFromId,
-        t?.transferToId,
-        t?.profileId,
-        t?.qualCartao,
-      ].map(asId);
+  const tipo = String(t?.tipo ?? "").trim().toLowerCase();
+  const categoria = String(t?.categoria ?? "").trim().toLowerCase();
+  const isTransferencia =
+    !!t?.transferId || categoria === "transferência" || tipo === "transferencia";
 
-      return ids.includes(alvo);
-    }
+  if (isTransferencia) {
+    const sideId =
+      tipo === "receita"
+        ? asId(
+            t?.contaDestinoId ??
+              t?.transferToId ??
+              t?.contaId ??
+              t?.profileId ??
+              t?.qualConta ??
+              ""
+          )
+        : tipo === "despesa"
+        ? asId(
+            t?.contaOrigemId ??
+              t?.transferFromId ??
+              t?.contaId ??
+              t?.profileId ??
+              t?.qualConta ??
+              ""
+          )
+        : asId(
+            t?.profileId ??
+              t?.contaOrigemId ??
+              t?.contaDestinoId ??
+              t?.transferFromId ??
+              t?.transferToId ??
+              t?.contaId ??
+              t?.qualConta ??
+              ""
+          );
 
-    // pernas da transferência: despesa = origem / receita = destino
-    if (hasTransfer && (tipo === "despesa" || tipo === "receita")) {
-      const sideId =
-        tipo === "despesa"
-          ? asId(t?.profileId ?? t?.contaOrigemId ?? t?.transferFromId ?? "")
-          : asId(t?.profileId ?? t?.contaDestinoId ?? t?.transferToId ?? "");
+    return sideId === alvo;
+  }
 
-      return sideId === alvo;
-    }
+  const ids = [
+    t?.contaId,
+    t?.profileId,
+    t?.qualConta,
+    t?.conta?.id,
+    t?.profile?.id,
+    t?.contaOrigemId,
+    t?.contaDestinoId,
+    t?.transferFromId,
+    t?.transferToId,
+  ]
+    .map(asId)
+    .filter(Boolean);
 
-    // demais transações (normal)
-    const ids = [t?.qualCartao, t?.profileId].map(asId);
-    return ids.includes(alvo);
-  };
+  return ids.includes(alvo);
 }, [filtroConta]);
 
 

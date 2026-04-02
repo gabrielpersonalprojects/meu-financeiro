@@ -115,6 +115,9 @@ type Props = {
 
   // layout do centro
   setModoCentro?: Dispatch<SetStateAction<"normal" | "credito">>;
+
+    forcedTipo?: "despesa" | "receita" | "transferencia" | "cartoes";
+  hideTypeSwitcher?: boolean;
 };
 
 function safeStr(v: any) {
@@ -255,6 +258,8 @@ export default function NewTransactionCard({
   setModoCentro,
   handleAddTransaction,
   isSubmittingTransaction,
+  forcedTipo,
+  hideTypeSwitcher = false,
 }: Props) {
   // trocar aba / tipo (mata espelhamento e seta layout do centro certo)
   const trocarTipo = (tipo: TransactionType) => {
@@ -274,6 +279,23 @@ if (tipo === "cartao_credito") {
   setFormDataTerminoFixa("");
 }
   };
+
+  useEffect(() => {
+  if (!forcedTipo) return;
+
+  const tipoMap = {
+    despesa: "despesa",
+    receita: "receita",
+    transferencia: "transferencia",
+    cartoes: "cartao_credito",
+  } as const;
+
+  const nextTipo = tipoMap[forcedTipo];
+
+  if (formTipo !== nextTipo) {
+    trocarTipo(nextTipo);
+  }
+}, [forcedTipo, formTipo]);
 
   // ✅ digitação “normal” + formatação no blur (sem explodir zeros)
   const normalizeBRLInput = (raw: string) => {
@@ -408,19 +430,6 @@ const ccCategoryOptions = despesaCategoryOptions;
   <h2 className="text-lg lg:text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
     <PlusIcon /> Novo Lançamento
   </h2>
-
-  <button
-    type="button"
-    onClick={onOpenManageAccounts}
-className={`h-9 px-2 rounded-xl text-[15px] font-bold transition ${
-onboardingStep === "conta"
-  ? "text-violet-700 bg-violet-100/90 ring-2 ring-violet-300 shadow-[0_0_0_4px_rgba(139,92,246,0.14)] hover:text-violet-800 dark:text-violet-200 dark:bg-violet-500/10 dark:ring-violet-500/30"
-  : "text-[#5752ea] hover:text-[#7b76fc]"
-
-}`}
-  >
-    + Gerenciar Contas
-  </button>
 </div>
 
       <div className="space-y-4">
@@ -428,7 +437,7 @@ onboardingStep === "conta"
           <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
           
           </label>
-
+{!hideTypeSwitcher && (
           <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
             <button
               type="button"
@@ -481,7 +490,9 @@ onboardingStep === "conta"
             >
               Sessão Cartões
             </button>
+          
           </div>
+          )}
         </div>
 
         {formTipo === "transferencia" && (

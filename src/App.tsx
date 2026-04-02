@@ -136,7 +136,7 @@ import {
   CalendarIcon,
   SettingsIcon,
 } from "./components/LucideIcons";
-
+import SidebarShell, { type SidebarPanelKey } from "./components/layout/SidebarShell";
 
 
 
@@ -152,6 +152,7 @@ const SEM_PRAZO_MESES = 12;
 
 
   const App: FC = () => {
+    const TOP_BAR_HEIGHT = 110;
 const authLoadInFlightRef = useRef<string>("");
 const authLoadRequestIdRef = useRef(0);
    const addTxLockRef = useRef(false);
@@ -4790,381 +4791,44 @@ const salvarDisplayName = async (rawName: string) => {
   } catch {}
 };
 
-return (
-  <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-    {checkoutSuccessBanner}
-    {cancelScheduledBanner}
-    {billingReturnBanner}
-   
+const usarMenuLateralNovo = true;
 
-<Toaster
-  position="bottom-center"
-  gutter={8}
-containerStyle={{
-  bottom: 56,
-  left: 0,
-  right: 0,
-  zIndex: 999999,
-}}
-  toastOptions={{
-    duration: 2600,
-    style: {
-      maxWidth: "320px",
-      minWidth: "260px",
-      padding: "8px 12px",
-      borderRadius: "14px",
-      fontSize: "13px",
-      lineHeight: "18px",
-      background: "#eef2f7",
-      color: "#0f172a",
-      border: "1px solid #cbd5e1",
-      boxShadow: "0 12px 28px rgba(15, 23, 42, 0.18)",
-      zIndex: 999999,
-    },
-  }}
-/>
+const handleSidebarOpen = (panel: SidebarPanelKey) => {
+if (panel === "settings") {
+  setSettingsOpen(true);
+  return;
+}
 
-<div className="w-full xl:w-[125%] origin-top-left xl:scale-[0.8]">
-  <div className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/55">
-    <div className="mx-auto w-full max-w-[1480px] px-3 py-3 lg:px-4 lg:py-4">
-      <AppHeader
-        onOpenSettings={() => setSettingsOpen(true)}
-        settingsIcon={<SettingsIcon />}
-      />
-    </div>
-  </div>
-
-  <div className="mx-auto w-full max-w-[1480px] px-3 lg:px-4">
-    <main className="w-full mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
-      {/* COLUNA ESQUERDA */}
-{/* COLUNA ESQUERDA */}
-<div className="lg:col-span-4 space-y-5">
- <div
-   ref={resumoPerfilRef}
-   className="relative rounded-3xl border border-slate-200/70 bg-white/90 p-3 sm:p-4 shadow-sm overflow-hidden dark:border-slate-800/70 dark:bg-slate-900/90"
- >
-    <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0">
-    
-<div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
-  {periodOfDay === "morning" || periodOfDay === "afternoon" ? (
-    <>
-      <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-300/10 blur-3xl" />
-
-<div className="absolute right-2 top-1">
-  <svg
-    width="118"
-    height="88"
-    viewBox="0 0 118 88"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className={
-      isDarkMode
-        ? "drop-shadow-[0_10px_24px_rgba(255,196,0,0.22)]"
-        : "drop-shadow-[0_10px_18px_rgba(255,196,0,0.12)]"
-    }
-  >
-    <defs>
-      <radialGradient
-        id="sunHaloDay"
-        cx="0"
-        cy="0"
-        r="1"
-        gradientUnits="userSpaceOnUse"
-        gradientTransform="translate(63 31) rotate(90) scale(31)"
-      >
-        <stop stopColor={isDarkMode ? "rgba(255,210,80,0.55)" : "rgba(255,210,80,0.30)"} />
-        <stop offset="0.58" stopColor={isDarkMode ? "rgba(255,184,0,0.22)" : "rgba(255,184,0,0.10)"} />
-        <stop offset="1" stopColor="rgba(255,184,0,0)" />
-      </radialGradient>
-
-      <radialGradient
-        id="sunCoreDay"
-        cx="0"
-        cy="0"
-        r="1"
-        gradientUnits="userSpaceOnUse"
-        gradientTransform="translate(63 31) rotate(90) scale(19.5)"
-      >
-        <stop stopColor="#FFFCE8" />
-        <stop offset="0.45" stopColor="#FFE98A" />
-        <stop offset="0.78" stopColor="#FFC93C" />
-        <stop offset="1" stopColor="#F6AE1A" />
-      </radialGradient>
-
-      <linearGradient id="cloudMainDay" x1="18" y1="6" x2="74" y2="44">
-        <stop stopColor={isDarkMode ? "rgba(255,255,255,0.96)" : "rgba(243,246,251,0.98)"} />
-        <stop offset="1" stopColor={isDarkMode ? "rgba(214,223,238,0.92)" : "rgba(214,223,236,0.98)"} />
-      </linearGradient>
-
-      <linearGradient id="cloudShadowDay" x1="0" y1="16" x2="0" y2="38">
-        <stop stopColor="rgba(255,255,255,0)" />
-        <stop offset="1" stopColor={isDarkMode ? "rgba(160,173,196,0.45)" : "rgba(170,182,201,0.38)"} />
-      </linearGradient>
-
-      <filter id="cloudBlurSoft" x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur stdDeviation="0.6" />
-      </filter>
-    </defs>
-
-    <circle cx="63" cy="31" r="31" fill="url(#sunHaloDay)" />
-    <circle cx="63" cy="31" r="19.5" fill="url(#sunCoreDay)" />
-
-    <g transform="translate(28 34)" filter="url(#cloudBlurSoft)">
-      <path
-        d="M13 27C6.8 27 2.5 23.2 2.5 18.1C2.5 13.7 5.7 10.3 10.3 9.7C11.7 5.6 15.8 2.8 20.8 2.8C27.3 2.8 32.6 7 33.7 12.8C34.7 12.5 35.8 12.4 36.8 12.4C43.2 12.4 48.2 16.5 48.2 22C48.2 25.7 45.5 27.8 41.3 27.8H13V27Z"
-        fill="url(#cloudMainDay)"
-      />
-      <path
-        d="M13 27C6.8 27 2.5 23.2 2.5 18.1C2.5 13.7 5.7 10.3 10.3 9.7C11.7 5.6 15.8 2.8 20.8 2.8C27.3 2.8 32.6 7 33.7 12.8C34.7 12.5 35.8 12.4 36.8 12.4C43.2 12.4 48.2 16.5 48.2 22C48.2 25.7 45.5 27.8 41.3 27.8H13V27Z"
-        fill="url(#cloudShadowDay)"
-      />
-    </g>
-  </svg>
-</div>
-    </>
-  ) : (
-    <>
-      <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-indigo-400/20 dark:bg-violet-500/10 blur-3xl" />
-
-<div className="absolute right-5 top-1">
-  <svg
-    width="92"
-    height="92"
-    viewBox="0 0 92 92"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className="drop-shadow-[0_0_10px_rgba(99,102,241,0.18)] dark:drop-shadow-[0_0_24px_rgba(255,255,255,0.16)]"
-  >
-          <defs>
-<linearGradient id="moonFillReal" x1="28" y1="12" x2="56" y2="74" gradientUnits="userSpaceOnUse">
-  <stop stopColor="#C7D2FE" />
-  <stop offset="0.45" stopColor="#E0E7FF" />
-  <stop offset="1" stopColor="#A5B4FC" />
-</linearGradient>
-
-            <mask id="moonMaskReal">
-              <rect width="92" height="92" fill="black" />
-              <circle cx="49" cy="42" r="24" fill="white" />
-              <circle cx="61" cy="39" r="22" fill="black" />
-            </mask>
-
-            <clipPath id="moonClipReal">
-              <circle cx="49" cy="42" r="24" />
-            </clipPath>
-          </defs>
-
-          <circle
-            cx="49"
-            cy="42"
-            r="24"
-            fill="url(#moonFillReal)"
-            mask="url(#moonMaskReal)"
-          />
-
-          <g clipPath="url(#moonClipReal)" mask="url(#moonMaskReal)">
-            <circle cx="39" cy="31" r="4.2" fill="#D7DEE8" fillOpacity="0.55" />
-            <circle cx="38.7" cy="31.2" r="2.2" fill="#BEC8D4" fillOpacity="0.45" />
-
-            <circle cx="41" cy="46" r="5.8" fill="#D7DEE8" fillOpacity="0.5" />
-            <circle cx="40.8" cy="46.1" r="3" fill="#BEC8D4" fillOpacity="0.38" />
-
-            <circle cx="47" cy="58" r="3.8" fill="#D7DEE8" fillOpacity="0.45" />
-            <circle cx="46.8" cy="58.1" r="1.9" fill="#BEC8D4" fillOpacity="0.32" />
-          </g>
-        </svg>
-      </div>
-<div className="absolute right-[86px] top-[20px] opacity-95 dark:opacity-90">
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 14 14"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className="drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]"
-  >
-    <path
-      d="M7 1.6L8.1 5.9L12.4 7L8.1 8.1L7 12.4L5.9 8.1L1.6 7L5.9 5.9L7 1.6Z"
-      fill="white"
-      fillOpacity="0.95"
-    />
-  </svg>
-</div>
-
-<div className="absolute right-[70px] top-[46px] opacity-90 dark:opacity-75">
-  <svg
-    width="10"
-    height="10"
-    viewBox="0 0 10 10"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className="drop-shadow-[0_0_6px_rgba(255,255,255,0.35)]"
-  >
-    <path
-      d="M5 1.2L5.7 4.3L8.8 5L5.7 5.7L5 8.8L4.3 5.7L1.2 5L4.3 4.3L5 1.2Z"
-      fill="white"
-      fillOpacity="0.85"
-    />
-  </svg>
-</div>
-    </>
-  )}
-
-  <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-violet-200/40 to-transparent dark:via-violet-400/20" />
-</div>
-
-<div className="mt-1">
-  {displayName?.trim() && !isEditingDisplayName && onboardingStep !== "nome" ? (
-<div className="space-y-0">
-  <div className="flex items-center gap-2">
-    <h3 className="text-[20px] sm:text-[24px] font-black tracking-tight text-slate-800 dark:text-slate-100">
-      {displayName ? `${greetingText}, ${displayName}` : greetingText}
-    </h3>
-
-    <button
-      type="button"
-      onClick={() => setIsEditingDisplayName(true)}
-      className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-violet-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-violet-300"
-      aria-label="Editar nome exibido"
-      title="Editar nome exibido"
-    >
-      <PencilLine className="h-3.5 w-3.5" strokeWidth={2.2} />
-    </button>
-  </div>
-
-<p className="-mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-  Aqui está o seu resumo diário:
-</p>
-
-<div className="pt-4 space-y-2.5">
-<div className="mt-3 flex items-center gap-2">
-  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em]">
-    <span className="font-bold text-[#4300ff] dark:text-white">Despesas</span>
-    <span className="text-[#4300ff]/70 dark:text-white/70">|</span>
-    <span className="font-bold text-[#4300ff] dark:text-white">Cartões</span>
-  </div>
-
-  <div className="ml-2 flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/70 p-1 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/40 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-    <button
-      type="button"
-      onClick={() => setResumoPerfilView("PF")}
-      className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] transition ${
-        resumoPerfilView === "PF"
-          ? "bg-[#5b21b6] text-white shadow-[0_8px_18px_rgba(91,33,182,0.34)]"
-          : "text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-      }`}
-    >
-      PF
-    </button>
-
-    <button
-      type="button"
-      onClick={() => setResumoPerfilView("PJ")}
-      className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] transition ${
-        resumoPerfilView === "PJ"
-          ? "bg-[#5b21b6] text-white shadow-[0_8px_18px_rgba(91,33,182,0.34)]"
-          : "text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-      }`}
-    >
-      PJ
-    </button>
-  </div>
-</div>
-
-  <div className="space-y-2">
-    <div className="rounded-full border border-slate-200/80 bg-white/60 px-3 py-1.5 text-[11px] leading-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-      <span className="font-medium text-slate-500 dark:text-slate-400">Despesas vencendo hoje:</span>{" "}
-      <span
-  className={
-    resumoHojeLabel !== "R$ 0,00"
-      ? "font-bold text-rose-600 dark:text-rose-400"
-      : "font-bold text-slate-800 dark:text-slate-100"
+  if (panel === "despesa") {
+    setFormTipo("despesa");
+    return;
   }
->
-  {resumoHojeLabel}
-</span>{" "}
-      <span className="text-slate-400 dark:text-slate-500">•</span>{" "}
-      <span className="font-medium text-slate-500 dark:text-slate-400">Em atraso:</span>{" "}
-     <span
-  className={
-    resumoAtrasadosLabel !== "R$ 0,00"
-      ? "font-bold text-rose-600 dark:text-rose-400"
-      : "font-bold text-slate-800 dark:text-slate-100"
-  }
->
-  {resumoAtrasadosLabel}
-</span>
-    </div>
 
-    <div className="rounded-full border border-slate-200/80 bg-white/60 px-3 py-1.5 text-[11px] leading-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-      <span className="font-medium text-slate-500 dark:text-slate-400">Faturas vencendo hoje:</span>{" "}
-   <span
-  className={
-    resumoCartoesVencendoHojeLabel !== "R$ 0,00"
-      ? "font-bold text-rose-600 dark:text-rose-400"
-      : "font-bold text-slate-800 dark:text-slate-100"
+  if (panel === "receita") {
+    setFormTipo("receita");
+    return;
   }
->
-  {resumoCartoesVencendoHojeLabel}
-</span>{" "}
-      <span className="text-slate-400 dark:text-slate-500">•</span>{" "}
-      <span className="font-medium text-slate-500 dark:text-slate-400">Em atraso:</span>{" "}
-      <span
-  className={
-    resumoCartoesAtrasadasLabel !== "R$ 0,00"
-      ? "font-bold text-rose-600 dark:text-rose-400"
-      : "font-bold text-slate-800 dark:text-slate-100"
-  }
->
-  {resumoCartoesAtrasadasLabel}
-</span>
-    </div>
-  </div>
-</div>
-    </div>
-  ) : (
-    <input
-      type="text"
-      value={displayName}
-      onChange={(e) => setDisplayName(e.target.value)}
-      onKeyDown={async (e) => {
-        if (e.key === "Enter") {
-          await salvarDisplayName(displayName);
-        }
-      }}
-      onBlur={async () => {
-        if (String(displayName ?? "").trim()) {
-          await salvarDisplayName(displayName);
-        } else {
-          setIsEditingDisplayName(false);
-        }
-      }}
-      placeholder="Insira seu nome aqui"
-      autoFocus
-      className={`h-11 w-full rounded-2xl border bg-white px-4 text-base font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 ${
-        onboardingStep === "nome"
-          ? "animate-[pulse_1.4s_ease-in-out_infinite] border-violet-500 bg-white ring-4 ring-violet-300 shadow-[0_0_0_4px_rgba(139,92,246,0.16),0_0_24px_rgba(139,92,246,0.30)] focus:border-violet-600 focus:ring-4 focus:ring-violet-300 dark:border-violet-400 dark:bg-slate-800 dark:ring-violet-500/30 dark:shadow-[0_0_0_4px_rgba(139,92,246,0.18),0_0_28px_rgba(139,92,246,0.32)] dark:focus:border-violet-300 dark:focus:ring-violet-500/35"
-          : "border-slate-200 focus:border-violet-300 focus:ring-2 focus:ring-violet-200 dark:border-slate-700 dark:focus:border-violet-500/50 dark:focus:ring-violet-500/20"
-      }`}
-    />
-  )}
-</div>
 
-    </div>
-
-<div className="relative h-12 w-12 shrink-0 sm:h-16 sm:w-20">
-</div>
-</div>
-</div>
-{/* Card Novo lançamento */}
-<div
-  className={
-    onboardingStep === "nome"
-      ? "opacity-35 blur-[2px] pointer-events-none select-none transition-all duration-300"
-      : "opacity-100 blur-0 transition-all duration-300"
+  if (panel === "transferencia") {
+    setFormTipo("transferencia");
+    return;
   }
->
+
+  if (panel === "cartoes") {
+    setFormTipo("cartao_credito");
+    return;
+  }
+
+  if (panel === "contas") {
+    openManageAccountsModal();
+    return;
+  }
+};
+
+const expensePanelContent = (
   <NewTransactionCard
+    forcedTipo="despesa"
+    hideTypeSwitcher
     onboardingStep={onboardingStep}
     formTipo={formTipo}
     setFormTipo={setFormTipo}
@@ -5232,12 +4896,290 @@ containerStyle={{
     ccTags={ccTags}
     onRemoveCCTag={removeCCTag}
   />
+);
+
+const incomePanelContent = (
+  <NewTransactionCard
+    forcedTipo="receita"
+    hideTypeSwitcher
+    onboardingStep={onboardingStep}
+    formTipo={formTipo}
+    setFormTipo={setFormTipo}
+    creditCards={creditCards}
+    selectedCreditCardId={selectedCreditCardId}
+    setSelectedCreditCardId={setSelectedCreditCardId}
+    openAddAccountModal={openAddAccountModal}
+    onOpenManageAccounts={openManageAccountsModal}
+    openAddCreditCardModal={openAddCardModal}
+    ccIsParceladoMode={ccIsParceladoMode}
+    setCcIsParceladoMode={setCcIsParceladoMode}
+    isParceladoMode={isParceladoMode}
+    setIsParceladoMode={setIsParceladoMode}
+    formParcelas={formParcelas}
+    setFormParcelas={setFormParcelas}
+    formTipoGasto={formTipoGasto}
+    setFormTipoGasto={setFormTipoGasto}
+    formDesc={formDesc}
+    setFormDesc={setFormDesc}
+    formValor={formValor}
+    setFormValor={setFormValor}
+    formData={formData}
+    setFormData={setFormData}
+    formPago={formPago}
+    setFormPago={setFormPago}
+    handleFormatCurrencyInput={handleFormatCurrencyInput}
+    categorias={categorias}
+    formCat={formCat}
+    setFormCat={setFormCat}
+    removerCategoria={removerCategoria}
+    onOpenCategoriaModal={() => setShowModalCategoria(true)}
+    formMetodo={formMetodo}
+    setFormMetodo={setFormMetodo}
+    profiles={profiles}
+    formQualCartao={formQualCartao}
+    setFormQualCartao={setFormQualCartao}
+    handleDeleteAccount={handleDeleteAccount}
+    tiposConta={TIPOS_CONTA}
+    setEditingProfileId={setEditingProfileId}
+    setAccBanco={setAccBanco}
+    setAccNumeroConta={setAccNumeroConta}
+    setAccNumeroAgencia={setAccNumeroAgencia}
+    setAccPerfilConta={setAccPerfilConta}
+    setAccTipoConta={setAccTipoConta}
+    setAccSaldoInicial={setAccSaldoInicial}
+    setAccPossuiCC={setAccPossuiCC}
+    setAccLimiteCC={setAccLimiteCC}
+    setAccFechamentoCC={setAccFechamentoCC}
+    setAccVencimentoCC={setAccVencimentoCC}
+    setIsAddAccountOpen={setIsAddAccountOpen}
+    formContaOrigem={formContaOrigem}
+    formContaDestino={formContaDestino}
+    inverterContas={inverterContas}
+    setAccountPickerOpen={setAccountPickerOpen}
+    prazoMode={prazoMode}
+    setPrazoMode={setPrazoMode}
+    formDataTerminoFixa={formDataTerminoFixa}
+    setFormDataTerminoFixa={setFormDataTerminoFixa}
+    SEM_PRAZO_MESES={SEM_PRAZO_MESES}
+    handleAddTransaction={handleAddTransaction}
+    isSubmittingTransaction={isSubmittingTransaction}
+    setModoCentro={setModoCentro}
+    formTagCC={formTagCC}
+    setFormTagCC={setFormTagCC}
+    ccTags={ccTags}
+    onRemoveCCTag={removeCCTag}
+  />
+);
+
+const transferPanelContent = (
+  <NewTransactionCard
+    forcedTipo="transferencia"
+    hideTypeSwitcher
+    onboardingStep={onboardingStep}
+    formTipo={formTipo}
+    setFormTipo={setFormTipo}
+    creditCards={creditCards}
+    selectedCreditCardId={selectedCreditCardId}
+    setSelectedCreditCardId={setSelectedCreditCardId}
+    openAddAccountModal={openAddAccountModal}
+    onOpenManageAccounts={openManageAccountsModal}
+    openAddCreditCardModal={openAddCardModal}
+    ccIsParceladoMode={ccIsParceladoMode}
+    setCcIsParceladoMode={setCcIsParceladoMode}
+    isParceladoMode={isParceladoMode}
+    setIsParceladoMode={setIsParceladoMode}
+    formParcelas={formParcelas}
+    setFormParcelas={setFormParcelas}
+    formTipoGasto={formTipoGasto}
+    setFormTipoGasto={setFormTipoGasto}
+    formDesc={formDesc}
+    setFormDesc={setFormDesc}
+    formValor={formValor}
+    setFormValor={setFormValor}
+    formData={formData}
+    setFormData={setFormData}
+    formPago={formPago}
+    setFormPago={setFormPago}
+    handleFormatCurrencyInput={handleFormatCurrencyInput}
+    categorias={categorias}
+    formCat={formCat}
+    setFormCat={setFormCat}
+    removerCategoria={removerCategoria}
+    onOpenCategoriaModal={() => setShowModalCategoria(true)}
+    formMetodo={formMetodo}
+    setFormMetodo={setFormMetodo}
+    profiles={profiles}
+    formQualCartao={formQualCartao}
+    setFormQualCartao={setFormQualCartao}
+    handleDeleteAccount={handleDeleteAccount}
+    tiposConta={TIPOS_CONTA}
+    setEditingProfileId={setEditingProfileId}
+    setAccBanco={setAccBanco}
+    setAccNumeroConta={setAccNumeroConta}
+    setAccNumeroAgencia={setAccNumeroAgencia}
+    setAccPerfilConta={setAccPerfilConta}
+    setAccTipoConta={setAccTipoConta}
+    setAccSaldoInicial={setAccSaldoInicial}
+    setAccPossuiCC={setAccPossuiCC}
+    setAccLimiteCC={setAccLimiteCC}
+    setAccFechamentoCC={setAccFechamentoCC}
+    setAccVencimentoCC={setAccVencimentoCC}
+    setIsAddAccountOpen={setIsAddAccountOpen}
+    formContaOrigem={formContaOrigem}
+    formContaDestino={formContaDestino}
+    inverterContas={inverterContas}
+    setAccountPickerOpen={setAccountPickerOpen}
+    prazoMode={prazoMode}
+    setPrazoMode={setPrazoMode}
+    formDataTerminoFixa={formDataTerminoFixa}
+    setFormDataTerminoFixa={setFormDataTerminoFixa}
+    SEM_PRAZO_MESES={SEM_PRAZO_MESES}
+    handleAddTransaction={handleAddTransaction}
+    isSubmittingTransaction={isSubmittingTransaction}
+    setModoCentro={setModoCentro}
+    formTagCC={formTagCC}
+    setFormTagCC={setFormTagCC}
+    ccTags={ccTags}
+    onRemoveCCTag={removeCCTag}
+  />
+);
+
+const cardsPanelContent = (
+  <NewTransactionCard
+    forcedTipo="cartoes"
+    hideTypeSwitcher
+    onboardingStep={onboardingStep}
+    formTipo={formTipo}
+    setFormTipo={setFormTipo}
+    creditCards={creditCards}
+    selectedCreditCardId={selectedCreditCardId}
+    setSelectedCreditCardId={setSelectedCreditCardId}
+    openAddAccountModal={openAddAccountModal}
+    onOpenManageAccounts={openManageAccountsModal}
+    openAddCreditCardModal={openAddCardModal}
+    ccIsParceladoMode={ccIsParceladoMode}
+    setCcIsParceladoMode={setCcIsParceladoMode}
+    isParceladoMode={isParceladoMode}
+    setIsParceladoMode={setIsParceladoMode}
+    formParcelas={formParcelas}
+    setFormParcelas={setFormParcelas}
+    formTipoGasto={formTipoGasto}
+    setFormTipoGasto={setFormTipoGasto}
+    formDesc={formDesc}
+    setFormDesc={setFormDesc}
+    formValor={formValor}
+    setFormValor={setFormValor}
+    formData={formData}
+    setFormData={setFormData}
+    formPago={formPago}
+    setFormPago={setFormPago}
+    handleFormatCurrencyInput={handleFormatCurrencyInput}
+    categorias={categorias}
+    formCat={formCat}
+    setFormCat={setFormCat}
+    removerCategoria={removerCategoria}
+    onOpenCategoriaModal={() => setShowModalCategoria(true)}
+    formMetodo={formMetodo}
+    setFormMetodo={setFormMetodo}
+    profiles={profiles}
+    formQualCartao={formQualCartao}
+    setFormQualCartao={setFormQualCartao}
+    handleDeleteAccount={handleDeleteAccount}
+    tiposConta={TIPOS_CONTA}
+    setEditingProfileId={setEditingProfileId}
+    setAccBanco={setAccBanco}
+    setAccNumeroConta={setAccNumeroConta}
+    setAccNumeroAgencia={setAccNumeroAgencia}
+    setAccPerfilConta={setAccPerfilConta}
+    setAccTipoConta={setAccTipoConta}
+    setAccSaldoInicial={setAccSaldoInicial}
+    setAccPossuiCC={setAccPossuiCC}
+    setAccLimiteCC={setAccLimiteCC}
+    setAccFechamentoCC={setAccFechamentoCC}
+    setAccVencimentoCC={setAccVencimentoCC}
+    setIsAddAccountOpen={setIsAddAccountOpen}
+    formContaOrigem={formContaOrigem}
+    formContaDestino={formContaDestino}
+    inverterContas={inverterContas}
+    setAccountPickerOpen={setAccountPickerOpen}
+    prazoMode={prazoMode}
+    setPrazoMode={setPrazoMode}
+    formDataTerminoFixa={formDataTerminoFixa}
+    setFormDataTerminoFixa={setFormDataTerminoFixa}
+    SEM_PRAZO_MESES={SEM_PRAZO_MESES}
+    handleAddTransaction={handleAddTransaction}
+    isSubmittingTransaction={isSubmittingTransaction}
+    setModoCentro={setModoCentro}
+    formTagCC={formTagCC}
+    setFormTagCC={setFormTagCC}
+    ccTags={ccTags}
+    onRemoveCCTag={removeCCTag}
+  />
+);
+
+const sidebarPanels: Partial<Record<Exclude<SidebarPanelKey, null>, React.ReactNode>> = {
+  despesa: expensePanelContent,
+  receita: incomePanelContent,
+  transferencia: transferPanelContent,
+  cartoes: cardsPanelContent,
+};
+
+return (
+  <SidebarShell
+  panelContent={sidebarPanels}
+  onPanelOpen={handleSidebarOpen}
+>
+  <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+    {checkoutSuccessBanner}
+    {cancelScheduledBanner}
+    {billingReturnBanner}
+   
+
+<Toaster
+  position="bottom-center"
+  gutter={8}
+containerStyle={{
+  bottom: 56,
+  left: 0,
+  right: 0,
+  zIndex: 999999,
+}}
+  toastOptions={{
+    duration: 2600,
+    style: {
+      maxWidth: "320px",
+      minWidth: "260px",
+      padding: "8px 12px",
+      borderRadius: "14px",
+      fontSize: "13px",
+      lineHeight: "18px",
+      background: "#eef2f7",
+      color: "#0f172a",
+      border: "1px solid #cbd5e1",
+      boxShadow: "0 12px 28px rgba(15, 23, 42, 0.18)",
+      zIndex: 999999,
+    },
+  }}
+/>
+
+<div className="w-full xl:w-[125%] origin-top-left xl:scale-[0.8]">
+<div
+  className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/55"
+  style={{ height: `${TOP_BAR_HEIGHT}px` }}
+>
+  <div
+    className="mx-auto flex h-full w-full max-w-[1250px] items-center justify-center px-3 lg:px-4"
+  >
+    <AppHeader settingsIcon={null} />
   </div>
 </div>
 
+<div className="mx-auto w-full max-w-[1250px] px-3 lg:px-4">
+    <main className="w-full mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
+
      {/* COLUNA DIREITA */}
       <div
-className={`lg:col-span-8 space-y-6 ${
+className={`lg:col-span-12 space-y-6 ${
   modoCentro === "credito" ? "lg:-ml-2" : ""
 } ${
   appBloqueado ? "opacity-35 pointer-events-none select-none transition-all duration-300" : "opacity-100 transition-all duration-300"
@@ -6113,7 +6055,7 @@ await deleteTransactionById(String(id), userId);
 
 {/* Conteúdo */}
 {modoCentro !== "credito" && (
-  <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 min-h-[550px] transition-colors">
+ <div className="bg-transparent rounded-3xl p-6 shadow-none border border-transparent min-h-[550px] transition-colors">
     {/* TRANSACOES */}
 {/* Tabs */}
 <div className="px-0 pt-2 pb-3">
@@ -7538,6 +7480,7 @@ className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate
 )}
 
     </div>
+    </SidebarShell>
   );
 };
 

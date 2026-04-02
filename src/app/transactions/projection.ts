@@ -59,31 +59,74 @@ const {
 const perfilViewNorm = String(perfilView ?? "geral").trim().toLowerCase();
 
 const getPerfilContaFromTransaction = (t: Transaction): "PF" | "PJ" | null => {
-const cartaoId = String(
-  (t as any)?.qualConta ??
-    (t as any)?.qualCartao ??
-    (t as any)?.cartaoId ??
-    (t as any)?.creditCardId ??
-    (t as any)?.selectedCreditCardId ??
-    (t as any)?.payload?.qualConta ??
-    (t as any)?.payload?.qualCartao ??
-    (t as any)?.payload?.cartaoId ??
-    (t as any)?.payload?.creditCardId ??
-    (t as any)?.payload?.selectedCreditCardId ??
-    ""
-).trim();
+  const idsConta = [
+    (t as any)?.profileId,
+    (t as any)?.contaId,
+    (t as any)?.qualConta,
+    (t as any)?.contaOrigemId,
+    (t as any)?.contaDestinoId,
+    (t as any)?.transferFromId,
+    (t as any)?.transferToId,
+    (t as any)?.conta?.id,
+    (t as any)?.profile?.id,
+    (t as any)?.payload?.profileId,
+    (t as any)?.payload?.contaId,
+    (t as any)?.payload?.qualConta,
+    (t as any)?.payload?.contaOrigemId,
+    (t as any)?.payload?.contaDestinoId,
+    (t as any)?.payload?.transferFromId,
+    (t as any)?.payload?.transferToId,
+  ]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
 
-if (cartaoId) {
-  const cartao = (creditCards ?? []).find(
-    (c: any) => String(c?.id ?? "").trim() === cartaoId
-  );
+  if (idsConta.length > 0) {
+    const conta = (profiles ?? []).find((p: any) => {
+      const profileId = String((p as any)?.id ?? "").trim();
+      return profileId && idsConta.includes(profileId);
+    });
 
-  const perfilCartao = String((cartao as any)?.perfil ?? "")
-    .trim()
-    .toUpperCase();
+    const perfilConta = String(
+      (conta as any)?.perfilConta ??
+      (conta as any)?.perfil ??
+      (conta as any)?.brand ??
+      ""
+    )
+      .trim()
+      .toUpperCase();
 
-  if (perfilCartao === "PF" || perfilCartao === "PJ") return perfilCartao;
-}
+    if (perfilConta === "PF" || perfilConta === "PJ") return perfilConta;
+  }
+
+  const idsCartao = [
+    (t as any)?.qualCartao,
+    (t as any)?.cartaoId,
+    (t as any)?.creditCardId,
+    (t as any)?.selectedCreditCardId,
+    (t as any)?.payload?.qualCartao,
+    (t as any)?.payload?.cartaoId,
+    (t as any)?.payload?.creditCardId,
+    (t as any)?.payload?.selectedCreditCardId,
+  ]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
+
+  if (idsCartao.length > 0) {
+    const cartao = (creditCards ?? []).find((c: any) => {
+      const cardId = String(c?.id ?? "").trim();
+      const cardName = String(c?.name ?? "").trim();
+      return (
+        (cardId && idsCartao.includes(cardId)) ||
+        (cardName && idsCartao.includes(cardName))
+      );
+    });
+
+    const perfilCartao = String((cartao as any)?.perfil ?? "")
+      .trim()
+      .toUpperCase();
+
+    if (perfilCartao === "PF" || perfilCartao === "PJ") return perfilCartao;
+  }
 
   return null;
 };

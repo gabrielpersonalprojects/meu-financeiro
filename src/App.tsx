@@ -5291,15 +5291,25 @@ function normalizePaymentCycleKeyToYm(raw: any): string {
     const endIso = String(parts[2] ?? "").trim();
 
     if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
-      const endDate = new Date(`${endIso}T12:00:00`);
-      if (!Number.isNaN(endDate.getTime())) {
-        return toYm(endDate);
+      const [yearStr, monthStr] = endIso.split("-");
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+
+      if (Number.isFinite(year) && Number.isFinite(month)) {
+        const nextMonth = month === 12 ? 1 : month + 1;
+        const nextYear = month === 12 ? year + 1 : year;
+        return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
       }
     }
   }
 
   return value;
 }
+
+const roundMoney = (value: number) => {
+  const n = Number(value || 0);
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+};
 
 const anoAtual = agora.getFullYear();
 const mesAtual = agora.getMonth();
@@ -5402,20 +5412,49 @@ const transacoesDaFaturaAtual = transacoesDoCartao.filter((t: any) => {
 
 const pagamentosDaFaturaAtual = (pagamentosFatura ?? []).filter((p: any) => {
   if (String(p?.cartaoId ?? "") !== String(c.id)) return false;
-  return normalizePaymentCycleKeyToYm(p?.cicloKey) === cicloBase;
+
+  const cicloNormalizado = normalizePaymentCycleKeyToYm(p?.cicloKey);
+  if (cicloNormalizado === cicloBase) return true;
+
+  const cicloRaw = String(p?.cicloKey ?? "").trim();
+  if (!cicloRaw.includes("__")) return false;
+
+  const parts = cicloRaw.split("__");
+  const startIso = String(parts[1] ?? "").trim();
+  const endIso = String(parts[2] ?? "").trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startIso) || !/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
+    return false;
+  }
+
+  const startDate = new Date(`${startIso}T00:00:00`);
+  const endDate = new Date(`${endIso}T23:59:59.999`);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return false;
+  }
+
+  return (
+    startDate.getTime() === cicloInicioReal.getTime() &&
+    endDate.getTime() === cicloFimReal.getTime()
+  );
 });
 
-const totalFatura = transacoesDaFaturaAtual.reduce(
-  (acc: number, t: any) => acc + Math.abs(Number(t.valor || 0)),
-  0
+const totalFatura = roundMoney(
+  transacoesDaFaturaAtual.reduce(
+    (acc: number, t: any) => acc + Math.abs(Number(t.valor || 0)),
+    0
+  )
 );
 
-const totalPago = pagamentosDaFaturaAtual.reduce(
-  (acc: number, p: any) => acc + Math.abs(Number(p.valor || 0)),
-  0
+const totalPago = roundMoney(
+  pagamentosDaFaturaAtual.reduce(
+    (acc: number, p: any) => acc + Math.abs(Number(p.valor || 0)),
+    0
+  )
 );
 
-const emAberto = Math.max(0, totalFatura - totalPago);
+const emAberto = roundMoney(Math.max(0, totalFatura - totalPago));
 
 const statusManualPorCiclo = new Map<string, string>();
 
@@ -5440,12 +5479,19 @@ const totalComprometidoCartao = transacoesDoCartao.reduce((acc: number, t: any) 
   return acc + Math.abs(Number((t as any)?.valor || 0));
 }, 0);
 
-const totalPagoNoCartao = (pagamentosFatura ?? [])
-  .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
-  .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0);
+const totalPagoNoCartao = roundMoney(
+  (pagamentosFatura ?? [])
+    .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
+    .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0)
+);
 
-const valorComprometidoReal = Math.max(0, totalComprometidoCartao - totalPagoNoCartao);
-const limiteDisponivelReal = Math.max(0, Number(c.limite ?? 0) - valorComprometidoReal);
+const valorComprometidoReal = roundMoney(
+  Math.max(0, totalComprometidoCartao - totalPagoNoCartao)
+);
+
+const limiteDisponivelReal = roundMoney(
+  Math.max(0, Number(c.limite ?? 0) - valorComprometidoReal)
+);
 
 const hoje = new Date();
 hoje.setHours(0, 0, 0, 0);
@@ -5485,8 +5531,10 @@ const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
     const statusManualDoCiclo = String(statusManualPorCiclo.get(ciclo) ?? "").toLowerCase();
     if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") return null;
 
-    const saldo = Math.max(0, Number(info.total || 0) - Number(info.pago || 0));
-    if (saldo <= 0) return null;
+const saldo = roundMoney(
+  Math.max(0, Number(info.total || 0) - Number(info.pago || 0))
+);
+if (saldo <= 0) return null;
 
     // só considerar ciclos já fechados, nunca o ciclo atual aberto nem futuros
     if (String(ciclo) >= String(cicloBase)) return null;
@@ -5507,12 +5555,12 @@ const vencimento = new Date(
 );
     vencimento.setHours(0, 0, 0, 0);
 
-    return {
-      ciclo: String(ciclo),
-      total: Math.max(0, Number(info.total || 0)),
-      saldo,
-      vencimento,
-    };
+return {
+  ciclo: String(ciclo),
+  total: roundMoney(Math.max(0, Number(info.total || 0))),
+  saldo,
+  vencimento,
+};
   })
   .filter(Boolean)
   .sort((a: any, b: any) => String(b.ciclo).localeCompare(String(a.ciclo))) as Array<{
@@ -5542,10 +5590,15 @@ const aguardandoVencimento =
   !existeFaturaAtrasada &&
   Boolean(faturaFechadaAguardandoPagamento);
 
+const existeFaturaFechadaPendente =
+  !existeFaturaAtrasada &&
+  Boolean(faturaFechadaAguardandoPagamento) &&
+  Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0)) > 0;
+
 const statusMiniCard: "normal" | "atrasada" | "zerada" =
   existeFaturaAtrasada
     ? "atrasada"
-    : aguardandoVencimento
+    : existeFaturaFechadaPendente
       ? "zerada"
       : "normal";
 
@@ -5553,7 +5606,7 @@ const miniCardValor =
   statusMiniCard === "atrasada"
     ? Math.max(0, valorEmAtraso)
     : statusMiniCard === "zerada"
-      ? Math.max(0, Number(faturaFechadaAguardandoPagamento?.total || 0))
+      ? Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0))
       : Math.max(0, Number(emAberto || 0));
 
 const miniCardDueLabel =

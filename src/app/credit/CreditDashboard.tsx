@@ -184,8 +184,13 @@ export function CreditDashboard({
     return `${d}/${m}/${y}`;
   };
 
-  const moedaBR = (v: number) =>
-    (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const moedaBR = (v: number) =>
+  (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const roundMoney = (value: number) => {
+  const n = Number(value || 0);
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+};
 
   const addMonths = (base: Date, delta: number) => {
     const d = new Date(base);
@@ -429,7 +434,9 @@ const txMes = (transacoes || []).filter((t: any) => {
   }, [transacoes, invoiceMonthOffset, nextBaseMonthKey, now, cicloFim, cartao.id]);
 
   const txFaturaCiclo = txMes;
-  const valorFaturaTotal = txFaturaCiclo.reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
+  const valorFaturaTotal = roundMoney(
+  txFaturaCiclo.reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+);
 
 const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
 const [filtroTagCC, setFiltroTagCC] = useState<string>("todas");
@@ -597,8 +604,13 @@ const [invoiceParcelamentoPrimeiraParcela, setInvoiceParcelamentoPrimeiraParcela
     .filter((p) => p.cartaoId === cartao.id && p.cicloKey === cicloKeyFatura)
     .sort((a, b) => (b.criadoEm ?? 0) - (a.criadoEm ?? 0))
 
-const valorPagoFatura = pagamentosDoCiclo.reduce((acc, p) => acc + Math.abs(Number(p.valor) || 0), 0);
-const saldoRestanteFatura = Math.max(0, valorFaturaTotal - valorPagoFatura);
+const valorPagoFatura = roundMoney(
+  pagamentosDoCiclo.reduce((acc, p) => acc + Math.abs(Number(p.valor) || 0), 0)
+);
+
+const saldoRestanteFatura = roundMoney(
+  Math.max(0, valorFaturaTotal - valorPagoFatura)
+);
 
 const limiteDisponivel = Math.max(
   0,
@@ -660,9 +672,11 @@ const pagamentosDaFaturaAnterior = pagamentosFatura
     return db - da;
   });
 
-const valorPagoFaturaAnterior = pagamentosDaFaturaAnterior.reduce(
-  (acc, p) => acc + Math.abs(Number(p.valor) || 0),
-  0
+const valorPagoFaturaAnterior = roundMoney(
+  pagamentosDaFaturaAnterior.reduce(
+    (acc, p) => acc + Math.abs(Number(p.valor) || 0),
+    0
+  )
 );
 
 const txFaturaAnterior = txDoCartao.filter((t) => {
@@ -676,14 +690,15 @@ const txFaturaAnterior = txDoCartao.filter((t) => {
   return dt0 >= cicloInicioAnterior0 && dt0 <= cicloFimAnterior0;
 });
 
-const valorTotalFaturaAnterior = txFaturaAnterior.reduce(
-  (acc, t) => acc + Math.abs(Number(t.valor) || 0),
-  0
+const valorTotalFaturaAnterior = roundMoney(
+  txFaturaAnterior.reduce(
+    (acc, t) => acc + Math.abs(Number(t.valor) || 0),
+    0
+  )
 );
 
-const saldoFaturaAnterior = Math.max(
-  0,
-  valorTotalFaturaAnterior - valorPagoFaturaAnterior
+const saldoFaturaAnterior = roundMoney(
+  Math.max(0, valorTotalFaturaAnterior - valorPagoFaturaAnterior)
 );
 
 const agoraAnterior0 = startOfDay(new Date()).getTime();
@@ -746,15 +761,14 @@ const faturaAnteriorFechadaAguardandoPagamento =
   const cicloFimEOD = endOfDay(cicloFim);
   const venc0 = startOfDay(vencimentoFaturaAtual);
 
-  const getFaturaStatus = (): FaturaStatus => {
-    if (valorFaturaNum > 0 && saldoPendenteNum <= 0 && valorJaPagoNum > 0) return "PAGA";
-    if (valorFaturaNum <= 0 && saldoPendenteNum <= 0) return "ZERADA";
-    if (now0 > cicloFimEOD && saldoPendenteNum <= 0) return "FECHADA";
-    if (now0 < cicloIni0) return "FUTURA";
-    if (now0 <= cicloFimEOD) return "EM_ABERTO";
-    if (now0 <= venc0) return "FECHADA";
-    return "ATRASADA";
-  };
+const getFaturaStatus = (): FaturaStatus => {
+  if (valorFaturaNum <= 0 && saldoPendenteNum <= 0) return "ZERADA";
+  if (valorFaturaNum > 0 && saldoPendenteNum <= 0) return "PAGA";
+  if (now0 < cicloIni0) return "FUTURA";
+  if (now0 <= cicloFimEOD) return "EM_ABERTO";
+  if (now0 <= venc0) return "FECHADA";
+  return "ATRASADA";
+};
 
   const statusManualAtualObj =
     faturasStatusManual.find(
@@ -770,8 +784,14 @@ const faturaAnteriorFechadaAguardandoPagamento =
         ) ?? null
       : null;
 
+const faturaAtualFoiPaga =
+  valorFaturaNum > 0 &&
+  saldoPendenteNum <= 0;
+
 const faturaStatus =
-  statusManualAtualObj?.statusManual === "parcelada" ? "FECHADA" : getFaturaStatus();
+  statusManualAtualObj?.statusManual === "parcelada"
+    ? "FECHADA"
+    : getFaturaStatus();
 
 const miniCardTemAtraso =
   faturaStatus === "ATRASADA" || faturaAnteriorEstaAtrasada;
@@ -797,8 +817,8 @@ const miniCardValor =
       ? Math.max(
           0,
           faturaAnteriorFechadaAguardandoPagamento
-            ? valorTotalFaturaAnterior
-            : valorFaturaTotal
+            ? saldoFaturaAnterior
+            : saldoRestanteFatura
         )
       : Math.max(0, saldoRestanteFatura);
 
@@ -814,6 +834,10 @@ const miniCardExpandidoFechadaAguardandoPagamento =
   !miniCardExpandidoTemAtraso &&
   faturaStatus === "FECHADA";
 
+const miniCardExpandidoEstaPaga =
+  !miniCardExpandidoTemAtraso &&
+  faturaStatus === "PAGA";
+
 const miniCardExpandidoEhMesPassado =
   baseMonth.getFullYear() < now0.getFullYear() ||
   (baseMonth.getFullYear() === now0.getFullYear() &&
@@ -826,7 +850,8 @@ const miniCardExpandidoEhMesFuturo =
 
 const miniCardExpandidoSemValor =
   Math.max(0, valorFaturaTotal) <= 0 &&
-  Math.max(0, saldoRestanteFatura) <= 0;
+  Math.max(0, saldoRestanteFatura) <= 0 &&
+  !miniCardExpandidoEstaPaga;
 
 const miniCardExpandidoStatus: "normal" | "atrasada" | "zerada" | "futura" | "oculta" =
   miniCardExpandidoTemAtraso
@@ -843,7 +868,7 @@ const miniCardExpandidoValor =
   miniCardExpandidoTemAtraso
     ? Math.max(0, saldoRestanteFatura)
     : miniCardExpandidoFechadaAguardandoPagamento
-      ? Math.max(0, valorFaturaTotal)
+      ? Math.max(0, saldoRestanteFatura)
       : Math.max(0, saldoRestanteFatura);
 
 const faturaStatusLabel: Record<FaturaStatus, string> = {

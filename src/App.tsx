@@ -1652,6 +1652,11 @@ const [selectedCreditCardId, setSelectedCreditCardId] = useState<string>("");
 const [saldoRestanteAtual, setSaldoRestanteAtual] = useState<number>(0);
 const [isCcExpanded, setIsCcExpanded] = useState(false);
 const [creditJumpMonth, setCreditJumpMonth] = useState<string>(getHojeLocal().slice(0, 7));
+useEffect(() => {
+  if (modoCentro !== "credito") {
+    setIsCcExpanded(false);
+  }
+}, [modoCentro]);
 
 const CREDIT_CARDS_PER_PAGE = 8;
 const [creditCardsPage, setCreditCardsPage] = useState(1);
@@ -3938,6 +3943,7 @@ setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
     setFormDesc("");
     setFormValor("");
+    setFormData(getHojeLocal());
     setFormMetodo("");
     setFormQualCartao("");
     setFormTipoGasto("");

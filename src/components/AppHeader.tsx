@@ -12,11 +12,17 @@ export function AppHeader({
       {/* MOBILE */}
       <div className="md:hidden w-full px-4">
         <div className="flex items-center justify-between">
-          <img
-            src="/logo_tela_do_app.svg"
-            alt="Logo FluxMoney"
-            className="h-12 w-auto select-none invert-0 dark:invert-0 dark:brightness-150 dark:contrast-110"
-          />
+<a
+  href="https://fluxmoneyapp.com.br"
+  title="Ir para a home"
+  aria-label="Ir para a home"
+>
+  <img
+    src="/logo_tela_do_app.svg"
+    alt="Logo FluxMoney"
+    className="h-12 w-auto select-none invert-0 dark:invert-0 dark:brightness-150 dark:contrast-110"
+  />
+</a>
 
 <button
   type="button"
@@ -39,11 +45,17 @@ export function AppHeader({
 
       {/* DESKTOP */}
       <div className="hidden md:flex w-full items-center justify-between">
-        <img
-          src="/logo_tela_do_app.svg"
-          alt="Logo FluxMoney"
-          className="h-12 w-auto select-none invert-0 dark:invert-0 dark:brightness-150 dark:contrast-110"
-        />
+<a
+  href="https://fluxmoneyapp.com.br"
+  title="Ir para a home"
+  aria-label="Ir para a home"
+>
+  <img
+    src="/logo_tela_do_app.svg"
+    alt="Logo FluxMoney"
+    className="h-12 w-auto select-none invert-0 dark:invert-0 dark:brightness-150 dark:contrast-110"
+  />
+</a>
 
 <button
   type="button"

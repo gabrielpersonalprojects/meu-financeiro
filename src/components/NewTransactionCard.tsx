@@ -103,8 +103,8 @@ type Props = {
   setAccountPickerOpen: (v: any) => void;
 
   // fixas/recorrentes
-  prazoMode: PrazoMode;
-  setPrazoMode: (v: PrazoMode) => void;
+  prazoMode: "com_prazo" | "sem_prazo" | null;
+  setPrazoMode: (v: "com_prazo" | "sem_prazo" | null) => void;
   formDataTerminoFixa: string;
   setFormDataTerminoFixa: (v: string) => void;
   SEM_PRAZO_MESES: number;
@@ -530,54 +530,56 @@ onboardingStep === "conta"
 
         {isTagOpen && (ccTags?.length ?? 0) > 0 && (
           <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-lg">
-            <div className="max-h-56 overflow-auto p-1">
-              {(ccTags || [])
-                .filter((t) => {
-                  const q = (formTagCC || "").trim().toLowerCase();
-                  if (!q) return true;
-                  return t.toLowerCase().includes(q);
-                })
-                .slice(0, 30)
-                .map((t) => (
-                  <div
-                    key={t}
-                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition"
-                  >
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setFormTagCC(t);
-                        setIsTagOpen(false);
-                      }}
-                      className="flex-1 text-left text-sm font-semibold text-slate-800 dark:text-slate-100"
-                      title="Selecionar tag"
-                    >
-                      {t}
-                    </button>
+          <div className="p-1">
+<div className="max-h-[232px] overflow-y-auto px-1">
+  {(ccTags || [])
+    .filter((t) => {
+      const q = (formTagCC || "").trim().toLowerCase();
+      if (!q) return true;
+      return t.toLowerCase().includes(q);
+    })
+    .slice(0, 30)
+    .map((t) => (
+      <div
+        key={t}
+        className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition"
+      >
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            setFormTagCC(t);
+            setIsTagOpen(false);
+          }}
+          className="flex-1 text-left text-sm font-semibold text-slate-800 dark:text-slate-100"
+          title="Selecionar tag"
+        >
+          {t}
+        </button>
 
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => onRemoveCCTag(t)}
-                      className="h-8 w-8 rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 hover:bg-white/80 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-200"
-                      title="Remover tag"
-                      aria-label={`Remover tag ${t}`}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onRemoveCCTag(t)}
+          className="h-8 w-8 rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 hover:bg-white/80 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-200"
+          title="Remover tag"
+          aria-label={`Remover tag ${t}`}
+        >
+          ✕
+        </button>
+      </div>
+    ))}
 
-              {(ccTags || []).filter((t) => {
-                const q = (formTagCC || "").trim().toLowerCase();
-                if (!q) return true;
-                return t.toLowerCase().includes(q);
-              }).length === 0 && (
-                <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
-                  Nenhuma tag encontrada.
-                </div>
-              )}
+  {(ccTags || []).filter((t) => {
+    const q = (formTagCC || "").trim().toLowerCase();
+    if (!q) return true;
+    return t.toLowerCase().includes(q);
+  }).length === 0 && (
+    <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
+      Nenhuma tag encontrada.
+    </div>
+  )}
+</div>
             </div>
           </div>
         )}
@@ -750,7 +752,7 @@ onClick={() => {
                 <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
                   <button
                     type="button"
-                    onClick={() => setPrazoMode("com_prazo")}
+                    onClick={() => setPrazoMode(prazoMode === "com_prazo" ? null : "com_prazo")}
                     className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
                       ${
                         prazoMode === "com_prazo"
@@ -763,7 +765,7 @@ onClick={() => {
 
                   <button
                     type="button"
-                    onClick={() => setPrazoMode("sem_prazo")}
+                    onClick={() => setPrazoMode(prazoMode === "sem_prazo" ? null : "sem_prazo")}
                     className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
                       ${
                         prazoMode === "sem_prazo"
@@ -1031,7 +1033,7 @@ onClick={() => {
             <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
               <button
                 type="button"
-                onClick={() => setPrazoMode("com_prazo")}
+                onClick={() => setPrazoMode(prazoMode === "com_prazo" ? null : "com_prazo")}
                 className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
                   ${
                     prazoMode === "com_prazo"
@@ -1044,7 +1046,7 @@ onClick={() => {
 
               <button
                 type="button"
-                onClick={() => setPrazoMode("sem_prazo")}
+                onClick={() => setPrazoMode(prazoMode === "sem_prazo" ? null : "sem_prazo")}
                 className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
                   ${
                     prazoMode === "sem_prazo"

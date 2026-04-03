@@ -137,18 +137,18 @@ const [activePanel, setActivePanel] = useState<SidebarPanelKey>(null);
   className="flex items-center gap-3 border-b border-slate-200 px-5 dark:border-white/10"
   style={{ height: "88px" }}
 >
-         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-600/20 dark:text-violet-300">
-            <Wallet size={22} />
-          </div>
+<div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#40009c]/10 text-[#40009c] dark:bg-[#40009c]/15 dark:text-white">
+  <Wallet size={22} />
+</div>
 
 <div
   className={`overflow-hidden transition-all duration-300 ${
     sidebarExpanded ? "max-w-[180px] opacity-100" : "max-w-0 opacity-0"
   }`}
 >
-  <div className="whitespace-nowrap text-[28px] font-semibold leading-none text-slate-900 dark:text-white">
-    Flux Menu
-  </div>
+<div className="whitespace-nowrap text-[28px] font-medium tracking-[-0.02em] text-[#40009c] dark:text-white">
+  Flux Menu
+</div>
 <div className="mt-1 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
  {(() => {
   const email = userEmail ?? "";
@@ -186,8 +186,8 @@ onClick={() => {
 }}
 className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
   active
-    ? "bg-violet-600 text-white shadow-sm"
-    : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
+    ? "bg-[#40009c] text-white shadow-sm"
+    : "text-slate-700 hover:bg-[#40009c]/8 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-[#40009c]/15 dark:hover:text-white"
 }`}
               >
                 <span className="flex min-w-[24px] justify-center">{item.icon}</span>
@@ -223,7 +223,7 @@ className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition $
   <div className="text-4xl leading-none shrink-0">☀️</div>
 
   <div>
-    <h2 className="text-lg font-semibold text-[#7c3aed] dark:text-[#a78bfa]">
+    <h2 className="text-lg font-semibold text-[#40009c] dark:text-white">
       Boa tarde, Gabriel
     </h2>
     <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -248,7 +248,7 @@ className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition $
 ) : (
     <>
       <div>
-        <h2 className="text-lg font-semibold text-[#7c3aed] dark:text-[#a78bfa]">
+     <h2 className="text-lg font-semibold text-[#40009c] dark:text-white">
           {getPanelTitle(activePanel)}
         </h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">

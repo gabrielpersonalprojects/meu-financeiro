@@ -10,7 +10,7 @@ import { getContaBadge, getContaLabel } from "../../domain";
 import { asId } from "../../utils/asId";
 import { getContaPartsById } from "../../app/transactions/logic";
 
-import { ArrowUpRight, ArrowDownRight, Eye, EyeOff, Wallet, Repeat } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Eye, EyeOff, Wallet, Repeat, Star } from "lucide-react";
 
 const isPaid = (v: any) => {
   const s = String(v ?? "").toLowerCase();
@@ -43,6 +43,8 @@ type Props = {
 
   profiles: any[];
   renderContaOptionLabel: (p: any) => ReactNode;
+  favoriteAccountId: string | null;
+handleToggleFavoriteAccount: (accountId: string) => void;
 
   mostrarReceitasResumo: boolean;
   mostrarDespesasResumo: boolean;
@@ -95,6 +97,8 @@ export default function TransacoesTab({
 
   profiles,
   renderContaOptionLabel,
+  favoriteAccountId,
+handleToggleFavoriteAccount,
 
   mostrarReceitasResumo,
   mostrarDespesasResumo,
@@ -343,10 +347,51 @@ className={[
           ),
           value: "todas",
         },
-        ...profiles.map((p) => ({
-          label: renderContaOptionLabel(p),
-          value: p.id,
-        })),
+...profiles.map((p) => {
+  const isFavorite =
+    String(favoriteAccountId ?? "").trim() === String(p.id ?? "").trim();
+
+  return {
+label: (
+  <div className="flex items-center gap-2 w-full min-w-0">
+    <button
+      type="button"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleToggleFavoriteAccount(String(p.id));
+      }}
+      className="shrink-0 p-0.5 transition"
+      title={isFavorite ? "Desfavoritar conta" : "Favoritar conta"}
+    >
+      <Star
+        size={14}
+        className={
+          isFavorite
+            ? "fill-violet-600 stroke-violet-600 text-violet-600 dark:fill-violet-400 dark:stroke-violet-400 dark:text-violet-400"
+            : "fill-transparent stroke-violet-600 text-violet-600 dark:stroke-violet-400 dark:text-violet-400"
+        }
+      />
+    </button>
+
+    <span className="shrink-0">
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600/25 text-indigo-300 border border-indigo-500/20">
+        {String(p?.perfilConta ?? "").toUpperCase() || "PF"}
+      </span>
+    </span>
+
+    <span className="min-w-0 truncate text-slate-100">
+      {getContaLabel(p)}
+    </span>
+  </div>
+),
+    value: p.id,
+  };
+})
       ]}
       onSelect={(val) => setFiltroConta(String(val))}
       className="w-full"

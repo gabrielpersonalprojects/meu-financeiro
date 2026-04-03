@@ -94,7 +94,7 @@ import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
-import { Moon, Pencil, PencilLine, Trash2 } from "lucide-react";
+import { Moon, Pencil, PencilLine, Star, Trash2 } from "lucide-react";
 import {
   STORAGE_KEYS,
   PROFILE_KEYS,
@@ -137,6 +137,11 @@ import {
   SettingsIcon,
 } from "./components/LucideIcons";
 import SidebarShell, { type SidebarPanelKey } from "./components/layout/SidebarShell";
+
+import {
+  getUserFavoriteAccount,
+  setUserFavoriteAccount,
+} from "./services/userAccess";
 
 
 
@@ -296,31 +301,34 @@ const carregarDadosUsuario = async (userId: string) => {
     );
     setCreditCardsLoaded(true);
 
-    const [
-      rows,
-      txRows,
-      invoicePaymentRows,
-      invoiceInstallmentsRows,
-      invoiceManualStatusRows,
-      categoryRows,
-      tagRows,
-    ] = await Promise.all([
-      fetchAccounts(cleanUserId),
-      fetchTransactions(cleanUserId),
-      fetchInvoicePayments(cleanUserId),
-      fetchInvoiceInstallments(cleanUserId),
-      fetchInvoiceManualStatus(cleanUserId),
-      fetchUserCategories(cleanUserId),
-      fetchUserTags(cleanUserId),
-    ]);
+const [
+  rows,
+  txRows,
+  invoicePaymentRows,
+  invoiceInstallmentsRows,
+  invoiceManualStatusRows,
+  categoryRows,
+  tagRows,
+  favoriteId,
+] = await Promise.all([
+  fetchAccounts(cleanUserId),
+  fetchTransactions(cleanUserId),
+  fetchInvoicePayments(cleanUserId),
+  fetchInvoiceInstallments(cleanUserId),
+  fetchInvoiceManualStatus(cleanUserId),
+  fetchUserCategories(cleanUserId),
+  fetchUserTags(cleanUserId),
+  getUserFavoriteAccount(cleanUserId),
+]);
 
     if (requestId !== authLoadRequestIdRef.current) {
       return;
     }
 
-    const profilesFromDb = rows.map(mapAccountRowToProfile);
-    setProfiles((profilesFromDb ?? []) as any);
-    setAccountsLoaded(true);
+const profilesFromDb = rows.map(mapAccountRowToProfile);
+setProfiles((profilesFromDb ?? []) as any);
+setFavoriteAccountId(favoriteId ? String(favoriteId) : null);
+setAccountsLoaded(true);
 
     const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
     setTransacoes((appTransactionsFromDb ?? []) as any);
@@ -390,16 +398,17 @@ const limparEstadoUsuario = () => {
   authLoadInFlightRef.current = "";
   authLoadRequestIdRef.current += 1;
 
-  setProfiles([]);
-  setTransacoes([]);
-  setCreditCards([]);
-  setPagamentosFatura([]);
-  setParcelamentosFatura([]);
-  setFaturasStatusManual([]);
-  setCategorias(CATEGORIAS_PADRAO);
-  setCcTags([]);
-  setAccountsLoaded(false);
-  setCreditCardsLoaded(false);
+setProfiles([]);
+setFavoriteAccountId(null);
+setTransacoes([]);
+setCreditCards([]);
+setPagamentosFatura([]);
+setParcelamentosFatura([]);
+setFaturasStatusManual([]);
+setCategorias(CATEGORIAS_PADRAO);
+setCcTags([]);
+setAccountsLoaded(false);
+setCreditCardsLoaded(false);
 };
 
   const aplicarSessao = async (sess: Session | null) => {
@@ -1130,6 +1139,7 @@ await Promise.all(
   // --- Perfis ---
 
 const [profiles, setProfiles] = useState<Profile[]>([]);
+const [favoriteAccountId, setFavoriteAccountId] = useState<string | null>(null);
 
 
 const LABEL_TODAS_CONTAS = "Todas as Contas";
@@ -1254,6 +1264,35 @@ const handleOpenEditAccount = (id: string) => {
   openEditAccountModal(id);
 };
 
+const handleToggleFavoriteAccount = async (accountId: string) => {
+  const userId = String(session?.user?.id ?? "").trim();
+  const contaId = String(accountId ?? "").trim();
+
+  if (!userId || !contaId) {
+    toastCompact("Sessão inválida para favoritar conta.", "error");
+    return;
+  }
+
+  const nextFavoriteId =
+    String(favoriteAccountId ?? "").trim() === contaId ? null : contaId;
+
+try {
+  await setUserFavoriteAccount(userId, nextFavoriteId);
+  setFavoriteAccountId(nextFavoriteId);
+
+  if (nextFavoriteId) {
+    setFiltroConta(nextFavoriteId);
+    toastCompact("Conta favoritada.", "success");
+  } else {
+    setFiltroConta("todas");
+    toastCompact("Conta desfavoritada.", "success");
+  }
+
+} catch (err) {
+    console.error("ERRO AO FAVORITAR CONTA:", err);
+    toastCompact("Erro ao salvar conta favorita.", "error");
+  }
+};
 
 const handleConfirmAddAccount = async () => {
   if (isSavingAccount) return;
@@ -1436,12 +1475,17 @@ const handleDeleteAccount = async (idOrName: string) => {
     return;
   }
 
-  try {
-    const userId = session?.user?.id;
-    if (!userId) return;
+try {
+  const userId = session?.user?.id;
+  if (!userId) return;
 
-    await deleteAccountById(contaId, userId);
-  } catch (err) {
+  if (String(favoriteAccountId ?? "").trim() === contaId) {
+    await setUserFavoriteAccount(userId, null);
+    setFavoriteAccountId(null);
+  }
+
+  await deleteAccountById(contaId, userId);
+} catch (err) {
     console.error("ERRO AO EXCLUIR CONTA NO SUPABASE:", err);
     toastCompact("Erro ao excluir conta no banco.", "error");
     return;
@@ -1607,6 +1651,27 @@ const [showProfileMenu, setShowProfileMenu] = useState(false);
   const saved = localStorage.getItem(STORAGE_KEYS.FILTRO_CONTA);
   return normalizeFiltroContaValue(saved);
 });
+
+useEffect(() => {
+  if (!accountsLoaded) return;
+
+  const favoriteId = String(favoriteAccountId ?? "").trim();
+  if (!favoriteId) {
+    setFiltroConta("todas");
+    return;
+  }
+
+  const favoritaExiste = (profiles ?? []).some(
+    (p: any) => String(p?.id ?? "").trim() === favoriteId
+  );
+
+  if (favoritaExiste) {
+    setFiltroConta(favoriteId);
+  } else {
+    setFavoriteAccountId(null);
+    setFiltroConta("todas");
+  }
+}, [favoriteAccountId, profiles, accountsLoaded]);
 
 const [transacoesCardsPerfilView, setTransacoesCardsPerfilView] = useState<"geral" | "PF" | "PJ">("geral");
 const [resumoPerfilView, setResumoPerfilView] = useState<"geral" | "PF" | "PJ">("geral");
@@ -6341,6 +6406,8 @@ className={[
     handleLimparFiltros={handleLimparFiltros}
     profiles={profiles}
     renderContaOptionLabel={renderContaOptionLabel}
+    favoriteAccountId={favoriteAccountId}
+    handleToggleFavoriteAccount={handleToggleFavoriteAccount}
     mostrarReceitasResumo={mostrarReceitasResumo}
     mostrarDespesasResumo={mostrarDespesasResumo}
     totalFiltradoReceitas={totalFiltradoReceitas}
@@ -7596,15 +7663,21 @@ className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate
               Nenhuma conta cadastrada.
             </div>
           ) : (
-            profiles.map((p) => (
-              <div
-                key={p.id}
-                className="px-3 py-2 flex items-center justify-between gap-3 border-b border-slate-200 last:border-b-0 dark:border-slate-700"
-              >
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold truncate text-slate-900 dark:text-slate-100">
-                    {p.banco || p.name || "Conta"}
-                  </div>
+profiles.map((p) => {
+  const isFavorite = String(favoriteAccountId ?? "").trim() === String(p.id ?? "").trim();
+
+  return (
+    <div
+      key={p.id}
+      className="px-3 py-2 flex items-center justify-between gap-3 border-b border-slate-200 last:border-b-0 dark:border-slate-700"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 min-w-0">
+
+          <div className="text-sm font-semibold truncate text-slate-900 dark:text-slate-100">
+            {p.banco || p.name || "Conta"}
+          </div>
+        </div>
 
                   <div className="text-xs text-slate-500 dark:text-slate-400">
                     {String(p.perfilConta || "").toUpperCase()}
@@ -7632,8 +7705,10 @@ className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate
                     <TrashIcon />
                   </button>
                 </div>
-              </div>
-            ))
+     </div>
+  );
+})
+            
           )}
         </div>
       </div>

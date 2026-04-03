@@ -8,10 +8,11 @@ import {
   LayoutDashboard,
   Landmark,
   Settings,
+  Menu,
 } from "lucide-react";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export type SidebarPanelKey =
   | "resumo"
@@ -119,44 +120,77 @@ export default function SidebarShell({
 }: SidebarShellProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isPinnedOpen, setIsPinnedOpen] = useState(false);
-const [activePanel, setActivePanel] = useState<SidebarPanelKey>(null);
+  const [activePanel, setActivePanel] = useState<SidebarPanelKey>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const sidebarExpanded = isHovered || isPinnedOpen;
   const panelOpen = activePanel !== null;
 
+  const closeAll = () => {
+    setActivePanel(null);
+    setIsPinnedOpen(false);
+    setIsHovered(false);
+    setMobileMenuOpen(false);
+  };
+
+  useEffect(() => {
+    const body = document.body;
+
+    if (mobileMenuOpen || panelOpen) {
+      body.style.overflow = "hidden";
+    } else {
+      body.style.overflow = "";
+    }
+
+    return () => {
+      body.style.overflow = "";
+    };
+  }, [mobileMenuOpen, panelOpen]);
+
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white">
-<aside
-  className={`fixed left-0 top-0 z-[80] h-screen border-r border-slate-200 bg-white transition-all duration-300 dark:border-white/10 dark:bg-slate-900 ${
-    sidebarExpanded ? "w-72" : "w-24"
-  }`}
-  onMouseEnter={() => setIsHovered(true)}
-  onMouseLeave={() => setIsHovered(false)}
->
-      <div
-  className="flex items-center gap-3 border-b border-slate-200 px-5 dark:border-white/10"
-  style={{ height: "88px" }}
->
-<div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#40009c]/10 text-[#40009c] dark:bg-[#40009c]/15 dark:text-white">
-  <Wallet size={22} />
-</div>
+      {/* BOTÃO MOBILE */}
+      <button
+        type="button"
+        onClick={() => setMobileMenuOpen(true)}
+        aria-label="Abrir menu"
+        className="fixed left-4 top-4 z-[120] flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-[#40009c] shadow-md transition hover:scale-[1.02] dark:border-white/10 dark:bg-slate-900 dark:text-white md:hidden"
+      >
+        <Menu size={20} />
+      </button>
 
-<div
-  className={`overflow-hidden transition-all duration-300 ${
-    sidebarExpanded ? "max-w-[180px] opacity-100" : "max-w-0 opacity-0"
-  }`}
->
-<div className="whitespace-nowrap text-[28px] font-medium tracking-[-0.02em] text-[#40009c] dark:text-white">
-  Flux Menu
-</div>
-<div className="mt-1 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
- {(() => {
-  const email = userEmail ?? "";
-  const atIndex = email.indexOf("@");
-  return atIndex >= 0 ? email.slice(0, atIndex + 1) : email;
-})()}
-</div>
-</div>
+      {/* SIDEBAR DESKTOP */}
+      <aside
+        className={`hidden md:block fixed left-0 top-0 z-[80] h-screen border-r border-slate-200 bg-white transition-all duration-300 dark:border-white/10 dark:bg-slate-900 ${
+          sidebarExpanded ? "w-72" : "w-24"
+        }`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <div
+          className="flex items-center gap-3 border-b border-slate-200 px-5 dark:border-white/10"
+          style={{ height: "88px" }}
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#40009c]/10 text-[#40009c] dark:bg-[#40009c]/15 dark:text-white">
+            <Wallet size={22} />
+          </div>
+
+          <div
+            className={`overflow-hidden transition-all duration-300 ${
+              sidebarExpanded ? "max-w-[180px] opacity-100" : "max-w-0 opacity-0"
+            }`}
+          >
+            <div className="whitespace-nowrap text-[28px] font-medium tracking-[-0.02em] text-[#40009c] dark:text-white">
+              Flux Menu
+            </div>
+            <div className="mt-1 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
+              {(() => {
+                const email = userEmail ?? "";
+                const atIndex = email.indexOf("@");
+                return atIndex >= 0 ? email.slice(0, atIndex + 1) : email;
+              })()}
+            </div>
+          </div>
         </div>
 
         <nav className="flex flex-col gap-2 p-4">
@@ -164,31 +198,31 @@ const [activePanel, setActivePanel] = useState<SidebarPanelKey>(null);
             const active = activePanel === item.key;
 
             return (
-<button
-  key={item.key}
-  type="button"
-onClick={() => {
-  const isModalItem =
-    item.key === "contas" || item.key === "settings"
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => {
+                  const isModalItem =
+                    item.key === "contas" || item.key === "settings";
 
-  if (isModalItem) {
-    setActivePanel(null);
-    setIsPinnedOpen(false);
-    setIsHovered(false);
-    onPanelOpen?.(item.key);
-    return;
-  }
+                  if (isModalItem) {
+                    setActivePanel(null);
+                    setIsPinnedOpen(false);
+                    setIsHovered(false);
+                    onPanelOpen?.(item.key);
+                    return;
+                  }
 
-  setActivePanel(item.key);
-  setIsPinnedOpen(false);
-  setIsHovered(false);
-  onPanelOpen?.(item.key);
-}}
-className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
-  active
-    ? "bg-[#40009c] text-white shadow-sm"
-    : "text-slate-700 hover:bg-[#40009c]/8 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-[#40009c]/15 dark:hover:text-white"
-}`}
+                  setActivePanel(item.key);
+                  setIsPinnedOpen(false);
+                  setIsHovered(false);
+                  onPanelOpen?.(item.key);
+                }}
+                className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
+                  active
+                    ? "bg-[#40009c] text-white shadow-sm"
+                    : "text-slate-700 hover:bg-[#40009c]/8 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-[#40009c]/15 dark:hover:text-white"
+                }`}
               >
                 <span className="flex min-w-[24px] justify-center">{item.icon}</span>
 
@@ -205,92 +239,258 @@ className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition $
         </nav>
       </aside>
 
-      <div className="pl-24">
+      {/* MENU MOBILE OVERLAY */}
+      <div
+        className={`fixed inset-0 z-[130] md:hidden transition ${
+          mobileMenuOpen ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+      >
+        <button
+          type="button"
+          aria-label="Fechar menu mobile"
+          onClick={closeAll}
+          className={`absolute inset-0 bg-slate-900/30 transition-opacity dark:bg-black/40 ${
+            mobileMenuOpen ? "opacity-100" : "opacity-0"
+          }`}
+        />
+
+        <aside
+          className={`absolute left-0 top-0 h-screen w-[86vw] max-w-[320px] border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
+            mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div
+            className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 dark:border-white/10"
+            style={{ height: "88px" }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#40009c]/10 text-[#40009c] dark:bg-[#40009c]/15 dark:text-white">
+                <Wallet size={22} />
+              </div>
+
+              <div className="overflow-hidden">
+                <div className="whitespace-nowrap text-[24px] font-medium tracking-[-0.02em] text-[#40009c] dark:text-white">
+                  Flux Menu
+                </div>
+                <div className="mt-1 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
+                  {(() => {
+                    const email = userEmail ?? "";
+                    const atIndex = email.indexOf("@");
+                    return atIndex >= 0 ? email.slice(0, atIndex + 1) : email;
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={closeAll}
+              className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+              aria-label="Fechar menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <nav className="flex flex-col gap-2 p-4">
+            {menuItems.map((item) => {
+              const active = activePanel === item.key;
+
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    const isModalItem =
+                      item.key === "contas" || item.key === "settings";
+
+                    if (isModalItem) {
+                      setActivePanel(null);
+                      setMobileMenuOpen(false);
+                      onPanelOpen?.(item.key);
+                      return;
+                    }
+
+                    setActivePanel(item.key);
+                    setMobileMenuOpen(false);
+                    onPanelOpen?.(item.key);
+                  }}
+                  className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
+                    active
+                      ? "bg-[#40009c] text-white shadow-sm"
+                      : "text-slate-700 hover:bg-[#40009c]/8 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-[#40009c]/15 dark:hover:text-white"
+                  }`}
+                >
+                  <span className="flex min-w-[24px] justify-center">{item.icon}</span>
+                  <span className="whitespace-nowrap text-base font-medium">
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+      </div>
+
+      {/* CONTEÚDO */}
+      <div className="pl-0 md:pl-24">
         <main className="min-h-screen">{children}</main>
       </div>
-<div
-  className={`fixed left-24 top-0 z-[70] h-screen w-[460px] max-w-[90vw] border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
-    panelOpen ? "translate-x-0" : "-translate-x-full"
-  }`}
->
-<div
-  className="flex items-center justify-between border-b border-slate-200 bg-white px-5 dark:border-white/10 dark:bg-slate-900"
-  style={{ height: "88px" }}
->
-{activePanel === "resumo" ? (
-  <>
-<div className="flex items-center gap-4 w-full">
-  <div className="text-4xl leading-none shrink-0">☀️</div>
 
-  <div>
-    <h2 className="text-lg font-semibold text-[#40009c] dark:text-white">
-      Boa tarde, Gabriel
-    </h2>
-    <p className="text-sm text-slate-500 dark:text-slate-400">
-      Aqui está o seu resumo diário
-    </p>
-  </div>
-</div>
-
-    <button
-      type="button"
-      onClick={() => {
-        setActivePanel(null);
-        setIsPinnedOpen(false);
-        setIsHovered(false);
-      }}
-      className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
-      aria-label="Fechar painel"
-    >
-      <X size={20} />
-    </button>
-  </>
-) : (
-    <>
-      <div>
-     <h2 className="text-lg font-semibold text-[#40009c] dark:text-white">
-          {getPanelTitle(activePanel)}
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Registre suas novas Transações
-        </p>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => {
-          setActivePanel(null);
-          setIsPinnedOpen(false);
-          setIsHovered(false);
-        }}
-        className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
-        aria-label="Fechar painel"
+      {/* PAINEL DESKTOP */}
+      <div
+        className={`hidden md:block fixed left-24 top-0 z-[70] h-screen w-[460px] max-w-[90vw] border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
+          panelOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
       >
-        <X size={20} />
-      </button>
-    </>
-  )}
-</div>
+        <div
+          className="flex items-center justify-between border-b border-slate-200 bg-white px-5 dark:border-white/10 dark:bg-slate-900"
+          style={{ height: "88px" }}
+        >
+          {activePanel === "resumo" ? (
+            <>
+              <div className="flex w-full items-center gap-4">
+                <div className="text-4xl leading-none shrink-0">☀️</div>
 
-<div className="h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 dark:bg-slate-950">
-  {activePanel && panelContent[activePanel] ? (
-    panelContent[activePanel]
-  ) : (
-    <PanelContent activePanel={activePanel} />
-  )}
-</div>
+                <div>
+                  <h2 className="text-lg font-semibold text-[#40009c] dark:text-white">
+                    Boa tarde, Gabriel
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Aqui está o seu resumo diário
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeAll}
+                className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+                aria-label="Fechar painel"
+              >
+                <X size={20} />
+              </button>
+            </>
+          ) : (
+            <>
+              <div>
+                <h2 className="text-lg font-semibold text-[#40009c] dark:text-white">
+                  {getPanelTitle(activePanel)}
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Registre suas novas Transações
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeAll}
+                className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+                aria-label="Fechar painel"
+              >
+                <X size={20} />
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 dark:bg-slate-950">
+          {activePanel && panelContent[activePanel] ? (
+            panelContent[activePanel]
+          ) : (
+            <PanelContent activePanel={activePanel} />
+          )}
+        </div>
       </div>
 
+      {/* PAINEL MOBILE */}
+      <div
+        className={`fixed inset-0 z-[140] md:hidden transition ${
+          panelOpen ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+      >
+        <button
+          type="button"
+          aria-label="Fechar painel mobile"
+          onClick={closeAll}
+          className={`absolute inset-0 bg-slate-900/30 transition-opacity dark:bg-black/40 ${
+            panelOpen ? "opacity-100" : "opacity-0"
+          }`}
+        />
+
+        <div
+          className={`absolute left-0 top-0 h-screen w-[100vw] max-w-full bg-white shadow-2xl transition-transform duration-300 dark:bg-slate-900 ${
+            panelOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div
+            className="flex items-center justify-between border-b border-slate-200 bg-white px-4 dark:border-white/10 dark:bg-slate-900"
+            style={{ height: "88px" }}
+          >
+            {activePanel === "resumo" ? (
+              <>
+                <div className="flex w-full items-center gap-3 pr-3">
+                  <div className="text-3xl leading-none shrink-0">☀️</div>
+
+                  <div>
+                    <h2 className="text-base font-semibold text-[#40009c] dark:text-white">
+                      Boa tarde, Gabriel
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Aqui está o seu resumo diário
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeAll}
+                  className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+                  aria-label="Fechar painel"
+                >
+                  <X size={20} />
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="pr-3">
+                  <h2 className="text-base font-semibold text-[#40009c] dark:text-white">
+                    {getPanelTitle(activePanel)}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Registre suas novas Transações
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeAll}
+                  className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+                  aria-label="Fechar painel"
+                >
+                  <X size={20} />
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 dark:bg-slate-950">
+            {activePanel && panelContent[activePanel] ? (
+              panelContent[activePanel]
+            ) : (
+              <PanelContent activePanel={activePanel} />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* OVERLAY DESKTOP DO PAINEL */}
       {panelOpen && (
         <button
           type="button"
           aria-label="Fechar overlay"
-          onClick={() => {
-  setActivePanel(null);
-  setIsPinnedOpen(false);
-  setIsHovered(false);
-}}
-          className="fixed inset-y-0 left-24 right-0 z-[60] bg-slate-900/10 dark:bg-black/25"
+          onClick={closeAll}
+          className="hidden md:block fixed inset-y-0 left-24 right-0 z-[60] bg-slate-900/10 dark:bg-black/25"
         />
       )}
     </div>

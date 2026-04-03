@@ -31,6 +31,7 @@ type MenuItem = {
 
 type SidebarShellProps = {
   children: ReactNode;
+  userEmail?: string | null;
   panelContent?: Partial<Record<Exclude<SidebarPanelKey, null>, ReactNode>>;
   onPanelOpen?: (panel: Exclude<SidebarPanelKey, null>) => void;
 };
@@ -112,6 +113,7 @@ function PanelContent({ activePanel }: { activePanel: SidebarPanelKey }) {
 
 export default function SidebarShell({
   children,
+  userEmail,
   panelContent = {},
   onPanelOpen,
 }: SidebarShellProps) {
@@ -145,11 +147,15 @@ const [activePanel, setActivePanel] = useState<SidebarPanelKey>(null);
   }`}
 >
   <div className="whitespace-nowrap text-[28px] font-semibold leading-none text-slate-900 dark:text-white">
-    FluxMoney
+    Flux Menu
   </div>
-  <div className="mt-1 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">
-    Menu rápido
-  </div>
+<div className="mt-1 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
+ {(() => {
+  const email = userEmail ?? "";
+  const atIndex = email.indexOf("@");
+  return atIndex >= 0 ? email.slice(0, atIndex + 1) : email;
+})()}
+</div>
 </div>
         </div>
 

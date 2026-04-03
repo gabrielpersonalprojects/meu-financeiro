@@ -5416,6 +5416,7 @@ const sidebarPanels: Partial<Record<Exclude<SidebarPanelKey, null>, React.ReactN
 
 return (
   <SidebarShell
+  userEmail={session?.user?.email}
   panelContent={sidebarPanels}
   onPanelOpen={handleSidebarOpen}
 >

@@ -5550,43 +5550,43 @@ className={`lg:col-span-12 space-y-6 ${
  <div className="bg-transparent rounded-3xl p-6 shadow-none border border-transparent min-h-[550px] transition-colors">
     {/* TRANSACOES */}
 {/* Tabs */}
-<div className="px-0 pt-2 pb-3">
-<div className="grid grid-cols-4 gap-2 sm:gap-3">
-  {(["transacoes", "cartoes", "gastos", "projecao"] as TabType[]).map((tab) => (
-<button
-  key={tab}
-  type="button"
-onClick={() => {
-  scrollPorAbaRef.current[activeTab] = window.scrollY || window.pageYOffset || 0;
+<div className="w-full overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+  <div className="flex min-w-max gap-3">
+    {(["transacoes", "cartoes", "gastos", "projecao"] as TabType[]).map((tab) => (
+      <button
+        key={tab}
+        type="button"
+        onClick={() => {
+          if (activeTab === "gastos" && tab !== "gastos") {
+            setFiltroMesAnalise(getHojeLocal().substring(0, 7));
+          }
 
-  if (activeTab === "gastos" && tab !== "gastos") {
-    setFiltroMesAnalise(getHojeLocal().substring(0, 7));
-  }
+          if (activeTab === "cartoes" && tab !== "cartoes") {
+            setIsCcExpanded(false);
+            setSelectedCreditCardId("");
+          }
 
-  if (activeTab === "cartoes" && tab !== "cartoes") {
-    setIsCcExpanded(false);
-    setSelectedCreditCardId("");
-  }
-
-  setActiveTab(tab);
-}}
-  className={`h-12 sm:h-14 px-2 sm:px-5 rounded-2xl transition-all whitespace-nowrap text-[13px] sm:text-base font-medium ${
-    activeTab === tab
-      ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"
-      : "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
-  }`}
->
-  {tab === "transacoes"
-    ? "Transações"
-    : tab === "cartoes"
-    ? "Cartões"
-    : tab === "gastos"
-    ? "Análise"
-    : "Projeção"}
-</button>
+          setActiveTab(tab);
+        }}
+        className={`shrink-0 h-12 sm:h-14 px-4 sm:px-5 rounded-2xl transition-all whitespace-nowrap text-[14px] sm:text-base font-medium ${
+          activeTab === tab
+            ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"
+            : "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
+        }`}
+      >
+        {tab === "transacoes"
+          ? "Transações"
+          : tab === "cartoes"
+          ? "Cartões"
+          : tab === "gastos"
+          ? "Análise"
+          : "Projeção"}
+      </button>
     ))}
   </div>
 </div>
+
+<div className="mt-3" />
 <div className="mt-3" />
 
 

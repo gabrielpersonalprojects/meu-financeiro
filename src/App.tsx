@@ -172,60 +172,6 @@ const scrollPorAbaRef = useRef<Record<string, number>>({
   projecao: 0,
 });
 
-useEffect(() => {
-  if ("scrollRestoration" in window.history) {
-    window.history.scrollRestoration = "manual";
-  }
-
-  const salvarScroll = () => {
-    scrollPorAbaRef.current[activeTab] = window.scrollY || window.pageYOffset || 0;
-  };
-
-  const restaurarScroll = () => {
-    const top = scrollPorAbaRef.current[activeTab] ?? 0;
-
-    window.setTimeout(() => {
-      window.scrollTo(0, top);
-
-      window.setTimeout(() => {
-        window.scrollTo(0, top);
-      }, 80);
-    }, 0);
-  };
-
-  const handleScroll = () => {
-    salvarScroll();
-  };
-
-  const handleVisibilityChange = () => {
-    if (document.hidden) {
-      salvarScroll();
-    } else {
-      restaurarScroll();
-    }
-  };
-
-  const handleFocus = () => {
-    restaurarScroll();
-  };
-
-  const handlePageShow = () => {
-    restaurarScroll();
-  };
-
-  window.addEventListener("scroll", handleScroll, { passive: true });
-  window.addEventListener("focus", handleFocus);
-  window.addEventListener("pageshow", handlePageShow);
-  document.addEventListener("visibilitychange", handleVisibilityChange);
-
-  return () => {
-    window.removeEventListener("scroll", handleScroll);
-    window.removeEventListener("focus", handleFocus);
-    window.removeEventListener("pageshow", handlePageShow);
-    document.removeEventListener("visibilitychange", handleVisibilityChange);
-  };
-}, [activeTab]);
-
 const removeCCTag = async (tag: string) => {
   const target = (tag || "").trim();
   if (!target) return;
@@ -311,6 +257,7 @@ const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null
 const [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(null);
 const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
 const [accessLoading, setAccessLoading] = useState(true);
+const accessBootstrapDoneRef = useRef(false);
 
 const [checkoutSuccessVisible, setCheckoutSuccessVisible] = useState(false);
 const [checkoutSyncing, setCheckoutSyncing] = useState(false);
@@ -4053,15 +4000,21 @@ useEffect(() => {
   let isMounted = true;
 
   async function carregarAcesso() {
-    if (!session?.user?.id) {
-      if (!isMounted) return;
-      setAccessRole(null);
-      setSubscriptionStatus(null);
-      setAccessLoading(false);
-      return;
-    }
 
-    setAccessLoading(true);
+    if (!session?.user?.id) {
+  if (!isMounted) return;
+  setAccessRole(null);
+  setSubscriptionStatus(null);
+  setCancelAtPeriodEnd(false);
+  setSubscriptionPeriodEnd(null);
+  accessBootstrapDoneRef.current = false;
+  setAccessLoading(false);
+  return;
+}
+
+if (!accessBootstrapDoneRef.current) {
+  setAccessLoading(true);
+}
 
     const userId = session.user.id;
 
@@ -4095,6 +4048,7 @@ setAccessRole((accessData?.role as "admin" | "user" | null) ?? null);
 setSubscriptionStatus(subscriptionData?.status ?? null);
 setCancelAtPeriodEnd(!!subscriptionData?.cancel_at_period_end);
 setSubscriptionPeriodEnd(subscriptionData?.current_period_end ?? null);
+accessBootstrapDoneRef.current = true;
 setAccessLoading(false);
   }
 
@@ -4188,12 +4142,12 @@ if (!hasScheduledCancellation) {
 }, [subscriptionStatus, cancelAtPeriodEnd]);
 
 // --- Loading/Auth guard ---
-if (sessionLoading || accessLoading) {
+if (sessionLoading || (!accessBootstrapDoneRef.current && accessLoading)) {
   return (
     <>
       <div className="min-h-screen grid place-items-center bg-slate-50 dark:bg-slate-950">
         <div className="text-sm font-semibold text-slate-500 dark:text-slate-300">
-          Carregando...
+          Carregando.
         </div>
       </div>
     </>
@@ -5262,13 +5216,20 @@ className={`lg:col-span-12 space-y-6 ${
 <button
   key={tab}
   type="button"
-  onClick={() => {
-    if (activeTab === "gastos" && tab !== "gastos") {
-      setFiltroMesAnalise(getHojeLocal().substring(0, 7));
-    }
+onClick={() => {
+  scrollPorAbaRef.current[activeTab] = window.scrollY || window.pageYOffset || 0;
 
-    setActiveTab(tab);
-  }}
+  if (activeTab === "gastos" && tab !== "gastos") {
+    setFiltroMesAnalise(getHojeLocal().substring(0, 7));
+  }
+
+  if (activeTab === "cartoes" && tab !== "cartoes") {
+    setIsCcExpanded(false);
+    setSelectedCreditCardId("");
+  }
+
+  setActiveTab(tab);
+}}
   className={`h-12 sm:h-14 px-2 sm:px-5 rounded-2xl transition-all whitespace-nowrap text-[13px] sm:text-base font-medium ${
     activeTab === tab
       ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"

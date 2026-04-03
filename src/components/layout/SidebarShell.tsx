@@ -203,7 +203,7 @@ className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition $
         <main className="min-h-screen">{children}</main>
       </div>
 <div
-  className={`fixed left-24 top-0 z-[70] h-screen w-[520px] max-w-[92vw] border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
+  className={`fixed left-24 top-0 z-[70] h-screen w-[460px] max-w-[90vw] border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
     panelOpen ? "translate-x-0" : "-translate-x-full"
   }`}
 >
@@ -212,11 +212,11 @@ className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition $
   style={{ height: "88px" }}
 >
           <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-              {getPanelTitle(activePanel)}
-            </h2>
+<h2 className="text-lg font-semibold text-[#7c3aed] dark:text-[#a78bfa]">
+  {getPanelTitle(activePanel)}
+</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Painel lateral
+              Registre suas novas Transações
             </p>
           </div>
 
@@ -234,7 +234,7 @@ className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition $
           </button>
         </div>
 
-<div className="h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950">
+<div className="h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 dark:bg-slate-950">
   {activePanel && panelContent[activePanel] ? (
     panelContent[activePanel]
   ) : (

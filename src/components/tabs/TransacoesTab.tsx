@@ -10,7 +10,7 @@ import { getContaBadge, getContaLabel } from "../../domain";
 import { asId } from "../../utils/asId";
 import { getContaPartsById } from "../../app/transactions/logic";
 
-import { ArrowUpRight, ArrowDownRight, Eye, EyeOff, Wallet } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Eye, EyeOff, Wallet, Repeat } from "lucide-react";
 
 const isPaid = (v: any) => {
   const s = String(v ?? "").toLowerCase();
@@ -145,6 +145,57 @@ export default function TransacoesTab({
     });
   }, [itemsFiltrados, filtroLancamento]);
 
+  const sortedTransactions = useMemo(() => {
+  const toDateNumber = (value: any) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return Number.MAX_SAFE_INTEGER;
+
+    const time = new Date(`${raw}T12:00:00`).getTime();
+    return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER;
+  };
+
+  return [...getFilteredTransactions].sort((a: any, b: any) => {
+    const aPaid = isPaid(a?.pago);
+    const bPaid = isPaid(b?.pago);
+
+    const aDate = String(a?.data ?? "");
+    const bDate = String(b?.data ?? "");
+
+    const aOverdue = !aPaid && aDate < hojeStr;
+    const bOverdue = !bPaid && bDate < hojeStr;
+
+    // 1) atrasadas primeiro
+    if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+
+    // 2) depois todas as pendentes
+    if (aPaid !== bPaid) return aPaid ? 1 : -1;
+
+    // 3) dentro do mesmo grupo, ordenar por vencimento/data mais próxima
+const aDateNum = toDateNumber(aDate);
+const bDateNum = toDateNumber(bDate);
+
+// pendentes: vencimento mais próximo primeiro
+if (!aPaid && !bPaid) {
+  const diffPending = aDateNum - bDateNum;
+  if (diffPending !== 0) return diffPending;
+}
+
+// pagas: mais recentes primeiro
+if (aPaid && bPaid) {
+  const diffPaid = bDateNum - aDateNum;
+  if (diffPaid !== 0) return diffPaid;
+}
+
+    // 4) desempate estável por criadoEm/id
+    const aCreated = Number(a?.criadoEm ?? a?.createdAt ?? 0);
+    const bCreated = Number(b?.criadoEm ?? b?.createdAt ?? 0);
+
+    if (aCreated !== bCreated) return aCreated - bCreated;
+
+    return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
+  });
+}, [getFilteredTransactions, hojeStr]);
+
   useEffect(() => {
     setPaginaAtual(1);
   }, [
@@ -156,7 +207,7 @@ export default function TransacoesTab({
     itemsFiltrados,
   ]);
 
-  const totalPaginas = Math.max(1, Math.ceil(getFilteredTransactions.length / ITENS_POR_PAGINA));
+ const totalPaginas = Math.max(1, Math.ceil(sortedTransactions.length / ITENS_POR_PAGINA));
 
   useEffect(() => {
     if (paginaAtual > totalPaginas) {
@@ -166,7 +217,7 @@ export default function TransacoesTab({
 
   const indiceInicial = (paginaAtual - 1) * ITENS_POR_PAGINA;
   const indiceFinal = indiceInicial + ITENS_POR_PAGINA;
-  const transacoesPaginadas = getFilteredTransactions.slice(indiceInicial, indiceFinal);
+  const transacoesPaginadas = sortedTransactions.slice(indiceInicial, indiceFinal);
 
   const paginasVisiveis = useMemo(() => {
     const paginas: number[] = [];
@@ -239,16 +290,16 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
       type="button"
       onClick={() => togglePerfilCards(perfil)}
       disabled={disabled}
-      className={[
-        "relative inline-flex h-7 min-w-[38px] items-center justify-center rounded-full px-2.5",
-        "text-[10px] font-black uppercase tracking-[0.18em] transition-all duration-200",
-        ativo
-          ? "border border-white/70 bg-white text-[#3b0a8f] shadow-[0_10px_30px_-18px_rgba(255,255,255,0.9)]"
-          : "border border-violet-300/25 bg-violet-300/12 text-white/88 hover:bg-violet-300/18 hover:text-white",
-        disabled
-          ? "cursor-not-allowed opacity-35 hover:bg-violet-300/12 hover:text-white/88"
-          : "cursor-pointer",
-      ].join(" ")}
+className={[
+  "relative inline-flex h-8 min-w-[42px] items-center justify-center rounded-full px-3",
+  "text-[11px] font-black uppercase tracking-[0.18em] transition-all duration-200",
+  ativo
+    ? "border border-white/70 bg-white text-[#3b0a5f] shadow-[0_10px_30px_-18px_rgba(255,255,255,0.9)]"
+    : "border border-violet-300/25 bg-violet-300/12 text-white/88 hover:bg-violet-300/18 hover:text-white",
+  disabled
+    ? "cursor-not-allowed opacity-35 hover:bg-violet-300/12 hover:text-white/88"
+    : "cursor-pointer",
+].join(" ")}
       title={
         disabled
           ? "PF/PJ só ficam disponíveis quando o filtro de conta estiver em Geral"
@@ -375,103 +426,118 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
 </div>
 </div>
 
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-            <div
-              className="
-                relative overflow-hidden rounded-2xl
-                pt-8 px-8 pb-12
-                shadow-xl flex flex-col justify-center min-h-[160px]
-                text-white bg-gradient-to-r from-[#220055] via-[#32007a] to-[#4600ac]
-                shadow-[0_18px_50px_-35px_rgba(70,0,172,0.9)]
-              "
-            >
-              <div className="pointer-events-none absolute inset-0 bg-black/12" />
-              <div className="pointer-events-none absolute inset-0 bg-black/6 backdrop-blur-[1px]" />
-              <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-white/12 blur-3xl" />
+{stats && (
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4 items-stretch">
+<div
+  className="
+    relative overflow-hidden rounded-2xl
+    p-7
+    shadow-xl min-h-[210px]
+    text-white bg-gradient-to-r from-[#220055] via-[#32007a] to-[#4600ac]
+    shadow-[0_18px_50px_-35px_rgba(70,0,172,0.9)]
+  "
+>
+  <div className="pointer-events-none absolute inset-0 bg-black/12" />
+  <div className="pointer-events-none absolute inset-0 bg-black/6 backdrop-blur-[1px]" />
+  <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-white/12 blur-3xl" />
 
-<div className="relative">
-<div className="absolute -top-6 -right-2 z-20">
-  <div
-    className={[
-      "inline-flex items-center gap-1 rounded-full px-1 py-1",
-      "bg-black/10 backdrop-blur-xl",
-      !perfilCardsHabilitado ? "opacity-55" : "",
-    ].join(" ")}
-  >
-    <PerfilToggleButton perfil="PF" />
-    <PerfilToggleButton perfil="PJ" />
+  <div className="absolute top-5 right-5 z-20">
+    <div
+      className={[
+        "inline-flex items-center gap-1 rounded-full px-1 py-1",
+        "bg-black/10 backdrop-blur-xl",
+        !perfilCardsHabilitado ? "opacity-55" : "",
+      ].join(" ")}
+    >
+      <PerfilToggleButton perfil="PF" />
+      <PerfilToggleButton perfil="PJ" />
+    </div>
+  </div>
+
+<div className="relative pt-6">
+   <p className="mb-4 flex items-center gap-2 text-[11px] font-black text-white/85 uppercase tracking-[0.16em]">
+      <Wallet className="h-3.5 w-3.5 text-white" strokeWidth={2.2} />
+      <span>Saldo Atual</span>
+    </p>
+
+    <p className="text-[36px] md:text-[40px] font-black text-white tracking-tight leading-none">
+      {valorOuOculto(stats.saldoTotal)}
+    </p>
+
+    <div className="mt-4">
+<span
+  className="
+    inline-flex items-center gap-2.5
+    px-3.5 py-2 rounded-full
+    text-[12px] font-extrabold uppercase tracking-wider
+    border border-slate-200/80
+    bg-white text-slate-900
+    dark:border-white/15 dark:bg-black/25 dark:text-white
+    backdrop-blur-xl shadow-sm
+  "
+  title={`Filtro de conta: ${badgeLabel}`}
+>
+  <span className="h-2 w-2 rounded-full bg-violet-600 dark:bg-violet-300" />
+  {badgeLabel}
+</span>
+    </div>
   </div>
 </div>
 
-<div className="pt-1">
-<p className="mb-3 flex items-center gap-1.5 text-[10px] font-black text-white/80 uppercase tracking-[0.25em]">
-  <Wallet className="h-3.5 w-3.5 text-white" strokeWidth={2.2} />
-  <span>Saldo Atual</span>
-</p>
+    <div className="relative overflow-hidden rounded-2xl p-7 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-between min-h-[210px]">
+      <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
 
-  <p className="text-4xl font-black text-white tracking-tight leading-none">
-    {valorOuOculto(stats.saldoTotal)}
-  </p>
-</div>
-</div>
+      <div className="flex h-full flex-col justify-center">
+        <p className="flex items-center gap-2 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.16em] mb-4">
+          <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" strokeWidth={2.2} />
+          <span>Entradas (mês)</span>
+        </p>
 
-<div className="absolute bottom-6 left-8 z-10">
-  <ContaBadge label={badgeLabel} />
-</div>
-            </div>
+        <p className="text-[30px] md:text-[34px] font-black text-slate-900 dark:text-white tracking-tight leading-none">
+          {valorOuOculto(stats.receitasMes)}
+        </p>
 
-            <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px]">
-              <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
+        <p className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-400 dark:text-slate-500 mt-4">
+          Pendente:{" "}
+          <span className="text-emerald-600 dark:text-emerald-400">
+            {valorOuOculto(stats.pendenteReceita)}
+          </span>
+        </p>
+      </div>
+    </div>
 
+    <div className="relative overflow-hidden rounded-2xl p-7 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-between min-h-[210px]">
+      <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-rose-500/10 blur-3xl" />
 
-              <p className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
-                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" strokeWidth={2.2} />
-                <span>Entradas (mês)</span>
-              </p>
+      <button
+        type="button"
+        onClick={toggleResumoPrivacidade}
+        className="absolute top-5 right-5 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-600 backdrop-blur-xl transition hover:bg-white dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-900"
+        title={mostrarValoresResumo ? "Ocultar valores" : "Mostrar valores"}
+      >
+        {mostrarValoresResumo ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+      </button>
 
-              <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                {valorOuOculto(stats.receitasMes)}
-              </p>
+      <div className="flex h-full flex-col justify-center">
+        <p className="flex items-center gap-2 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.16em] mb-4">
+          <ArrowDownRight className="h-3.5 w-3.5 text-rose-500" strokeWidth={2.2} />
+          <span>Saídas (mês)</span>
+        </p>
 
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
-                Pendente:{" "}
-                <span className="text-emerald-600 dark:text-emerald-400">
-                  {valorOuOculto(stats.pendenteReceita)}
-                </span>
-              </p>
-            </div>
+        <p className="text-[30px] md:text-[34px] font-black text-slate-900 dark:text-white tracking-tight leading-none">
+          {valorOuOculto(stats.despesasMes)}
+        </p>
 
-            <div className="relative overflow-hidden rounded-2xl p-8 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-center min-h-[160px]">
-              <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-rose-500/10 blur-3xl" />
-
-              <button
-                type="button"
-                onClick={toggleResumoPrivacidade}
-                className="absolute top-4 right-4 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-600 backdrop-blur-xl transition hover:bg-white dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-900"
-                title={mostrarValoresResumo ? "Ocultar valores" : "Mostrar valores"}
-              >
-                {mostrarValoresResumo ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-              </button>
-
-              <p className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">
-                <ArrowDownRight className="h-3.5 w-3.5 text-rose-500" strokeWidth={2.2} />
-                <span>Saídas (mês)</span>
-              </p>
-
-              <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                {valorOuOculto(stats.despesasMes)}
-              </p>
-
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-1">
-                Pendente:{" "}
-                <span className="text-rose-600 dark:text-rose-400">
-                  {valorOuOculto(stats.pendenteDespesa)}
-                </span>
-              </p>
-            </div>
-          </div>
-        )}
+        <p className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-400 dark:text-slate-500 mt-4">
+          Pendente:{" "}
+          <span className="text-rose-600 dark:text-rose-400">
+            {valorOuOculto(stats.pendenteDespesa)}
+          </span>
+        </p>
+      </div>
+    </div>
+  </div>
+)}
 
         <div className="flex flex-col gap-2 mt-4">
           <div className="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-wider">
@@ -508,7 +574,7 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
         </div>
 
         <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
-          {getFilteredTransactions.length} Lançamentos Encontrados
+         {sortedTransactions.length} Lançamentos Encontrados
         </div>
       </div>
 
@@ -642,15 +708,16 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
                       valorAbs = Math.abs(Number((saida as any).valor ?? 0));
 
                       return (
-                        <div
-                          key={`tr-${transferId}`}
-                          className="
-                            group flex items-center justify-between p-4 rounded-2xl border transition-all
-                            bg-white/70 border-slate-200/70 shadow-sm
-                            dark:bg-slate-900/40 dark:border-violet-500/20 dark:shadow-lg dark:shadow-black/20
-                            hover:bg-white/90 dark:hover:bg-slate-900/55
-                          "
-                        >
+<div
+  key={`tr-${transferId}`}
+className={[
+  "group flex items-center justify-between p-4 rounded-2xl border transition-all",
+  paidTransfer
+    ? "bg-emerald-50/20 border-emerald-100 shadow-sm opacity-75 dark:bg-emerald-900/10 dark:border-emerald-700/20 dark:shadow-lg dark:shadow-black/10"
+    : "bg-white/70 border-slate-200/70 shadow-sm dark:bg-slate-900/40 dark:border-violet-500/20 dark:shadow-lg dark:shadow-black/20",
+  "hover:bg-white/90 dark:hover:bg-slate-900/55",
+].join(" ")}
+>
                           <div className="flex items-center gap-4 min-w-0">
                             <button
                               type="button"
@@ -666,41 +733,48 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
                             </button>
 
                             <div className="min-w-0">
-                              <p className="font-bold leading-none text-slate-900 dark:text-slate-100">
-                                {(saida as any).descricao || "Transferência"}
-                              </p>
+<p className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100 mb-0.5">
+ <Repeat className="h-4 w-4 text-indigo-600 dark:text-indigo-400" strokeWidth={2.2} />
+  <span>{(saida as any).descricao || "Transferência"}</span>
+</p>
 
-                              <div className="mt-1 flex items-center gap-2 flex-wrap text-[12px]">
-                                <span
-                                  className="
-                                    px-2 py-1 rounded-full font-semibold
-                                    bg-rose-500/10 text-rose-700 border border-rose-500/15
-                                    dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20
-                                  "
-                                >
-                                  {origemBadge ? `${origemBadge} · ` : ""}
-                                  {origemLabel}
-                                </span>
+<div className="mt-3 flex items-center gap-2 flex-wrap text-[12px]">
+  <span
+    className="
+      px-2 py-1 rounded-full font-semibold
+      bg-rose-500/10 text-rose-700 border border-rose-500/15
+      dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20
+    "
+  >
+    {origemBadge ? `${origemBadge} · ` : ""}
+    {origemLabel}
+  </span>
 
-                                <span className="font-bold text-slate-500 dark:text-violet-300">↔</span>
+  <span className="font-bold text-slate-500 dark:text-violet-300">↔</span>
 
-                                <span
-                                  className="
-                                    px-2 py-1 rounded-full font-semibold
-                                    bg-emerald-500/10 text-emerald-700 border border-emerald-500/15
-                                    dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20
-                                  "
-                                >
-                                  {destinoBadge ? `${destinoBadge} · ` : ""}
-                                  {destinoLabel}
-                                </span>
-                              </div>
+  <span
+    className="
+      px-2 py-1 rounded-full font-semibold
+      bg-emerald-500/10 text-emerald-700 border border-emerald-500/15
+      dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20
+    "
+  >
+    {destinoBadge ? `${destinoBadge} · ` : ""}
+    {destinoLabel}
+  </span>
 
-                              <div className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                <span>{formatarData((saida as any).data ?? t.data)}</span>
-                                <span className="text-slate-300 dark:text-slate-600">•</span>
-                                <span>Transferência</span>
-                              </div>
+  <span className="text-slate-300 dark:text-slate-600">•</span>
+
+  <span className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+    {formatarData((saida as any).data ?? t.data)}
+  </span>
+
+  <span className="text-slate-300 dark:text-slate-600">•</span>
+
+  <span className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+    Transferência
+  </span>
+</div>
                             </div>
                           </div>
 
@@ -733,9 +807,9 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
                                 </button>
                               </div>
 
-                              <p className="font-bold text-slate-900 dark:text-slate-100">
-                                {formatarMoeda(valorAbs)}
-                              </p>
+<p className="font-bold text-indigo-600 dark:text-indigo-400">
+  {formatarMoeda(valorAbs)}
+</p>
                             </div>
                           </div>
                         </div>
@@ -770,11 +844,11 @@ const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
                   </span>{" "}
                   a{" "}
                   <span className="text-slate-700 dark:text-slate-200">
-                    {Math.min(indiceFinal, getFilteredTransactions.length)}
+           {Math.min(indiceFinal, sortedTransactions.length)}
                   </span>{" "}
                   de{" "}
                   <span className="text-slate-700 dark:text-slate-200">
-                    {getFilteredTransactions.length}
+    {sortedTransactions.length}
                   </span>
                 </div>
 

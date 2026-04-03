@@ -6,7 +6,7 @@ export type TransactionType =
 
 export type SpendingType = "normal" | "fixo" | "parcelado";
 
-export type TabType = "transacoes" | "gastos" | "projecao" | "ajustes";
+export type TabType = "transacoes" | "cartoes" | "gastos" | "projecao";
 
 export type PaymentMethod =
   | "pix"

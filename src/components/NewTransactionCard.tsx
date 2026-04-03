@@ -425,14 +425,14 @@ const receitaCategoryOptions = ((categorias as any).receita ?? []).map((cat: str
 const ccCategoryOptions = despesaCategoryOptions;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 lg:p-5">
-     <div className="flex items-center justify-between mb-3">
-  <h2 className="text-lg lg:text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+   <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 lg:p-4">
+<div className="flex items-center justify-between mb-2">
+  <h2 className="text-base lg:text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
     <PlusIcon /> Novo Lançamento
   </h2>
 </div>
 
-      <div className="space-y-4">
+     <div className="space-y-3">
         <div>
           <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
           

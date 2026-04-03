@@ -163,6 +163,69 @@ const invoicePaymentRemovalInFlightRef = useRef(false);
 const [ccTags, setCcTags] = useState<string[]>([]);
 const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
+const [activeTab, setActiveTab] = useState<TabType>("transacoes");
+
+const scrollPorAbaRef = useRef<Record<string, number>>({
+  transacoes: 0,
+  cartoes: 0,
+  gastos: 0,
+  projecao: 0,
+});
+
+useEffect(() => {
+  if ("scrollRestoration" in window.history) {
+    window.history.scrollRestoration = "manual";
+  }
+
+  const salvarScroll = () => {
+    scrollPorAbaRef.current[activeTab] = window.scrollY || window.pageYOffset || 0;
+  };
+
+  const restaurarScroll = () => {
+    const top = scrollPorAbaRef.current[activeTab] ?? 0;
+
+    window.setTimeout(() => {
+      window.scrollTo(0, top);
+
+      window.setTimeout(() => {
+        window.scrollTo(0, top);
+      }, 80);
+    }, 0);
+  };
+
+  const handleScroll = () => {
+    salvarScroll();
+  };
+
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      salvarScroll();
+    } else {
+      restaurarScroll();
+    }
+  };
+
+  const handleFocus = () => {
+    restaurarScroll();
+  };
+
+  const handlePageShow = () => {
+    restaurarScroll();
+  };
+
+  window.addEventListener("scroll", handleScroll, { passive: true });
+  window.addEventListener("focus", handleFocus);
+  window.addEventListener("pageshow", handlePageShow);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+
+  return () => {
+    window.removeEventListener("scroll", handleScroll);
+    window.removeEventListener("focus", handleFocus);
+    window.removeEventListener("pageshow", handlePageShow);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+  };
+}, [activeTab]);
+
 const removeCCTag = async (tag: string) => {
   const target = (tag || "").trim();
   if (!target) return;
@@ -1526,7 +1589,6 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const transactions = transacoes;
   const setTransactions = setTransacoes;
 
-  const [activeTab, setActiveTab] = useState<TabType>("transacoes");
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [isClearing, setIsClearing] = useState(false);
@@ -1659,7 +1721,7 @@ useEffect(() => {
   }
 }, [modoCentro]);
 
-const CREDIT_CARDS_PER_PAGE = 8;
+const CREDIT_CARDS_PER_PAGE = 5;
 const [creditCardsPage, setCreditCardsPage] = useState(1);
 
 const totalCreditCardsPages = Math.max(
@@ -5175,7 +5237,7 @@ containerStyle={{
 </div>
 
 <div className="mx-auto w-full max-w-[1250px] px-3 lg:px-4">
-    <main className="w-full mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
+   <main className="w-full mt-0 grid grid-cols-1 lg:grid-cols-12 gap-4">
 
      {/* COLUNA DIREITA */}
       <div
@@ -5185,452 +5247,471 @@ className={`lg:col-span-12 space-y-6 ${
   appBloqueado ? "opacity-35 pointer-events-none select-none transition-all duration-300" : "opacity-100 transition-all duration-300"
 }`}
 >
-  {modoCentro === "credito" ? (
+
+          <>
+
+
+
+{/* Conteúdo */}
+ <div className="bg-transparent rounded-3xl p-6 shadow-none border border-transparent min-h-[550px] transition-colors">
+    {/* TRANSACOES */}
+{/* Tabs */}
+<div className="px-0 pt-2 pb-3">
+<div className="grid grid-cols-4 gap-2 sm:gap-3">
+  {(["transacoes", "cartoes", "gastos", "projecao"] as TabType[]).map((tab) => (
+<button
+  key={tab}
+  type="button"
+  onClick={() => {
+    if (activeTab === "gastos" && tab !== "gastos") {
+      setFiltroMesAnalise(getHojeLocal().substring(0, 7));
+    }
+
+    setActiveTab(tab);
+  }}
+  className={`h-12 sm:h-14 px-2 sm:px-5 rounded-2xl transition-all whitespace-nowrap text-[13px] sm:text-base font-medium ${
+    activeTab === tab
+      ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"
+      : "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
+  }`}
+>
+  {tab === "transacoes"
+    ? "Transações"
+    : tab === "cartoes"
+    ? "Cartões"
+    : tab === "gastos"
+    ? "Análise"
+    : "Projeção"}
+</button>
+    ))}
+  </div>
+</div>
+<div className="mt-3" />
+
+
+{activeTab === "cartoes" && (
   <div className="space-y-4">
-    {/* ===== LISTA (não expandido) ===== */}
     {!isCcExpanded ? (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* card "novo cartão" - SEMPRE primeiro */}
+     <div className="mx-auto grid w-full max-w-[980px] grid-cols-1 justify-items-center gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
         <button
           type="button"
           onClick={() => {
             openAddCardModal();
             setIsCcExpanded(false);
           }}
-          className={[
-            "rounded-2xl p-5 shadow-sm border transition-all flex flex-col items-center justify-center gap-3",
-            "bg-white/5 border-slate-200/10 hover:border-slate-200/20 hover:bg-white/7",
-            "min-h-[160px]",
-          ].join(" ")}
+className={[
+  "w-full max-w-[300px] rounded-2xl p-5 transition-all flex flex-col items-center justify-center gap-3",
+  "bg-slate-100/70 dark:bg-slate-900/55 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900/70",
+  "h-[187px]",
+].join(" ")}
         >
-<div className="w-12 h-12 rounded-full border border-slate-300/70 bg-slate-100 text-slate-900
-                dark:border-slate-200/20 dark:bg-transparent dark:text-slate-100
-                flex items-center justify-center font-bold">
-  +
-</div>
+          <div className="w-12 h-12 rounded-full bg-white/80 text-slate-900 dark:bg-slate-800/90 dark:text-slate-100 flex items-center justify-center font-bold">
+            +
+          </div>
 
-<p className="text-slate-900 font-extrabold dark:text-slate-200">Novo cartão</p>
+          <p className="text-slate-900 font-extrabold dark:text-slate-200">
+            Novo cartão
+          </p>
 
-<p className="text-slate-500 text-sm dark:text-slate-400">
-  Adicionar cartão de crédito
-</p>
+          <p className="text-slate-500 text-sm dark:text-slate-400">
+            Adicionar cartão de crédito
+          </p>
         </button>
 
-
-        {/* cartões cadastrados */}
         {paginatedCreditCards.map((c) => {
-          const isSelected = c.id === selectedCreditCardId;
-const agora = new Date();
-const hojeFiltro = new Date();
-hojeFiltro.setHours(23, 59, 59, 999);
-
-function toYm(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function normalizePaymentCycleKeyToYm(raw: any): string {
-  const value = String(raw ?? "").trim();
-  if (!value) return "";
-
-  if (/^\d{4}-\d{2}$/.test(value)) return value;
-
-  if (value.includes("__")) {
-    const parts = value.split("__");
-    const endIso = String(parts[2] ?? "").trim();
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
-      const [yearStr, monthStr] = endIso.split("-");
-      const year = Number(yearStr);
-      const month = Number(monthStr);
-
-      if (Number.isFinite(year) && Number.isFinite(month)) {
-        const nextMonth = month === 12 ? 1 : month + 1;
-        const nextYear = month === 12 ? year + 1 : year;
-        return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
-      }
-    }
-  }
-
-  return value;
-}
-
-const roundMoney = (value: number) => {
-  const n = Number(value || 0);
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-};
-
-const anoAtual = agora.getFullYear();
-const mesAtual = agora.getMonth();
-
-const cicloBase = getCardCycleMonthFromDate(
-  getHojeLocal(),
-  Number(c.diaFechamento ?? 1),
-  Number(c.diaVencimento ?? 1)
-);
-
-const diaFechamentoAtual = Math.max(1, Math.min(31, Number(c.diaFechamento ?? 1)));
-
-const makeDateSafe = (year: number, month: number, day: number) => {
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  return new Date(year, month, Math.min(day, lastDay), 12, 0, 0, 0);
-};
-
-const hojeRefRaw = String(getHojeLocal() ?? "").trim();
-const hojeRef = hojeRefRaw ? new Date(`${hojeRefRaw}T12:00:00`) : new Date();
-
-const anoRef = hojeRef.getFullYear();
-const mesRef = hojeRef.getMonth();
-
-const cicloFimReal =
-  hojeRef.getDate() > diaFechamentoAtual
-    ? makeDateSafe(anoRef, mesRef + 1, diaFechamentoAtual)
-    : makeDateSafe(anoRef, mesRef, diaFechamentoAtual);
-
-const cicloFimAnterior = makeDateSafe(
-  cicloFimReal.getFullYear(),
-  cicloFimReal.getMonth() - 1,
-  diaFechamentoAtual
-);
-
-const cicloInicioReal = new Date(
-  cicloFimAnterior.getFullYear(),
-  cicloFimAnterior.getMonth(),
-  cicloFimAnterior.getDate() + 1,
-  0, 0, 0, 0
-);
-
-cicloFimReal.setHours(23, 59, 59, 999);
-
-const inferirCicloDaTransacao = (t: any): string => {
-  const ciclo = String((t as any).faturaMes ?? "").trim();
-  if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
-
-  const dataRaw = String((t as any).data ?? "").trim();
-  if (!dataRaw) return "";
-
-return getCardCycleMonthFromDate(
-  dataRaw,
-  Number(c.diaFechamento ?? 1),
-  Number(c.diaVencimento ?? 1)
-);
-};
-
-const transacoesDoCartao = transacoes.filter((t: any) => {
-  const cartaoTxId = String(
-  (t as any).qualCartao ??
-  (t as any).cartaoId ??
-  (t as any).qualConta ??
-  ""
-);
-  const tipo = String((t as any)?.tipo ?? "").toLowerCase();
-  const parcelamentoFaturaId = String((t as any)?.parcelamentoFaturaId ?? "").trim();
-
-  const pertenceAoCartaoDiretamente =
-    cartaoTxId === String(c.id) && tipo === "cartao_credito";
-
-  const pertenceAoCartaoViaParcelamento =
-    Boolean(parcelamentoFaturaId) &&
-    (parcelamentosFatura ?? []).some(
-      (p: any) =>
-        String(p?.id ?? "") === parcelamentoFaturaId &&
-        String(p?.cartaoId ?? "") === String(c.id)
-    );
-
-  return pertenceAoCartaoDiretamente || pertenceAoCartaoViaParcelamento;
-});
-
-const parcelasNegociacaoDoCartao = transacoes.filter(
-  (t: any) => Boolean((t as any)?.parcelamentoFaturaId)
-);
-
-const transacoesAteHoje = transacoesDoCartao.filter((t: any) => {
-  const dataRaw = String((t as any).data ?? "").trim();
-  const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
-  if (!dataTx || Number.isNaN(dataTx.getTime())) return false;
-  return dataTx.getTime() <= hojeFiltro.getTime();
-});
-
-const transacoesDaFaturaAtual = transacoesDoCartao.filter((t: any) => {
-  const dataRaw = String((t as any).data ?? "").trim();
-  const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
-  if (!dataTx || Number.isNaN(dataTx.getTime())) return false;
-
-  return dataTx.getTime() >= cicloInicioReal.getTime() && dataTx.getTime() <= cicloFimReal.getTime();
-});
-
-const pagamentosDaFaturaAtual = (pagamentosFatura ?? []).filter((p: any) => {
-  if (String(p?.cartaoId ?? "") !== String(c.id)) return false;
-
-  const cicloNormalizado = normalizePaymentCycleKeyToYm(p?.cicloKey);
-  if (cicloNormalizado === cicloBase) return true;
-
-  const cicloRaw = String(p?.cicloKey ?? "").trim();
-  if (!cicloRaw.includes("__")) return false;
-
-  const parts = cicloRaw.split("__");
-  const startIso = String(parts[1] ?? "").trim();
-  const endIso = String(parts[2] ?? "").trim();
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startIso) || !/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
-    return false;
-  }
-
-  const startDate = new Date(`${startIso}T00:00:00`);
-  const endDate = new Date(`${endIso}T23:59:59.999`);
-
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-    return false;
-  }
-
-  return (
-    startDate.getTime() === cicloInicioReal.getTime() &&
-    endDate.getTime() === cicloFimReal.getTime()
-  );
-});
-
-const totalFatura = roundMoney(
-  transacoesDaFaturaAtual.reduce(
-    (acc: number, t: any) => acc + Math.abs(Number(t.valor || 0)),
-    0
-  )
-);
-
-const totalPago = roundMoney(
-  pagamentosDaFaturaAtual.reduce(
-    (acc: number, p: any) => acc + Math.abs(Number(p.valor || 0)),
-    0
-  )
-);
-
-const emAberto = roundMoney(Math.max(0, totalFatura - totalPago));
-
-const statusManualPorCiclo = new Map<string, string>();
-
-(faturasStatusManual ?? []).forEach((item: any) => {
-  if (String(item?.cartaoId ?? "") !== String(c.id)) return;
-
-  const cicloNormalizado = normalizePaymentCycleKeyToYm(item?.cicloKey);
-  if (!cicloNormalizado) return;
-
-  const status = String(item?.statusManual ?? "").trim().toLowerCase();
-  if (!status) return;
-
-  statusManualPorCiclo.set(cicloNormalizado, status);
-});
-
-const totalComprometidoCartao = transacoesDoCartao.reduce((acc: number, t: any) => {
-  const cicloTx = inferirCicloDaTransacao(t);
-  const statusDoCiclo = String(statusManualPorCiclo.get(cicloTx) ?? "").toLowerCase();
-
-  if (statusDoCiclo === "parcelada") return acc;
-
-  return acc + Math.abs(Number((t as any)?.valor || 0));
-}, 0);
-
-const totalPagoNoCartao = roundMoney(
-  (pagamentosFatura ?? [])
-    .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
-    .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0)
-);
-
-const valorComprometidoReal = roundMoney(
-  Math.max(0, totalComprometidoCartao - totalPagoNoCartao)
-);
-
-const limiteDisponivelReal = roundMoney(
-  Math.max(0, Number(c.limite ?? 0) - valorComprometidoReal)
-);
-
-const hoje = new Date();
-hoje.setHours(0, 0, 0, 0);
-
-const totaisPorCiclo = new Map<string, { total: number; pago: number }>();
-
-transacoesAteHoje.forEach((t: any) => {
-  const ciclo = inferirCicloDaTransacao(t);
-  if (!ciclo) return;
-
-  const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
-  atual.total += Math.abs(Number(t.valor || 0));
-  totaisPorCiclo.set(ciclo, atual);
-});
-
-(pagamentosFatura ?? []).forEach((p: any) => {
-  if (String(p?.cartaoId ?? "") !== String(c.id)) return;
-
-  const ciclo = normalizePaymentCycleKeyToYm(p?.cicloKey);
-  if (!ciclo) return;
-
-  const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
-  atual.pago += Math.abs(Number(p?.valor || 0));
-  totaisPorCiclo.set(ciclo, atual);
-});
-
-const hojeSemHora = new Date();
-hojeSemHora.setHours(0, 0, 0, 0);
-
-const diaVencimentoNum = Math.max(1, Math.min(31, Number(c.diaVencimento ?? 10)));
-
-const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
-  .map(([ciclo, info]) => {
-    if (!/^\d{4}-\d{2}$/.test(String(ciclo))) return null;
-    if ((info?.total ?? 0) <= 0) return null;
-
-    const statusManualDoCiclo = String(statusManualPorCiclo.get(ciclo) ?? "").toLowerCase();
-    if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") return null;
-
-const saldo = roundMoney(
-  Math.max(0, Number(info.total || 0) - Number(info.pago || 0))
-);
-if (saldo <= 0) return null;
-
-    // só considerar ciclos já fechados, nunca o ciclo atual aberto nem futuros
-    if (String(ciclo) >= String(cicloBase)) return null;
-
-    const [anoStr, mesStr] = String(ciclo).split("-");
-    const ano = Number(anoStr);
-    const mes = Number(mesStr);
-    if (!ano || !mes) return null;
-
-const vencimento = new Date(
-  ano,
-  mes - 1,
-  diaVencimentoNum,
-  12,
-  0,
-  0,
-  0
-);
-    vencimento.setHours(0, 0, 0, 0);
-
-return {
-  ciclo: String(ciclo),
-  total: roundMoney(Math.max(0, Number(info.total || 0))),
-  saldo,
-  vencimento,
-};
-  })
-  .filter(Boolean)
-  .sort((a: any, b: any) => String(b.ciclo).localeCompare(String(a.ciclo))) as Array<{
-    ciclo: string;
-    total: number;
-    saldo: number;
-    vencimento: Date;
-  }>;
-
-const faturaFechadaMaisRecente =
-  ciclosFechadosPendentes.length > 0 ? ciclosFechadosPendentes[0] : undefined;
-
-const faturasFechadasAnterioresPendentes =
-  ciclosFechadosPendentes.length > 1 ? ciclosFechadosPendentes.slice(1) : [];
-
-const existeFaturaAtrasada = faturasFechadasAnterioresPendentes.length > 0;
-
-const valorEmAtraso = faturasFechadasAnterioresPendentes.reduce(
-  (acc, item) => acc + Math.max(0, item.saldo),
-  0
-);
-
-const faturaFechadaAguardandoPagamento =
-  !existeFaturaAtrasada ? faturaFechadaMaisRecente : undefined;
-
-const aguardandoVencimento =
-  !existeFaturaAtrasada &&
-  Boolean(faturaFechadaAguardandoPagamento);
-
-const existeFaturaFechadaPendente =
-  !existeFaturaAtrasada &&
-  Boolean(faturaFechadaAguardandoPagamento) &&
-  Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0)) > 0;
-
-const statusMiniCard: "normal" | "atrasada" | "zerada" =
-  existeFaturaAtrasada
-    ? "atrasada"
-    : existeFaturaFechadaPendente
-      ? "zerada"
-      : "normal";
-
-const miniCardValor =
-  statusMiniCard === "atrasada"
-    ? Math.max(0, valorEmAtraso)
-    : statusMiniCard === "zerada"
-      ? Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0))
-      : Math.max(0, Number(emAberto || 0));
-
-const miniCardDueLabel =
-  statusMiniCard === "zerada" && faturaFechadaAguardandoPagamento
-    ? `${String(faturaFechadaAguardandoPagamento.vencimento.getDate()).padStart(2, "0")}/${String(
-        faturaFechadaAguardandoPagamento.vencimento.getMonth() + 1
-      ).padStart(2, "0")}`
-    : undefined;
-
-if (String(c.emissor ?? "").trim().toLowerCase().includes("sam")) {
-}
-if (String(c.id) === String(selectedCreditCardId) || String(c.name ?? "").toLowerCase().includes("sam")) {
-}
-    return (
-            <div key={c.id} className="relative group w-full max-w-[360px]">
-              {/* CARTÃO (clicável) */}
+          const roundMoney = (value: number) => {
+            const n = Number(value || 0);
+            return Math.round((n + Number.EPSILON) * 100) / 100;
+          };
+
+          const normalizePaymentCycleKeyToYm = (raw: any): string => {
+            const value = String(raw ?? "").trim();
+            if (!value) return "";
+
+            if (/^\d{4}-\d{2}$/.test(value)) return value;
+
+            if (value.includes("__")) {
+              const parts = value.split("__");
+              const endIso = String(parts[2] ?? "").trim();
+
+              if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
+                const [yearStr, monthStr] = endIso.split("-");
+                const year = Number(yearStr);
+                const month = Number(monthStr);
+
+                if (Number.isFinite(year) && Number.isFinite(month)) {
+                  const nextMonth = month === 12 ? 1 : month + 1;
+                  const nextYear = month === 12 ? year + 1 : year;
+                  return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+                }
+              }
+            }
+
+            return value;
+          };
+
+          const hojeFiltro = new Date();
+          hojeFiltro.setHours(23, 59, 59, 999);
+
+          const cicloBase = getCardCycleMonthFromDate(
+            getHojeLocal(),
+            Number(c.diaFechamento ?? 1),
+            Number(c.diaVencimento ?? 1)
+          );
+
+          const diaFechamentoAtual = Math.max(
+            1,
+            Math.min(31, Number(c.diaFechamento ?? 1))
+          );
+
+          const makeDateSafe = (year: number, month: number, day: number) => {
+            const lastDay = new Date(year, month + 1, 0).getDate();
+            return new Date(year, month, Math.min(day, lastDay), 12, 0, 0, 0);
+          };
+
+          const hojeRefRaw = String(getHojeLocal() ?? "").trim();
+          const hojeRef = hojeRefRaw ? new Date(`${hojeRefRaw}T12:00:00`) : new Date();
+
+          const anoRef = hojeRef.getFullYear();
+          const mesRef = hojeRef.getMonth();
+
+          const cicloFimReal =
+            hojeRef.getDate() > diaFechamentoAtual
+              ? makeDateSafe(anoRef, mesRef + 1, diaFechamentoAtual)
+              : makeDateSafe(anoRef, mesRef, diaFechamentoAtual);
+
+          const cicloFimAnterior = makeDateSafe(
+            cicloFimReal.getFullYear(),
+            cicloFimReal.getMonth() - 1,
+            diaFechamentoAtual
+          );
+
+          const cicloInicioReal = new Date(
+            cicloFimAnterior.getFullYear(),
+            cicloFimAnterior.getMonth(),
+            cicloFimAnterior.getDate() + 1,
+            0, 0, 0, 0
+          );
+
+          cicloFimReal.setHours(23, 59, 59, 999);
+
+          const inferirCicloDaTransacao = (t: any): string => {
+            const ciclo = String((t as any).faturaMes ?? "").trim();
+            if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
+
+            const dataRaw = String((t as any).data ?? "").trim();
+            if (!dataRaw) return "";
+
+            return getCardCycleMonthFromDate(
+              dataRaw,
+              Number(c.diaFechamento ?? 1),
+              Number(c.diaVencimento ?? 1)
+            );
+          };
+
+          const transacoesDoCartao = transacoes.filter((t: any) => {
+            const cartaoTxId = String(
+              (t as any).qualCartao ??
+              (t as any).cartaoId ??
+              (t as any).qualConta ??
+              ""
+            );
+            const tipo = String((t as any)?.tipo ?? "").toLowerCase();
+            const parcelamentoFaturaId = String((t as any)?.parcelamentoFaturaId ?? "").trim();
+
+            const pertenceAoCartaoDiretamente =
+              cartaoTxId === String(c.id) && tipo === "cartao_credito";
+
+            const pertenceAoCartaoViaParcelamento =
+              Boolean(parcelamentoFaturaId) &&
+              (parcelamentosFatura ?? []).some(
+                (p: any) =>
+                  String(p?.id ?? "") === parcelamentoFaturaId &&
+                  String(p?.cartaoId ?? "") === String(c.id)
+              );
+
+            return pertenceAoCartaoDiretamente || pertenceAoCartaoViaParcelamento;
+          });
+
+          const transacoesAteHoje = transacoesDoCartao.filter((t: any) => {
+            const dataRaw = String((t as any).data ?? "").trim();
+            const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
+            if (!dataTx || Number.isNaN(dataTx.getTime())) return false;
+            return dataTx.getTime() <= hojeFiltro.getTime();
+          });
+
+          const transacoesDaFaturaAtual = transacoesDoCartao.filter((t: any) => {
+            const dataRaw = String((t as any).data ?? "").trim();
+            const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
+            if (!dataTx || Number.isNaN(dataTx.getTime())) return false;
+
+            return (
+              dataTx.getTime() >= cicloInicioReal.getTime() &&
+              dataTx.getTime() <= cicloFimReal.getTime()
+            );
+          });
+
+          const pagamentosDaFaturaAtual = (pagamentosFatura ?? []).filter((p: any) => {
+            if (String(p?.cartaoId ?? "") !== String(c.id)) return false;
+
+            const cicloNormalizado = normalizePaymentCycleKeyToYm(p?.cicloKey);
+            if (cicloNormalizado === cicloBase) return true;
+
+            const cicloRaw = String(p?.cicloKey ?? "").trim();
+            if (!cicloRaw.includes("__")) return false;
+
+            const parts = cicloRaw.split("__");
+            const startIso = String(parts[1] ?? "").trim();
+            const endIso = String(parts[2] ?? "").trim();
+
+            if (
+              !/^\d{4}-\d{2}-\d{2}$/.test(startIso) ||
+              !/^\d{4}-\d{2}-\d{2}$/.test(endIso)
+            ) {
+              return false;
+            }
+
+            const startDate = new Date(`${startIso}T00:00:00`);
+            const endDate = new Date(`${endIso}T23:59:59.999`);
+
+            if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+              return false;
+            }
+
+            return (
+              startDate.getTime() === cicloInicioReal.getTime() &&
+              endDate.getTime() === cicloFimReal.getTime()
+            );
+          });
+
+          const totalFatura = roundMoney(
+            transacoesDaFaturaAtual.reduce(
+              (acc: number, t: any) => acc + Math.abs(Number(t.valor || 0)),
+              0
+            )
+          );
+
+          const totalPago = roundMoney(
+            pagamentosDaFaturaAtual.reduce(
+              (acc: number, p: any) => acc + Math.abs(Number(p.valor || 0)),
+              0
+            )
+          );
+
+          const emAberto = roundMoney(Math.max(0, totalFatura - totalPago));
+
+          const statusManualPorCiclo = new Map<string, string>();
+
+          (faturasStatusManual ?? []).forEach((item: any) => {
+            if (String(item?.cartaoId ?? "") !== String(c.id)) return;
+
+            const cicloNormalizado = normalizePaymentCycleKeyToYm(item?.cicloKey);
+            if (!cicloNormalizado) return;
+
+            const status = String(item?.statusManual ?? "").trim().toLowerCase();
+            if (!status) return;
+
+            statusManualPorCiclo.set(cicloNormalizado, status);
+          });
+
+          const totalComprometidoCartao = transacoesDoCartao.reduce((acc: number, t: any) => {
+            const cicloTx = inferirCicloDaTransacao(t);
+            const statusDoCiclo = String(statusManualPorCiclo.get(cicloTx) ?? "").toLowerCase();
+
+            if (statusDoCiclo === "parcelada") return acc;
+
+            return acc + Math.abs(Number((t as any)?.valor || 0));
+          }, 0);
+
+          const totalPagoNoCartao = roundMoney(
+            (pagamentosFatura ?? [])
+              .filter((p: any) => String(p?.cartaoId ?? "") === String(c.id))
+              .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0)
+          );
+
+          const valorComprometidoReal = roundMoney(
+            Math.max(0, totalComprometidoCartao - totalPagoNoCartao)
+          );
+
+          const limiteDisponivelReal = roundMoney(
+            Math.max(0, Number(c.limite ?? 0) - valorComprometidoReal)
+          );
+
+          const totaisPorCiclo = new Map<string, { total: number; pago: number }>();
+
+          transacoesAteHoje.forEach((t: any) => {
+            const ciclo = inferirCicloDaTransacao(t);
+            if (!ciclo) return;
+
+            const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
+            atual.total += Math.abs(Number(t.valor || 0));
+            totaisPorCiclo.set(ciclo, atual);
+          });
+
+          (pagamentosFatura ?? []).forEach((p: any) => {
+            if (String(p?.cartaoId ?? "") !== String(c.id)) return;
+
+            const ciclo = normalizePaymentCycleKeyToYm(p?.cicloKey);
+            if (!ciclo) return;
+
+            const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
+            atual.pago += Math.abs(Number(p?.valor || 0));
+            totaisPorCiclo.set(ciclo, atual);
+          });
+
+          const diaVencimentoNum = Math.max(
+            1,
+            Math.min(31, Number(c.diaVencimento ?? 10))
+          );
+
+          const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
+            .map(([ciclo, info]) => {
+              if (!/^\d{4}-\d{2}$/.test(String(ciclo))) return null;
+              if ((info?.total ?? 0) <= 0) return null;
+
+              const statusManualDoCiclo = String(
+                statusManualPorCiclo.get(ciclo) ?? ""
+              ).toLowerCase();
+
+              if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") {
+                return null;
+              }
+
+              const saldo = roundMoney(
+                Math.max(0, Number(info.total || 0) - Number(info.pago || 0))
+              );
+
+              if (saldo <= 0) return null;
+              if (String(ciclo) >= String(cicloBase)) return null;
+
+              const [anoStr, mesStr] = String(ciclo).split("-");
+              const ano = Number(anoStr);
+              const mes = Number(mesStr);
+              if (!ano || !mes) return null;
+
+              const vencimento = new Date(
+                ano,
+                mes - 1,
+                diaVencimentoNum,
+                12,
+                0,
+                0,
+                0
+              );
+              vencimento.setHours(0, 0, 0, 0);
+
+              return {
+                ciclo: String(ciclo),
+                total: roundMoney(Math.max(0, Number(info.total || 0))),
+                saldo,
+                vencimento,
+              };
+            })
+            .filter(Boolean)
+            .sort((a: any, b: any) => String(b.ciclo).localeCompare(String(a.ciclo))) as Array<{
+              ciclo: string;
+              total: number;
+              saldo: number;
+              vencimento: Date;
+            }>;
+
+          const faturaFechadaMaisRecente =
+            ciclosFechadosPendentes.length > 0 ? ciclosFechadosPendentes[0] : undefined;
+
+          const faturasFechadasAnterioresPendentes =
+            ciclosFechadosPendentes.length > 1 ? ciclosFechadosPendentes.slice(1) : [];
+
+          const existeFaturaAtrasada = faturasFechadasAnterioresPendentes.length > 0;
+
+          const valorEmAtraso = faturasFechadasAnterioresPendentes.reduce(
+            (acc, item) => acc + Math.max(0, item.saldo),
+            0
+          );
+
+          const faturaFechadaAguardandoPagamento =
+            !existeFaturaAtrasada ? faturaFechadaMaisRecente : undefined;
+
+          const existeFaturaFechadaPendente =
+            !existeFaturaAtrasada &&
+            Boolean(faturaFechadaAguardandoPagamento) &&
+            Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0)) > 0;
+
+          const statusMiniCard: "normal" | "atrasada" | "zerada" =
+            existeFaturaAtrasada
+              ? "atrasada"
+              : existeFaturaFechadaPendente
+              ? "zerada"
+              : "normal";
+
+          const miniCardValor =
+            statusMiniCard === "atrasada"
+              ? Math.max(0, valorEmAtraso)
+              : statusMiniCard === "zerada"
+              ? Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0))
+              : Math.max(0, Number(emAberto || 0));
+
+          const miniCardDueLabel =
+            statusMiniCard === "zerada" && faturaFechadaAguardandoPagamento
+              ? `${String(faturaFechadaAguardandoPagamento.vencimento.getDate()).padStart(2, "0")}/${String(
+                  faturaFechadaAguardandoPagamento.vencimento.getMonth() + 1
+                ).padStart(2, "0")}`
+              : undefined;
+
+          return (
+           <div key={c.id} className="relative group w-full max-w-[300px]">
               <button
                 type="button"
-onClick={() => {
-  const cicloCorreto = getCardCycleMonthOnOpen(c);
-  setCreditJumpMonth(cicloCorreto);
+                onClick={() => {
+                  const cicloCorreto = getCardCycleMonthOnOpen(c);
+                  setCreditJumpMonth(cicloCorreto);
 
-  // clicou no mesmo cartão -> alterna abrir/fechar
-  if (c.id === selectedCreditCardId) {
-    toggleCcExpanded();
-    return;
-  }
+                  if (c.id === selectedCreditCardId) {
+                    toggleCcExpanded();
+                    return;
+                  }
 
-  // clicou em outro cartão -> seleciona e abre (não fecha)
-  setSelectedCreditCardId(c.id);
-  setIsCcExpanded(true);
-}}
-                className={[
-                  "w-full block text-left rounded-2xl transition-all",
-                  "hover:bg-white/5",
-                ].join(" ")}
+                  setSelectedCreditCardId(c.id);
+                  setIsCcExpanded(true);
+                }}
+className={[
+  "w-full block text-left rounded-2xl transition-all overflow-hidden",
+].join(" ")}
               >
-            
-<CreditCardVisual
-  nome={(c as any).name || (c as any).nome || "Cartão"}
-  emissor={c.emissor || "Banco"}
-  categoria={c.categoria ?? ""}
-  perfil={c.perfil?.toUpperCase?.() ?? "PF"}
-  limite={c.limite ?? 0}
-  limiteDisponivel={limiteDisponivelReal}
-  fechamentoDia={c.diaFechamento ?? 1}
-  vencimentoDia={c.diaVencimento ?? 10}
-  emAberto={miniCardValor}
-  statusMiniCard={statusMiniCard}
-  miniCardDueLabel={miniCardDueLabel}
-  design={{
-    from: c.gradientFrom ?? "#220055",
-    to: c.gradientTo ?? "#4600ac",
-  }}
-/>
+                <CreditCardVisual
+                  nome={(c as any).name || (c as any).nome || "Cartão"}
+                  emissor={c.emissor || "Banco"}
+                  categoria={c.categoria ?? ""}
+                  perfil={c.perfil?.toUpperCase?.() ?? "PF"}
+                  limite={c.limite ?? 0}
+                  limiteDisponivel={limiteDisponivelReal}
+                  fechamentoDia={c.diaFechamento ?? 1}
+                  vencimentoDia={c.diaVencimento ?? 10}
+                  emAberto={miniCardValor}
+                  statusMiniCard={statusMiniCard}
+                  miniCardDueLabel={miniCardDueLabel}
+                  design={{
+                    from: c.gradientFrom ?? "#220055",
+                    to: c.gradientTo ?? "#4600ac",
+                  }}
+                />
               </button>
 
-              {/* ÍCONES NO HOVER (por cima do cartão) */}
-<div
-  className="
-    absolute top-1/2 right-3 -translate-y-1/2 z-10 flex gap-2
-    opacity-0 pointer-events-none
-    group-hover:opacity-100 group-hover:pointer-events-auto
-    transition-opacity
-  "
->
-
+              <div
+                className="
+                  absolute top-1/2 right-3 -translate-y-1/2 z-10 flex gap-2
+                  opacity-0 pointer-events-none
+                  group-hover:opacity-100 group-hover:pointer-events-auto
+                  transition-opacity
+                "
+              >
                 <button
                   type="button"
                   title="Editar"
-                  className="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white backdrop-blur flex items-center justify-center"
+                  className="h-8 w-8 rounded-lg bg-slate-900/45 hover:bg-slate-900/65 border border-white/10 text-white backdrop-blur-sm flex items-center justify-center transition shadow-sm"
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
 
-                    // preencher formulário com dados do cartão clicado
                     setCcNome((c as any).name ?? (c as any).nome ?? "");
                     setCcEmissor((c as any).emissor ?? "");
                     setCcCategoria((c as any).categoria ?? "");
@@ -5643,489 +5724,405 @@ onClick={() => {
                     const perfil = String((c as any).perfil ?? "pf").toLowerCase();
                     setCcPerfil(perfil === "pj" ? "pj" : "pf");
 
-                    // modo edição
                     setIsEditingLimite(true);
                     setSelectedCreditCardId(c.id);
-
-                    // abre modal
                     setIsAddCardModalOpen(true);
                   }}
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
 
-<button
-  type="button"
-  title="Excluir"
-  className="h-9 w-9 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/25 text-red-200 backdrop-blur flex items-center justify-center"
-  onMouseDown={(e) => e.stopPropagation()}
-onClick={async (e) => {
-  e.stopPropagation();
+                <button
+                  type="button"
+                  title="Excluir"
+                  className="h-8 w-8 rounded-lg bg-red-500/30 hover:bg-red-500/40 border border-red-300/20 text-white backdrop-blur-sm flex items-center justify-center transition shadow-sm"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={async (e) => {
+                    e.stopPropagation();
 
-  const ok = await confirm({
-    title: "Excluir cartão",
-    message: "Tem certeza que deseja excluir este cartão?",
-    confirmText: "Excluir",
-    cancelText: "Cancelar",
-  });
+                    const ok = await confirm({
+                      title: "Excluir cartão",
+                      message: "Tem certeza que deseja excluir este cartão?",
+                      confirmText: "Excluir",
+                      cancelText: "Cancelar",
+                    });
 
-  if (!ok) return;
+                    if (!ok) return;
 
-  try {
-    const userId = session?.user?.id;
-if (!userId) return;
-    await deleteCreditCardById(c.id, userId);
+                    try {
+                      const userId = session?.user?.id;
+                      if (!userId) return;
 
-    setCreditCards((prev) => {
-      const next = prev.filter((x) => x.id !== c.id);
+                      await deleteCreditCardById(c.id, userId);
 
-      if (selectedCreditCardId === c.id) {
-        setSelectedCreditCardId(next[0]?.id ?? "");
-        setIsCcExpanded(false);
-        setIsEditingLimite(false);
-      }
+                      setCreditCards((prev) => {
+                        const next = prev.filter((x) => x.id !== c.id);
 
-      return next;
-    });
+                        if (selectedCreditCardId === c.id) {
+                          setSelectedCreditCardId(next[0]?.id ?? "");
+                          setIsCcExpanded(false);
+                          setIsEditingLimite(false);
+                        }
 
-    toastCompact("Cartão excluído.", "success");
-  } catch (err) {
-    console.error("ERRO AO EXCLUIR CARTÃO:", err);
-    toastCompact("Erro ao excluir cartão no banco.", "error");
-  }
-}}
->
-  <Trash2 className="h-4 w-4" />
-</button>
+                        return next;
+                      });
 
+                      toastCompact("Cartão excluído.", "success");
+                    } catch (err) {
+                      console.error("ERRO AO EXCLUIR CARTÃO:", err);
+                      toastCompact("Erro ao excluir cartão no banco.", "error");
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             </div>
           );
         })}
 
         {creditCards.length > CREDIT_CARDS_PER_PAGE && (
-  <div className="col-span-full mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-2 text-sm dark:border-slate-700/60 dark:bg-slate-900/35">
-    <button
-      type="button"
-      onClick={() => setCreditCardsPage((p) => Math.max(1, p - 1))}
-      disabled={creditCardsPage === 1}
-      className="rounded-xl border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
-    >
-      Anterior
-    </button>
+          <div className="col-span-full mt-3 flex items-center justify-center gap-3 px-1 py-1 text-sm">
+            <button
+              type="button"
+              onClick={() => setCreditCardsPage((p) => Math.max(1, p - 1))}
+              disabled={creditCardsPage === 1}
+              className="rounded-xl border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
+            >
+              Anterior
+            </button>
 
-    <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-      Página {creditCardsPage} de {totalCreditCardsPages}
-    </span>
+            <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+              Página {creditCardsPage} de {totalCreditCardsPages}
+            </span>
 
-    <button
-      type="button"
-      onClick={() =>
-        setCreditCardsPage((p) => Math.min(totalCreditCardsPages, p + 1))
-      }
-      disabled={creditCardsPage === totalCreditCardsPages}
-      className="rounded-xl border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
-    >
-      Próxima
-    </button>
-  </div>
-)}
-
+            <button
+              type="button"
+              onClick={() =>
+                setCreditCardsPage((p) => Math.min(totalCreditCardsPages, p + 1))
+              }
+              disabled={creditCardsPage === totalCreditCardsPages}
+              className="rounded-xl border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
+            >
+              Próxima
+            </button>
+          </div>
+        )}
       </div>
     ) : (
-      /* ===== DETALHES (expandido) ===== */
-
       <div className="space-y-4">
-        {/* cartão selecionado (clicável pra recolher) */}
-        {(() => {
-          const selected =
-            creditCards.find((c) => c.id === selectedCreditCardId) ?? creditCards[0];
+        {selectedCcCard ? (
+          <div className={isCcExpanded ? "" : "hidden"}>
+            <CreditDashboard
+              initialMonth={creditJumpMonth}
+              cartao={{
+                id: selectedCcCard.id ?? "",
+                nome: selectedCcCard.name ?? "",
+                titular: "Fulano da Silva",
+                limiteTotal: selectedCcCard.limite ?? 0,
+                diaFechamento: selectedCcCard.diaFechamento ?? 10,
+                diaVencimento: selectedCcCard.diaVencimento ?? 10,
+                bankText: selectedCcCard.emissor ?? "",
+                brand: "Mastercard",
+                perfil:
+                  String((selectedCcCard as any)?.perfil ?? (selectedCcCard as any)?.brand ?? "pf").toLowerCase() === "pj"
+                    ? "pj"
+                    : "pf",
+                last4: "1234",
+                gradientFrom: selectedCcCard.gradientFrom ?? "#220055",
+                gradientTo: selectedCcCard.gradientTo ?? "#4600ac",
+                categoria: selectedCcCard.categoria ?? "",
+              }}
+              limiteDisponivelReal={Math.max(
+                0,
+                Number(selectedCcCard.limite ?? 0) -
+                  Math.max(
+                    0,
+                    creditItSelecionado.reduce((acc: number, t: Transaction) => {
+                      const ciclo = /^\d{4}-\d{2}$/.test(String((t as any)?.faturaMes ?? "").trim())
+                        ? String((t as any).faturaMes).trim()
+                        : (() => {
+                            const dataRaw = String((t as any)?.data ?? "").trim();
+                            const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
+                            if (!dataTx || Number.isNaN(dataTx.getTime())) return "";
 
-          if (!selected) {
-            // sem cartão ainda: volta pra lista e sugere criar
-            return (
-              <div className="rounded-2xl p-5 border border-slate-200/10 bg-white/5">
-                <p className="text-slate-200 font-semibold">Nenhum cartão cadastrado</p>
-                <p className="text-slate-400 text-sm mt-1">
-                  Adicione um cartão para ver os detalhes.
-                </p>
-                <button
-                  type="button"
-                  onClick={openAddCardModal}
-                  className="mt-4 px-4 py-2 rounded-xl bg-purple-600/80 hover:bg-purple-600 text-white font-semibold"
-                >
-                  Adicionar cartão
-                </button>
-              </div>
-            );
-          }
-        })()}
+                            return getCardCycleMonthFromDate(
+                              dataRaw,
+                              Number(selectedCcCard.diaFechamento ?? 1)
+                            );
+                          })();
 
-{/* DETALHES (renderiza só quando estiver expandido e com cartão selecionado) */}
-{selectedCcCard ? (
-  <div className={isCcExpanded ? "" : "hidden"}>
-  <CreditDashboard
-  initialMonth={creditJumpMonth}
-    cartao={{
-      id: selectedCcCard.id ?? "",
-      nome: selectedCcCard.name ?? "",
-      titular: "Fulano da Silva",
-      limiteTotal: selectedCcCard.limite ?? 0,
-      diaFechamento: selectedCcCard.diaFechamento ?? 10,
-      diaVencimento: selectedCcCard.diaVencimento ?? 10,
-bankText: selectedCcCard.emissor ?? "",
-brand: "Mastercard",
-perfil:
-  String((selectedCcCard as any)?.perfil ?? (selectedCcCard as any)?.brand ?? "pf").toLowerCase() === "pj"
-    ? "pj"
-    : "pf",
-last4: "1234",
-gradientFrom: selectedCcCard.gradientFrom ?? "#220055",
-gradientTo: selectedCcCard.gradientTo ?? "#4600ac",
-categoria: selectedCcCard.categoria ?? "",
-    }}
-limiteDisponivelReal={Math.max(
-  0,
-  Number(selectedCcCard.limite ?? 0) -
-    Math.max(
-      0,
-      creditItSelecionado.reduce((acc: number, t: Transaction) => {
-        const ciclo = /^\d{4}-\d{2}$/.test(String((t as any)?.faturaMes ?? "").trim())
-          ? String((t as any).faturaMes).trim()
-          : (() => {
-              const dataRaw = String((t as any)?.data ?? "").trim();
-              const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
-              if (!dataTx || Number.isNaN(dataTx.getTime())) return "";
+                      const statusDoCiclo = String(
+                        (faturasStatusManual ?? []).find(
+                          (item: any) =>
+                            String(item?.cartaoId ?? "") === String(selectedCcCard.id) &&
+                            (() => {
+                              const value = String(item?.cicloKey ?? "").trim();
+                              if (!value) return "";
 
-              const anoTx = dataTx.getFullYear();
-              const mesTx = dataTx.getMonth();
-              const diaTx = dataTx.getDate();
+                              if (/^\d{4}-\d{2}$/.test(value)) return value;
 
-return getCardCycleMonthFromDate(
-  dataRaw,
-  Number(selectedCcCard.diaFechamento ?? 1)
-);
-            })();
+                              if (value.includes("__")) {
+                                const parts = value.split("__");
+                                const endIso = String(parts[2] ?? "").trim();
 
-        const statusDoCiclo = String(
-          (faturasStatusManual ?? []).find(
-            (item: any) =>
-              String(item?.cartaoId ?? "") === String(selectedCcCard.id) &&
-              (() => {
-  const value = String(item?.cicloKey ?? "").trim();
-  if (!value) return "";
+                                if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
+                                  const endDate = new Date(`${endIso}T12:00:00`);
+                                  if (!Number.isNaN(endDate.getTime())) {
+                                    endDate.setMonth(endDate.getMonth() + 1);
+                                    return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
+                                  }
+                                }
+                              }
 
-  if (/^\d{4}-\d{2}$/.test(value)) return value;
+                              return value;
+                            })() === ciclo
+                        )?.statusManual ?? ""
+                      ).toLowerCase();
 
-  if (value.includes("__")) {
-    const parts = value.split("__");
-    const endIso = String(parts[2] ?? "").trim();
+                      if (statusDoCiclo === "parcelada") return acc;
 
-    if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
-      const endDate = new Date(`${endIso}T12:00:00`);
-      if (!Number.isNaN(endDate.getTime())) {
-        endDate.setMonth(endDate.getMonth() + 1);
-        return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
-      }
-    }
-  }
+                      return acc + Math.abs(Number(t.valor || 0));
+                    }, 0) -
+                      (pagamentosFatura ?? [])
+                        .filter((p: any) => String(p?.cartaoId ?? "") === String(selectedCcCard.id))
+                        .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0)
+                  )
+              )}
+              transacoes={creditItSelecionado.map((t: Transaction) => ({ ...t, id: String(t.id) }))}
+              contaPagamentoOptions={(profiles ?? []).map((p) => {
+                const banco = String(p.banco ?? "").trim();
+                const nome = String(p.name ?? "").trim();
+                const perfil = String(p.perfilConta ?? "").trim();
 
-  return value;
-})() === ciclo
-          )?.statusManual ?? ""
-        ).toLowerCase();
+                const labelBase = banco || nome || "Conta";
+                const label = perfil ? `${labelBase} (${perfil})` : labelBase;
 
-        if (statusDoCiclo === "parcelada") return acc;
+                return {
+                  value: String(p.id),
+                  label,
+                };
+              })}
+              faturasStatusManual={faturasStatusManual}
+              parcelamentosFatura={parcelamentosFatura}
+              onCancelarParcelamentoFatura={({ cartaoId, cicloKey, parcelamentoFaturaId }) =>
+                handleCancelarParcelamentoFatura({
+                  cartaoId,
+                  cicloKey,
+                  parcelamentoFaturaId,
+                })
+              }
+              onPickOtherCard={toggleCcExpanded}
+              onSaldoRestanteChange={setSaldoRestanteAtual}
+              onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
+              isInvoiceModalOpen={isInvoiceModalOpen}
+              onCloseInvoiceModal={() => setIsInvoiceModalOpen(false)}
+              pagamentosFatura={pagamentosFatura}
+              onRegistrarPagamentoFatura={handleRegistrarPagamentoFatura}
+              onRegistrarParcelamentoFatura={handleRegistrarParcelamentoFatura}
+              onRemoverPagamentoFatura={handleRemoverPagamentoFatura}
+              onDeleteTransacao={async (id: string) => {
+                const sourceList = [
+                  ...((creditItSelecionado ?? []) as any[]),
+                  ...((transacoes ?? []) as any[]),
+                ];
 
-        return acc + Math.abs(Number(t.valor || 0));
-      }, 0) -
-        (pagamentosFatura ?? [])
-          .filter((p: any) => String(p?.cartaoId ?? "") === String(selectedCcCard.id))
-          .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0)
-    )
-)}
-    transacoes={creditItSelecionado.map((t: Transaction) => ({ ...t, id: String(t.id) }))}
-    contaPagamentoOptions={(profiles ?? []).map((p) => {
-      const banco = String(p.banco ?? "").trim();
-      const nome = String(p.name ?? "").trim();
-      const perfil = String(p.perfilConta ?? "").trim();
+                const target = sourceList.find(
+                  (t: any) => String(t?.id ?? "").trim() === String(id).trim()
+                );
 
-      const labelBase = banco || nome || "Conta";
-      const label = perfil ? `${labelBase} (${perfil})` : labelBase;
+                if (!target) {
+                  console.warn("[DELETE PARCELA] transação não encontrada", { id });
+                  toastCompact("Não foi possível localizar a transação.", "error");
+                  return;
+                }
 
-      return {
-        value: String(p.id),
-        label,
-      };
-    })}
+                const parcelamentoId = String(
+                  (target as any)?.parcelamentoFaturaId ??
+                    (target as any)?.payload?.parcelamentoFaturaId ??
+                    ""
+                ).trim();
 
-faturasStatusManual={faturasStatusManual}
-parcelamentosFatura={parcelamentosFatura}
-onCancelarParcelamentoFatura={({ cartaoId, cicloKey, parcelamentoFaturaId }) =>
-  handleCancelarParcelamentoFatura({
-    cartaoId,
-    cicloKey,
-    parcelamentoFaturaId,
-  })
-}
+                if (parcelamentoId) {
+                  const acordo = (parcelamentosFatura ?? []).find(
+                    (p: any) => String(p?.id ?? "").trim() === parcelamentoId
+                  );
 
-    onPickOtherCard={toggleCcExpanded}
-    onSaldoRestanteChange={setSaldoRestanteAtual}
-    onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
-    isInvoiceModalOpen={isInvoiceModalOpen}
-    onCloseInvoiceModal={() => setIsInvoiceModalOpen(false)}
-    
-    pagamentosFatura={pagamentosFatura}
-    onRegistrarPagamentoFatura={handleRegistrarPagamentoFatura}
-    onRegistrarParcelamentoFatura={handleRegistrarParcelamentoFatura}
-    onRemoverPagamentoFatura={handleRemoverPagamentoFatura}
+                  const cartaoId = String(
+                    (target as any)?.cartaoId ??
+                      (target as any)?.payload?.cartaoId ??
+                      (acordo as any)?.cartaoId ??
+                      String(selectedCcCard?.id ?? "") ??
+                      ""
+                  ).trim();
 
-onDeleteTransacao={async (id: string) => {
-  const sourceList = [
-    ...((creditItSelecionado ?? []) as any[]),
-    ...((transacoes ?? []) as any[]),
-  ];
+                  const cicloKey = String(
+                    (target as any)?.faturaOrigemCicloKey ??
+                      (target as any)?.payload?.faturaOrigemCicloKey ??
+                      (acordo as any)?.cicloKeyOrigem ??
+                      String(creditJumpMonth ?? "") ??
+                      ""
+                  ).trim();
 
-  const target = sourceList.find(
-    (t: any) => String(t?.id ?? "").trim() === String(id).trim()
-  );
+                  await handleCancelarParcelamentoFatura({
+                    cartaoId,
+                    cicloKey,
+                    parcelamentoFaturaId: parcelamentoId,
+                  });
 
-  if (!target) {
-    console.warn("[DELETE PARCELA] transação não encontrada", { id });
-    toastCompact("Não foi possível localizar a transação.", "error");
-    return;
-  }
+                  return;
+                }
 
-  const parcelamentoId = String(
-    (target as any)?.parcelamentoFaturaId ??
-      (target as any)?.payload?.parcelamentoFaturaId ??
-      ""
-  ).trim();
+                const isTransfer =
+                  !!(target as any)?.transferId ||
+                  String((target as any)?.categoria ?? "").toLowerCase().includes("transfer");
 
-  if (parcelamentoId) {
-    const acordo = (parcelamentosFatura ?? []).find(
-      (p: any) => String(p?.id ?? "").trim() === parcelamentoId
-    );
+                if (isTransfer) {
+                  const ok = window.confirm(
+                    "Tem certeza que deseja excluir esta transferência?\n\nIsso vai apagar a ENTRADA e a SAÍDA vinculadas."
+                  );
+                  if (!ok) return;
+                }
 
-    const cartaoId = String(
-      (target as any)?.cartaoId ??
-        (target as any)?.payload?.cartaoId ??
-        (acordo as any)?.cartaoId ??
-        String(selectedCcCard?.id ?? "") ??
-        ""
-    ).trim();
+                const parcelaAtualTarget = Number(
+                  (target as any)?.parcelaAtual ?? (target as any)?.payload?.parcelaAtual ?? 0
+                );
 
-    const cicloKey = String(
-      (target as any)?.faturaOrigemCicloKey ??
-        (target as any)?.payload?.faturaOrigemCicloKey ??
-        (acordo as any)?.cicloKeyOrigem ??
-        String(creditJumpMonth ?? "") ??
-        ""
-    ).trim();
+                const totalParcelasTarget = Number(
+                  (target as any)?.totalParcelas ?? (target as any)?.payload?.totalParcelas ?? 0
+                );
 
-    await handleCancelarParcelamentoFatura({
-      cartaoId,
-      cicloKey,
-      parcelamentoFaturaId: parcelamentoId,
-    });
+                const recorrenciaIdTarget = String(
+                  (target as any)?.recorrenciaId ?? (target as any)?.payload?.recorrenciaId ?? ""
+                ).trim();
 
-    return;
-  }
+                const isCartaoParceladoComumTarget =
+                  String((target as any)?.tipo ?? "") === "cartao_credito" &&
+                  !!recorrenciaIdTarget &&
+                  totalParcelasTarget > 1 &&
+                  parcelaAtualTarget > 0;
 
-  const isTransfer =
-    !!(target as any)?.transferId ||
-    String((target as any)?.categoria ?? "").toLowerCase().includes("transfer");
+                const isRecorrenciaComumTarget =
+                  !!recorrenciaIdTarget && !isCartaoParceladoComumTarget;
 
-  if (isTransfer) {
-    const ok = window.confirm(
-      "Tem certeza que deseja excluir esta transferência?\n\nIsso vai apagar a ENTRADA e a SAÍDA vinculadas."
-    );
-    if (!ok) return;
-  }
+                if (isCartaoParceladoComumTarget || isRecorrenciaComumTarget) {
+                  setDeletingTransaction(target as any);
+                  return;
+                }
 
-const parcelaAtualTarget = Number(
-  (target as any)?.parcelaAtual ?? (target as any)?.payload?.parcelaAtual ?? 0
-);
+                confirmToast({
+                  title: "Excluir transação",
+                  message: "Tem certeza que deseja excluir esta transação?",
+                  confirmText: "Excluir",
+                  cancelText: "Cancelar",
+                  onConfirm: async () => {
+                    const alvoPagamento = (pagamentosFatura ?? []).find(
+                      (p: any) => String(p?.transacaoId ?? "") === String(id)
+                    );
 
-const totalParcelasTarget = Number(
-  (target as any)?.totalParcelas ?? (target as any)?.payload?.totalParcelas ?? 0
-);
+                    try {
+                      if (alvoPagamento) {
+                        const userId = session?.user?.id;
+                        if (!userId) return;
 
-const recorrenciaIdTarget = String(
-  (target as any)?.recorrenciaId ?? (target as any)?.payload?.recorrenciaId ?? ""
-).trim();
+                        await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
 
-const isCartaoParceladoComumTarget =
-  String((target as any)?.tipo ?? "") === "cartao_credito" &&
-  !!recorrenciaIdTarget &&
-  totalParcelasTarget > 1 &&
-  parcelaAtualTarget > 0;
+                        setPagamentosFatura((prev) =>
+                          (prev ?? []).filter(
+                            (p: any) => String(p?.id ?? "") !== String(alvoPagamento.id)
+                          )
+                        );
+                      }
 
-  const isRecorrenciaComumTarget =
-  !!recorrenciaIdTarget && !isCartaoParceladoComumTarget;
+                      if (isUuid(String(id))) {
+                        const userId = session?.user?.id;
+                        if (!userId) return;
 
-if (isCartaoParceladoComumTarget || isRecorrenciaComumTarget) {
-  setDeletingTransaction(target as any);
-  return;
-}
+                        await deleteTransactionById(String(id), userId);
+                      }
 
-  confirmToast({
-    title: "Excluir transação",
-    message: "Tem certeza que deseja excluir esta transação?",
-    confirmText: "Excluir",
-    cancelText: "Cancelar",
-    onConfirm: async () => {
-      const alvoPagamento = (pagamentosFatura ?? []).find(
-        (p: any) => String(p?.transacaoId ?? "") === String(id)
-      );
+                      setTransacoes((prev) => {
+                        const current = prev.find((t) => String(t.id) === String(id));
+                        if (!current) return prev;
 
-      try {
-        if (alvoPagamento) {
-          const userId = session?.user?.id;
-if (!userId) return;
+                        const transferId = (current as any)?.transferId;
 
-await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
+                        if (transferId) {
+                          return prev.filter(
+                            (t) => String((t as any)?.transferId) !== String(transferId)
+                          );
+                        }
 
-          setPagamentosFatura((prev) =>
-            (prev ?? []).filter(
-              (p: any) => String(p?.id ?? "") !== String(alvoPagamento.id)
-            )
-          );
-        }
+                        const isCC = current.tipo === "cartao_credito";
+                        const rid = (current as any).recorrenciaId;
+                        const cardId = (current as any).qualCartao;
 
-        if (isUuid(String(id))) {
-          const userId = session?.user?.id;
-if (!userId) return;
+                        if (isCC && rid) {
+                          return prev.filter(
+                            (t) =>
+                              !(
+                                t.tipo === "cartao_credito" &&
+                                String((t as any).qualCartao) === String(cardId) &&
+                                String((t as any).recorrenciaId) === String(rid)
+                              )
+                          );
+                        }
 
-await deleteTransactionById(String(id), userId);
-        }
+                        return prev.filter((t) => String(t.id) !== String(id));
+                      });
 
-        setTransacoes((prev) => {
-          const current = prev.find((t) => String(t.id) === String(id));
-          if (!current) return prev;
-
-          const transferId = (current as any)?.transferId;
-
-          if (transferId) {
-            return prev.filter(
-              (t) => String((t as any)?.transferId) !== String(transferId)
-            );
-          }
-
-          const isCC = current.tipo === "cartao_credito";
-          const rid = (current as any).recorrenciaId;
-          const cardId = (current as any).qualCartao;
-
-          if (isCC && rid) {
-            return prev.filter(
-              (t) =>
-                !(
-                  t.tipo === "cartao_credito" &&
-                  String((t as any).qualCartao) === String(cardId) &&
-                  String((t as any).recorrenciaId) === String(rid)
-                )
-            );
-          }
-
-          return prev.filter((t) => String(t.id) !== String(id));
-        });
-
-        toastCompact("Transação excluída.", "success");
-      } catch (err) {
-        console.error("ERRO AO EXCLUIR TRANSAÇÃO:", err);
-        toastCompact("Erro ao excluir transação.", "error");
-      }
-    },
-  });
-}}
-  />
-</div>
-) : null}
-
+                      toastCompact("Transação excluída.", "success");
+                    } catch (err) {
+                      console.error("ERRO AO EXCLUIR TRANSAÇÃO:", err);
+                      toastCompact("Erro ao excluir transação.", "error");
+                    }
+                  },
+                });
+              }}
+            />
+          </div>
+        ) : null}
       </div>
     )}
   </div>
-) : (
-  <></>
 )}
 
-          <>
-
-
-
-{/* Conteúdo */}
-{modoCentro !== "credito" && (
- <div className="bg-transparent rounded-3xl p-6 shadow-none border border-transparent min-h-[550px] transition-colors">
-    {/* TRANSACOES */}
-{/* Tabs */}
-<div className="px-0 pt-2 pb-3">
-  <div className="grid grid-cols-3 gap-2 sm:gap-3">
-    {(["transacoes", "gastos", "projecao"] as TabType[]).map((tab) => (
-      <button
-        key={tab}
-        type="button"
-        onClick={() => {
-          if (activeTab === "gastos" && tab !== "gastos") {
-            setFiltroMesAnalise(getHojeLocal().substring(0, 7));
-          }
-
-          setActiveTab(tab);
-        }}
-        className={`h-12 sm:h-14 px-2 sm:px-5 rounded-2xl transition-all whitespace-nowrap text-[13px] sm:text-base font-medium
-          ${
-            activeTab === tab
-              ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"
-              : "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
-          }`}
-      >
-        {tab === "transacoes"
-          ? "Transações"
-          : tab === "gastos"
-          ? "Análise"
-          : "Projeção"}
-      </button>
-    ))}
-  </div>
+<div className={activeTab === "transacoes" ? "block" : "hidden"}>
+  <TransacoesTab
+    filtroMes={filtroMesTransacoes}
+    setFiltroMes={setFiltroMesTransacoes}
+    filtroLancamento={filtroLancamento}
+    setFiltroLancamento={setFiltroLancamento}
+    filtroConta={filtroConta}
+    transacoesCardsPerfilView={transacoesCardsPerfilView}
+    setTransacoesCardsPerfilView={setTransacoesCardsPerfilView}
+    setFiltroConta={setFiltroConta}
+    filtroCategoria={filtroCategoria}
+    setFiltroCategoria={setFiltroCategoria}
+    categoriasFiltradasTransacoes={categoriasFiltradasTransacoes}
+    filtroTipoGasto={filtroTipoGasto}
+    setFiltroTipoGasto={setFiltroTipoGasto}
+    handleLimparFiltros={handleLimparFiltros}
+    profiles={profiles}
+    renderContaOptionLabel={renderContaOptionLabel}
+    mostrarReceitasResumo={mostrarReceitasResumo}
+    mostrarDespesasResumo={mostrarDespesasResumo}
+    totalFiltradoReceitas={totalFiltradoReceitas}
+    totalFiltradoDespesas={totalFiltradoDespesas}
+    anoRef={anoRef}
+    totalAnualReceitas={totalAnualReceitas}
+    totalAnualDespesas={totalAnualDespesas}
+    itemsFiltrados={getFilteredTransactions}
+    transactions={transacoes}
+    hojeStr={hojeStr}
+    togglePago={togglePago}
+    handleEditClick={handleEditClick}
+    confirmDelete={confirmDelete}
+    stats={stats}
+  />
 </div>
-<div className="mt-3" />
 
-    {activeTab === "transacoes" && (
-      <TransacoesTab
-        filtroMes={filtroMesTransacoes}
-        setFiltroMes={setFiltroMesTransacoes}
-        filtroLancamento={filtroLancamento}
-        setFiltroLancamento={setFiltroLancamento}
-        filtroConta={filtroConta}
-        transacoesCardsPerfilView={transacoesCardsPerfilView}
-        setTransacoesCardsPerfilView={setTransacoesCardsPerfilView}
-        setFiltroConta={setFiltroConta}
-        filtroCategoria={filtroCategoria}
-        setFiltroCategoria={setFiltroCategoria}
-        categoriasFiltradasTransacoes={categoriasFiltradasTransacoes}
-        filtroTipoGasto={filtroTipoGasto}
-        setFiltroTipoGasto={setFiltroTipoGasto}
-        handleLimparFiltros={handleLimparFiltros}
-        profiles={profiles}
-        renderContaOptionLabel={renderContaOptionLabel}
-        mostrarReceitasResumo={mostrarReceitasResumo}
-        mostrarDespesasResumo={mostrarDespesasResumo}
-        totalFiltradoReceitas={totalFiltradoReceitas}
-        totalFiltradoDespesas={totalFiltradoDespesas}
-        anoRef={anoRef}
-        totalAnualReceitas={totalAnualReceitas}
-        totalAnualDespesas={totalAnualDespesas}
-        itemsFiltrados={getFilteredTransactions}
-        transactions={transacoes}
-        hojeStr={hojeStr}
-        togglePago={togglePago}
-        handleEditClick={handleEditClick}
-        confirmDelete={confirmDelete}
-        stats={stats}
-      />
-    )}
-
-    {/* GASTOS */}
-{activeTab === "gastos" && (
+<div className={activeTab === "gastos" ? "block" : "hidden"}>
   <GastosTab
     spendingByCategoryData={spendingByCategoryData}
     filtroMes={filtroMesAnalise}
@@ -6134,10 +6131,9 @@ await deleteTransactionById(String(id), userId);
     setPerfilView={setAnalisePerfilView}
     isDarkMode={isDarkMode}
   />
-)}
+</div>
 
-    {/* PROJECAO */}
-{activeTab === "projecao" && (
+<div className={activeTab === "projecao" ? "block" : "hidden"}>
   <ProjecaoTab
     projection12Months={projection12Months}
     projectionMode={projectionMode}
@@ -6146,9 +6142,8 @@ await deleteTransactionById(String(id), userId);
     perfilView={projecaoPerfilView}
     setPerfilView={setProjecaoPerfilView}
   />
-)}
+</div>
   </div>
-)}
 
           </>
         </div>

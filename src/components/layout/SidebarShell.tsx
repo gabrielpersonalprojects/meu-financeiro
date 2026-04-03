@@ -421,13 +421,15 @@ export default function SidebarShell({
     {activePanel === "notificacoes" ? "Flux News" : getPanelTitle(activePanel)}
   </h2>
 
-  {activePanel === "notificacoes" ? (
+{activePanel === "notificacoes" ? (
+  unreadNotificationsCount > 0 ? (
     <div className="mt-1">
       <p className="mt-1 text-xs font-semibold text-[#6d28d9] dark:text-violet-300">
         {unreadNotificationsCount} não lida{unreadNotificationsCount === 1 ? "" : "s"}
       </p>
     </div>
-  ) : (
+  ) : null
+) : (
     <p className="text-sm text-slate-500 dark:text-slate-400">
       {getPanelSubtitle(activePanel)}
     </p>
@@ -510,13 +512,15 @@ export default function SidebarShell({
     {activePanel === "notificacoes" ? "Flux News" : getPanelTitle(activePanel)}
   </h2>
 
-  {activePanel === "notificacoes" ? (
+{activePanel === "notificacoes" ? (
+  unreadNotificationsCount > 0 ? (
     <div className="mt-1">
       <p className="mt-1 text-[11px] font-semibold text-[#6d28d9] dark:text-violet-300">
         {unreadNotificationsCount} não lida{unreadNotificationsCount === 1 ? "" : "s"}
       </p>
     </div>
-  ) : (
+  ) : null
+) : (
     <p className="text-xs text-slate-500 dark:text-slate-400">
       {getPanelSubtitle(activePanel)}
     </p>

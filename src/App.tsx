@@ -142,6 +142,10 @@ import {
   getUserFavoriteAccount,
   setUserFavoriteAccount,
 } from "./services/userAccess";
+import {
+  getNotificationsWithReadStatus,
+  markNotificationAsRead,
+} from "./services/notifications";
 
 
 
@@ -169,117 +173,6 @@ const [ccTags, setCcTags] = useState<string[]>([]);
 const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
 const [activeTab, setActiveTab] = useState<TabType>("transacoes");
-
-type AppNotification = {
-  id: string;
-  type: "novidade" | "lembrete" | "importante";
-  title: string;
-  preview: string;
-  message: string;
-  date: string;
-  read: boolean;
-};
-
-const [notifications, setNotifications] = useState<AppNotification[]>([
-  {
-    id: "notif_2026_04_03_mobile_drawer",
-    type: "novidade",
-    title: "Novo menu lateral no mobile",
-    preview: "O menu agora abre por cima da tela no celular.",
-    message:
-      "Agora o menu lateral do FluxMoney no mobile abre em formato drawer, por cima da tela, preservando melhor o espaço útil e evitando que os cards e filtros fiquem espremidos.",
-    date: "2026-04-03T16:30:00",
-    read: false,
-  },
-  {
-    id: "notif_2026_04_03_conta_favorita",
-    type: "novidade",
-    title: "Conta favorita salva entre sessões",
-    preview: "Sua conta favorita agora pode persistir ao entrar novamente.",
-    message:
-      "Agora o FluxMoney consegue salvar sua conta favorita para que, ao entrar novamente no app, ela continue selecionada automaticamente quando aplicável.",
-    date: "2026-04-03T15:10:00",
-    read: false,
-  },
-  {
-    id: "notif_2026_04_03_melhorias_filtros",
-    type: "lembrete",
-    title: "Melhorias recentes de navegação",
-    preview: "Filtros, painel lateral e comportamento visual receberam ajustes.",
-    message:
-      "Realizamos ajustes recentes no menu lateral, nos filtros e na experiência de navegação para deixar o uso do FluxMoney mais fluido, especialmente em telas menores.",
-    date: "2026-04-03T14:20:00",
-    read: false,
-  },
-]);
-
-const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
-
-const notificationsSorted = useMemo(() => {
-  return [...notifications].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-}, [notifications]);
-
-const unreadNotificationsCount = useMemo(() => {
-  return notifications.filter((item) => !item.read).length;
-}, [notifications]);
-
-const selectedNotification = useMemo(() => {
-  return notifications.find((item) => item.id === selectedNotificationId) ?? null;
-}, [notifications, selectedNotificationId]);
-
-const handleOpenNotification = (notificationId: string) => {
-  setNotifications((prev) =>
-    prev.map((item) =>
-      item.id === notificationId ? { ...item, read: true } : item
-    )
-  );
-
-  setSelectedNotificationId(notificationId);
-};
-
-const handleBackToNotifications = () => {
-  setSelectedNotificationId(null);
-};
-
-const formatNotificationDate = (value: string) => {
-  try {
-    return new Date(value).toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  } catch {
-    return value;
-  }
-};
-
-const getNotificationTypeLabel = (type: AppNotification["type"]) => {
-  switch (type) {
-    case "novidade":
-      return "Novidade";
-    case "lembrete":
-      return "Lembrete";
-    case "importante":
-      return "Importante";
-    default:
-      return "Notificação";
-  }
-};
-
-const getNotificationTypeClasses = (type: AppNotification["type"]) => {
-  switch (type) {
-    case "novidade":
-      return "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300";
-    case "lembrete":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300";
-    case "importante":
-      return "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300";
-    default:
-      return "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300";
-  }
-};
 
 const scrollPorAbaRef = useRef<Record<string, number>>({
   transacoes: 0,
@@ -367,6 +260,131 @@ const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>([
   // --- Auth Session ---
   const [session, setSession] = useState<Session | null>(null);
 const [sessionLoading, setSessionLoading] = useState(true);
+
+type AppNotification = {
+  id: string;
+  type: "info" | "update" | "feature" | "warning";
+  title: string;
+  preview: string;
+  message: string;
+  date: string;
+  read: boolean;
+};
+
+const [notifications, setNotifications] = useState<AppNotification[]>([]);
+const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
+
+const loadNotifications = useCallback(async () => {
+  const userId = String(session?.user?.id ?? "").trim();
+
+  if (!userId) {
+    setNotifications([]);
+    setSelectedNotificationId(null);
+    return;
+  }
+
+  try {
+    const data = await getNotificationsWithReadStatus(userId);
+
+    setNotifications(
+      data.map((item) => ({
+        id: item.id,
+        type: item.type,
+        title: item.title,
+        preview: item.preview,
+        message: item.message,
+        date: item.createdAt,
+        read: item.isRead,
+      }))
+    );
+  } catch (err) {
+    console.error("ERRO AO CARREGAR NOTIFICACOES:", err);
+  }
+}, [session?.user?.id]);
+
+useEffect(() => {
+  void loadNotifications();
+}, [loadNotifications]);
+
+const notificationsSorted = useMemo(() => {
+  return [...notifications].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+}, [notifications]);
+
+const unreadNotificationsCount = useMemo(() => {
+  return notifications.filter((item) => !item.read).length;
+}, [notifications]);
+
+const selectedNotification = useMemo(() => {
+  return notifications.find((item) => item.id === selectedNotificationId) ?? null;
+}, [notifications, selectedNotificationId]);
+
+const handleOpenNotification = async (notificationId: string) => {
+  const userId = String(session?.user?.id ?? "").trim();
+  if (!userId) return;
+
+  setSelectedNotificationId(notificationId);
+
+  const alvo = notifications.find((item) => item.id === notificationId);
+  if (!alvo || alvo.read) return;
+
+  try {
+    await markNotificationAsRead(userId, notificationId);
+
+    setNotifications((prev) =>
+      prev.map((item) =>
+        item.id === notificationId ? { ...item, read: true } : item
+      )
+    );
+  } catch (err) {
+    console.error("ERRO AO MARCAR NOTIFICACAO COMO LIDA:", err);
+  }
+};
+
+const handleBackToNotifications = () => {
+  setSelectedNotificationId(null);
+};
+
+const formatNotificationDate = (value: string) => {
+  try {
+    return new Date(value).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  } catch {
+    return value;
+  }
+};
+
+const getNotificationTypeLabel = (type: AppNotification["type"]) => {
+  switch (type) {
+    case "update":
+      return "Novidade";
+    case "feature":
+      return "Recurso";
+    case "warning":
+      return "Aviso";
+    case "info":
+    default:
+      return "Informação";
+  }
+};
+
+const getNotificationTypeClasses = (type: AppNotification["type"]) => {
+  switch (type) {
+    case "update":
+      return "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300";
+    case "feature":
+      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300";
+    case "warning":
+      return "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300";
+    case "info":
+    default:
+      return "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300";
+  }
+};
 
 const [accessRole, setAccessRole] = useState<"admin" | "user" | null>(null);
 const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
@@ -5598,9 +5616,9 @@ const notificationsPanelContent = (
               type="button"
               onClick={() => handleOpenNotification(item.id)}
               className={`w-full rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-[1px] ${
-                item.read
-                  ? "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900"
-                  : "border-violet-200 bg-violet-50/70 dark:border-violet-400/20 dark:bg-violet-500/10"
+item.read
+  ? "border-slate-200 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:hover:bg-white/5"
+  : "border-violet-200 bg-violet-50/70 hover:bg-violet-100/70 dark:border-violet-400/20 dark:bg-violet-500/10 dark:hover:bg-violet-500/15"
               }`}
             >
               <div className="flex items-start justify-between gap-3">

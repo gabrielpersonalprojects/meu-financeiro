@@ -4653,7 +4653,31 @@ let resumoCartoesVencendoHojeValor = 0;
 let resumoCartoesPendentesValor = 0;
 let resumoCartoesAtrasadasValor = 0;
 
+const cartoesVencendoHojeLista: Array<{
+  cartaoId: string;
+  label: string;
+  ciclo: string;
+}> = [];
+
+const cartoesAtrasadosLista: Array<{
+  cartaoId: string;
+  label: string;
+  ciclo: string;
+}> = [];
+
 (creditCards ?? []).forEach((c: any) => {
+  const cicloAtual = calcCycleResumoYm(
+  hojeResumoStr,
+  Number(c?.diaFechamento ?? 1),
+  Number(c?.diaVencimento ?? 1)
+);
+
+const inferirCicloDaTransacaoResumo = (t: any) =>
+  inferirCicloResumo(
+    t,
+    Number(c?.diaFechamento ?? 1),
+    Number(c?.diaVencimento ?? 1)
+  );
   const cartaoId = String(c?.id ?? "").trim();
   if (!cartaoId) return;
 
@@ -4663,13 +4687,10 @@ let resumoCartoesAtrasadasValor = 0;
 
   if (!pertenceAoResumoPerfil(perfilCartao)) return;
 
-const cicloAtual = calcCycleResumoYm(
-  hojeResumoStr,
-  Number(c?.diaFechamento ?? 1),
-  Number(c?.diaVencimento ?? 1)
-);
+const transacoesDoCartao = (transacoes ?? [])
+  .filter((t: any) => String(t?.data ?? "").trim() <= hojeResumoStr)
+  .filter((t: any) => {
 
-const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
   const cartaoTxId = String(
     (t as any)?.qualCartao ??
     (t as any)?.cartaoId ??
@@ -4701,11 +4722,7 @@ const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
   const totaisPorCiclo = new Map<string, { total: number; pago: number }>();
 
   transacoesDoCartao.forEach((t: any) => {
-    const ciclo = inferirCicloResumo(
-  t,
-  Number(c?.diaFechamento ?? 1),
-  Number(c?.diaVencimento ?? 1)
-);
+const ciclo = inferirCicloDaTransacaoResumo(t);
     if (!ciclo) return;
 
     const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
@@ -4713,16 +4730,35 @@ const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
     totaisPorCiclo.set(ciclo, atual);
   });
 
-  (pagamentosFatura ?? []).forEach((p: any) => {
-    if (String(p?.cartaoId ?? "").trim() !== cartaoId) return;
+const getPagoNoCicloResumo = (cartaoId: string, cicloYm: string) => {
+  return (pagamentosFatura ?? [])
+    .filter((p: any) => String(p?.cartaoId ?? "").trim() === cartaoId)
+    .filter((p: any) => {
+      const cicloRaw = String(p?.cicloKey ?? "").trim();
+      if (!cicloRaw) return false;
 
-    const ciclo = normalizeCycleResumo(p?.cicloKey);
-    if (!ciclo) return;
+      if (/^\d{4}-\d{2}$/.test(cicloRaw)) {
+        return cicloRaw === cicloYm;
+      }
 
-    const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
-    atual.pago += Math.abs(Number(p?.valor || 0));
-    totaisPorCiclo.set(ciclo, atual);
-  });
+      if (cicloRaw.includes("__")) {
+        const parts = cicloRaw.split("__").map((part) => String(part ?? "").trim());
+        const endIso = String(parts[parts.length - 1] ?? "").trim();
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
+          const endDate = new Date(`${endIso}T12:00:00`);
+          if (!Number.isNaN(endDate.getTime())) {
+            endDate.setMonth(endDate.getMonth() + 1);
+            const ym = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
+            return ym === cicloYm;
+          }
+        }
+      }
+
+      return false;
+    })
+    .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0);
+};
 
   Array.from(totaisPorCiclo.entries()).forEach(([ciclo, info]) => {
     const statusManual = String(
@@ -4731,8 +4767,13 @@ const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
 
     if (statusManual === "paga" || statusManual === "parcelada") return;
 
-    const saldo = Math.max(0, Number(info?.total || 0) - Number(info?.pago || 0));
-    if (saldo <= 0) return;
+const totalNoCicloCentavos = Math.round(Math.abs(Number(info?.total || 0)) * 100);
+const pagoNoCicloCentavos = Math.round(getPagoNoCicloResumo(cartaoId, ciclo) * 100);
+
+if (pagoNoCicloCentavos >= totalNoCicloCentavos) return;
+
+const saldo = Math.max(0, (totalNoCicloCentavos - pagoNoCicloCentavos) / 100);
+if (saldo <= 0.009) return;
 
 const [anoStr, mesStr] = String(ciclo).split("-");
 const ano = Number(anoStr);
@@ -4746,8 +4787,19 @@ const vencimento = new Date(
 );
 vencimento.setHours(0, 0, 0, 0);
 
+const labelCartaoResumo = `${String(
+  c?.bankText ?? c?.emissor ?? c?.categoria ?? c?.name ?? "Cartão"
+).trim()} • ${
+  String(c?.perfil ?? c?.brand ?? "").trim().toLowerCase() === "pj" ? "PJ" : "PF"
+}`;
+
 if (vencimento.getTime() === hojeResumoDate.getTime()) {
   resumoCartoesVencendoHojeValor += saldo;
+cartoesVencendoHojeLista.push({
+  cartaoId,
+  label: labelCartaoResumo,
+  ciclo,
+});
   return;
 }
 
@@ -4766,6 +4818,11 @@ if (String(ciclo) > String(cicloAtual)) {
 // - vencimento ainda não passou => pendente
 if (vencimento < hojeResumoDate) {
   resumoCartoesAtrasadasValor += saldo;
+cartoesAtrasadosLista.push({
+  cartaoId,
+  label: labelCartaoResumo,
+  ciclo,
+});;
 } else {
   resumoCartoesPendentesValor += saldo;
 }
@@ -4780,6 +4837,56 @@ const resumoCartoesEmAbertoLabel = formatResumoBRL(resumoCartoesEmAbertoValor);
 const resumoCartoesVencendoHojeLabel = formatResumoBRL(resumoCartoesVencendoHojeValor);
 const resumoCartoesPendentesLabel = formatResumoBRL(resumoCartoesPendentesValor);
 const resumoCartoesAtrasadasLabel = formatResumoBRL(resumoCartoesAtrasadasValor);
+
+const despesasVencendoHojeLista = despesasEmAberto
+  .filter((t: any) => String(t?.data ?? "").trim() === hojeResumoStr)
+  .sort((a: any, b: any) => String(a?.data ?? "").localeCompare(String(b?.data ?? "")));
+
+const despesasAtrasadasLista = despesasEmAberto
+  .filter((t: any) => {
+    const data = String(t?.data ?? "").trim();
+    return data < hojeResumoStr;
+  })
+  .sort((a: any, b: any) => String(a?.data ?? "").localeCompare(String(b?.data ?? "")));
+
+const getResumoDespesaMeta = (t: any) => {
+  const categoria = String(t?.categoria ?? "").trim();
+  const metodo = String(t?.metodoPagamento ?? t?.payload?.metodoPagamento ?? "").trim();
+
+  const contaId =
+    String(
+      t?.profileId ??
+      t?.contaId ??
+      t?.contaOrigemId ??
+      t?.transferFromId ??
+      ""
+    ).trim();
+
+  const conta = (profiles ?? []).find((p: any) => String(p?.id ?? "").trim() === contaId);
+
+  const banco = String(conta?.name ?? conta?.banco ?? "").trim();
+  const perfil = String(conta?.perfilConta ?? "").trim().toUpperCase();
+
+  return [categoria, metodo, banco, perfil].filter(Boolean).join(" • ");
+};
+
+const abrirFaturaPeloResumo = (cartaoId: string, ciclo: string) => {
+  const card = (creditCards ?? []).find(
+    (c: any) => String(c?.id ?? "").trim() === String(cartaoId).trim()
+  );
+  if (!card) return;
+
+  const cicloNormalizado = String(ciclo ?? "").trim();
+  if (!cicloNormalizado) return;
+
+  setSelectedCreditCardId(String(cartaoId));
+  setCreditJumpMonth(cicloNormalizado);
+  setModoCentro("credito");
+  setActiveTab("cartoes");
+  setIsCcExpanded(true);
+  setIsInvoiceModalOpen(true);
+};
+
 const periodOfDay =
   currentHour < 12
     ? "morning"
@@ -5142,7 +5249,165 @@ const cardsPanelContent = (
   />
 );
 
+const resumoPanelContent = (
+  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+
+    <div className="mt-5 space-y-3">
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-white/5">
+        <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
+          Despesas vencendo hoje
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {despesasVencendoHojeLista.length ? (
+            despesasVencendoHojeLista.map((t: any) => (
+              <div
+                key={`hoje_${String(t?.id ?? "")}`}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-black/20"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+                    {String(t?.descricao ?? "Despesa")}
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-500 dark:text-white/55">
+                    {String(t?.data ?? "")}
+                    {getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-[13px] font-semibold text-rose-600 dark:text-rose-300">
+                    {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => togglePago(t)}
+                    className="rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white"
+                    style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+                  >
+                    Pagar
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-[12px] text-slate-500 dark:text-white/50">
+              Nenhuma despesa vencendo hoje.
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 border-t border-slate-200 pt-3 dark:border-white/10">
+          <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
+            Em atraso
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {despesasAtrasadasLista.length ? (
+              despesasAtrasadasLista.map((t: any) => (
+                <div
+                  key={`atraso_${String(t?.id ?? "")}`}
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 dark:border-rose-400/20 dark:bg-rose-500/10"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+                      {String(t?.descricao ?? "Despesa")}
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-500 dark:text-white/55">
+                      {String(t?.data ?? "")}
+                      {getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-[13px] font-semibold text-rose-600 dark:text-rose-300">
+                      {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => togglePago(t)}
+                      className="rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white"
+                      style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+                    >
+                      Pagar
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-[12px] text-slate-500 dark:text-white/50">
+                Nenhuma despesa em atraso.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-white/5">
+        <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
+          Faturas vencendo hoje
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {cartoesVencendoHojeLista.length ? (
+            cartoesVencendoHojeLista.map((item) => (
+              <button
+                key={`cartao_hoje_${item.cartaoId}`}
+                type="button"
+                onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
+                className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:bg-slate-100 dark:border-white/10 dark:bg-black/20 dark:hover:bg-white/10"
+              >
+                <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
+                  {item.label}
+                </span>
+                <span className="text-[11px] font-medium text-violet-700 dark:text-violet-300">
+                  Acessar fatura
+                </span>
+              </button>
+            ))
+          ) : (
+            <div className="text-[12px] text-slate-500 dark:text-white/50">
+              Nenhuma fatura vencendo hoje.
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 border-t border-slate-200 pt-3 dark:border-white/10">
+          <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
+            Em atraso
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {cartoesAtrasadosLista.length ? (
+              cartoesAtrasadosLista.map((item) => (
+                <button
+                  key={`cartao_atraso_${item.cartaoId}`}
+                  type="button"
+                 onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
+                  className="flex w-full items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-left transition hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-500/10 dark:hover:bg-rose-500/20"
+                >
+                  <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
+                    {item.label}
+                  </span>
+                  <span className="text-[11px] font-medium text-violet-700 dark:text-violet-300">
+                    Acessar fatura
+                  </span>
+                </button>
+              ))
+            ) : (
+              <div className="text-[12px] text-slate-500 dark:text-white/50">
+                Nenhuma fatura em atraso.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 const sidebarPanels: Partial<Record<Exclude<SidebarPanelKey, null>, React.ReactNode>> = {
+  resumo: resumoPanelContent,
   despesa: expensePanelContent,
   receita: incomePanelContent,
   transferencia: transferPanelContent,

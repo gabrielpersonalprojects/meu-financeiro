@@ -207,32 +207,64 @@ className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition $
     panelOpen ? "translate-x-0" : "-translate-x-full"
   }`}
 >
-       <div
+<div
   className="flex items-center justify-between border-b border-slate-200 bg-white px-5 dark:border-white/10 dark:bg-slate-900"
   style={{ height: "88px" }}
 >
-          <div>
-<h2 className="text-lg font-semibold text-[#7c3aed] dark:text-[#a78bfa]">
-  {getPanelTitle(activePanel)}
-</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Registre suas novas Transações
-            </p>
-          </div>
+{activePanel === "resumo" ? (
+  <>
+<div className="flex items-center gap-4 w-full">
+  <div className="text-4xl leading-none shrink-0">☀️</div>
 
-          <button
-            type="button"
-            onClick={() => {
-  setActivePanel(null);
-  setIsPinnedOpen(false);
-  setIsHovered(false);
-}}
-            className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
-            aria-label="Fechar painel"
-          >
-            <X size={20} />
-          </button>
-        </div>
+  <div>
+    <h2 className="text-lg font-semibold text-[#7c3aed] dark:text-[#a78bfa]">
+      Boa tarde, Gabriel
+    </h2>
+    <p className="text-sm text-slate-500 dark:text-slate-400">
+      Aqui está o seu resumo diário
+    </p>
+  </div>
+</div>
+
+    <button
+      type="button"
+      onClick={() => {
+        setActivePanel(null);
+        setIsPinnedOpen(false);
+        setIsHovered(false);
+      }}
+      className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+      aria-label="Fechar painel"
+    >
+      <X size={20} />
+    </button>
+  </>
+) : (
+    <>
+      <div>
+        <h2 className="text-lg font-semibold text-[#7c3aed] dark:text-[#a78bfa]">
+          {getPanelTitle(activePanel)}
+        </h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Registre suas novas Transações
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          setActivePanel(null);
+          setIsPinnedOpen(false);
+          setIsHovered(false);
+        }}
+        className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+        aria-label="Fechar painel"
+      >
+        <X size={20} />
+      </button>
+    </>
+  )}
+</div>
 
 <div className="h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 dark:bg-slate-950">
   {activePanel && panelContent[activePanel] ? (

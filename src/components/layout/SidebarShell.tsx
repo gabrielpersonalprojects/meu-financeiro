@@ -9,6 +9,7 @@ import {
   Landmark,
   Settings,
   Menu,
+  Bell,
 } from "lucide-react";
 
 import type { ReactNode } from "react";
@@ -21,6 +22,7 @@ export type SidebarPanelKey =
   | "transferencia"
   | "cartoes"
   | "contas"
+  | "notificacoes"
   | "settings"
   | null;
 
@@ -35,6 +37,7 @@ type SidebarShellProps = {
   userEmail?: string | null;
   panelContent?: Partial<Record<Exclude<SidebarPanelKey, null>, ReactNode>>;
   onPanelOpen?: (panel: Exclude<SidebarPanelKey, null>) => void;
+  unreadNotificationsCount?: number;
 };
 
 const menuItems: MenuItem[] = [
@@ -44,6 +47,7 @@ const menuItems: MenuItem[] = [
   { key: "transferencia", label: "Transferência", icon: <Repeat size={20} /> },
   { key: "cartoes", label: "Cartões", icon: <CreditCard size={20} /> },
   { key: "contas", label: "Minhas Contas", icon: <Landmark size={20} /> },
+  { key: "notificacoes", label: "Notificações", icon: <Bell size={20} /> },
   { key: "settings", label: "Configurações", icon: <Settings size={20} /> },
 ];
 
@@ -61,8 +65,29 @@ function getPanelTitle(activePanel: SidebarPanelKey) {
       return "Resumo do dia";
     case "contas":
       return "Minhas Contas";
+    case "notificacoes":
+      return "Notificações";
     case "settings":
       return "Configurações";
+    default:
+      return "";
+  }
+}
+
+function getPanelSubtitle(activePanel: SidebarPanelKey) {
+  switch (activePanel) {
+    case "despesa":
+    case "receita":
+    case "transferencia":
+      return "Registre suas novas Transações";
+    case "cartoes":
+      return "Gerencie seus cartões e faturas";
+    case "notificacoes":
+      return "Atualizações, lembretes e avisos do FluxMoney";
+    case "contas":
+      return "Gerencie suas contas cadastradas";
+    case "settings":
+      return "Ajuste preferências e configurações do app";
     default:
       return "";
   }
@@ -117,7 +142,9 @@ export default function SidebarShell({
   userEmail,
   panelContent = {},
   onPanelOpen,
+  unreadNotificationsCount = 0,
 }: SidebarShellProps) {
+
   const [isHovered, setIsHovered] = useState(false);
   const [isPinnedOpen, setIsPinnedOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<SidebarPanelKey>(null);
@@ -218,21 +245,31 @@ export default function SidebarShell({
                   setIsHovered(false);
                   onPanelOpen?.(item.key);
                 }}
-                className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
+               className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
                   active
                     ? "bg-[#40009c] text-white shadow-sm"
                     : "text-slate-700 hover:bg-[#40009c]/8 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-[#40009c]/15 dark:hover:text-white"
                 }`}
               >
-                <span className="flex min-w-[24px] justify-center">{item.icon}</span>
+<span className="flex min-w-[24px] justify-center">{item.icon}</span>
 
-                <span
-                  className={`overflow-hidden whitespace-nowrap text-base font-medium transition-all duration-300 ${
-                    sidebarExpanded ? "max-w-[180px] opacity-100" : "max-w-0 opacity-0"
-                  }`}
-                >
-                  {item.label}
-                </span>
+<span
+  className={`overflow-hidden whitespace-nowrap text-base font-medium transition-all duration-300 ${
+    sidebarExpanded ? "max-w-[180px] opacity-100" : "max-w-0 opacity-0"
+  }`}
+>
+  {item.label}
+</span>
+
+{item.key === "notificacoes" && unreadNotificationsCount > 0 && (
+  <span
+    className={`absolute flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6d28d9] px-1.5 text-[11px] font-semibold text-white shadow-sm ${
+      sidebarExpanded ? "right-4 top-4" : "right-2 top-2"
+    }`}
+  >
+    {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
+  </span>
+)}
               </button>
             );
           })}
@@ -315,16 +352,22 @@ export default function SidebarShell({
                     setMobileMenuOpen(false);
                     onPanelOpen?.(item.key);
                   }}
-                  className={`flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
+                  className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
                     active
                       ? "bg-[#40009c] text-white shadow-sm"
                       : "text-slate-700 hover:bg-[#40009c]/8 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-[#40009c]/15 dark:hover:text-white"
                   }`}
                 >
-                  <span className="flex min-w-[24px] justify-center">{item.icon}</span>
-                  <span className="whitespace-nowrap text-base font-medium">
-                    {item.label}
-                  </span>
+<span className="flex min-w-[24px] justify-center">{item.icon}</span>
+<span className="whitespace-nowrap text-base font-medium">
+  {item.label}
+</span>
+
+{item.key === "notificacoes" && unreadNotificationsCount > 0 && (
+  <span className="absolute right-4 top-4 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6d28d9] px-1.5 text-[11px] font-semibold text-white shadow-sm">
+    {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
+  </span>
+)}
                 </button>
               );
             })}
@@ -373,14 +416,23 @@ export default function SidebarShell({
             </>
           ) : (
             <>
-              <div>
-                <h2 className="text-lg font-semibold text-[#40009c] dark:text-white">
-                  {getPanelTitle(activePanel)}
-                </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Registre suas novas Transações
-                </p>
-              </div>
+<div>
+  <h2 className="text-lg font-semibold text-[#40009c] dark:text-white">
+    {activePanel === "notificacoes" ? "Flux News" : getPanelTitle(activePanel)}
+  </h2>
+
+  {activePanel === "notificacoes" ? (
+    <div className="mt-1">
+      <p className="mt-1 text-xs font-semibold text-[#6d28d9] dark:text-violet-300">
+        {unreadNotificationsCount} não lida{unreadNotificationsCount === 1 ? "" : "s"}
+      </p>
+    </div>
+  ) : (
+    <p className="text-sm text-slate-500 dark:text-slate-400">
+      {getPanelSubtitle(activePanel)}
+    </p>
+  )}
+</div>
 
               <button
                 type="button"
@@ -453,14 +505,23 @@ export default function SidebarShell({
               </>
             ) : (
               <>
-                <div className="pr-3">
-                  <h2 className="text-base font-semibold text-[#40009c] dark:text-white">
-                    {getPanelTitle(activePanel)}
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Registre suas novas Transações
-                  </p>
-                </div>
+<div className="pr-3">
+  <h2 className="text-base font-semibold text-[#40009c] dark:text-white">
+    {activePanel === "notificacoes" ? "Flux News" : getPanelTitle(activePanel)}
+  </h2>
+
+  {activePanel === "notificacoes" ? (
+    <div className="mt-1">
+      <p className="mt-1 text-[11px] font-semibold text-[#6d28d9] dark:text-violet-300">
+        {unreadNotificationsCount} não lida{unreadNotificationsCount === 1 ? "" : "s"}
+      </p>
+    </div>
+  ) : (
+    <p className="text-xs text-slate-500 dark:text-slate-400">
+      {getPanelSubtitle(activePanel)}
+    </p>
+  )}
+</div>
 
                 <button
                   type="button"

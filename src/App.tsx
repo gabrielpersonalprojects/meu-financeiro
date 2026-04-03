@@ -3794,15 +3794,22 @@ setCcTags((prev) =>
 const criadas = await salvarNoSupabase(novos);
 setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
-const mesDestinoCartao = getCardCycleMonthFromDate(
-  formData,
-  Number(selectedCard?.diaFechamento ?? 1),
-  Number(selectedCard?.diaVencimento ?? 1)
+const cartaoLancadoId = String(selectedCreditCardId || formQualCartao || "").trim();
+
+const cartaoLancado = creditCards.find(
+  (c) => String(c.id) === cartaoLancadoId
 );
 
-setSelectedCreditCardId(String(selectedCreditCardId));
+const mesDestinoCartao = getCardCycleMonthFromDate(
+  formData,
+  Number(cartaoLancado?.diaFechamento ?? 1),
+  Number(cartaoLancado?.diaVencimento ?? 1)
+);
+
+setSelectedCreditCardId(cartaoLancadoId);
 setCreditJumpMonth(mesDestinoCartao);
 setModoCentro("credito");
+setActiveTab("cartoes");
 setIsCcExpanded(true);
 
 setFormDesc("");
@@ -3951,20 +3958,22 @@ else if (
 const criadas = await salvarNoSupabase(newTrans);
 setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
-    setFormDesc("");
-    setFormValor("");
-    setFormData(getHojeLocal());
-    setFormMetodo("");
-    setFormQualCartao("");
-    setFormTipoGasto("");
-    setFormCat("");
-    setFormPago(formTipo === "receita" ? false : true);
-    setIsParceladoMode(null);
-    setCcIsParceladoMode(null);
-    setFormParcelas(2);
-    setPrazoMode(null);
-    setFormDataTerminoFixa(getHojeLocal());
-    toastCompact("Lançamento realizado com sucesso!", "success");
+setActiveTab("transacoes");
+
+setFormDesc("");
+setFormValor("");
+setFormData(getHojeLocal());
+setFormMetodo("");
+setFormQualCartao("");
+setFormTipoGasto("");
+setFormCat("");
+setFormPago(formTipo === "receita" ? false : true);
+setIsParceladoMode(null);
+setCcIsParceladoMode(null);
+setFormParcelas(2);
+setPrazoMode(null);
+setFormDataTerminoFixa(getHojeLocal());
+toastCompact("Lançamento realizado com sucesso!", "success");
 
   } catch (err) {
     console.error("ERRO AO SALVAR LANCAMENTO:", err);

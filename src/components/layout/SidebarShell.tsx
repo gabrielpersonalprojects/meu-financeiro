@@ -10,6 +10,7 @@ import {
   Settings,
   Menu,
   Bell,
+  PencilLine,
 } from "lucide-react";
 
 import type { ReactNode } from "react";
@@ -35,6 +36,8 @@ type MenuItem = {
 type SidebarShellProps = {
   children: ReactNode;
   userEmail?: string | null;
+  userDisplayName?: string | null;
+  onEditDisplayName?: () => void;
   panelContent?: Partial<Record<Exclude<SidebarPanelKey, null>, ReactNode>>;
   onPanelOpen?: (panel: Exclude<SidebarPanelKey, null>) => void;
   unreadNotificationsCount?: number;
@@ -137,10 +140,34 @@ function PanelContent({ activePanel }: { activePanel: SidebarPanelKey }) {
     </div>
   );
 }
+function getGreetingMeta() {
+  const hour = new Date().getHours();
+
+  if (hour >= 5 && hour < 12) {
+    return {
+      greeting: "Bom dia",
+      icon: "🌤️",
+    };
+  }
+
+  if (hour >= 12 && hour < 18) {
+    return {
+      greeting: "Boa tarde",
+      icon: "☀️",
+    };
+  }
+
+  return {
+    greeting: "Boa noite",
+    icon: "🌙",
+  };
+}
 
 export default function SidebarShell({
   children,
   userEmail,
+  userDisplayName,
+  onEditDisplayName,
   panelContent = {},
   onPanelOpen,
   unreadNotificationsCount = 0,
@@ -154,6 +181,9 @@ export default function SidebarShell({
 
   const sidebarExpanded = isHovered || isPinnedOpen;
   const panelOpen = activePanel !== null;
+
+    const { greeting, icon: greetingIcon } = getGreetingMeta();
+  const displayNameSafe = String(userDisplayName ?? "").trim() || "Usuário";
 
   const closeAll = () => {
     setActivePanel(null);
@@ -392,31 +422,46 @@ export default function SidebarShell({
           className="flex items-center justify-between border-b border-slate-200 bg-white px-5 dark:border-white/10 dark:bg-slate-900"
           style={{ height: "88px" }}
         >
-          {activePanel === "resumo" ? (
-            <>
-              <div className="flex w-full items-center gap-4">
-                <div className="text-4xl leading-none shrink-0">☀️</div>
+{activePanel === "resumo" ? (
+  <>
+    <div className="flex w-full items-center justify-between gap-3 pr-3">
+      <div className="flex items-center gap-3">
+        <div className="text-3xl leading-none shrink-0">{greetingIcon}</div>
 
-                <div>
-                  <h2 className="text-lg font-semibold text-[#40009c] dark:text-white">
-                    Boa tarde, Gabriel
-                  </h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Aqui está o seu resumo diário
-                  </p>
-                </div>
-              </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-[#40009c] dark:text-white">
+              {greeting}, {displayNameSafe}
+            </h2>
 
-              <button
-                type="button"
-                onClick={closeAll}
-                className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
-                aria-label="Fechar painel"
-              >
-                <X size={20} />
-              </button>
-            </>
-          ) : (
+            <button
+              type="button"
+              onClick={onEditDisplayName}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#40009c] dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-white"
+              aria-label="Editar nome"
+              title="Editar nome"
+            >
+              <PencilLine size={14} />
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Aqui está o seu resumo diário
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={closeAll}
+        className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+        aria-label="Fechar painel"
+      >
+        <X size={20} />
+      </button>
+    </div>
+  </>
+) : (
             <>
 <div>
   <h2 className="text-lg font-semibold text-[#40009c] dark:text-white">

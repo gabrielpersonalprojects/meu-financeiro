@@ -257,7 +257,7 @@ export default function SidebarShell({
             <div className="whitespace-nowrap text-[28px] font-medium tracking-[-0.02em] text-[#40009c] dark:text-white">
               Flux Menu
             </div>
-            <div className="mt-1 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
+           <div className="mt-0 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
               {(() => {
                 const email = userEmail ?? "";
                 const atIndex = email.indexOf("@");
@@ -356,7 +356,7 @@ export default function SidebarShell({
                 <div className="whitespace-nowrap text-[24px] font-medium tracking-[-0.02em] text-[#40009c] dark:text-white">
                   Flux Menu
                 </div>
-                <div className="mt-1 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
+                <div className="mt-0 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
                   {(() => {
                     const email = userEmail ?? "";
                     const atIndex = email.indexOf("@");

@@ -240,6 +240,30 @@ if (aPaid && bPaid) {
   }, [paginaAtual, totalPaginas]);
 
   const isFiltroTransferencias = filtroLancamento === "transferencia";
+  useEffect(() => {
+  if (filtroLancamento === "todos") {
+    setFiltroCategoria("");
+    setFiltroTipoGasto("");
+    return;
+  }
+
+  if (filtroLancamento === "receita") {
+    setFiltroCategoria("");
+    setFiltroTipoGasto("");
+    return;
+  }
+
+  if (filtroLancamento === "transferencia") {
+    setFiltroCategoria("");
+    setFiltroTipoGasto("");
+    return;
+  }
+
+  if (filtroLancamento !== "despesa") {
+    setFiltroTipoGasto("");
+  }
+}, [filtroLancamento, setFiltroCategoria, setFiltroTipoGasto]);
+
   const isGeral = !filtroConta || String(filtroConta).toLowerCase() === "todas";
   const contaSelecionada = isGeral
     ? "Geral"
@@ -320,7 +344,7 @@ className={[
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
   <div className="flex flex-col gap-4 pb-6 border-b border-slate-50 dark:border-slate-800">
-    <div className="border-t border-slate-200/10 dark:border-white/10 pt-4">
+    <div className="pt-4">
 <div className="w-full overflow-visible flex flex-wrap lg:flex-nowrap items-end gap-3">
   <div className="w-full sm:w-[190px] lg:w-[180px] shrink-0">
     <CustomDateInput
@@ -398,61 +422,61 @@ label: (
     />
   </div>
 
-  {!isFiltroTransferencias && (
-    <>
-      <div className="w-full sm:w-[250px] lg:w-[230px] shrink-0">
-        <CustomDropdown
-          placeholder="Lançamento"
-          value={
-            filtroLancamento === "todos"
-              ? "Entradas + Saídas"
-              : filtroLancamento === "receita"
-              ? "Somente Entradas"
-              : filtroLancamento === "despesa"
-              ? "Somente Saídas"
-              : "Transferências"
-          }
-          options={[
-            "Entradas + Saídas",
-            "Somente Entradas",
-            "Somente Saídas",
-            "Transferências",
-          ]}
-          onSelect={(val) => {
-            if (val === "Somente Entradas") setFiltroLancamento("receita");
-            else if (val === "Somente Saídas") setFiltroLancamento("despesa");
-            else if (val === "Transferências") setFiltroLancamento("transferencia");
-            else setFiltroLancamento("todos");
-          }}
-          className="w-full"
-        />
-      </div>
 
-      {filtroLancamento !== "todos" && (
-        <div className="w-full sm:w-[190px] lg:w-[180px] shrink-0">
-          <CustomDropdown
-            placeholder="Categorias"
-            value={filtroCategoria}
-            options={["Todas", ...categoriasFiltradasTransacoes]}
-            onSelect={(val) => setFiltroCategoria(val === "Todas" ? "" : val)}
-            className="w-full"
-          />
-        </div>
-      )}
+<>
+  <div className="w-full sm:w-[250px] lg:w-[230px] shrink-0">
+    <CustomDropdown
+      placeholder="Lançamento"
+      value={
+        filtroLancamento === "todos"
+          ? "Entradas + Saídas"
+          : filtroLancamento === "receita"
+          ? "Somente Entradas"
+          : filtroLancamento === "despesa"
+          ? "Somente Saídas"
+          : "Transferências"
+      }
+      options={[
+        "Entradas + Saídas",
+        "Somente Entradas",
+        "Somente Saídas",
+        "Transferências",
+      ]}
+      onSelect={(val) => {
+        if (val === "Somente Entradas") setFiltroLancamento("receita");
+        else if (val === "Somente Saídas") setFiltroLancamento("despesa");
+        else if (val === "Transferências") setFiltroLancamento("transferencia");
+        else setFiltroLancamento("todos");
+      }}
+      className="w-full"
+    />
+  </div>
 
-      {filtroLancamento === "despesa" && (
-        <div className="w-full sm:w-[170px] lg:w-[160px] shrink-0">
-          <CustomDropdown
-            placeholder="Tipo Gasto"
-            value={filtroTipoGasto}
-            options={["Todos", "Fixo", "Variável"]}
-            onSelect={(val) => setFiltroTipoGasto(val === "Todos" ? "" : val)}
-            className="w-full"
-          />
-        </div>
-      )}
-    </>
+  {!isFiltroTransferencias && filtroLancamento !== "todos" && (
+    <div className="w-full sm:w-[190px] lg:w-[180px] shrink-0">
+      <CustomDropdown
+        placeholder="Categorias"
+        value={filtroCategoria}
+        options={["Todas", ...categoriasFiltradasTransacoes]}
+        onSelect={(val) => setFiltroCategoria(val === "Todas" ? "" : val)}
+        className="w-full"
+      />
+    </div>
   )}
+
+  {!isFiltroTransferencias && filtroLancamento === "despesa" && (
+    <div className="w-full sm:w-[170px] lg:w-[160px] shrink-0">
+      <CustomDropdown
+        placeholder="Tipo Gasto"
+        value={filtroTipoGasto}
+        options={["Todos", "Fixo", "Variável"]}
+        onSelect={(val) => setFiltroTipoGasto(val === "Todos" ? "" : val)}
+        className="w-full"
+      />
+    </div>
+  )}
+</>
+ 
 
   <div className="w-full sm:w-auto lg:ml-auto shrink-0">
     <button
@@ -486,18 +510,19 @@ label: (
   <div className="pointer-events-none absolute inset-0 bg-black/6 backdrop-blur-[1px]" />
   <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-white/12 blur-3xl" />
 
+{perfilCardsHabilitado && (
   <div className="absolute top-5 right-5 z-20">
     <div
       className={[
         "inline-flex items-center gap-1 rounded-full px-1 py-1",
         "bg-black/10 backdrop-blur-xl",
-        !perfilCardsHabilitado ? "opacity-55" : "",
       ].join(" ")}
     >
       <PerfilToggleButton perfil="PF" />
       <PerfilToggleButton perfil="PJ" />
     </div>
   </div>
+)}
 
 <div className="relative pt-6">
    <p className="mb-4 flex items-center gap-2 text-[11px] font-black text-white/85 uppercase tracking-[0.16em]">

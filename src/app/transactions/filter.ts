@@ -53,9 +53,31 @@ export const buildFilteredTransactions = (
   list = list.filter(passarFiltroConta);
   list = mergeTransfers(list);
 
-  if (filtroLancamento !== "todos") {
-    list = list.filter((t) => t.tipo === filtroLancamento);
-  }
+if (filtroLancamento !== "todos") {
+  list = list.filter((t: any) => {
+    const categoriaNorm = normalizeText(t?.categoria);
+    const tipoNorm = normalizeText(t?.tipo);
+
+    const isTransferencia =
+      !!t?.transferId ||
+      categoriaNorm === "transferencia" ||
+      tipoNorm === "transferencia";
+
+    if (filtroLancamento === "transferencia") {
+      return isTransferencia;
+    }
+
+    if (filtroLancamento === "despesa") {
+      return !isTransferencia && tipoNorm === "despesa";
+    }
+
+    if (filtroLancamento === "receita") {
+      return !isTransferencia && tipoNorm === "receita";
+    }
+
+    return true;
+  });
+}
 
   const order = (tipo: TransactionType) => {
     if (tipo === "receita") return 0;
@@ -111,9 +133,31 @@ export const buildFilteredTransactionsByYear = (
   list = list.filter((t) => String(t.data ?? "").startsWith(anoRef));
 
   // filtra tipo por último (pra não atrapalhar merge/filtro)
-  if (filtroLancamento !== "todos") {
-    list = list.filter((t) => t.tipo === filtroLancamento);
-  }
+if (filtroLancamento !== "todos") {
+  list = list.filter((t: any) => {
+    const categoriaNorm = normalizeText(t?.categoria);
+    const tipoNorm = normalizeText(t?.tipo);
+
+    const isTransferencia =
+      !!t?.transferId ||
+      categoriaNorm === "transferencia" ||
+      tipoNorm === "transferencia";
+
+    if (filtroLancamento === "transferencia") {
+      return isTransferencia;
+    }
+
+    if (filtroLancamento === "despesa") {
+      return !isTransferencia && tipoNorm === "despesa";
+    }
+
+    if (filtroLancamento === "receita") {
+      return !isTransferencia && tipoNorm === "receita";
+    }
+
+    return true;
+  });
+}
 
   return list.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 };

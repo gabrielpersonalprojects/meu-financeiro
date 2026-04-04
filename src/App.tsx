@@ -2896,8 +2896,18 @@ const handleLimparFiltros = () => {
     setFiltroTipoGasto,
   });
 
-  // ✅ garante que a conta volta pro padrão
-  setFiltroConta("todas");
+  const favoriteId = String(favoriteAccountId ?? "").trim();
+
+  if (favoriteId) {
+    const favoritaExiste = (profiles ?? []).some(
+      (p: any) => String(p?.id ?? "").trim() === favoriteId
+    );
+
+    setFiltroConta(favoritaExiste ? favoriteId : "todas");
+  } else {
+    setFiltroConta("todas");
+  }
+
   setTransacoesCardsPerfilView("geral");
 };
 
@@ -3015,9 +3025,21 @@ const projection12Months = useProjection12Months({
 
 // --- Categorias filtradas para dropdown (Transações) ---
 const categoriasFiltradasTransacoes = useMemo(() => {
-  if (filtroLancamento === "receita") return sortStringsAsc(categorias.receita);
-  if (filtroLancamento === "despesa") return sortStringsAsc(categorias.despesa);
-  return sortStringsAsc([...new Set([...categorias.despesa, ...categorias.receita])]);
+  if (filtroLancamento === "receita") {
+    return sortStringsAsc(categorias.receita);
+  }
+
+  if (filtroLancamento === "despesa") {
+    return sortStringsAsc(categorias.despesa);
+  }
+
+  if (filtroLancamento === "transferencia") {
+    return ["Transferência"];
+  }
+
+  return sortStringsAsc([
+    ...new Set([...categorias.despesa, ...categorias.receita, "Transferência"]),
+  ]);
 }, [categorias, filtroLancamento]);
 
 const handleEditClick = (t: Transaction) => {
@@ -6028,43 +6050,79 @@ className={`lg:col-span-12 space-y-6 ${
     {/* TRANSACOES */}
 {/* Tabs */}
 <div className="w-full md:overflow-visible overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-  <div className="flex md:grid md:grid-cols-4 min-w-max md:min-w-0 gap-3">
+ <div className="flex md:flex md:justify-center min-w-max md:min-w-0 gap-3 md:gap-8">
     {(["transacoes", "cartoes", "gastos", "projecao"] as TabType[]).map((tab) => (
-      <button
-        key={tab}
-        type="button"
-        onClick={() => {
-          if (activeTab === "gastos" && tab !== "gastos") {
-            setFiltroMesAnalise(getHojeLocal().substring(0, 7));
-          }
+<button
+  key={tab}
+  type="button"
+  onClick={() => {
+    if (activeTab === "gastos" && tab !== "gastos") {
+      setFiltroMesAnalise(getHojeLocal().substring(0, 7));
+    }
 
-          if (activeTab === "cartoes" && tab !== "cartoes") {
-            setIsCcExpanded(false);
-            setSelectedCreditCardId("");
-          }
+    if (activeTab === "cartoes" && tab !== "cartoes") {
+      setIsCcExpanded(false);
+      setSelectedCreditCardId("");
+    }
 
-          setActiveTab(tab);
-        }}
-        className={`shrink-0 md:shrink md:w-full h-12 sm:h-14 px-4 sm:px-5 rounded-2xl transition-all whitespace-nowrap text-[14px] sm:text-base font-medium ${
-          activeTab === tab
-            ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white ring-1 ring-white/0 shadow-sm"
-            : "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
-        }`}
-      >
-        {tab === "transacoes"
-          ? "Transações"
-          : tab === "cartoes"
-          ? "Cartões"
-          : tab === "gastos"
-          ? "Análise"
-          : "Projeção"}
-      </button>
+    setActiveTab(tab);
+  }}
+  className={[
+    "group relative shrink-0 md:shrink-0 md:w-auto",
+    "h-12 sm:h-14 md:h-11 px-4 sm:px-5 md:px-2",
+    "whitespace-nowrap text-[14px] sm:text-base md:text-[20px]",
+    "font-medium md:font-normal tracking-[-0.01em]",
+    "transition-all duration-200",
+    "rounded-2xl md:rounded-none",
+    "border-0 outline-none shadow-none",
+    "focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0",
+    "active:outline-none active:ring-0",
+    activeTab === tab
+      ? [
+          // mobile
+          "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white shadow-sm",
+          // desktop
+          "md:!bg-transparent md:bg-none md:shadow-none md:ring-0 md:border-0",
+          "md:text-slate-900 dark:md:text-white",
+          "md:hover:!bg-transparent md:focus:!bg-transparent md:active:!bg-transparent",
+        ].join(" ")
+      : [
+          // mobile
+          "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60",
+          // desktop
+          "md:!bg-transparent md:bg-none md:shadow-none md:ring-0 md:border-0",
+          "md:text-slate-600 dark:md:text-white/65",
+          "md:hover:text-slate-900 dark:md:hover:text-white",
+          "md:hover:!bg-transparent md:focus:!bg-transparent md:active:!bg-transparent",
+        ].join(" "),
+  ].join(" ")}
+  style={{ WebkitTapHighlightColor: "transparent" }}
+>
+  <span className="relative z-10">
+    {tab === "transacoes"
+      ? "Transações"
+      : tab === "cartoes"
+      ? "Cartões"
+      : tab === "gastos"
+      ? "Análise"
+      : "Projeção"}
+  </span>
+
+  <span
+    className={[
+      "pointer-events-none absolute left-4 right-4 bottom-1 hidden md:block",
+      "h-[1.5px] rounded-full transition-all duration-200",
+      activeTab === tab
+        ? "bg-gradient-to-r from-transparent via-violet-400 to-transparent opacity-100"
+        : "bg-transparent opacity-0 group-hover:opacity-40 group-hover:bg-gradient-to-r group-hover:from-transparent group-hover:via-slate-500/40 dark:group-hover:via-white/30 group-hover:to-transparent",
+    ].join(" ")}
+  />
+</button>
     ))}
   </div>
 </div>
 
-<div className="mt-3" />
-<div className="mt-3" />
+<div className="mt-8" />
 
 
 {activeTab === "cartoes" && (

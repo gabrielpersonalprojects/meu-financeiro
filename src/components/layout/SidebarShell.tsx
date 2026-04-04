@@ -550,18 +550,31 @@ export default function SidebarShell({
           >
             {activePanel === "resumo" ? (
               <>
-                <div className="flex w-full items-center gap-3 pr-3">
-                  <div className="text-3xl leading-none shrink-0">☀️</div>
+<div className="flex w-full items-center gap-3 pr-3">
+  <div className="text-3xl leading-none shrink-0">{greetingIcon}</div>
 
-                  <div>
-                    <h2 className="text-base font-semibold text-[#40009c] dark:text-white">
-                      Boa tarde, Gabriel
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Aqui está o seu resumo diário
-                    </p>
-                  </div>
-                </div>
+  <div>
+    <div className="flex items-center gap-2">
+      <h2 className="text-base font-semibold text-[#40009c] dark:text-white">
+        {greeting}, {displayNameSafe}
+      </h2>
+
+      <button
+        type="button"
+        onClick={onEditDisplayName}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#40009c] dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-white"
+        aria-label="Editar nome"
+        title="Editar nome"
+      >
+        <PencilLine size={14} />
+      </button>
+    </div>
+
+    <p className="text-xs text-slate-500 dark:text-slate-400">
+      Aqui está o seu resumo diário
+    </p>
+  </div>
+</div>
 
                 <button
                   type="button"

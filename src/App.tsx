@@ -5705,14 +5705,205 @@ const sidebarPanels: Partial<Record<Exclude<SidebarPanelKey, null>, React.ReactN
   notificacoes: notificationsPanelContent,
 };
 
+const handleOnboardingLater = async () => {
+  try {
+    const { error: updateError } = await supabase.auth.updateUser({
+      data: { display_name: "" },
+    });
+
+    if (updateError) {
+      toastCompact("Não foi possível limpar o onboarding.", "error");
+      return;
+    }
+
+    setDisplayName("");
+    setConfirmedDisplayName("");
+    setIsEditingDisplayName(true);
+
+    resetAddAccountForm();
+    setIsAddAccountOpen(false);
+    setEditingProfileId(null);
+
+    await supabase.auth.signOut();
+  } catch (err) {
+    console.error("ERRO AO ADIAR ONBOARDING:", err);
+    toastCompact("Erro ao voltar para o login.", "error");
+  }
+};
+
 return (
   <SidebarShell
   userEmail={session?.user?.email}
   panelContent={sidebarPanels}
   onPanelOpen={handleSidebarOpen}
   unreadNotificationsCount={unreadNotificationsCount}
+  showGlobalOverlay={appBloqueado}
 >
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+{appBloqueado && (
+  <div className="fixed inset-0 z-[200] flex items-center justify-center px-6">
+    <div className="w-full max-w-[620px] rounded-[24px] border border-slate-200 bg-white px-6 py-6 shadow-[0_14px_36px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-slate-900 md:px-7 md:py-7">
+      <div className="flex items-start justify-between gap-4">
+        <div className="pr-2">
+          <div className="inline-flex rounded-full bg-[#40009c]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#40009c] dark:bg-[#40009c]/15 dark:text-violet-200">
+            Primeiros passos
+          </div>
+
+          <h2 className="mt-4 text-[34px] font-bold leading-[1.02] tracking-[-0.04em] text-slate-900 dark:text-white md:text-[40px]">
+            {onboardingStep === "nome"
+              ? "Bem-vindo ao FluxMoney"
+              : "Agora vamos criar sua primeira conta"}
+          </h2>
+
+          <p className="mt-4 max-w-[470px] text-[14px] leading-7 text-slate-600 dark:text-slate-300">
+            {onboardingStep === "nome"
+              ? "Antes de começar, confirme como você quer ser chamado. Depois disso, vamos criar sua primeira conta para liberar os lançamentos e o restante do app."
+              : "Perfeito. Agora cadastre sua primeira conta para liberar os lançamentos e continuar usando o FluxMoney."}
+          </p>
+        </div>
+
+        <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#40009c] text-lg text-white shadow-sm">
+          {onboardingStep === "nome" ? "👋" : "🏦"}
+        </div>
+      </div>
+
+{onboardingStep === "nome" && (
+  <>
+    <div className="mt-6 grid gap-3 md:grid-cols-2">
+      <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-slate-900">
+        <h3 className="text-[14px] font-semibold text-slate-900 dark:text-white">
+          1. Defina seu nome
+        </h3>
+        <p className="mt-1.5 text-[13px] leading-6 text-slate-500 dark:text-slate-400">
+          Escolha como o FluxMoney deve te chamar dentro do app.
+        </p>
+      </div>
+
+      <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-slate-900">
+        <h3 className="text-[14px] font-semibold text-slate-900 dark:text-white">
+          2. Cadastre sua primeira conta
+        </h3>
+        <p className="mt-1.5 text-[13px] leading-6 text-slate-500 dark:text-slate-400">
+          Depois disso, seus lançamentos e demais áreas ficam liberados.
+        </p>
+      </div>
+    </div>
+
+    <div className="mt-6">
+      <label className="block text-[14px] font-semibold text-slate-700 dark:text-slate-200">
+        Como você quer ser chamado?
+      </label>
+
+      <input
+        type="text"
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+        placeholder="Digite seu nome"
+        className="mt-3 h-[48px] w-full max-w-[280px] rounded-2xl border border-violet-200 bg-white px-4 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#40009c] focus:ring-4 focus:ring-[#40009c]/10 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
+      />
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          onClick={async () => {
+            const nome = String(displayName ?? "").trim();
+
+            if (!nome) {
+              toastCompact("Digite seu nome para continuar.", "info");
+              return;
+            }
+
+            const { error } = await supabase.auth.updateUser({
+              data: { display_name: nome },
+            });
+
+            if (error) {
+              toastCompact("Erro ao salvar nome.", "error");
+              return;
+            }
+
+            setConfirmedDisplayName(nome);
+            setIsEditingDisplayName(false);
+          }}
+          className="inline-flex h-10 items-center justify-center rounded-2xl bg-[#40009c] px-4 text-sm font-semibold text-white transition hover:brightness-110"
+        >
+          Salvar nome
+        </button>
+
+<button
+  type="button"
+  onClick={handleOnboardingLater}
+          className="inline-flex h-10 items-center justify-center rounded-2xl px-2 text-sm font-medium text-slate-400 transition hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+        >
+          Cadastrar mais tarde
+        </button>
+      </div>
+    </div>
+  </>
+)}
+
+{onboardingStep === "conta" && (
+  <div className="mt-6">
+    <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-slate-900">
+      <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white">
+        Sua primeira conta
+      </h3>
+
+      <p className="mt-2 max-w-[500px] text-[13px] leading-6 text-slate-500 dark:text-slate-400">
+        Cadastre uma conta bancária para começar a lançar entradas, saídas e organizar seu financeiro.
+      </p>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          onClick={async () => {
+            const nomeAtual = String(confirmedDisplayName ?? displayName ?? "").trim();
+
+            setDisplayName(nomeAtual);
+            setConfirmedDisplayName("");
+            setIsEditingDisplayName(true);
+
+            const { error } = await supabase.auth.updateUser({
+              data: { display_name: "" },
+            });
+
+            if (error) {
+              toastCompact("Não foi possível voltar para editar o nome.", "error");
+              return;
+            }
+
+          }}
+          className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+        >
+          Voltar e editar nome
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            openAddAccountModal();
+          }}
+          className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#40009c] px-5 text-sm font-semibold text-white transition hover:brightness-110"
+        >
+          Cadastrar primeira conta
+        </button>
+      </div>
+
+      <div className="mt-5 border-t border-slate-200 pt-4 dark:border-white/10">
+<button
+  type="button"
+  onClick={handleOnboardingLater}
+          className="inline-flex h-9 items-center justify-center rounded-xl px-1 text-[13px] font-medium text-slate-400 transition hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+        >
+          Cadastrar mais tarde
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+    </div>
+  </div>
+)}
     {checkoutSuccessBanner}
     {cancelScheduledBanner}
     {billingReturnBanner}

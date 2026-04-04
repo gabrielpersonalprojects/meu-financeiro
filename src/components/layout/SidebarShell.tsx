@@ -38,6 +38,7 @@ type SidebarShellProps = {
   panelContent?: Partial<Record<Exclude<SidebarPanelKey, null>, ReactNode>>;
   onPanelOpen?: (panel: Exclude<SidebarPanelKey, null>) => void;
   unreadNotificationsCount?: number;
+  showGlobalOverlay?: boolean;
 };
 
 const menuItems: MenuItem[] = [
@@ -143,6 +144,7 @@ export default function SidebarShell({
   panelContent = {},
   onPanelOpen,
   unreadNotificationsCount = 0,
+  showGlobalOverlay = false,
 }: SidebarShellProps) {
 
   const [isHovered, setIsHovered] = useState(false);
@@ -557,6 +559,9 @@ export default function SidebarShell({
           onClick={closeAll}
           className="hidden md:block fixed inset-y-0 left-24 right-0 z-[60] bg-slate-900/10 dark:bg-black/25"
         />
+      )}
+            {showGlobalOverlay && (
+        <div className="absolute inset-0 z-[150] bg-white/70 backdrop-blur-sm dark:bg-slate-950/70" />
       )}
     </div>
   );

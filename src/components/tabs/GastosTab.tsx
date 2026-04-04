@@ -195,12 +195,6 @@ const chartData = useMemo(() => {
           <p className="text-slate-400 dark:text-slate-500 font-medium">
             Sem despesas registradas em {getMesAnoExtenso(filtroMes)}.
           </p>
-          <button
-            onClick={() => setFiltroMes(shiftYm(filtroMes, -1))}
-            className="text-indigo-600 dark:text-indigo-400 font-bold text-sm transition-colors"
-          >
-            Voltar para o mês atual
-          </button>
         </div>
       )}
     </div>

@@ -100,34 +100,49 @@ function getPanelSubtitle(activePanel: SidebarPanelKey) {
 function PanelContent({ activePanel }: { activePanel: SidebarPanelKey }) {
   if (!activePanel) return null;
 
-  if (activePanel === "resumo") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
-              Boa tarde, Gabriel
-            </h3>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Aqui está o seu resumo diário
-            </p>
-          </div>
+if (activePanel === "resumo") {
+  return (
+    <div className="bg-white px-2 py-1 dark:bg-slate-900">
+      <section className="py-4">
+        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+          Despesas vencendo hoje
+        </h4>
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+          Nenhuma despesa vencendo hoje.
+        </p>
 
-          <div className="text-3xl">☀️</div>
+        <div className="mt-5 border-t border-slate-200 pt-5 dark:border-white/10">
+          <h5 className="text-sm font-semibold text-slate-900 dark:text-white">
+            Em atraso
+          </h5>
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+            Nenhuma despesa em atraso.
+          </p>
         </div>
+      </section>
 
-        <div className="mt-5 space-y-3">
-          <div className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:text-slate-200">
-            Despesas vencendo hoje: <strong>R$ 0,00</strong> · Em atraso: <strong>R$ 0,00</strong>
-          </div>
+      <div className="border-t border-slate-200 dark:border-white/10" />
 
-          <div className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:text-slate-200">
-            Faturas vencendo hoje: <strong>R$ 0,00</strong> · Em atraso: <strong>R$ 0,00</strong>
-          </div>
+      <section className="py-4">
+        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+          Faturas vencendo hoje
+        </h4>
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+          Nenhuma fatura vencendo hoje.
+        </p>
+
+        <div className="mt-5 border-t border-slate-200 pt-5 dark:border-white/10">
+          <h5 className="text-sm font-semibold text-slate-900 dark:text-white">
+            Em atraso
+          </h5>
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+            Nenhuma fatura em atraso.
+          </p>
         </div>
-      </div>
-    );
-  }
+      </section>
+    </div>
+  );
+}
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
@@ -286,7 +301,7 @@ export default function SidebarShell({
 <span className="flex min-w-[24px] justify-center">{item.icon}</span>
 
 <span
-  className={`overflow-hidden whitespace-nowrap text-base font-medium transition-all duration-300 ${
+  className={`overflow-hidden whitespace-nowrap text-[14px] font-normal tracking-[-0.01em] transition-all duration-300 ${
     sidebarExpanded ? "max-w-[180px] opacity-100" : "max-w-0 opacity-0"
   }`}
 >
@@ -391,7 +406,7 @@ export default function SidebarShell({
                   }`}
                 >
 <span className="flex min-w-[24px] justify-center">{item.icon}</span>
-<span className="whitespace-nowrap text-base font-medium">
+<span className="whitespace-nowrap text-[14px] font-normal tracking-[-0.01em]">
   {item.label}
 </span>
 

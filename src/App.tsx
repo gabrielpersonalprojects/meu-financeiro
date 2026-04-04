@@ -5492,10 +5492,10 @@ const cardsPanelContent = (
 );
 
 const resumoPanelContent = (
-  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+<div className="space-y-4">
 
     <div className="mt-5 space-y-3">
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-white/5">
+      <div className="py-4">
         <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
           Despesas vencendo hoje
         </div>
@@ -5585,7 +5585,7 @@ const resumoPanelContent = (
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-white/5">
+      <div className="py-4">
         <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
           Faturas vencendo hoje
         </div>
@@ -5705,7 +5705,7 @@ item.read
         )}
       </>
     ) : (
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <div className="bg-transparent p-0 shadow-none">
         <button
           type="button"
           onClick={handleBackToNotifications}
@@ -5987,11 +5987,12 @@ containerStyle={{
   }}
 />
 
-<div className="w-full xl:w-[125%] origin-top-left xl:scale-[0.8]">
+<div className="w-full xl:w-[128.21%] origin-top-left xl:scale-[0.78]">
 <div
-  className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/55"
+  className="relative sticky top-[2px] z-30 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/55"
   style={{ height: `${TOP_BAR_HEIGHT}px` }}
 >
+  <div className="pointer-events-none absolute bottom-0 left-0 hidden md:block w-4 border-b border-slate-200/70 dark:border-white/10" />
   <div
     className="mx-auto flex h-full w-full max-w-[1250px] items-center justify-center px-3 lg:px-4"
   >
@@ -6062,7 +6063,14 @@ className={`lg:col-span-12 space-y-6 ${
 {activeTab === "cartoes" && (
   <div className="space-y-4">
     {!isCcExpanded ? (
-     <div className="mx-auto grid w-full max-w-[980px] grid-cols-1 justify-items-center gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+     <div
+  className={[
+    "mx-auto w-full max-w-[980px] gap-x-4 gap-y-4",
+    creditCards.length === 0
+      ? "flex justify-center"
+      : "grid grid-cols-1 justify-items-center sm:grid-cols-2 lg:grid-cols-3",
+  ].join(" ")}
+>
         <button
           type="button"
           onClick={() => {

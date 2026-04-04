@@ -371,7 +371,7 @@ const canSubmit =
 useEffect(() => {
   if (!isCC) {
     setFormTipoGasto("");
-    setPrazoMode("sem_prazo");
+    setPrazoMode(null);
     setCcIsParceladoMode(null);
     setFormParcelas(1);
   }

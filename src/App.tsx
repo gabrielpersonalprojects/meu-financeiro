@@ -409,7 +409,32 @@ const carregarDadosUsuario = async (userId: string) => {
   const requestId = ++authLoadRequestIdRef.current;
 
   try {
-    const creditCardRows = await fetchCreditCards(cleanUserId);
+    const [
+      creditCardRows,
+      rows,
+      txRows,
+      invoicePaymentRows,
+      invoiceInstallmentsRows,
+      invoiceManualStatusRows,
+      categoryRows,
+      tagRows,
+      favoriteId,
+    ] = await Promise.all([
+      fetchCreditCards(cleanUserId),
+      fetchAccounts(cleanUserId),
+      fetchTransactions(cleanUserId),
+      fetchInvoicePayments(cleanUserId),
+      fetchInvoiceInstallments(cleanUserId),
+      fetchInvoiceManualStatus(cleanUserId),
+      fetchUserCategories(cleanUserId),
+      fetchUserTags(cleanUserId),
+      getUserFavoriteAccount(cleanUserId),
+    ]);
+
+    if (requestId !== authLoadRequestIdRef.current) {
+      return;
+    }
+
     setCreditCards(
       creditCardRows.map((row: any) => {
         const mapped = mapCreditCardRowToApp(row) as any;
@@ -429,30 +454,6 @@ const carregarDadosUsuario = async (userId: string) => {
       }) as any
     );
     setCreditCardsLoaded(true);
-
-const [
-  rows,
-  txRows,
-  invoicePaymentRows,
-  invoiceInstallmentsRows,
-  invoiceManualStatusRows,
-  categoryRows,
-  tagRows,
-  favoriteId,
-] = await Promise.all([
-  fetchAccounts(cleanUserId),
-  fetchTransactions(cleanUserId),
-  fetchInvoicePayments(cleanUserId),
-  fetchInvoiceInstallments(cleanUserId),
-  fetchInvoiceManualStatus(cleanUserId),
-  fetchUserCategories(cleanUserId),
-  fetchUserTags(cleanUserId),
-  getUserFavoriteAccount(cleanUserId),
-]);
-
-    if (requestId !== authLoadRequestIdRef.current) {
-      return;
-    }
 
 const profilesFromDb = rows.map(mapAccountRowToProfile);
 setProfiles((profilesFromDb ?? []) as any);
@@ -504,10 +505,6 @@ setAccountsLoaded(true);
         )
       ).sort((a, b) => a.localeCompare(b, "pt-BR"))
     );
-
-    if (requestId !== authLoadRequestIdRef.current) {
-      return;
-    }
 
   } catch (err) {
     console.error("ERRO AO CARREGAR DADOS DO USUARIO:", err);
@@ -588,20 +585,22 @@ const handleRegistrarPagamentoFatura = async (payload: {
   criadoEm?: number;
 }) => {
   if (invoicePaymentInFlightRef.current) {
-  return;
-}
+    return;
+  }
 
-invoicePaymentInFlightRef.current = true;
   const valor = Number(payload.valor) || 0;
 
   if (valor <= 0) {
-    throw new Error("Valor de pagamento inválido.");
+    toastCompact("Valor de pagamento inválido.", "error");
+    return;
   }
 
   if (!session?.user?.id) {
     toastCompact("Sessão inválida para registrar pagamento de fatura.", "error");
     return;
   }
+
+  invoicePaymentInFlightRef.current = true;
 
   const cartaoRef = creditCards.find(
     (c: any) => String(c.id) === String(payload.cartaoId)
@@ -1001,51 +1000,46 @@ const handleRemoverPagamentoFatura = async (pagamentoId: string) => {
     return;
   }
 
-  invoicePaymentRemovalInFlightRef.current = true;
   const alvo = (pagamentosFatura ?? []).find(
     (p: any) => String(p?.id ?? "") === String(pagamentoId)
   );
 
   if (!alvo) return;
 
-try {
   const userId = session?.user?.id;
   if (!userId) {
-    invoicePaymentRemovalInFlightRef.current = false;
+    toastCompact("Sessão inválida para remover pagamento.", "error");
     return;
   }
 
-  await deleteInvoicePaymentById(String(alvo.id), userId);
+  invoicePaymentRemovalInFlightRef.current = true;
 
-if (alvo.transacaoId && isUuid(String(alvo.transacaoId))) {
-const userId = session?.user?.id;
-if (!userId) {
-  invoicePaymentRemovalInFlightRef.current = false;
-  return;
-}
+  try {
+    await deleteInvoicePaymentById(String(alvo.id), userId);
 
-await deleteTransactionById(String(alvo.transacaoId), userId);
-}
+    if (alvo.transacaoId && isUuid(String(alvo.transacaoId))) {
+      await deleteTransactionById(String(alvo.transacaoId), userId);
+    }
 
     setPagamentosFatura((prev) =>
       (prev ?? []).filter((p: any) => String(p?.id ?? "") !== String(pagamentoId))
     );
 
-if (alvo.transacaoId) {
-  setTransacoes((prev) =>
-    (prev ?? []).filter(
-      (t: any) => String(t?.id ?? "") !== String(alvo.transacaoId)
-    )
-  );
-}
+    if (alvo.transacaoId) {
+      setTransacoes((prev) =>
+        (prev ?? []).filter(
+          (t: any) => String(t?.id ?? "") !== String(alvo.transacaoId)
+        )
+      );
+    }
 
     toastCompact("Pagamento removido.", "success");
-} catch (err) {
-  console.error("ERRO AO REMOVER PAGAMENTO DE FATURA:", err);
-  toastCompact("Erro ao remover pagamento da fatura.", "error");
-} finally {
-  invoicePaymentRemovalInFlightRef.current = false;
-}
+  } catch (err) {
+    console.error("ERRO AO REMOVER PAGAMENTO DE FATURA:", err);
+    toastCompact("Erro ao remover pagamento da fatura.", "error");
+  } finally {
+    invoicePaymentRemovalInFlightRef.current = false;
+  }
 };
 
 const handleCancelarParcelamentoFatura = async ({
@@ -1524,27 +1518,40 @@ if (existe) {
   // ====== EDITANDO ======
 if (editingProfileId) {
   const userId = session?.user?.id;
-if (!userId) return;
+  if (!userId) {
+    toastCompact("Sessão inválida para editar conta.", "error");
+    return;
+  }
 
-const updatedRow = await updateAccountById(editingProfileId, userId, {
-    banco: accBanco.trim() || "Conta",
-    name: accBanco.trim() || "Conta",
-    numero_conta: accNumeroConta.trim(),
-    numero_agencia: accNumeroAgencia.trim(),
-    perfil_conta: accPerfilConta,
-    tipo_conta: accTipoConta,
-    initial_balance_cents: initialBalanceCents,
-  });
+  setIsSavingAccount(true);
 
-  const updated = mapAccountRowToProfile(updatedRow) as Profile;
+  try {
+    const updatedRow = await updateAccountById(editingProfileId, userId, {
+      banco: accBanco.trim() || "Conta",
+      name: accBanco.trim() || "Conta",
+      numero_conta: accNumeroConta.trim(),
+      numero_agencia: accNumeroAgencia.trim(),
+      perfil_conta: accPerfilConta,
+      tipo_conta: accTipoConta,
+      initial_balance_cents: initialBalanceCents,
+    });
 
-  setProfiles((prev) =>
-    prev.map((p) => (p.id === editingProfileId ? updated : p))
-  );
-  setActiveProfileId(editingProfileId);
-  setIsAddAccountOpen(false);
-  setEditingProfileId(null);
-  toastCompact("Conta atualizada.", "success");
+    const updated = mapAccountRowToProfile(updatedRow) as Profile;
+
+    setProfiles((prev) =>
+      prev.map((p) => (p.id === editingProfileId ? updated : p))
+    );
+    setActiveProfileId(editingProfileId);
+    setIsAddAccountOpen(false);
+    setEditingProfileId(null);
+    toastCompact("Conta atualizada.", "success");
+  } catch (err) {
+    console.error("ERRO AO ATUALIZAR CONTA NO SUPABASE:", err);
+    toastCompact("Erro ao atualizar conta no banco.", "error");
+  } finally {
+    setIsSavingAccount(false);
+  }
+
   return;
 }
 
@@ -1712,8 +1719,8 @@ const confirmDeleteAccount = (id: string) => {
   setConfirmState({
     title: "Excluir conta?",
     message:
-      `Ao excluir ${nome}, transações vinculadas a essa conta serão perdidas e ficarão inacessíveis. ` +
-      `Essa ação não pode ser desfeita. Deseja continuar?`,
+      `Deseja excluir ${nome}? ` +
+      `Se houver transações ou vínculos financeiros relacionados, a exclusão será bloqueada.`,
     confirmText: "Excluir",
     cancelText: "Cancelar",
     onConfirm: () => handleDeleteAccount(id),
@@ -5654,7 +5661,7 @@ const notificationsPanelContent = (
       <>
 
         {notificationsSorted.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-5 text-[14px] text-slate-500 shadow-sm dark:border-white/10 dark:bg-slate-900 dark:text-slate-400">
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-[13px] text-slate-500 shadow-sm dark:border-white/10 dark:bg-slate-900 dark:text-slate-400">
             Nenhuma notificação por enquanto.
           </div>
         ) : (
@@ -5663,17 +5670,17 @@ const notificationsPanelContent = (
               key={item.id}
               type="button"
               onClick={() => handleOpenNotification(item.id)}
-              className={`w-full rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-[1px] ${
+             className={`w-full rounded-2xl border p-3.5 text-left shadow-sm transition-colors ${
 item.read
   ? "border-slate-200 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:hover:bg-white/5"
   : "border-violet-200 bg-violet-50/70 hover:bg-violet-100/70 dark:border-violet-400/20 dark:bg-violet-500/10 dark:hover:bg-violet-500/15"
               }`}
             >
-              <div className="flex items-start justify-between gap-3">
+             <div className="flex items-start justify-between gap-2.5">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${getNotificationTypeClasses(
+                      className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${getNotificationTypeClasses(
                         item.type
                       )}`}
                     >
@@ -5681,7 +5688,7 @@ item.read
                     </span>
 
                     {!item.read && (
-                      <span className="rounded-full bg-[#6d28d9] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                      <span className="rounded-full bg-[#6d28d9] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
                         Não lida
                       </span>
                     )}
@@ -5691,12 +5698,12 @@ item.read
                     {item.title}
                   </h4>
 
-                  <p className="mt-1 text-[13px] leading-6 text-slate-600 dark:text-slate-300">
+                  <p className="mt-1 text-[12px] leading-5 text-slate-600 dark:text-slate-300">
                     {item.preview}
                   </p>
                 </div>
 
-                <span className="shrink-0 text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                <span className="shrink-0 text-[10px] font-medium text-slate-400 dark:text-slate-500">
                   {formatNotificationDate(item.date)}
                 </span>
               </div>
@@ -5718,7 +5725,7 @@ item.read
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${getNotificationTypeClasses(
+                className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${getNotificationTypeClasses(
                   selectedNotification.type
                 )}`}
               >

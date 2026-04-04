@@ -36,6 +36,22 @@ function normalizeType(type: string): NotificationType {
   return "info";
 }
 
+async function getCurrentUserCreatedAt(userId: string): Promise<string | null> {
+  const { data, error } = await supabase.auth.getUser();
+
+  if (error) {
+    console.error("Erro ao buscar usuário atual:", error);
+    throw error;
+  }
+
+  const authUser = data.user;
+
+  if (!authUser) return null;
+  if (String(authUser.id) !== String(userId)) return null;
+
+  return authUser.created_at ?? null;
+}
+
 export async function getActiveNotifications(): Promise<NotificationRow[]> {
   const { data, error } = await supabase
     .from("notifications")
@@ -98,18 +114,34 @@ export async function markNotificationAsRead(userId: string, notificationId: str
 }
 
 export async function getNotificationsWithReadStatus(userId: string): Promise<AppNotification[]> {
-  const [notifications, reads] = await Promise.all([
+  const [notifications, reads, userCreatedAt] = await Promise.all([
     getActiveNotifications(),
     getUserNotificationReads(userId),
+    getCurrentUserCreatedAt(userId),
   ]);
 
   const readIds = new Set(reads.map((item) => item.notification_id));
 
+  const filteredNotifications = userCreatedAt
+    ? notifications.filter((item) => {
+        const notificationDate = new Date(item.created_at).getTime();
+        const userDate = new Date(userCreatedAt).getTime();
+
+        if (!Number.isFinite(notificationDate) || !Number.isFinite(userDate)) {
+          return true;
+        }
+
+        return notificationDate >= userDate;
+      })
+    : notifications;
+
+  console.log("[notifications] getNotificationsWithReadStatus userCreatedAt:", userCreatedAt);
   console.log("[notifications] getNotificationsWithReadStatus notifications:", notifications);
+  console.log("[notifications] getNotificationsWithReadStatus filteredNotifications:", filteredNotifications);
   console.log("[notifications] getNotificationsWithReadStatus reads:", reads);
   console.log("[notifications] getNotificationsWithReadStatus readIds:", Array.from(readIds));
 
-  return notifications.map((item) => ({
+  return filteredNotifications.map((item) => ({
     id: item.id,
     title: item.title,
     preview: item.preview,

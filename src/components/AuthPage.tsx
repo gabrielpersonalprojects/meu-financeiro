@@ -630,7 +630,7 @@ className="group relative overflow-hidden mt-4 h-10 max-w-[280px] w-full mx-auto
   Desenvolvido por Inpulso Digital LTDA
 </div>
           <div className="pt-4 text-center text-[11px] text-white/25 tracking-wide">
-  v0.01
+  v0.1.0
 </div>
     </div>
     

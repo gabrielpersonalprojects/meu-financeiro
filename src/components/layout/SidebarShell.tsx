@@ -483,15 +483,19 @@ export default function SidebarShell({
     {activePanel === "notificacoes" ? "Flux News" : getPanelTitle(activePanel)}
   </h2>
 
-{activePanel === "notificacoes" ? (
-  unreadNotificationsCount > 0 ? (
+  {activePanel === "notificacoes" ? (
     <div className="mt-1">
-      <p className="mt-1 text-xs font-semibold text-[#6d28d9] dark:text-violet-300">
-        {unreadNotificationsCount} não lida{unreadNotificationsCount === 1 ? "" : "s"}
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Novidades e Atualizações
       </p>
+
+      {unreadNotificationsCount > 0 && (
+        <p className="mt-1 text-xs font-semibold text-[#6d28d9] dark:text-violet-300">
+          {unreadNotificationsCount} não lida{unreadNotificationsCount === 1 ? "" : "s"}
+        </p>
+      )}
     </div>
-  ) : null
-) : (
+  ) : (
     <p className="text-sm text-slate-500 dark:text-slate-400">
       {getPanelSubtitle(activePanel)}
     </p>

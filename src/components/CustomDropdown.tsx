@@ -24,8 +24,8 @@ type CustomDropdownProps = {
   className?: string;
 };
 
-const MAX_MENU_PX = 288; // equivalente ao max-h-72
-const MIN_MENU_PX = 160; // pra não virar “uma linha”
+const MAX_MENU_PX = 420; // mostra ~8 a 10 itens com mais conforto
+const MIN_MENU_PX = 260; // evita dropdown curto/apertado
 
 const CustomDropdown: FC<CustomDropdownProps> = ({
   label,

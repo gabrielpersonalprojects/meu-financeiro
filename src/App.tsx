@@ -1384,6 +1384,13 @@ useEffect(() => {
   } catch {}
 }, [session]);
 
+const greetingName = String(
+  confirmedDisplayName ||
+    displayName ||
+    session?.user?.user_metadata?.display_name ||
+    ""
+).trim();
+
 const resetAddAccountForm = () => {
   setAccPerfilConta("PF");
   setAccTipoConta(TIPOS_CONTA[0]);
@@ -1771,11 +1778,6 @@ const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const isDataLoadedRef = useRef(false);
   const [accountPickerOpen, setAccountPickerOpen] = useState<"origem" | "destino" | null>(null);
 
-  // --- Nome usuário ---
-  const [userName, setUserName] = useState<string>("");
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState("");
-
   // --- Tema ---
 const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
   try {
@@ -1917,15 +1919,189 @@ useEffect(() => {
   }
 }, [modoCentro]);
 
+const normalizePaymentCycleKeyToYm = (raw: any): string => {
+  const value = String(raw ?? "").trim();
+  if (!value) return "";
+
+  if (/^\d{4}-\d{2}$/.test(value)) return value;
+
+  if (value.includes("__")) {
+    const parts = value.split("__");
+    const endIso = String(parts[2] ?? "").trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
+      const [yearStr, monthStr] = endIso.split("-");
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+
+      if (Number.isFinite(year) && Number.isFinite(month)) {
+        const nextMonth = month === 12 ? 1 : month + 1;
+        const nextYear = month === 12 ? year + 1 : year;
+        return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+      }
+    }
+  }
+
+  return value;
+};
+
 const CREDIT_CARDS_PER_PAGE = 5;
 const [creditCardsPage, setCreditCardsPage] = useState(1);
 
+const orderedCreditCards = useMemo(() => {
+  const hoje = getHojeLocal();
+
+  const getCardRank = (c: any) => {
+    const roundMoneyLocal = (value: number) =>
+      Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+
+    const cicloBase = getCardCycleMonthFromDate(
+      hoje,
+      Number(c?.diaFechamento ?? 1),
+      Number(c?.diaVencimento ?? 10)
+    );
+
+    const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
+      const cartaoTxId = String(
+        (t as any)?.qualCartao ??
+          (t as any)?.cartaoId ??
+          (t as any)?.qualConta ??
+          ""
+      ).trim();
+
+      const tipo = String((t as any)?.tipo ?? "").toLowerCase();
+      const parcelamentoFaturaId = String(
+        (t as any)?.parcelamentoFaturaId ?? ""
+      ).trim();
+
+      const pertenceAoCartaoDiretamente =
+        cartaoTxId === String(c?.id ?? "").trim() &&
+        tipo === "cartao_credito";
+
+      const pertenceAoCartaoViaParcelamento =
+        Boolean(parcelamentoFaturaId) &&
+        (parcelamentosFatura ?? []).some(
+          (p: any) =>
+            String(p?.id ?? "").trim() === parcelamentoFaturaId &&
+            String(p?.cartaoId ?? "").trim() === String(c?.id ?? "").trim()
+        );
+
+      return pertenceAoCartaoDiretamente || pertenceAoCartaoViaParcelamento;
+    });
+
+    const inferirCicloDaTransacaoLocal = (t: any) => {
+      const ciclo = String((t as any)?.faturaMes ?? "").trim();
+      if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
+
+      const dataRaw = String((t as any)?.data ?? "").trim();
+      if (!dataRaw) return "";
+
+      return getCardCycleMonthFromDate(
+        dataRaw,
+        Number(c?.diaFechamento ?? 1),
+        Number(c?.diaVencimento ?? 1)
+      );
+    };
+
+    const statusManualPorCiclo = new Map<string, string>();
+
+    (faturasStatusManual ?? []).forEach((item: any) => {
+      if (String(item?.cartaoId ?? "").trim() !== String(c?.id ?? "").trim()) return;
+
+      const cicloNormalizado = normalizePaymentCycleKeyToYm(item?.cicloKey);
+      if (!cicloNormalizado) return;
+
+      const status = String(item?.statusManual ?? "").trim().toLowerCase();
+      if (!status) return;
+
+      statusManualPorCiclo.set(cicloNormalizado, status);
+    });
+
+    const totaisPorCiclo = new Map<string, { total: number; pago: number }>();
+
+    transacoesDoCartao.forEach((t: any) => {
+      const ciclo = inferirCicloDaTransacaoLocal(t);
+      if (!ciclo) return;
+
+      const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
+      atual.total += Math.abs(Number((t as any)?.valor || 0));
+      totaisPorCiclo.set(ciclo, atual);
+    });
+
+    (pagamentosFatura ?? []).forEach((p: any) => {
+      if (String(p?.cartaoId ?? "").trim() !== String(c?.id ?? "").trim()) return;
+
+      const ciclo = normalizePaymentCycleKeyToYm(p?.cicloKey);
+      if (!ciclo) return;
+
+      const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
+      atual.pago += Math.abs(Number(p?.valor || 0));
+      totaisPorCiclo.set(ciclo, atual);
+    });
+
+    const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
+      .map(([ciclo, info]) => {
+        if (!/^\d{4}-\d{2}$/.test(String(ciclo))) return null;
+        if ((info?.total ?? 0) <= 0) return null;
+
+        const statusManualDoCiclo = String(
+          statusManualPorCiclo.get(ciclo) ?? ""
+        ).toLowerCase();
+
+        if (
+          statusManualDoCiclo === "parcelada" ||
+          statusManualDoCiclo === "paga"
+        ) {
+          return null;
+        }
+
+        const saldo = roundMoneyLocal(
+          Math.max(0, Number(info.total || 0) - Number(info.pago || 0))
+        );
+
+        if (saldo <= 0) return null;
+        if (String(ciclo) >= String(cicloBase)) return null;
+
+        return {
+          ciclo: String(ciclo),
+          saldo,
+        };
+      })
+      .filter(Boolean) as Array<{ ciclo: string; saldo: number }>;
+
+    const existeFaturaAtrasada = ciclosFechadosPendentes.length > 1;
+    const existeFaturaFechadaPendente = ciclosFechadosPendentes.length === 1;
+
+    if (existeFaturaAtrasada) return 0;
+    if (existeFaturaFechadaPendente) return 1;
+    return 2;
+  };
+
+  return [...(creditCards ?? [])].sort((a: any, b: any) => {
+    const rankA = getCardRank(a);
+    const rankB = getCardRank(b);
+
+    if (rankA !== rankB) return rankA - rankB;
+
+    return String(a?.name ?? a?.nome ?? "").localeCompare(
+      String(b?.name ?? b?.nome ?? ""),
+      "pt-BR"
+    );
+  });
+}, [
+  creditCards,
+  transacoes,
+  pagamentosFatura,
+  faturasStatusManual,
+  parcelamentosFatura,
+]);
+
 const totalCreditCardsPages = Math.max(
   1,
-  Math.ceil(creditCards.length / CREDIT_CARDS_PER_PAGE)
+  Math.ceil(orderedCreditCards.length / CREDIT_CARDS_PER_PAGE)
 );
 
-const paginatedCreditCards = creditCards.slice(
+const paginatedCreditCards = orderedCreditCards.slice(
   (creditCardsPage - 1) * CREDIT_CARDS_PER_PAGE,
   creditCardsPage * CREDIT_CARDS_PER_PAGE
 );
@@ -2432,31 +2608,6 @@ useEffect(() => {
         : null) ??
       localStorage.getItem("meu-financeiro-metodos");
 
-    const savedName =
-      (safeProfileId
-        ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "userName"))
-        : null) ??
-      localStorage.getItem("meu-financeiro-username");
-
-    let parsedMet: any = null;
-
-    try {
-      parsedMet = savedMetodos ? JSON.parse(savedMetodos) : null;
-    } catch {
-      parsedMet = null;
-    }
-
-    const metOk =
-      parsedMet &&
-      Array.isArray(parsedMet.credito) &&
-      Array.isArray(parsedMet.debito);
-
-    setMetodosPagamento(metOk ? parsedMet : { credito: [], debito: [] });
-
-    setUserName(savedName === null ? "" : savedName);
-    setNameInput(savedName === null ? "" : savedName);
-    setIsEditingName(savedName === null);
-
     if (safeProfileId) {
       localStorage.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, safeProfileId);
     } else {
@@ -2473,7 +2624,6 @@ useEffect(() => {
   if (!safeProfileId) {
     localStorage.setItem("meu-financeiro-categorias", JSON.stringify(categorias));
     localStorage.setItem("meu-financeiro-metodos", JSON.stringify(metodosPagamento));
-    localStorage.setItem("meu-financeiro-username", userName);
     return;
   }
 
@@ -2487,11 +2637,7 @@ useEffect(() => {
     JSON.stringify(metodosPagamento)
   );
 
-  localStorage.setItem(
-    buildProfileStorageKey(safeProfileId, "userName"),
-    userName
-  );
-}, [activeProfileId, categorias, metodosPagamento, userName]);
+}, [activeProfileId, categorias, metodosPagamento]);
 
   // --- Helpers ---
 
@@ -2524,11 +2670,6 @@ const numberFromCentsDigits = (digits: string) => {
    const handleSwitchProfile = (id: string) => {
     setActiveProfileId(id);
     setShowProfileMenu(false);
-  };
-
-  const handleSaveName = () => {
-    setUserName(nameInput.trim());
-    setIsEditingName(false);
   };
 
 const handleFormatCurrencyInput = (
@@ -2654,10 +2795,6 @@ const executarLimpezaTotal = async () => {
     setCcTags([]);
     setMetodosPagamento({ credito: [], debito: [] });
 
-    setUserName("");
-    setNameInput("");
-    setIsEditingName(true);
-
     setDisplayName("");
     setConfirmedDisplayName("");
     setIsEditingDisplayName(true);
@@ -2687,7 +2824,6 @@ const executarLimpezaTotal = async () => {
 
     localStorage.removeItem("meu-financeiro-categorias");
     localStorage.removeItem("meu-financeiro-metodos");
-    localStorage.removeItem("meu-financeiro-username");
     localStorage.removeItem("meu-financeiro-tags");
 
     toastCompact("Dados apagados com sucesso.", "success");
@@ -3630,11 +3766,11 @@ function dedupeById<T extends { id: string }>(arr: T[]): T[] {
   }
   return out;
 }
-const getCardCycleMonthFromDate = (
+function getCardCycleMonthFromDate(
   dataISO: string,
   diaFechamento: number,
   diaVencimento?: number
-) => {
+) {
   const dt = new Date(`${dataISO}T12:00:00`);
   if (Number.isNaN(dt.getTime())) return getHojeLocal().slice(0, 7);
 
@@ -4228,6 +4364,13 @@ else if (
 
 const criadas = await salvarNoSupabase(newTrans);
 setTransacoes((prev) => [...prev, ...(criadas as any)]);
+
+const contaLancadaId = String(formQualCartao || "").trim();
+
+if (contaLancadaId) {
+  setFiltroConta(contaLancadaId);
+  setTransacoesCardsPerfilView("geral");
+}
 
 setActiveTab("transacoes");
 
@@ -5811,7 +5954,7 @@ const handleOnboardingLater = async () => {
 return (
 <SidebarShell
   userEmail={session?.user?.email}
-  userDisplayName={confirmedDisplayName || displayName || session?.user?.user_metadata?.display_name || ""}
+  userDisplayName={greetingName}
   onEditDisplayName={openEditNameModal}
   panelContent={sidebarPanels}
   onPanelOpen={handleSidebarOpen}
@@ -6165,32 +6308,6 @@ className={[
           const roundMoney = (value: number) => {
             const n = Number(value || 0);
             return Math.round((n + Number.EPSILON) * 100) / 100;
-          };
-
-          const normalizePaymentCycleKeyToYm = (raw: any): string => {
-            const value = String(raw ?? "").trim();
-            if (!value) return "";
-
-            if (/^\d{4}-\d{2}$/.test(value)) return value;
-
-            if (value.includes("__")) {
-              const parts = value.split("__");
-              const endIso = String(parts[2] ?? "").trim();
-
-              if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
-                const [yearStr, monthStr] = endIso.split("-");
-                const year = Number(yearStr);
-                const month = Number(monthStr);
-
-                if (Number.isFinite(year) && Number.isFinite(month)) {
-                  const nextMonth = month === 12 ? 1 : month + 1;
-                  const nextYear = month === 12 ? year + 1 : year;
-                  return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
-                }
-              }
-            }
-
-            return value;
           };
 
           const hojeFiltro = new Date();
@@ -6624,7 +6741,7 @@ className={[
           );
         })}
 
-        {creditCards.length > CREDIT_CARDS_PER_PAGE && (
+        {orderedCreditCards.length > CREDIT_CARDS_PER_PAGE && (
           <div className="col-span-full mt-3 flex items-center justify-center gap-3 px-1 py-1 text-sm">
             <button
               type="button"
@@ -7816,7 +7933,7 @@ const isRecorrenciaComumBtn =
 
       {/* MODAL NOVO BANCO/CARTAO */}
       {showModalMetodo && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
             <h3 className="text-2xl font-black mb-6 text-slate-800 dark:text-white">Novo Banco/Cartão</h3>
             <input
@@ -7852,7 +7969,7 @@ const isRecorrenciaComumBtn =
 
       {/* MODAL NOVA CATEGORIA */}
       {showModalCategoria && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
             <h3 className="text-2xl font-black mb-6 text-slate-800 dark:text-white">Nova Categoria</h3>
             <p className="text-xs font-bold text-slate-400 uppercase mb-4">

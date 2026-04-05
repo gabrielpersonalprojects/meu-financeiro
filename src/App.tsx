@@ -7727,7 +7727,7 @@ className={[
             />
             <div className="flex flex-col leading-tight">
               <span className="text-[15px] font-bold text-indigo-900 dark:text-indigo-300">
-                Atualizar todas as parcelas
+                Atualizar todas as mensalidades futuras
               </span>
               <span className="mt-1 text-[10px] font-bold uppercase text-indigo-400 dark:text-indigo-500">
                 Aplicar mudança em toda a série

@@ -89,26 +89,187 @@ export function applyEditToTransactions(
   editCategoriaInput: string
 ): Transaction[] {
   const normTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
-  const getTransferId = (x: any) => normTid(x?.transferId ?? x?.transferID ?? x?.transfer_id);
+  const getTransferId = (x: any) =>
+    normTid(x?.transferId ?? x?.transferID ?? x?.transfer_id);
 
-  const nextDesc = String(novaDesc ?? "").trim();
+  const nextDescRaw = String(novaDesc ?? "").trim();
   const nextData = String(editDataInput ?? "").trim();
   const nextCategoria = String(editCategoriaInput ?? "").trim();
 
-const applyCommonFields = (t: Transaction, signedValue: number): Transaction => ({
-  ...t,
-  valor: signedValue,
-  descricao: nextDesc,
-  data: nextData || t.data,
-  categoria: nextCategoria || t.categoria,
-});
+  const PARCELA_REGEX = /\((\d+)\s*\/\s*(\d+)\)\s*$/;
 
-  // ✅ se for transferência mesclada, aplica nas duas pernas
+  const stripParcelSuffix = (value: any) =>
+    String(value ?? "")
+      .replace(/\s*\(\d+\s*\/\s*\d+\)\s*$/g, "")
+      .trim();
+
+  const parseParcelInfo = (tx: any) => {
+    const descricao = String(tx?.descricao ?? "").trim();
+    const match = descricao.match(PARCELA_REGEX);
+
+    const parcelaAtualEstruturada = Number(
+      tx?.parcelaAtual ?? tx?.payload?.parcelaAtual ?? 0
+    );
+
+    const totalParcelasEstruturada = Number(
+      tx?.totalParcelas ?? tx?.payload?.totalParcelas ?? 0
+    );
+
+    const parcelaAtual =
+      parcelaAtualEstruturada > 0
+        ? parcelaAtualEstruturada
+        : Number(match?.[1] ?? 0);
+
+    const totalParcelas =
+      totalParcelasEstruturada > 0
+        ? totalParcelasEstruturada
+        : Number(match?.[2] ?? 0);
+
+    return {
+      parcelaAtual,
+      totalParcelas,
+      descricaoBase: stripParcelSuffix(descricao),
+    };
+  };
+
+  const buildParcelDescription = (
+    base: string,
+    parcelaAtual: number,
+    totalParcelas: number
+  ) => {
+    const safeBase = String(base ?? "").trim();
+    if (parcelaAtual > 0 && totalParcelas > 0) {
+      return `${safeBase} (${parcelaAtual}/${totalParcelas})`.trim();
+    }
+    return safeBase;
+  };
+
+  const getTimeSafe = (value: any) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return Number.NaN;
+
+    const date = new Date(`${raw}T12:00:00`);
+    return Number.isNaN(date.getTime()) ? Number.NaN : date.getTime();
+  };
+
+  const editingId = String((editingTransaction as any)?.id ?? "").trim();
+  const editingRecurringId = String(
+    (editingTransaction as any)?.recorrenciaId ?? ""
+  ).trim();
+  const editingTime = getTimeSafe((editingTransaction as any)?.data);
+
+  const editingTipoGasto = String(
+    (editingTransaction as any)?.tipoGasto ?? ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const editingParcelInfo = parseParcelInfo(editingTransaction);
+  const editingParcelaAtual = editingParcelInfo.parcelaAtual;
+  const editingTotalParcelas = editingParcelInfo.totalParcelas;
+
+  const isParcelado =
+    editingTipoGasto === "parcelado" || editingTotalParcelas > 1;
+
+  const nextDescBase = stripParcelSuffix(nextDescRaw);
+
+  const getFinalDescription = (
+    tx: Transaction,
+    parcelaAtualOverride?: number,
+    totalParcelasOverride?: number
+  ) => {
+    if (!isParcelado) return nextDescRaw;
+
+    const txParcelInfo = parseParcelInfo(tx);
+
+    const parcelaAtualFinal =
+      Number(parcelaAtualOverride ?? 0) > 0
+        ? Number(parcelaAtualOverride)
+        : txParcelInfo.parcelaAtual;
+
+    const totalParcelasFinal =
+      Number(totalParcelasOverride ?? 0) > 0
+        ? Number(totalParcelasOverride)
+        : txParcelInfo.totalParcelas;
+
+    const baseFinal =
+      nextDescBase || txParcelInfo.descricaoBase || stripParcelSuffix(tx.descricao);
+
+    return buildParcelDescription(baseFinal, parcelaAtualFinal, totalParcelasFinal);
+  };
+
+  const applyCurrentFields = (
+    t: Transaction,
+    signedValue: number
+  ): Transaction => {
+    const info = parseParcelInfo(t);
+
+    return {
+      ...t,
+      valor: signedValue,
+      descricao: getFinalDescription(
+        t,
+        info.parcelaAtual,
+        editingTotalParcelas || info.totalParcelas
+      ),
+      data: nextData || t.data,
+      categoria: nextCategoria || t.categoria,
+      ...(isParcelado && info.parcelaAtual > 0
+        ? {
+            parcelaAtual: info.parcelaAtual,
+            totalParcelas:
+              editingTotalParcelas > 0
+                ? editingTotalParcelas
+                : info.totalParcelas,
+          }
+        : {}),
+    };
+  };
+
+const applyRelatedFutureFields = (
+  t: Transaction,
+  signedValue: number,
+  nextParcelaAtual?: number
+): Transaction => {
+  const info = parseParcelInfo(t);
+
+  const totalFinal =
+    editingTotalParcelas > 0 ? editingTotalParcelas : info.totalParcelas;
+
+  const currentDateRaw = String((t as any)?.data ?? "").trim();
+  const nextDateRaw = String(nextData ?? "").trim();
+
+  let replicatedDate = currentDateRaw;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(currentDateRaw) && /^\d{4}-\d{2}-\d{2}$/.test(nextDateRaw)) {
+const year = currentDateRaw.slice(0, 4);
+const month = currentDateRaw.slice(5, 7);
+const desiredDay = Number(nextDateRaw.slice(8, 10));
+const lastDayOfMonth = new Date(Number(year), Number(month), 0).getDate();
+const safeDay = String(Math.min(desiredDay, lastDayOfMonth)).padStart(2, "0");
+
+replicatedDate = `${year}-${month}-${safeDay}`;
+  }
+
+  return {
+    ...t,
+    valor: signedValue,
+    descricao: getFinalDescription(t, nextParcelaAtual, totalFinal),
+    data: replicatedDate,
+    categoria: nextCategoria || t.categoria,
+    ...(isParcelado && Number(nextParcelaAtual ?? 0) > 0
+      ? {
+          parcelaAtual: Number(nextParcelaAtual),
+          totalParcelas: totalFinal,
+        }
+      : {}),
+  };
+};
+
+  // transferência continua aplicando nas duas pernas
   const tid =
     getTransferId(editingTransaction as any) ||
-    (String((editingTransaction as any)?.id ?? "").startsWith("tr_")
-      ? normTid(String((editingTransaction as any).id).slice(3))
-      : "");
+    (editingId.startsWith("tr_") ? normTid(editingId.slice(3)) : "");
 
   if (tid) {
     const abs = Math.abs(Number(novoValorAbs || 0)) || 0;
@@ -123,26 +284,87 @@ const applyCommonFields = (t: Transaction, signedValue: number): Transaction => 
       if (tipo === "despesa") signed = -abs;
       if (tipo === "receita") signed = abs;
 
-      return applyCommonFields(t as Transaction, signed);
+      return applyCurrentFields(t as Transaction, signed);
     });
   }
 
-  // comportamento para não-transferências
   const sign = (editingTransaction as any).tipo === "receita" ? 1 : -1;
   const valor = sign * novoValorAbs;
 
+  const futureRelatedIdsOrdered =
+    applyToAllRelated && editingRecurringId
+      ? [...prev]
+          .filter((t: any) => {
+            const currentId = String((t as any)?.id ?? "").trim();
+            const recurringId = String((t as any)?.recorrenciaId ?? "").trim();
+            const currentTime = getTimeSafe((t as any)?.data);
+
+            return (
+              currentId !== editingId &&
+              recurringId === editingRecurringId &&
+              !Number.isNaN(editingTime) &&
+              !Number.isNaN(currentTime) &&
+              currentTime > editingTime
+            );
+          })
+          .sort((a: any, b: any) => {
+            const diff =
+              getTimeSafe((a as any)?.data) - getTimeSafe((b as any)?.data);
+
+            if (diff !== 0) return diff;
+
+            const aCreated = Number(
+              (a as any)?.criadoEm ?? (a as any)?.createdAt ?? 0
+            );
+            const bCreated = Number(
+              (b as any)?.criadoEm ?? (b as any)?.createdAt ?? 0
+            );
+
+            if (aCreated !== bCreated) return aCreated - bCreated;
+
+            return String((a as any)?.id ?? "").localeCompare(
+              String((b as any)?.id ?? "")
+            );
+          })
+          .map((t: any) => String((t as any)?.id ?? "").trim())
+      : [];
+
+  const parcelaAtualPorId = new Map<string, number>();
+
+  if (isParcelado && editingParcelaAtual > 0) {
+    futureRelatedIdsOrdered.forEach((id, index) => {
+      parcelaAtualPorId.set(id, editingParcelaAtual + index + 1);
+    });
+  }
+
   return prev.map((t: any) => {
-    if (
-      applyToAllRelated &&
-      editingTransaction &&
-      (editingTransaction as any).recorrenciaId &&
-      t.recorrenciaId === (editingTransaction as any).recorrenciaId
-    ) {
-      return applyCommonFields(t as Transaction, valor);
+    const currentId = String((t as any)?.id ?? "").trim();
+
+    // atual
+    if (currentId === editingId) {
+      return applyCurrentFields(t as Transaction, valor);
     }
 
-    if (String(t?.id) === String((editingTransaction as any).id)) {
-      return applyCommonFields(t as Transaction, valor);
+    // futuras da mesma série
+    if (
+      applyToAllRelated &&
+      editingRecurringId &&
+      String((t as any)?.recorrenciaId ?? "").trim() === editingRecurringId
+    ) {
+      const currentTime = getTimeSafe((t as any)?.data);
+
+      if (
+        !Number.isNaN(editingTime) &&
+        !Number.isNaN(currentTime) &&
+        currentTime > editingTime
+      ) {
+        const nextParcelaAtual = parcelaAtualPorId.get(currentId);
+        return applyRelatedFutureFields(
+          t as Transaction,
+          valor,
+          nextParcelaAtual
+        );
+      }
     }
 
     return t;

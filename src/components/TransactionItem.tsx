@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { CreditCardIcon, EditIcon, TrashIcon } from "./LucideIcons";
 
 type ContaParts = {
@@ -104,29 +105,72 @@ const descricaoSemParcela = isParceladoVisual
   ? descricaoRaw.replace(/\s*\(\d+\s*\/\s*\d+\)\s*$/g, "").trim()
   : descricaoRaw;
 
+  const [showFaturaToggleWarning, setShowFaturaToggleWarning] = useState(false);
+
+const handleTogglePagoClick = () => {
+  if (isTransacaoFatura && paid) {
+    setShowFaturaToggleWarning(true);
+    return;
+  }
+
+  setShowFaturaToggleWarning(false);
+  togglePago(t);
+};
+
+const warningContainerRef = useRef<HTMLDivElement | null>(null);
+
+useEffect(() => {
+  if (!showFaturaToggleWarning) return;
+
+  const handleClickOutside = (event: MouseEvent) => {
+    const target = event.target as Node | null;
+    if (!target) return;
+
+    if (
+      warningContainerRef.current &&
+      !warningContainerRef.current.contains(target)
+    ) {
+      setShowFaturaToggleWarning(false);
+    }
+  };
+
+  document.addEventListener("mousedown", handleClickOutside);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, [showFaturaToggleWarning]);
+
   return (
-  <div
-    key={t.id}
-    className={`group rounded-2xl border transition-all ${baseBg} ${
-      paid ? "opacity-80" : ""
-    } ${glowAtraso}`}
-  >
+<div
+  key={t.id}
+  ref={warningContainerRef}
+  className={`group rounded-2xl border transition-all ${baseBg} ${
+    paid ? "opacity-80" : ""
+  } ${glowAtraso}`}
+>
    <div className="flex flex-col gap-4 p-4 sm:gap-5 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
       {/* ESQUERDA */}
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={() => togglePago(t)}
-            className={`mt-0.5 h-8 w-8 shrink-0 rounded-full border-2 flex items-center justify-center font-bold transition-all ${
-              paid
-                ? "bg-indigo-600 border-indigo-600 text-white"
-                : "border-slate-300 dark:border-slate-700 text-slate-400"
-            }`}
-            title={paid ? "Marcar como não pago" : "Marcar como pago"}
-          >
-            {paid ? "✓" : ""}
-          </button>
+<button
+  type="button"
+  onClick={handleTogglePagoClick}
+  className={`mt-0.5 h-8 w-8 shrink-0 rounded-full border-2 flex items-center justify-center font-bold transition-all ${
+    paid
+      ? "bg-indigo-600 border-indigo-600 text-white"
+      : "border-slate-300 dark:border-slate-700 text-slate-400"
+  }`}
+  title={
+    isTransacaoFatura && paid
+      ? "Pagamento de fatura não pode ser desmarcado por aqui"
+      : paid
+      ? "Marcar como não pago"
+      : "Marcar como pago"
+  }
+>
+  {paid ? "✓" : ""}
+</button>
 
           <div className="min-w-0 flex-1">
 <div className="mb-2.5 flex items-start gap-2">
@@ -283,6 +327,12 @@ const descricaoSemParcela = isParceladoVisual
       </>
     );
   })()}
+  {showFaturaToggleWarning && (
+  <p className="mt-2 text-[11px] font-semibold leading-relaxed text-rose-600 dark:text-rose-400">
+    Pagamento de fatura não pode ser desmarcado. Exclua pela lixeira
+    deste lançamento ou acesse a fatura do cartão para remover o registro.
+  </p>
+)}
 </div>
           </div>
         </div>

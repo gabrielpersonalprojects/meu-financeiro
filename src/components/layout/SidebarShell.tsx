@@ -41,6 +41,7 @@ type SidebarShellProps = {
   panelContent?: Partial<Record<Exclude<SidebarPanelKey, null>, ReactNode>>;
   onPanelOpen?: (panel: Exclude<SidebarPanelKey, null>) => void;
   unreadNotificationsCount?: number;
+  resumoAlertsCount?: number;
   showGlobalOverlay?: boolean;
 };
 
@@ -186,6 +187,7 @@ export default function SidebarShell({
   panelContent = {},
   onPanelOpen,
   unreadNotificationsCount = 0,
+  resumoAlertsCount = 0,
   showGlobalOverlay = false,
 }: SidebarShellProps) {
 
@@ -308,6 +310,16 @@ export default function SidebarShell({
   {item.label}
 </span>
 
+{item.key === "resumo" && resumoAlertsCount > 0 && (
+  <span
+    className={`absolute flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6d28d9] px-1.5 text-[11px] font-semibold text-white shadow-sm ${
+      sidebarExpanded ? "right-4 top-4" : "right-2 top-2"
+    }`}
+  >
+    {resumoAlertsCount > 99 ? "99+" : resumoAlertsCount}
+  </span>
+)}
+
 {item.key === "notificacoes" && unreadNotificationsCount > 0 && (
   <span
     className={`absolute flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6d28d9] px-1.5 text-[11px] font-semibold text-white shadow-sm ${
@@ -410,6 +422,12 @@ export default function SidebarShell({
 <span className="whitespace-nowrap text-[14px] font-normal tracking-[-0.01em]">
   {item.label}
 </span>
+
+{item.key === "resumo" && resumoAlertsCount > 0 && (
+  <span className="absolute right-4 top-4 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6d28d9] px-1.5 text-[11px] font-semibold text-white shadow-sm">
+    {resumoAlertsCount > 99 ? "99+" : resumoAlertsCount}
+  </span>
+)}
 
 {item.key === "notificacoes" && unreadNotificationsCount > 0 && (
   <span className="absolute right-4 top-4 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6d28d9] px-1.5 text-[11px] font-semibold text-white shadow-sm">

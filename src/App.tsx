@@ -127,6 +127,7 @@ import type {
 import {
   formatarMoeda,
   extrairValorMoeda,
+  formatarData,
 } from "./utils/formatters";
 
 import {
@@ -5073,6 +5074,12 @@ const cartoesVencendoHojeLista: Array<{
   ciclo: string;
 }> = [];
 
+const cartoesFechadosAguardandoPagamentoLista: Array<{
+  cartaoId: string;
+  label: string;
+  ciclo: string;
+}> = [];
+
 const cartoesAtrasadosLista: Array<{
   cartaoId: string;
   label: string;
@@ -5155,19 +5162,23 @@ const getPagoNoCicloResumo = (cartaoId: string, cicloYm: string) => {
         return cicloRaw === cicloYm;
       }
 
-      if (cicloRaw.includes("__")) {
-        const parts = cicloRaw.split("__").map((part) => String(part ?? "").trim());
-        const endIso = String(parts[parts.length - 1] ?? "").trim();
+if (cicloRaw.includes("__")) {
+  const parts = cicloRaw.split("__").map((part) => String(part ?? "").trim());
+  const endIso = String(parts[parts.length - 1] ?? "").trim();
 
-        if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
-          const endDate = new Date(`${endIso}T12:00:00`);
-          if (!Number.isNaN(endDate.getTime())) {
-            endDate.setMonth(endDate.getMonth() + 1);
-            const ym = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
-            return ym === cicloYm;
-          }
-        }
-      }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
+    const [yearStr, monthStr] = endIso.split("-");
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+
+    if (Number.isFinite(year) && Number.isFinite(month)) {
+      const nextMonth = month === 12 ? 1 : month + 1;
+      const nextYear = month === 12 ? year + 1 : year;
+      const ym = `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+      return ym === cicloYm;
+    }
+  }
+}
 
       return false;
     })
@@ -5202,18 +5213,18 @@ const vencimento = new Date(
 vencimento.setHours(0, 0, 0, 0);
 
 const labelCartaoResumo = `${String(
-  c?.bankText ?? c?.emissor ?? c?.categoria ?? c?.name ?? "Cartão"
+  c?.emissor ?? c?.categoria ?? c?.name ?? "Cartão"
 ).trim()} • ${
-  String(c?.perfil ?? c?.brand ?? "").trim().toLowerCase() === "pj" ? "PJ" : "PF"
+  String(c?.perfil ?? "").trim().toLowerCase() === "pj" ? "PJ" : "PF"
 }`;
 
 if (vencimento.getTime() === hojeResumoDate.getTime()) {
   resumoCartoesVencendoHojeValor += saldo;
-cartoesVencendoHojeLista.push({
-  cartaoId,
-  label: labelCartaoResumo,
-  ciclo,
-});
+  cartoesVencendoHojeLista.push({
+    cartaoId,
+    label: labelCartaoResumo,
+    ciclo,
+  });
   return;
 }
 
@@ -5227,19 +5238,130 @@ if (String(ciclo) > String(cicloAtual)) {
   return;
 }
 
-// aqui só sobram ciclos passados:
-// - vencimento passado => atrasada
-// - vencimento ainda não passou => pendente
-if (vencimento < hojeResumoDate) {
-  resumoCartoesAtrasadasValor += saldo;
-cartoesAtrasadosLista.push({
-  cartaoId,
-  label: labelCartaoResumo,
-  ciclo,
-});;
-} else {
-  resumoCartoesPendentesValor += saldo;
+const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
+  .map(([cicloItem, infoItem]) => {
+    if (!/^\d{4}-\d{2}$/.test(String(cicloItem))) return null;
+    if ((infoItem?.total ?? 0) <= 0) return null;
+
+    const statusManualDoCiclo = String(
+      statusManualResumoPorCartaoECiclo.get(`${cartaoId}__${String(cicloItem)}`) ?? ""
+    ).toLowerCase();
+
+    if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") {
+      return null;
+    }
+
+const totalNoCicloCentavos = Math.round(
+  Math.abs(Number(infoItem.total || 0)) * 100
+);
+
+const pagoNoCicloCentavos = Math.round(
+  Math.abs(Number(getPagoNoCicloResumo(cartaoId, String(cicloItem)) || 0)) * 100
+);
+
+if (pagoNoCicloCentavos >= totalNoCicloCentavos) return null;
+
+const saldoItem = Math.max(
+  0,
+  (totalNoCicloCentavos - pagoNoCicloCentavos) / 100
+);
+
+if (saldoItem <= 0.009) return null;
+
+    if (String(cicloItem) >= String(cicloAtual)) return null;
+
+    const [anoStr, mesStr] = String(cicloItem).split("-");
+    const ano = Number(anoStr);
+    const mes = Number(mesStr);
+    if (!ano || !mes) return null;
+
+    const vencimentoItem = new Date(
+      ano,
+      mes - 1,
+      Number(c?.diaVencimento ?? 1),
+      12,
+      0,
+      0,
+      0
+    );
+    vencimentoItem.setHours(0, 0, 0, 0);
+
+    return {
+      ciclo: String(cicloItem),
+      saldo: saldoItem,
+      vencimento: vencimentoItem,
+    };
+  })
+  .filter(Boolean)
+  .sort((a: any, b: any) => String(b.ciclo).localeCompare(String(a.ciclo)));
+
+const faturaFechadaMaisRecente =
+  ciclosFechadosPendentes.length > 0 ? ciclosFechadosPendentes[0] : undefined;
+
+const faturasFechadasAnterioresPendentes =
+  ciclosFechadosPendentes.length > 1 ? ciclosFechadosPendentes.slice(1) : [];
+
+const existeFaturaAtrasada = faturasFechadasAnterioresPendentes.length > 0;
+
+const faturaFechadaAguardandoPagamento =
+  !existeFaturaAtrasada ? faturaFechadaMaisRecente : undefined;
+
+const existeFaturaFechadaPendente =
+  !existeFaturaAtrasada &&
+  Boolean(faturaFechadaAguardandoPagamento) &&
+  Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0)) > 0;
+
+if (String(c?.emissor ?? "").toLowerCase().includes("nubank") || String(c?.emissor ?? "").toLowerCase().includes("ita")) {
+  console.log(
+    "DEBUG RESUMO CARTAO",
+    JSON.stringify(
+      {
+        cartao: c?.emissor,
+        cartaoId,
+        cicloAtual,
+        existeFaturaAtrasada,
+        existeFaturaFechadaPendente,
+        faturaFechadaAguardandoPagamento,
+        faturaFechadaMaisRecente,
+        faturasFechadasAnterioresPendentes,
+        pagamentosDoCartao: (pagamentosFatura ?? [])
+          .filter((p: any) => String(p?.cartaoId ?? "").trim() === cartaoId)
+          .map((p: any) => ({
+            id: p?.id,
+            cicloKeyOriginal: p?.cicloKey,
+            valor: p?.valor,
+            dataPagamento: p?.dataPagamento,
+            transacaoId: p?.transacaoId,
+          })),
+      },
+      null,
+      2
+    )
+  );
 }
+
+if (existeFaturaFechadaPendente && faturaFechadaAguardandoPagamento) {
+  resumoCartoesPendentesValor += Math.max(
+    0,
+    Number(faturaFechadaAguardandoPagamento.saldo || 0)
+  );
+
+  cartoesFechadosAguardandoPagamentoLista.push({
+    cartaoId,
+    label: labelCartaoResumo,
+    ciclo: String(faturaFechadaAguardandoPagamento.ciclo),
+  });
+}
+
+faturasFechadasAnterioresPendentes.forEach((item: any) => {
+  resumoCartoesAtrasadasValor += Math.max(0, Number(item?.saldo || 0));
+  cartoesAtrasadosLista.push({
+    cartaoId,
+    label: labelCartaoResumo,
+    ciclo: String(item?.ciclo ?? ""),
+  });
+});
+
   });
 });
 
@@ -5252,11 +5374,43 @@ const resumoCartoesVencendoHojeLabel = formatResumoBRL(resumoCartoesVencendoHoje
 const resumoCartoesPendentesLabel = formatResumoBRL(resumoCartoesPendentesValor);
 const resumoCartoesAtrasadasLabel = formatResumoBRL(resumoCartoesAtrasadasValor);
 
-const despesasVencendoHojeLista = despesasEmAberto
+const isPagamentoDeFaturaResumo = (t: any) => {
+  const descricao = String(t?.descricao ?? "").trim().toLowerCase();
+
+  const categoria = String(
+    typeof t?.categoria === "string"
+      ? t.categoria
+      : t?.categoria?.nome ?? t?.categoria?.label ?? t?.categoria?.value ?? ""
+  )
+    .trim()
+    .toLowerCase();
+
+  return /^fatura\s*:/.test(descricao) || categoria === "cartão de crédito";
+};
+
+const despesasResumoLista = (despesasEmAberto ?? []).filter(
+  (t: any) => !isPagamentoDeFaturaResumo(t)
+);
+
+const pagamentosDeFaturaEmAtrasoResumo = (despesasEmAberto ?? [])
+  .filter((t: any) => isPagamentoDeFaturaResumo(t))
+  .filter((t: any) => {
+    const data = String(t?.data ?? "").trim();
+    return !!data && data < hojeResumoStr;
+  })
+  .map((t: any) => ({
+    cartaoId: String(t?.qualCartao ?? t?.cartaoId ?? t?.id ?? "").trim(),
+    ciclo: String(t?.data ?? "").trim(),
+    label: String(t?.descricao ?? "Fatura").trim(),
+    origem: "pagamento_fatura_revertido",
+    transacao: t,
+  }));
+
+const despesasVencendoHojeLista = despesasResumoLista
   .filter((t: any) => String(t?.data ?? "").trim() === hojeResumoStr)
   .sort((a: any, b: any) => String(a?.data ?? "").localeCompare(String(b?.data ?? "")));
 
-const despesasAtrasadasLista = despesasEmAberto
+const despesasAtrasadasLista = despesasResumoLista
   .filter((t: any) => {
     const data = String(t?.data ?? "").trim();
     return data < hojeResumoStr;
@@ -5663,6 +5817,12 @@ const cardsPanelContent = (
   />
 );
 
+const resumoAlertsCount =
+  despesasVencendoHojeLista.length +
+  despesasAtrasadasLista.length +
+  cartoesVencendoHojeLista.length +
+  cartoesAtrasadosLista.length;
+
 const resumoPanelContent = (
 <div className="space-y-4">
 
@@ -5684,8 +5844,8 @@ const resumoPanelContent = (
                     {String(t?.descricao ?? "Despesa")}
                   </div>
                   <div className="mt-1 text-[11px] text-slate-500 dark:text-white/55">
-                    {String(t?.data ?? "")}
-                    {getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
+{formatarData(String(t?.data ?? ""))}
+{getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
                   </div>
                 </div>
 
@@ -5716,6 +5876,7 @@ const resumoPanelContent = (
             Em atraso
           </div>
 
+
           <div className="mt-3 space-y-2">
             {despesasAtrasadasLista.length ? (
               despesasAtrasadasLista.map((t: any) => (
@@ -5728,8 +5889,8 @@ const resumoPanelContent = (
                       {String(t?.descricao ?? "Despesa")}
                     </div>
                     <div className="mt-1 text-[11px] text-slate-500 dark:text-white/55">
-                      {String(t?.data ?? "")}
-                      {getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
+{formatarData(String(t?.data ?? ""))}
+{getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
                     </div>
                   </div>
 
@@ -5786,10 +5947,40 @@ const resumoPanelContent = (
           )}
         </div>
 
-        <div className="mt-4 border-t border-slate-200 pt-3 dark:border-white/10">
-          <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
-            Em atraso
-          </div>
+<div className="mt-4 border-t border-slate-200 pt-3 dark:border-white/10">
+  <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
+    Faturas fechadas aguardando pagamento
+  </div>
+
+  <div className="mt-3 space-y-2">
+    {cartoesFechadosAguardandoPagamentoLista.length ? (
+      cartoesFechadosAguardandoPagamentoLista.map((item) => (
+        <button
+          key={`cartao_pendente_${item.cartaoId}_${item.ciclo}`}
+          type="button"
+          onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
+          className="flex w-full items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-left transition hover:bg-amber-100 dark:border-amber-400/20 dark:bg-amber-500/10 dark:hover:bg-amber-500/20"
+        >
+          <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
+            {item.label}
+          </span>
+          <span className="text-[11px] font-medium text-violet-700 dark:text-violet-300">
+            Pagar
+          </span>
+        </button>
+      ))
+    ) : (
+      <div className="text-[12px] text-slate-500 dark:text-white/50">
+        Nenhuma fatura fechada aguardando pagamento.
+      </div>
+    )}
+  </div>
+</div>
+
+<div className="mt-4 border-t border-slate-200 pt-3 dark:border-white/10">
+  <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
+    Em atraso
+  </div>
 
           <div className="mt-3 space-y-2">
             {cartoesAtrasadosLista.length ? (
@@ -5959,6 +6150,7 @@ return (
   panelContent={sidebarPanels}
   onPanelOpen={handleSidebarOpen}
   unreadNotificationsCount={unreadNotificationsCount}
+  resumoAlertsCount={resumoAlertsCount}
   showGlobalOverlay={appBloqueado}
 >
 

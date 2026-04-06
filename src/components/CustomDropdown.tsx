@@ -22,6 +22,10 @@ type CustomDropdownProps = {
 
   placeholder?: string;
   className?: string;
+
+  triggerClassName?: string;
+  arrowClassName?: string;
+  renderValue?: (displayValue: ReactNode) => ReactNode;
 };
 
 const MAX_MENU_PX = 420; // mostra ~8 a 10 itens com mais conforto
@@ -37,6 +41,9 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
   onAddNew,
   placeholder = "Selecione",
   className = "",
+  triggerClassName = "",
+  arrowClassName = "",
+  renderValue,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [menuMaxH, setMenuMaxH] = useState<number>(MAX_MENU_PX);
@@ -88,6 +95,8 @@ const displayValue = useMemo(() => {
   return found ? found.label : placeholder;
 }, [normalized, value, placeholder]);
 
+const renderedValue = renderValue ? renderValue(displayValue) : displayValue;
+
   const recalcMenuHeight = () => {
     const el = containerRef.current;
     if (!el) return;
@@ -125,29 +134,39 @@ const displayValue = useMemo(() => {
         </label>
       )}
 
-      <button
-        type="button"
-        onClick={() => setIsOpen((v) => !v)}
-        className="h-10 w-full rounded-xl pl-3.5 pr-2.5 text-[13px]
-          bg-white dark:bg-slate-900
-          border border-slate-200 dark:border-slate-700
-          text-slate-900 dark:text-slate-100
-          flex items-center justify-between gap-2
-          hover:bg-slate-50 dark:hover:bg-slate-800/60"
-      >
-        <span
-          className={
-            (displayValue === placeholder
-              ? "text-slate-500"
-              : "text-slate-900 dark:text-slate-100 [&_*]:text-slate-900 dark:[&_*]:text-slate-100") +
-            " min-w-0 flex-1 truncate text-left"
-          }
-        >
-          {displayValue}
-        </span>
+<button
+  type="button"
+  onClick={() => setIsOpen((v) => !v)}
+  className={[
+    "h-10 w-full rounded-xl pl-3.5 pr-2.5 text-[13px]",
+    "bg-white dark:bg-slate-900",
+    "border border-slate-200 dark:border-slate-700",
+    "text-slate-900 dark:text-slate-100",
+    "flex items-center justify-between gap-2",
+    "hover:bg-slate-50 dark:hover:bg-slate-800/60",
+    triggerClassName,
+  ].join(" ")}
+>
+  <span
+    className={
+      (displayValue === placeholder
+        ? "text-slate-500"
+        : "text-slate-900 dark:text-slate-100 [&_*]:text-slate-900 dark:[&_*]:text-slate-100") +
+      " min-w-0 flex-1 truncate text-left"
+    }
+  >
+    {renderedValue}
+  </span>
 
-        <span className="shrink-0 text-slate-500 dark:text-slate-400">›</span>
-      </button>
+  <span
+    className={[
+      "shrink-0 text-slate-500 dark:text-slate-400",
+      arrowClassName,
+    ].join(" ")}
+  >
+    ›
+  </span>
+</button>
 
       {isOpen && (
         <div

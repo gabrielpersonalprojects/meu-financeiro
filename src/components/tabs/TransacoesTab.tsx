@@ -10,7 +10,17 @@ import { getContaBadge, getContaLabel } from "../../domain";
 import { asId } from "../../utils/asId";
 import { getContaPartsById } from "../../app/transactions/logic";
 
-import { ArrowUpRight, ArrowDownRight, Eye, EyeOff, Wallet, Repeat, Star } from "lucide-react";
+import {
+  ArrowUpRight,
+  ArrowDownRight,
+  Eye,
+  EyeOff,
+  Wallet,
+  Repeat,
+  Star,
+  SlidersHorizontal,
+  RotateCcw,
+} from "lucide-react";
 
 const isPaid = (v: any) => {
   const s = String(v ?? "").toLowerCase();
@@ -120,8 +130,17 @@ handleToggleFavoriteAccount,
 
   stats,
 }: Props) {
-  const [paginaAtual, setPaginaAtual] = useState(1);
-  const [mostrarValoresResumo, setMostrarValoresResumo] = useState(true);
+const [paginaAtual, setPaginaAtual] = useState(1);
+const [mostrarValoresResumo, setMostrarValoresResumo] = useState(true);
+const [organizacaoLista, setOrganizacaoLista] = useState<
+  | "status"
+  | "recentes"
+  | "antigas"
+  | "receitas_primeiro"
+  | "despesas_primeiro"
+  | "valor_crescente"
+  | "valor_decrescente"
+>("status");
 
   const getFilteredTransactions = useMemo(() => {
     return (itemsFiltrados || []).filter((t: any) => {
@@ -149,7 +168,7 @@ handleToggleFavoriteAccount,
     });
   }, [itemsFiltrados, filtroLancamento]);
 
-  const sortedTransactions = useMemo(() => {
+const sortedTransactions = useMemo(() => {
   const toDateNumber = (value: any) => {
     const raw = String(value ?? "").trim();
     if (!raw) return Number.MAX_SAFE_INTEGER;
@@ -158,7 +177,48 @@ handleToggleFavoriteAccount,
     return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER;
   };
 
-  return [...getFilteredTransactions].sort((a: any, b: any) => {
+  const getCreatedNumber = (value: any) => {
+    const n = Number(value ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const isReceita = (t: any) => String(t?.tipo ?? "").toLowerCase() === "receita";
+  const isDespesa = (t: any) => String(t?.tipo ?? "").toLowerCase() === "despesa";
+
+  const isAtrasado = (t: any) => {
+    const paid = isPaid(t?.pago);
+    const date = String(t?.data ?? "").trim();
+    return !paid && !!date && date < hojeStr;
+  };
+
+  const isPendente = (t: any) => {
+    const paid = isPaid(t?.pago);
+    const date = String(t?.data ?? "").trim();
+    return !paid && (!!date ? date >= hojeStr : true);
+  };
+
+  const compareStable = (a: any, b: any) => {
+    const aCreated = getCreatedNumber(a?.criadoEm ?? a?.createdAt);
+    const bCreated = getCreatedNumber(b?.criadoEm ?? b?.createdAt);
+
+    if (aCreated !== bCreated) return aCreated - bCreated;
+
+    return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
+  };
+
+  const compareRecentes = (a: any, b: any) => {
+    const diff = toDateNumber(b?.data) - toDateNumber(a?.data);
+    if (diff !== 0) return diff;
+    return compareStable(a, b);
+  };
+
+  const compareAntigas = (a: any, b: any) => {
+    const diff = toDateNumber(a?.data) - toDateNumber(b?.data);
+    if (diff !== 0) return diff;
+    return compareStable(a, b);
+  };
+
+  const compareStatusAtual = (a: any, b: any) => {
     const aPaid = isPaid(a?.pago);
     const bPaid = isPaid(b?.pago);
 
@@ -168,48 +228,80 @@ handleToggleFavoriteAccount,
     const aOverdue = !aPaid && aDate < hojeStr;
     const bOverdue = !bPaid && bDate < hojeStr;
 
-    // 1) atrasadas primeiro
     if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
 
-    // 2) depois todas as pendentes
     if (aPaid !== bPaid) return aPaid ? 1 : -1;
 
-    // 3) dentro do mesmo grupo, ordenar por vencimento/data mais próxima
-const aDateNum = toDateNumber(aDate);
-const bDateNum = toDateNumber(bDate);
+    const aDateNum = toDateNumber(aDate);
+    const bDateNum = toDateNumber(bDate);
 
-// pendentes: vencimento mais próximo primeiro
-if (!aPaid && !bPaid) {
-  const diffPending = aDateNum - bDateNum;
-  if (diffPending !== 0) return diffPending;
+    if (!aPaid && !bPaid) {
+      const diffPending = aDateNum - bDateNum;
+      if (diffPending !== 0) return diffPending;
+    }
+
+    if (aPaid && bPaid) {
+      const diffPaid = bDateNum - aDateNum;
+      if (diffPaid !== 0) return diffPaid;
+    }
+
+    return compareStable(a, b);
+  };
+
+  return [...getFilteredTransactions].sort((a: any, b: any) => {
+    if (organizacaoLista === "recentes") {
+      return compareRecentes(a, b);
+    }
+
+    if (organizacaoLista === "antigas") {
+      return compareAntigas(a, b);
+    }
+
+    if (organizacaoLista === "receitas_primeiro") {
+      const aPriority = isReceita(a) ? 0 : 1;
+      const bPriority = isReceita(b) ? 0 : 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return compareRecentes(a, b);
+    }
+
+    if (organizacaoLista === "despesas_primeiro") {
+      const aPriority = isDespesa(a) ? 0 : 1;
+      const bPriority = isDespesa(b) ? 0 : 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return compareRecentes(a, b);
+    }
+
+if (organizacaoLista === "valor_crescente") {
+  const aValue = Math.abs(Number(a?.valor ?? 0));
+  const bValue = Math.abs(Number(b?.valor ?? 0));
+  const diff = aValue - bValue;
+  if (diff !== 0) return diff;
+  return compareRecentes(a, b);
 }
 
-// pagas: mais recentes primeiro
-if (aPaid && bPaid) {
-  const diffPaid = bDateNum - aDateNum;
-  if (diffPaid !== 0) return diffPaid;
+if (organizacaoLista === "valor_decrescente") {
+  const aValue = Math.abs(Number(a?.valor ?? 0));
+  const bValue = Math.abs(Number(b?.valor ?? 0));
+  const diff = bValue - aValue;
+  if (diff !== 0) return diff;
+  return compareRecentes(a, b);
 }
 
-    // 4) desempate estável por criadoEm/id
-    const aCreated = Number(a?.criadoEm ?? a?.createdAt ?? 0);
-    const bCreated = Number(b?.criadoEm ?? b?.createdAt ?? 0);
-
-    if (aCreated !== bCreated) return aCreated - bCreated;
-
-    return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
+    return compareStatusAtual(a, b);
   });
-}, [getFilteredTransactions, hojeStr]);
+}, [getFilteredTransactions, hojeStr, organizacaoLista]);
 
-  useEffect(() => {
-    setPaginaAtual(1);
-  }, [
-    filtroMes,
-    filtroLancamento,
-    filtroConta,
-    filtroCategoria,
-    filtroTipoGasto,
-    itemsFiltrados,
-  ]);
+useEffect(() => {
+  setPaginaAtual(1);
+}, [
+  filtroMes,
+  filtroLancamento,
+  filtroConta,
+  filtroCategoria,
+  filtroTipoGasto,
+  itemsFiltrados,
+  organizacaoLista,
+]);
 
  const totalPaginas = Math.max(1, Math.ceil(sortedTransactions.length / ITENS_POR_PAGINA));
 
@@ -643,9 +735,74 @@ label: (
           </div>
         </div>
 
-        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
-         {sortedTransactions.length} Lançamentos Encontrados
-        </div>
+<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
+    {sortedTransactions.length} Lançamentos Encontrados
+  </div>
+
+  <div className="flex w-full sm:w-auto items-center justify-end gap-2">
+    <div className="w-full sm:w-[220px]">
+<CustomDropdown
+  placeholder="Organizar"
+value={
+  organizacaoLista === "receitas_primeiro"
+    ? "Receitas primeiro"
+    : organizacaoLista === "despesas_primeiro"
+    ? "Despesas primeiro"
+    : organizacaoLista === "valor_crescente"
+    ? "Valor crescente"
+    : organizacaoLista === "valor_decrescente"
+    ? "Valor decrescente"
+    : organizacaoLista === "recentes"
+    ? "Mais recentes"
+    : organizacaoLista === "antigas"
+    ? "Mais antigas"
+    : "Organizar"
+}
+options={[
+  "Receitas primeiro",
+  "Despesas primeiro",
+  "Valor crescente",
+  "Valor decrescente",
+  "Mais recentes",
+  "Mais antigas",
+]}
+onSelect={(val) => {
+  if (val === "Receitas primeiro") setOrganizacaoLista("receitas_primeiro");
+  else if (val === "Despesas primeiro") setOrganizacaoLista("despesas_primeiro");
+  else if (val === "Valor crescente") setOrganizacaoLista("valor_crescente");
+  else if (val === "Valor decrescente") setOrganizacaoLista("valor_decrescente");
+  else if (val === "Mais recentes") setOrganizacaoLista("recentes");
+  else if (val === "Mais antigas") setOrganizacaoLista("antigas");
+}}
+  className="w-full"
+  triggerClassName="h-11 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+arrowClassName="text-indigo-600 dark:text-indigo-400"
+renderValue={(displayValue) => (
+  <span className="inline-flex items-center gap-2">
+<SlidersHorizontal className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+   <span className="font-semibold text-[#220055] dark:text-[#220055]">
+      {organizacaoLista === "status" ? "Organizar" : displayValue}
+    </span>
+  </span>
+)}
+/>
+    </div>
+
+    <button
+      type="button"
+      onClick={() => setOrganizacaoLista("status")}
+      title="Voltar ao padrão"
+      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-sm transition ${
+  organizacaoLista === "status"
+    ? "border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-900 opacity-60"
+    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800"
+}`}
+    >
+<RotateCcw className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+    </button>
+  </div>
+</div>
       </div>
 
     <div>

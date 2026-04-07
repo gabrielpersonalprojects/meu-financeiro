@@ -154,6 +154,131 @@ import {
 
 const SEM_PRAZO_MESES = 12;
 
+type SemPrazoDecision = "pendente" | "cancelada";
+type SemPrazoStatus = "ativa" | "encerrada" | "dispensada";
+
+type SemPrazoPayloadMeta = {
+  recurrenceKind?: "sem_prazo";
+  recurrenceWindowMonths?: number;
+  recurrenceOriginDate?: string;
+  recurrenceWindowStart?: string;
+  recurrenceWindowEnd?: string;
+  recurrenceStatus?: SemPrazoStatus;
+  recurrenceRenewalDecision?: SemPrazoDecision;
+  recurrenceDismissedAt?: string;
+  recurrenceCanceledAt?: string;
+  recurrenceLastActionAt?: string;
+};
+
+const SEM_PRAZO_ALERTA_DIAS = 60;
+
+const pad2 = (value: number) => String(value).padStart(2, "0");
+
+const isIsoDate = (value: unknown): value is string =>
+  /^\d{4}-\d{2}-\d{2}$/.test(String(value ?? "").trim());
+
+const startOfDayLocal = (isoDate: string) => {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+};
+
+const addMonthsToIsoDate = (isoDate: string, monthsToAdd: number) => {
+  if (!isIsoDate(isoDate)) return "";
+
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const base = new Date(year, month - 1, day, 12, 0, 0, 0);
+  base.setMonth(base.getMonth() + monthsToAdd);
+
+  return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}-${pad2(
+    base.getDate()
+  )}`;
+};
+
+const diffDaysFromToday = (targetIsoDate: string) => {
+  if (!isIsoDate(targetIsoDate)) return Number.NaN;
+
+  const today = startOfDayLocal(getHojeLocal());
+  const target = startOfDayLocal(targetIsoDate);
+  const diffMs = target.getTime() - today.getTime();
+
+  return Math.ceil(diffMs / 86400000);
+};
+
+const getSemPrazoMetaFromPayload = (payload: any): SemPrazoPayloadMeta => {
+  if (!payload || typeof payload !== "object") return {};
+
+  return {
+    recurrenceKind:
+      payload.recurrenceKind === "sem_prazo" ? "sem_prazo" : undefined,
+    recurrenceWindowMonths: Number(payload.recurrenceWindowMonths ?? 0) || undefined,
+    recurrenceOriginDate: String(payload.recurrenceOriginDate ?? "").trim() || undefined,
+    recurrenceWindowStart: String(payload.recurrenceWindowStart ?? "").trim() || undefined,
+    recurrenceWindowEnd: String(payload.recurrenceWindowEnd ?? "").trim() || undefined,
+    recurrenceStatus:
+      payload.recurrenceStatus === "encerrada" ||
+      payload.recurrenceStatus === "dispensada" ||
+      payload.recurrenceStatus === "ativa"
+        ? payload.recurrenceStatus
+        : undefined,
+    recurrenceRenewalDecision:
+      payload.recurrenceRenewalDecision === "cancelada" ||
+      payload.recurrenceRenewalDecision === "pendente"
+        ? payload.recurrenceRenewalDecision
+        : undefined,
+    recurrenceDismissedAt:
+      String(payload.recurrenceDismissedAt ?? "").trim() || undefined,
+    recurrenceCanceledAt:
+      String(payload.recurrenceCanceledAt ?? "").trim() || undefined,
+    recurrenceLastActionAt:
+      String(payload.recurrenceLastActionAt ?? "").trim() || undefined,
+  };
+};
+
+const buildSemPrazoMeta = ({
+  originDate,
+  windowStart,
+  windowEnd,
+  status = "ativa",
+  decision = "pendente",
+  dismissedAt = "",
+  canceledAt = "",
+  lastActionAt = "",
+}: {
+  originDate: string;
+  windowStart: string;
+  windowEnd: string;
+  status?: SemPrazoStatus;
+  decision?: SemPrazoDecision;
+  dismissedAt?: string;
+  canceledAt?: string;
+  lastActionAt?: string;
+}): Required<SemPrazoPayloadMeta> => ({
+  recurrenceKind: "sem_prazo",
+  recurrenceWindowMonths: SEM_PRAZO_MESES,
+  recurrenceOriginDate: originDate,
+  recurrenceWindowStart: windowStart,
+  recurrenceWindowEnd: windowEnd,
+  recurrenceStatus: status,
+  recurrenceRenewalDecision: decision,
+  recurrenceDismissedAt: dismissedAt,
+  recurrenceCanceledAt: canceledAt,
+  recurrenceLastActionAt: lastActionAt,
+});
+
+const mergeSemPrazoPayloadMeta = (
+  payload: any,
+  overrides: Partial<Required<SemPrazoPayloadMeta>>
+) => {
+  const current = getSemPrazoMetaFromPayload(payload);
+
+  return {
+    ...(payload && typeof payload === "object" ? payload : {}),
+    ...current,
+    ...overrides,
+  };
+
+};
+
 /* =========================
    PARTE 2/3 — APP: STATES + EFFECTS + FUNÇÕES (SEM DUPLICAÇÃO)
    Cole esta parte logo abaixo da PARTE 1/3.
@@ -889,21 +1014,33 @@ try {
         qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
         criado_em: Number(tx.criadoEm ?? Date.now()),
 
-        payload: {
-          metodoPagamento: tx.metodoPagamento ?? "",
-          tipoGasto: tx.tipoGasto ?? "",
-          recorrenciaId: tx.recorrenciaId ?? "",
-          isRecorrente: !!tx.isRecorrente,
-          contraParte: tx.contraParte ?? "",
-          transferId: tx.transferId ?? "",
-          observacoes: tx.observacoes ?? "",
-          parcelaAtual: tx.parcelaAtual ?? null,
-          totalParcelas: tx.totalParcelas ?? null,
-          qualCartao: String(tx.qualCartao ?? ""),
-          origemLancamento: tx.origemLancamento ?? "",
-          parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
-          faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
-        },
+payload: {
+  metodoPagamento: tx.metodoPagamento ?? "",
+  tipoGasto: tx.tipoGasto ?? "",
+  recorrenciaId: tx.recorrenciaId ?? "",
+  isRecorrente: !!tx.isRecorrente,
+
+  recurrenceKind: tx.recurrenceKind ?? "",
+  recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
+  recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
+  recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
+  recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
+  recurrenceStatus: tx.recurrenceStatus ?? "",
+  recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
+  recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
+  recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
+  recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
+
+  contraParte: tx.contraParte ?? "",
+  transferId: tx.transferId ?? "",
+  observacoes: tx.observacoes ?? "",
+  parcelaAtual: tx.parcelaAtual ?? null,
+  totalParcelas: tx.totalParcelas ?? null,
+  qualCartao: String(tx.qualCartao ?? ""),
+  origemLancamento: tx.origemLancamento ?? "",
+  parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
+  faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
+},
       })
     )
   );
@@ -992,6 +1129,343 @@ try {
   invoiceInstallmentInFlightRef.current = false;
 }
 };
+
+const handleDispensarRecorrenciaEncerrada = async (recorrenciaId: string) => {
+  const recurrenceIdSafe = String(recorrenciaId ?? "").trim();
+  const userId = String(session?.user?.id ?? "").trim();
+
+  if (!recurrenceIdSafe || !userId) {
+    toastCompact("Não foi possível dispensar o aviso.", "error");
+    return;
+  }
+
+  const relacionadas = (transacoes ?? []).filter((tx: any) => {
+    const payload = (tx as any)?.payload ?? tx ?? {};
+    const recurrenceIdTx = String(
+      (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
+    ).trim();
+
+    const meta = getSemPrazoMetaFromPayload(payload);
+
+    return (
+      recurrenceIdTx === recurrenceIdSafe &&
+      meta.recurrenceKind === "sem_prazo"
+    );
+  });
+
+  if (!relacionadas.length) {
+    toastCompact("Recorrência não encontrada.", "error");
+    return;
+  }
+
+  const dismissedAt = new Date().toISOString();
+
+  try {
+    await Promise.all(
+      relacionadas.map(async (tx: any) => {
+        const txId = String((tx as any)?.id ?? "").trim();
+        if (!txId) return;
+
+        const payloadAtual = (tx as any)?.payload ?? {};
+
+        const payloadAtualizado = mergeSemPrazoPayloadMeta(payloadAtual, {
+          recurrenceStatus: "dispensada",
+          recurrenceDismissedAt: dismissedAt,
+          recurrenceLastActionAt: dismissedAt,
+        });
+
+        await updateTransactionById(txId, userId, {
+          payload: payloadAtualizado,
+        } as any);
+      })
+    );
+
+    setTransacoes((prev) =>
+      (prev ?? []).map((tx: any) => {
+        const payload = (tx as any)?.payload ?? tx ?? {};
+        const recurrenceIdTx = String(
+          (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
+        ).trim();
+
+        const meta = getSemPrazoMetaFromPayload(payload);
+
+        if (
+          recurrenceIdTx !== recurrenceIdSafe ||
+          meta.recurrenceKind !== "sem_prazo"
+        ) {
+          return tx;
+        }
+
+        return {
+          ...tx,
+          payload: mergeSemPrazoPayloadMeta(payload, {
+            recurrenceStatus: "dispensada",
+            recurrenceDismissedAt: dismissedAt,
+            recurrenceLastActionAt: dismissedAt,
+          }),
+        };
+      })
+    );
+
+    toastCompact("Aviso removido.", "success");
+  } catch (err) {
+    console.error("ERRO AO DISPENSAR RECORRENCIA ENCERRADA:", err);
+    toastCompact("Erro ao remover aviso.", "error");
+  }
+};
+
+const handleCancelarRenovacaoSemPrazo = async (recorrenciaId: string) => {
+  const recurrenceIdSafe = String(recorrenciaId ?? "").trim();
+  const userId = String(session?.user?.id ?? "").trim();
+
+  if (!recurrenceIdSafe || !userId) {
+    toastCompact("Não foi possível cancelar a renovação.", "error");
+    return;
+  }
+
+  const relacionadas = (transacoes ?? []).filter((tx: any) => {
+    const payload = (tx as any)?.payload ?? tx ?? {};
+    const recurrenceIdTx = String(
+      (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
+    ).trim();
+
+    const meta = getSemPrazoMetaFromPayload(payload);
+
+    return (
+      recurrenceIdTx === recurrenceIdSafe &&
+      meta.recurrenceKind === "sem_prazo"
+    );
+  });
+
+  if (!relacionadas.length) {
+    toastCompact("Recorrência não encontrada.", "error");
+    return;
+  }
+
+  const canceledAt = new Date().toISOString();
+
+  try {
+    await Promise.all(
+      relacionadas.map(async (tx: any) => {
+        const txId = String((tx as any)?.id ?? "").trim();
+        if (!txId) return;
+
+        const payloadAtual = (tx as any)?.payload ?? {};
+
+        const payloadAtualizado = mergeSemPrazoPayloadMeta(payloadAtual, {
+          recurrenceStatus: "ativa",
+          recurrenceRenewalDecision: "cancelada",
+          recurrenceCanceledAt: canceledAt,
+          recurrenceLastActionAt: canceledAt,
+        });
+
+        await updateTransactionById(txId, userId, {
+          payload: payloadAtualizado,
+        } as any);
+      })
+    );
+
+    setTransacoes((prev) =>
+      (prev ?? []).map((tx: any) => {
+        const payload = (tx as any)?.payload ?? tx ?? {};
+        const recurrenceIdTx = String(
+          (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
+        ).trim();
+
+        const meta = getSemPrazoMetaFromPayload(payload);
+
+        if (
+          recurrenceIdTx !== recurrenceIdSafe ||
+          meta.recurrenceKind !== "sem_prazo"
+        ) {
+          return tx;
+        }
+
+        return {
+          ...tx,
+          payload: mergeSemPrazoPayloadMeta(payload, {
+            recurrenceStatus: "ativa",
+            recurrenceRenewalDecision: "cancelada",
+            recurrenceCanceledAt: canceledAt,
+            recurrenceLastActionAt: canceledAt,
+          }),
+        };
+      })
+    );
+
+    toastCompact("Renovação cancelada.", "success");
+  } catch (err) {
+    console.error("ERRO AO CANCELAR RENOVACAO SEM PRAZO:", err);
+    toastCompact("Erro ao cancelar renovação.", "error");
+  }
+};
+
+const handleRenovarRecorrenciaSemPrazo = async (recorrenciaId: string) => {
+  const recurrenceIdSafe = String(recorrenciaId ?? "").trim();
+  const userId = String(session?.user?.id ?? "").trim();
+
+  if (!recurrenceIdSafe || !userId) {
+    toastCompact("Não foi possível renovar a recorrência.", "error");
+    return;
+  }
+
+  const relacionadas = (transacoes ?? []).filter((tx: any) => {
+    const payload = (tx as any)?.payload ?? tx ?? {};
+    const recurrenceIdTx = String(
+      (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
+    ).trim();
+
+    const meta = getSemPrazoMetaFromPayload(payload);
+
+    return (
+      recurrenceIdTx === recurrenceIdSafe &&
+      meta.recurrenceKind === "sem_prazo"
+    );
+  });
+
+  if (!relacionadas.length) {
+    toastCompact("Recorrência não encontrada.", "error");
+    return;
+  }
+
+  const ordenadas = [...relacionadas].sort((a: any, b: any) =>
+    String((a as any)?.data ?? "").localeCompare(String((b as any)?.data ?? ""))
+  );
+
+  const ultima = ordenadas[ordenadas.length - 1];
+  if (!ultima) {
+    toastCompact("Não foi possível localizar a última ocorrência.", "error");
+    return;
+  }
+
+  const ultimaData = String((ultima as any)?.data ?? "").trim();
+  if (!isIsoDate(ultimaData)) {
+    toastCompact("Data final da recorrência inválida.", "error");
+    return;
+  }
+
+  const payloadUltima = (ultima as any)?.payload ?? {};
+  const metaUltima = getSemPrazoMetaFromPayload(payloadUltima);
+
+  const datasExistentes = new Set(
+  relacionadas
+    .map((tx: any) => String((tx as any)?.data ?? "").trim())
+    .filter((value: string) => isIsoDate(value))
+);
+  const novasTransacoes: any[] = [];
+
+  const novoWindowStart = addMonthsToIsoDate(ultimaData, 1);
+  const novoWindowEnd = addMonthsToIsoDate(ultimaData, SEM_PRAZO_MESES);
+
+  if (!isIsoDate(novoWindowStart) || !isIsoDate(novoWindowEnd)) {
+    toastCompact("Não foi possível calcular a nova janela.", "error");
+    return;
+  }
+
+  const renewedAt = new Date().toISOString();
+
+  for (let i = 1; i <= SEM_PRAZO_MESES; i++) {
+    const novaData = addMonthsToIsoDate(ultimaData, i);
+    if (!isIsoDate(novaData)) continue;
+    if (datasExistentes.has(novaData)) continue;
+
+    novasTransacoes.push({
+      ...ultima,
+      id: newId(),
+      data: novaData,
+      pago: false,
+      createdAt: Date.now() + i,
+      criadoEm: Date.now() + i,
+      recorrenciaId: recurrenceIdSafe,
+      cartaoId:
+  String((ultima as any)?.cartaoId ?? (ultima as any)?.payload?.cartaoId ?? "").trim() || undefined,
+...(String((ultima as any)?.tipo ?? "") === "cartao_credito"
+  ? {
+faturaMes: getFaturaMesByCartaoId(
+  novaData,
+  String(
+    (ultima as any)?.cartaoId ??
+      (ultima as any)?.payload?.cartaoId ??
+      ""
+  )
+),
+    }
+  : {}),
+      recurrenceKind: "sem_prazo",
+      recurrenceWindowMonths: SEM_PRAZO_MESES,
+      recurrenceOriginDate:
+        metaUltima.recurrenceOriginDate ||
+        String((ultima as any)?.data ?? "").trim(),
+      recurrenceWindowStart: novoWindowStart,
+      recurrenceWindowEnd: novoWindowEnd,
+      recurrenceStatus: "ativa",
+      recurrenceRenewalDecision: "pendente",
+      recurrenceDismissedAt: "",
+      recurrenceCanceledAt: "",
+      recurrenceLastActionAt: renewedAt,
+      payload: mergeSemPrazoPayloadMeta((ultima as any)?.payload ?? {}, {
+        recurrenceKind: "sem_prazo",
+        recurrenceWindowMonths: SEM_PRAZO_MESES,
+        recurrenceOriginDate:
+          metaUltima.recurrenceOriginDate ||
+          String((ultima as any)?.data ?? "").trim(),
+        recurrenceWindowStart: novoWindowStart,
+        recurrenceWindowEnd: novoWindowEnd,
+        recurrenceStatus: "ativa",
+        recurrenceRenewalDecision: "pendente",
+        recurrenceDismissedAt: "",
+        recurrenceCanceledAt: "",
+        recurrenceLastActionAt: renewedAt,
+      }),
+    });
+  }
+
+  if (!novasTransacoes.length) {
+    toastCompact("Essa recorrência já foi renovada.", "info");
+    return;
+  }
+
+  try {
+   const criadas = await persistTransactionsBatch(novasTransacoes);
+
+    setTransacoes((prev) => {
+      const atualizadas = (prev ?? []).map((tx: any) => {
+        const payload = (tx as any)?.payload ?? tx ?? {};
+        const recurrenceIdTx = String(
+          (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
+        ).trim();
+
+        const meta = getSemPrazoMetaFromPayload(payload);
+
+        if (
+          recurrenceIdTx !== recurrenceIdSafe ||
+          meta.recurrenceKind !== "sem_prazo"
+        ) {
+          return tx;
+        }
+
+        return {
+          ...tx,
+          payload: mergeSemPrazoPayloadMeta(payload, {
+            recurrenceStatus: "ativa",
+            recurrenceRenewalDecision: "pendente",
+            recurrenceDismissedAt: "",
+            recurrenceCanceledAt: "",
+            recurrenceLastActionAt: renewedAt,
+          }),
+        };
+      });
+
+      return [...atualizadas, ...(criadas as any[])];
+    });
+
+    toastCompact("Recorrência renovada por mais 12 meses.", "success");
+  } catch (err) {
+    console.error("ERRO AO RENOVAR RECORRENCIA SEM PRAZO:", err);
+    toastCompact("Erro ao renovar recorrência.", "error");
+  }
+};
+
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     String(value || "").trim()
@@ -1909,6 +2383,91 @@ useEffect(() => {
   const [formBancoId, setFormBancoId] = useState<string>("");
 
 const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
+
+const getFaturaMesByCartaoId = (dataIso: string, cartaoId: string) => {
+  const cartao = (creditCards ?? []).find(
+    (c: any) => String(c?.id ?? "").trim() === String(cartaoId ?? "").trim()
+  );
+
+  return getCardCycleMonthFromDate(
+    dataIso,
+    Number((cartao as any)?.diaFechamento ?? 1),
+    Number((cartao as any)?.diaVencimento ?? 1)
+  );
+};
+
+const persistTransactionsBatch = async (items: any[]) => {
+  const userId = String(session?.user?.id ?? "").trim();
+  if (!userId) {
+    throw new Error("Sessão inválida para salvar transações.");
+  }
+
+  const rows = await Promise.all(
+    (items ?? []).map((tx: any) =>
+      insertTransaction({
+        user_id: userId,
+        tipo: tx.tipo,
+        valor: Number(tx.valor ?? 0),
+        data: String(tx.data ?? ""),
+        descricao: String(tx.descricao ?? ""),
+        categoria:
+          typeof tx.categoria === "string"
+            ? tx.categoria
+            : String(
+                tx.categoria?.nome ??
+                  tx.categoria?.label ??
+                  tx.categoria?.value ??
+                  ""
+              ),
+        tag: String(tx.tag ?? ""),
+        pago: !!tx.pago,
+
+        conta_id: tx.contaId ? String(tx.contaId) : null,
+        conta_origem_id: tx.contaOrigemId ? String(tx.contaOrigemId) : null,
+        conta_destino_id: tx.contaDestinoId ? String(tx.contaDestinoId) : null,
+cartao_id:
+  tx.tipo === "cartao_credito"
+    ? String(tx.cartaoId ?? tx.payload?.cartaoId ?? "").trim() || null
+    : null,
+
+        transfer_from_id: String(tx.transferFromId ?? ""),
+        transfer_to_id: String(tx.transferToId ?? ""),
+        qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
+        criado_em: Number(tx.criadoEm ?? tx.createdAt ?? Date.now()),
+
+        payload: {
+          metodoPagamento: tx.metodoPagamento ?? "",
+          tipoGasto: tx.tipoGasto ?? "",
+          recorrenciaId: tx.recorrenciaId ?? "",
+          isRecorrente: !!tx.isRecorrente,
+
+          recurrenceKind: tx.recurrenceKind ?? "",
+          recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
+          recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
+          recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
+          recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
+          recurrenceStatus: tx.recurrenceStatus ?? "",
+          recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
+          recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
+          recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
+          recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
+
+          contraParte: tx.contraParte ?? "",
+          transferId: tx.transferId ?? "",
+          observacoes: tx.observacoes ?? "",
+          parcelaAtual: tx.parcelaAtual ?? null,
+          totalParcelas: tx.totalParcelas ?? null,
+          qualCartao: String(tx.qualCartao ?? ""),
+          origemLancamento: tx.origemLancamento ?? "",
+          parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
+          faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
+        },
+      })
+    )
+  );
+
+  return rows.map((row: any) => mapTransactionRowToApp(row));
+};
 
 const [selectedCreditCardId, setSelectedCreditCardId] = useState<string>("");
 const [saldoRestanteAtual, setSaldoRestanteAtual] = useState<number>(0);
@@ -3160,6 +3719,138 @@ const projection12Months = useProjection12Months({
   mode: projectionMode,
 });
 
+type SemPrazoAlertItem = {
+  recorrenciaId: string;
+  descricao: string;
+  valor: number;
+  ultimaData: string;
+  diasRestantes: number;
+  kind: "acao" | "encerrada";
+  recurrenceRenewalDecision: SemPrazoDecision;
+  recurrenceDismissedAt?: string;
+  recurrenceCanceledAt?: string;
+};
+
+const semPrazoAlerts = useMemo<SemPrazoAlertItem[]>(() => {
+  const grupos = new Map<string, Transaction[]>();
+
+  (transacoes ?? []).forEach((tx: any) => {
+    const payload = (tx as any)?.payload ?? tx ?? {};
+    const meta = getSemPrazoMetaFromPayload(payload);
+
+    if (meta.recurrenceKind !== "sem_prazo") return;
+
+    const recorrenciaId = String(
+      (tx as any)?.recorrenciaId ??
+        payload?.recorrenciaId ??
+        ""
+    ).trim();
+
+    if (!recorrenciaId) return;
+
+    const atual = grupos.get(recorrenciaId) ?? [];
+    atual.push(tx);
+    grupos.set(recorrenciaId, atual);
+  });
+
+  const resultado: SemPrazoAlertItem[] = [];
+
+  grupos.forEach((items, recorrenciaId) => {
+    const ordenadas = [...items].sort((a: any, b: any) =>
+      String((a as any)?.data ?? "").localeCompare(String((b as any)?.data ?? ""))
+    );
+
+    const ultima = ordenadas[ordenadas.length - 1];
+    if (!ultima) return;
+
+    const payload = (ultima as any)?.payload ?? ultima ?? {};
+    const meta = getSemPrazoMetaFromPayload(payload);
+
+    const ultimaData = String(
+      meta.recurrenceWindowEnd ??
+        (ultima as any)?.data ??
+        ""
+    ).trim();
+
+    if (!isIsoDate(ultimaData)) return;
+
+    const recurrenceDismissedAt = String(meta.recurrenceDismissedAt ?? "").trim();
+    if (recurrenceDismissedAt) return;
+
+    const recurrenceRenewalDecision: SemPrazoDecision =
+      meta.recurrenceRenewalDecision === "cancelada" ? "cancelada" : "pendente";
+
+    const recurrenceCanceledAt = String(meta.recurrenceCanceledAt ?? "").trim();
+
+    const diasRestantes = diffDaysFromToday(ultimaData);
+
+    const descricaoBase = String((ultima as any)?.descricao ?? "").trim() || "Transação sem prazo";
+    const valorBase = Math.abs(Number((ultima as any)?.valor ?? 0)) || 0;
+
+    if (diasRestantes < 0) {
+      resultado.push({
+        recorrenciaId,
+        descricao: descricaoBase,
+        valor: valorBase,
+        ultimaData,
+        diasRestantes,
+        kind: "encerrada",
+        recurrenceRenewalDecision,
+        recurrenceDismissedAt,
+        recurrenceCanceledAt,
+      });
+      return;
+    }
+
+if (
+  diasRestantes <= SEM_PRAZO_ALERTA_DIAS &&
+  recurrenceRenewalDecision !== "cancelada"
+) {
+  resultado.push({
+    recorrenciaId,
+    descricao: descricaoBase,
+    valor: valorBase,
+    ultimaData,
+    diasRestantes,
+    kind: "acao",
+    recurrenceRenewalDecision,
+    recurrenceDismissedAt,
+    recurrenceCanceledAt,
+  });
+}
+  });
+
+  return resultado.sort((a, b) => {
+    if (a.kind !== b.kind) {
+      return a.kind === "acao" ? -1 : 1;
+    }
+
+    return a.diasRestantes - b.diasRestantes;
+  });
+}, [transacoes]);
+
+const semPrazoActionAlerts = useMemo(
+  () => semPrazoAlerts.filter((item) => item.kind === "acao"),
+  [semPrazoAlerts]
+);
+
+const semPrazoEndedAlerts = useMemo(
+  () => semPrazoAlerts.filter((item) => item.kind === "encerrada"),
+  [semPrazoAlerts]
+);
+
+const formatSemPrazoDiasRestantes = (diasRestantes: number) => {
+  if (!Number.isFinite(diasRestantes)) return "Prazo próximo do fim";
+  if (diasRestantes <= 0) return "Transação encerrada";
+  if (diasRestantes === 1) return "Falta 1 dia para encerrar";
+  return `Faltam ${diasRestantes} dias para encerrar`;
+};
+
+const formatSemPrazoEncerradaEm = (ultimaData: string) => {
+  if (!isIsoDate(ultimaData)) return "Transação encerrada";
+  return `Transação encerrada em ${formatarData(ultimaData)}`;
+};
+
 // --- Categorias filtradas para dropdown (Transações) ---
 const categoriasFiltradasTransacoes = useMemo(() => {
   if (filtroLancamento === "receita") {
@@ -3841,18 +4532,30 @@ cartao_id: tx.cartaoId ? String(tx.cartaoId) : null,
         qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
         criado_em: Number(tx.criadoEm ?? Date.now()),
 
-        payload: {
-          metodoPagamento: tx.metodoPagamento ?? "",
-          tipoGasto: tx.tipoGasto ?? "",
-          recorrenciaId: tx.recorrenciaId ?? "",
-          isRecorrente: !!tx.isRecorrente,
-          contraParte: tx.contraParte ?? "",
-          transferId: tx.transferId ?? "",
-          observacoes: tx.observacoes ?? "",
-          parcelaAtual: tx.parcelaAtual ?? null,
-          totalParcelas: tx.totalParcelas ?? null,
-          qualCartao: String(tx.qualCartao ?? ""),
-        },
+payload: {
+  metodoPagamento: tx.metodoPagamento ?? "",
+  tipoGasto: tx.tipoGasto ?? "",
+  recorrenciaId: tx.recorrenciaId ?? "",
+  isRecorrente: !!tx.isRecorrente,
+
+  recurrenceKind: tx.recurrenceKind ?? "",
+  recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
+  recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
+  recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
+  recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
+  recurrenceStatus: tx.recurrenceStatus ?? "",
+  recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
+  recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
+  recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
+  recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
+
+  contraParte: tx.contraParte ?? "",
+  transferId: tx.transferId ?? "",
+  observacoes: tx.observacoes ?? "",
+  parcelaAtual: tx.parcelaAtual ?? null,
+  totalParcelas: tx.totalParcelas ?? null,
+  qualCartao: String(tx.qualCartao ?? ""),
+},
       })
     )
   );
@@ -4113,7 +4816,7 @@ novos.push({
       }
 
       // 2) FIXO (COM PRAZO / SEM PRAZO)
-      else if (ehFixo) {
+else if (ehFixo) {
         let mesesParaGerar = 1;
 
         if (prazoMode === "sem_prazo") {
@@ -4126,9 +4829,20 @@ novos.push({
         }
 
         const recorrenciaId = `cc_fixo_${selectedCreditCardId}_${Date.now()}`;
+        const isSemPrazo = prazoMode === "sem_prazo";
+        const windowStart = baseDate.toISOString().split("T")[0];
+        const windowEnd = addMonthsToIsoDate(windowStart, mesesParaGerar - 1);
+        const semPrazoMeta = isSemPrazo
+          ? buildSemPrazoMeta({
+              originDate: windowStart,
+              windowStart,
+              windowEnd,
+            })
+          : null;
 
         for (let i = 0; i < mesesParaGerar; i++) {
           const d = addMonthsSafe(baseDate, i);
+          const dataIso = d.toISOString().split("T")[0];
 
           novos.push({
             id: makeId(`fixo_${i}`),
@@ -4136,8 +4850,8 @@ novos.push({
             criadoEm: Date.now(),
             descricao: descBase,
             valor: -Math.abs(total),
-            data: d.toISOString().split("T")[0],
-            faturaMes: getFaturaMesTx(d.toISOString().split("T")[0]),
+            data: dataIso,
+            faturaMes: getFaturaMesTx(dataIso),
             categoria: categoriaBase || undefined,
             tag: tagCC || undefined,
             tipoGasto: "fixo",
@@ -4146,6 +4860,7 @@ novos.push({
             pago: i === 0 ? formPago : false,
             isRecorrente: true,
             recorrenciaId,
+            ...(semPrazoMeta ?? {}),
           } as any);
         }
       }
@@ -4317,18 +5032,30 @@ else if (
         mesesParaGerar = Math.max(1, diffAnos * 12 + diffMeses + 1);
       }
 
+      const isSemPrazo = prazoMode === "sem_prazo";
+      const windowStart = formData;
+      const windowEnd = addMonthsToIsoDate(formData, mesesParaGerar - 1);
+      const semPrazoMeta = isSemPrazo
+        ? buildSemPrazoMeta({
+            originDate: formData,
+            windowStart,
+            windowEnd,
+          })
+        : null;
+
       for (let i = 0; i < mesesParaGerar; i++) {
         const d = new Date(dataInicio);
         d.setMonth(dataInicio.getMonth() + i);
 
         const sign = formTipo === "receita" ? 1 : -1;
+        const dataIso = d.toISOString().split("T")[0];
 
         newTrans.push({
           id: Date.now() + i,
           tipo: formTipo,
           descricao: descFinal,
           valor: sign * valorNum,
-          data: d.toISOString().split("T")[0],
+          data: dataIso,
           categoria: formCat,
           tipoGasto: "fixo",
           metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
@@ -4337,6 +5064,7 @@ else if (
           pago: i === 0 ? formPago : false,
           isRecorrente: true,
           recorrenciaId,
+          ...(semPrazoMeta ?? {}),
         });
       }
     }
@@ -5068,6 +5796,10 @@ let resumoCartoesVencendoHojeValor = 0;
 let resumoCartoesPendentesValor = 0;
 let resumoCartoesAtrasadasValor = 0;
 
+const cartoesVencendoHojeKeys = new Set<string>();
+const cartoesFechadosAguardandoPagamentoKeys = new Set<string>();
+const cartoesAtrasadosKeys = new Set<string>();
+
 const cartoesVencendoHojeLista: Array<{
   cartaoId: string;
   label: string;
@@ -5220,11 +5952,15 @@ const labelCartaoResumo = `${String(
 
 if (vencimento.getTime() === hojeResumoDate.getTime()) {
   resumoCartoesVencendoHojeValor += saldo;
+if (!cartoesVencendoHojeKeys.has(cartaoId)) {
+  cartoesVencendoHojeKeys.add(cartaoId);
+
   cartoesVencendoHojeLista.push({
     cartaoId,
     label: labelCartaoResumo,
     ciclo,
   });
+}
   return;
 }
 
@@ -5346,20 +6082,30 @@ if (existeFaturaFechadaPendente && faturaFechadaAguardandoPagamento) {
     Number(faturaFechadaAguardandoPagamento.saldo || 0)
   );
 
+if (!cartoesFechadosAguardandoPagamentoKeys.has(cartaoId)) {
+  cartoesFechadosAguardandoPagamentoKeys.add(cartaoId);
+
   cartoesFechadosAguardandoPagamentoLista.push({
     cartaoId,
     label: labelCartaoResumo,
-    ciclo: String(faturaFechadaAguardandoPagamento.ciclo),
+    ciclo,
   });
+}
 }
 
 faturasFechadasAnterioresPendentes.forEach((item: any) => {
   resumoCartoesAtrasadasValor += Math.max(0, Number(item?.saldo || 0));
+const atrasoKey = `${cartaoId}__${ciclo}`;
+
+if (!cartoesAtrasadosKeys.has(atrasoKey)) {
+  cartoesAtrasadosKeys.add(atrasoKey);
+
   cartoesAtrasadosLista.push({
     cartaoId,
     label: labelCartaoResumo,
-    ciclo: String(item?.ciclo ?? ""),
+    ciclo,
   });
+}
 });
 
   });
@@ -5368,6 +6114,10 @@ faturasFechadasAnterioresPendentes.forEach((item: any) => {
 const resumoHojeLabel = formatResumoBRL(resumoHojeValor);
 const resumoSemanaLabel = formatResumoBRL(resumoSemanaValor);
 const resumoAtrasadosLabel = formatResumoBRL(resumoAtrasadosValor);
+
+cartoesAtrasadosLista.sort((a, b) => String(b.ciclo).localeCompare(String(a.ciclo)));
+cartoesFechadosAguardandoPagamentoLista.sort((a, b) => String(b.ciclo).localeCompare(String(a.ciclo)));
+cartoesVencendoHojeLista.sort((a, b) => String(b.ciclo).localeCompare(String(a.ciclo)));
 
 const resumoCartoesEmAbertoLabel = formatResumoBRL(resumoCartoesEmAbertoValor);
 const resumoCartoesVencendoHojeLabel = formatResumoBRL(resumoCartoesVencendoHojeValor);
@@ -5439,15 +6189,13 @@ const getResumoDespesaMeta = (t: any) => {
 };
 
 const abrirFaturaPeloResumo = (cartaoId: string, ciclo: string) => {
-  const card = (creditCards ?? []).find(
-    (c: any) => String(c?.id ?? "").trim() === String(cartaoId).trim()
-  );
-  if (!card) return;
-
+  const cartaoIdSafe = String(cartaoId ?? "").trim();
   const cicloNormalizado = String(ciclo ?? "").trim();
-  if (!cicloNormalizado) return;
 
-  setSelectedCreditCardId(String(cartaoId));
+  if (!cartaoIdSafe) return;
+  if (!/^\d{4}-\d{2}$/.test(cicloNormalizado)) return;
+
+  setSelectedCreditCardId(cartaoIdSafe);
   setCreditJumpMonth(cicloNormalizado);
   setModoCentro("credito");
   setActiveTab("cartoes");
@@ -5817,11 +6565,124 @@ const cardsPanelContent = (
   />
 );
 
+const semPrazoResumoAlertsContent =
+  semPrazoActionAlerts.length > 0 || semPrazoEndedAlerts.length > 0 ? (
+    <div className="mt-4 space-y-3">
+      {semPrazoActionAlerts.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[13px] font-bold uppercase tracking-[0.14em] text-violet-700 dark:text-violet-300">
+              Recorrências sem prazo
+            </h3>
+            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
+              {semPrazoActionAlerts.length}
+            </span>
+          </div>
+
+          {semPrazoActionAlerts.map((item) => (
+            <div
+              key={`sem-prazo-acao-${item.recorrenciaId}`}
+              className="rounded-[20px] border border-violet-200 bg-violet-50/90 px-4 py-4 shadow-sm dark:border-violet-900/60 dark:bg-violet-950/25"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[14px] font-semibold text-slate-900 dark:text-white">
+                    {item.descricao}
+                  </p>
+                  <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-300">
+                    {formatSemPrazoDiasRestantes(item.diasRestantes)}
+                  </p>
+                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                    Última ocorrência em {formatarData(item.ultimaData)}
+                  </p>
+                </div>
+
+                <div className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-violet-700 shadow-sm dark:bg-white/10 dark:text-violet-300">
+                  {formatResumoBRL(item.valor)}
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+<button
+  type="button"
+  onClick={() => handleRenovarRecorrenciaSemPrazo(item.recorrenciaId)}
+  className="rounded-xl px-3 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:opacity-95"
+  style={{
+    background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
+  }}
+>
+  Renovar 12 meses
+</button>
+
+<button
+  type="button"
+  onClick={() => handleCancelarRenovacaoSemPrazo(item.recorrenciaId)}
+  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+>
+  Cancelar renovação
+</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {semPrazoEndedAlerts.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[13px] font-bold uppercase tracking-[0.14em] text-amber-700 dark:text-amber-300">
+              Encerradas
+            </h3>
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+              {semPrazoEndedAlerts.length}
+            </span>
+          </div>
+
+          {semPrazoEndedAlerts.map((item) => (
+            <div
+              key={`sem-prazo-encerrada-${item.recorrenciaId}`}
+              className="rounded-[20px] border border-amber-200 bg-amber-50/90 px-4 py-4 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/25"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[14px] font-semibold text-slate-900 dark:text-white">
+                    {item.descricao}
+                  </p>
+                  <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-300">
+                    {formatSemPrazoEncerradaEm(item.ultimaData)}
+                  </p>
+                </div>
+
+                <div className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-amber-700 shadow-sm dark:bg-white/10 dark:text-amber-300">
+                  {formatResumoBRL(item.valor)}
+                </div>
+              </div>
+
+              <div className="mt-3 flex justify-end">
+<button
+  type="button"
+  onClick={() => handleDispensarRecorrenciaEncerrada(item.recorrenciaId)}
+  className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
+  aria-label="Dispensar aviso"
+  title="Dispensar aviso"
+>
+  <X className="h-4 w-4" />
+</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  ) : null;
+
 const resumoAlertsCount =
   despesasVencendoHojeLista.length +
   despesasAtrasadasLista.length +
   cartoesVencendoHojeLista.length +
-  cartoesAtrasadosLista.length;
+  cartoesAtrasadosLista.length +
+  semPrazoActionAlerts.length +
+  semPrazoEndedAlerts.length;
 
 const resumoPanelContent = (
 <div className="space-y-4">
@@ -5986,14 +6847,14 @@ const resumoPanelContent = (
             {cartoesAtrasadosLista.length ? (
               cartoesAtrasadosLista.map((item) => (
                 <button
-                  key={`cartao_atraso_${item.cartaoId}`}
+                  key={`cartao_atraso_${item.cartaoId}_${item.ciclo}`}
                   type="button"
                  onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
                   className="flex w-full items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-left transition hover:bg-rose-100 dark:border-rose-400/20 dark:bg-rose-500/10 dark:hover:bg-rose-500/20"
                 >
-                  <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
-                    {item.label}
-                  </span>
+<span className="text-[13px] font-semibold text-slate-900 dark:text-white">
+  {item.label} — {String(item.ciclo).slice(5, 7)}/{String(item.ciclo).slice(0, 4)}
+</span>
                   <span className="text-[11px] font-medium text-violet-700 dark:text-violet-300">
                     Acessar fatura
                   </span>
@@ -6008,6 +6869,7 @@ const resumoPanelContent = (
         </div>
       </div>
     </div>
+        {semPrazoResumoAlertsContent}
   </div>
 );
 
@@ -6106,6 +6968,8 @@ item.read
     )}
   </div>
 );
+
+
 
 const sidebarPanels: Partial<Record<Exclude<SidebarPanelKey, null>, React.ReactNode>> = {
   resumo: resumoPanelContent,
@@ -6390,18 +7254,24 @@ className={`lg:col-span-12 space-y-6 ${
 <button
   key={tab}
   type="button"
-  onClick={() => {
-    if (activeTab === "gastos" && tab !== "gastos") {
-      setFiltroMesAnalise(getHojeLocal().substring(0, 7));
-    }
+onClick={() => {
+  if (activeTab === "gastos" && tab !== "gastos") {
+    setFiltroMesAnalise(getHojeLocal().substring(0, 7));
+  }
 
-    if (activeTab === "cartoes" && tab !== "cartoes") {
-      setIsCcExpanded(false);
-      setSelectedCreditCardId("");
-    }
+  if (tab === "cartoes" && activeTab === "cartoes" && isCcExpanded) {
+    setIsCcExpanded(false);
+    setSelectedCreditCardId("");
+    return;
+  }
 
-    setActiveTab(tab);
-  }}
+  if (activeTab === "cartoes" && tab !== "cartoes") {
+    setIsCcExpanded(false);
+    setSelectedCreditCardId("");
+  }
+
+  setActiveTab(tab);
+}}
   className={[
     "group relative shrink-0 md:shrink-0 md:w-auto",
     "h-12 sm:h-14 md:h-11 px-4 sm:px-5 md:px-2",
@@ -6666,6 +7536,13 @@ className={[
             statusManualPorCiclo.set(cicloNormalizado, status);
           });
 
+          const statusManualCicloAtual = String(
+  statusManualPorCiclo.get(cicloBase) ?? ""
+).trim().toLowerCase();
+
+const isParceladaNoCicloAtual = statusManualCicloAtual === "parcelada";
+const isPagaNoCicloAtual = statusManualCicloAtual === "paga";
+
           const totalComprometidoCartao = transacoesDoCartao.reduce((acc: number, t: any) => {
             const cicloTx = inferirCicloDaTransacao(t);
             const statusDoCiclo = String(statusManualPorCiclo.get(cicloTx) ?? "").toLowerCase();
@@ -6715,6 +7592,69 @@ className={[
             1,
             Math.min(31, Number(c.diaVencimento ?? 10))
           );
+
+          const hojeNoCicloAtual = new Date(`${getHojeLocal()}T12:00:00`);
+hojeNoCicloAtual.setHours(0, 0, 0, 0);
+
+const faturaDoCicloAtual = Array.from(totaisPorCiclo.entries())
+  .map(([ciclo, info]) => {
+    if (String(ciclo) !== String(cicloBase)) return null;
+    if (!/^\d{4}-\d{2}$/.test(String(ciclo))) return null;
+    if ((info?.total ?? 0) <= 0) return null;
+
+    const saldo = roundMoney(
+      Math.max(0, Number(info.total || 0) - Number(info.pago || 0))
+    );
+
+    const [anoStr, mesStr] = String(ciclo).split("-");
+    const ano = Number(anoStr);
+    const mes = Number(mesStr);
+    if (!ano || !mes) return null;
+
+    const vencimento = new Date(
+      ano,
+      mes - 1,
+      diaVencimentoNum,
+      12,
+      0,
+      0,
+      0
+    );
+    vencimento.setHours(0, 0, 0, 0);
+
+    return {
+      ciclo: String(ciclo),
+      total: roundMoney(Math.max(0, Number(info.total || 0))),
+      saldo,
+      vencimento,
+    };
+  })
+  .filter(Boolean)[0] as
+  | {
+      ciclo: string;
+      total: number;
+      saldo: number;
+      vencimento: Date;
+    }
+  | undefined;
+
+const existeSaldoNoCicloAtual =
+  Math.max(0, Number(faturaDoCicloAtual?.saldo || 0)) > 0;
+
+const cicloAtualEstaAtrasado =
+  !!faturaDoCicloAtual &&
+  existeSaldoNoCicloAtual &&
+  faturaDoCicloAtual.vencimento.getTime() < hojeNoCicloAtual.getTime();
+
+const cicloAtualFechadoAguardandoPagamento =
+  !!faturaDoCicloAtual &&
+  existeSaldoNoCicloAtual &&
+  !cicloAtualEstaAtrasado &&
+  String(cicloBase) < String(getCardCycleMonthFromDate(
+    getHojeLocal(),
+    Number(c?.diaFechamento ?? 1),
+    Number(c?.diaVencimento ?? 1)
+  ));
 
           const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
             .map(([ciclo, info]) => {
@@ -6767,26 +7707,37 @@ className={[
               vencimento: Date;
             }>;
 
-          const faturaFechadaMaisRecente =
-            ciclosFechadosPendentes.length > 0 ? ciclosFechadosPendentes[0] : undefined;
+const faturaFechadaMaisRecente =
+  ciclosFechadosPendentes.length > 0 ? ciclosFechadosPendentes[0] : undefined;
 
-          const faturasFechadasAnterioresPendentes =
-            ciclosFechadosPendentes.length > 1 ? ciclosFechadosPendentes.slice(1) : [];
+const faturasFechadasAnterioresPendentes =
+  ciclosFechadosPendentes.length > 1 ? ciclosFechadosPendentes.slice(1) : [];
 
-          const existeFaturaAtrasada = faturasFechadasAnterioresPendentes.length > 0;
+const existeFaturaAtrasada = faturasFechadasAnterioresPendentes.length > 0;
 
-          const valorEmAtraso = faturasFechadasAnterioresPendentes.reduce(
-            (acc, item) => acc + Math.max(0, item.saldo),
-            0
-          );
+const valorEmAtraso = faturasFechadasAnterioresPendentes.reduce(
+  (acc, item) => acc + Math.max(0, item.saldo),
+  0
+);
 
-          const faturaFechadaAguardandoPagamento =
-            !existeFaturaAtrasada ? faturaFechadaMaisRecente : undefined;
+const faturaFechadaAguardandoPagamento =
+  !existeFaturaAtrasada ? faturaFechadaMaisRecente : undefined;
 
-          const existeFaturaFechadaPendente =
-            !existeFaturaAtrasada &&
-            Boolean(faturaFechadaAguardandoPagamento) &&
-            Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0)) > 0;
+const existeFaturaFechadaPendente =
+  !existeFaturaAtrasada &&
+  Boolean(faturaFechadaAguardandoPagamento) &&
+  Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0)) > 0;
+
+const statusResumoFaturaAtual: "paga" | "parcelada" | "atrasada" | "fechada" | "aberta" =
+  isPagaNoCicloAtual
+    ? "paga"
+    : isParceladaNoCicloAtual
+    ? "parcelada"
+    : cicloAtualEstaAtrasado
+    ? "atrasada"
+    : cicloAtualFechadoAguardandoPagamento
+    ? "fechada"
+    : "aberta";
 
           const statusMiniCard: "normal" | "atrasada" | "zerada" =
             existeFaturaAtrasada

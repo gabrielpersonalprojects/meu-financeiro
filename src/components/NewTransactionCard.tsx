@@ -802,7 +802,7 @@ onClick={() => {
                   <div className="mt-2 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30">
                     <p className="text-[12px] leading-snug text-slate-500 dark:text-slate-400">
                       Sem prazo: vamos considerar <span className="font-bold">{SEM_PRAZO_MESES} meses</span> (1 ano) ou
-                      até você excluir este lançamento.
+                      até você excluir este lançamento. Você também será notificado ao final do período caso queira renovar este lançamento.
                     </p>
                   </div>
                 )}
@@ -1079,7 +1079,7 @@ onClick={() => {
               <div className="mt-2 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30">
                 <p className="text-[12px] leading-snug text-slate-500 dark:text-slate-400">
                   Sem prazo: vamos considerar{" "}
-                  <span className="font-bold">{SEM_PRAZO_MESES} meses</span> (1 ano) ou até você excluir este lançamento.
+                  <span className="font-bold">{SEM_PRAZO_MESES} meses</span> (1 ano) ou até você excluir este lançamento. Você também será notificado ao final do período caso queira renovar este lançamento.
                 </p>
               </div>
             )}

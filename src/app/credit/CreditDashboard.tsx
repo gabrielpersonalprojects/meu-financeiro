@@ -300,13 +300,16 @@ const mesFechamentoAtual =
 
 const baseMonthInicial = addMonths(mesFechamentoAtual, invoiceStartOffset);
 const baseMonth = addMonths(baseMonthInicial, invoiceMonthOffset);
+
+const faturaExibidaEhAtual = invoiceMonthOffset === 0;
+
   const baseMonthKey = `${baseMonth.getFullYear()}-${pad2(baseMonth.getMonth() + 1)}`;
   const nextBaseMonth = addMonths(baseMonth, 1);
   const nextBaseMonthKey = `${nextBaseMonth.getFullYear()}-${pad2(nextBaseMonth.getMonth() + 1)}`;
 
-  const labelAtual = monthLabelPT(baseMonth);
-  const labelPrev = monthLabelPT(addMonths(baseMonth, -1));
-  const labelNext = monthLabelPT(addMonths(baseMonth, +1));
+const labelAtual = `Fatura ${monthLabelPT(baseMonth)}`;
+const labelPrev = `Fatura ${monthLabelPT(addMonths(baseMonth, -1))}`;
+const labelNext = `Fatura ${monthLabelPT(addMonths(baseMonth, +1))}`;
 
 
 const vencimentoFaturaAtual = makeDate(
@@ -342,6 +345,8 @@ fechamentoAnteriorAoCiclo.setHours(0, 0, 0, 0);
 const cicloInicio = new Date(fechamentoAnteriorAoCiclo);
 cicloInicio.setDate(cicloInicio.getDate() + 1);
 cicloInicio.setHours(0, 0, 0, 0);
+
+const dataMinimaPermitidaNaFaturaAtual = formatDateOnlyISO(cicloInicio);
 
   const cicloLabel = `${formatBRDate(formatDateOnlyISO(cicloInicio))} até ${formatBRDate(
     formatDateOnlyISO(cicloFim)
@@ -793,6 +798,18 @@ const faturaStatus =
     ? "FECHADA"
     : getFaturaStatus();
 
+    const statusResumoFaturaAtual: "paga" | "parcelada" | "atrasada" | "fechada" | "aberta" =
+  faturaAtualFoiPaga
+    ? "paga"
+    : statusManualAtualObj?.statusManual === "parcelada"
+    ? "parcelada"
+    : faturaStatus === "ATRASADA"
+    ? "atrasada"
+    : faturaStatus === "FECHADA"
+    ? "fechada"
+    : "aberta";
+
+
 const miniCardTemAtraso =
   faturaStatus === "ATRASADA" || faturaAnteriorEstaAtrasada;
 
@@ -898,15 +915,23 @@ const faturaStatusLabel: Record<FaturaStatus, string> = {
       "border-rose-300/70 bg-rose-50 text-rose-800 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-300",
   };
 
-  const faturaStatusLabelFinal =
-    statusManualAtualObj?.statusManual === "parcelada"
-      ? "Parcelada"
-      : faturaStatusLabel[faturaStatus];
+const faturaStatusLabelFinal =
+  statusResumoFaturaAtual === "paga"
+    ? "Paga"
+    : statusResumoFaturaAtual === "parcelada"
+    ? "Parcelada"
+    : statusResumoFaturaAtual === "atrasada"
+    ? "Em atraso"
+    : "Fatura";
 
-  const faturaStatusClassFinal =
-    statusManualAtualObj?.statusManual === "parcelada"
-      ? "border-violet-300/60 bg-violet-50 text-violet-800 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-300"
-      : faturaStatusClass[faturaStatus];
+const faturaStatusClassFinal =
+  statusResumoFaturaAtual === "paga"
+    ? "border-emerald-300/50 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+    : statusResumoFaturaAtual === "parcelada"
+    ? "border-violet-300/60 bg-violet-50 text-violet-800 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-300"
+    : statusResumoFaturaAtual === "atrasada"
+    ? "border-rose-300/70 bg-rose-50 text-rose-800 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-300"
+    : "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/15 dark:bg-white/5 dark:text-slate-200";
 
       const podeParcelarFatura =
   !parcelamentoAtual &&
@@ -1005,6 +1030,15 @@ const resetInvoiceModalState = () => {
       return;
     }
 
+if (String(dataPagamentoFatura) < String(dataMinimaPermitidaNaFaturaAtual)) {
+  setErroPagamentoFatura(
+    `A data do pagamento não pode ser anterior ao início do ciclo da fatura (${formatBRDate(
+      dataMinimaPermitidaNaFaturaAtual
+    )}).`
+  );
+  return;
+}
+
     if (saldoRestanteFatura <= 0) {
       setErroPagamentoFatura("Esta fatura já está quitada.");
       return;
@@ -1084,6 +1118,18 @@ if (!podeParcelarFatura) {
     setErroPagamentoFatura("Informe a data da primeira parcela.");
     return;
   }
+
+if (
+  String(invoiceParcelamentoPrimeiraParcela) <
+  String(dataMinimaPermitidaNaFaturaAtual)
+) {
+  setErroPagamentoFatura(
+    `A primeira parcela não pode ser anterior ao início do ciclo da fatura (${formatBRDate(
+      dataMinimaPermitidaNaFaturaAtual
+    )}).`
+  );
+  return;
+}
 
   if (!Number.isFinite(valorOriginal) || valorOriginal <= 0) {
     setErroPagamentoFatura("Informe um valor original válido.");
@@ -1221,25 +1267,32 @@ return (
   const renderPagamentoFaturaModalContent = () => (
     <div className="space-y-3">
       <div className="rounded-2xl bg-white shadow-sm border border-slate-200/70 p-4 text-slate-900 dark:bg-white/5 dark:border-white/10 dark:text-white">
-        <div className="flex items-start justify-between gap-4 px-1 pt-1">
-          <div className="pr-4">
-            <div className="text-slate-600 text-sm font-medium leading-none dark:text-white/70">
-              Pagamento da fatura
-            </div>
-            <div className="mt-1 text-slate-500 text-[10px] leading-none dark:text-white/45">
-              Ciclo da fatura: {cicloLabel}
-            </div>
-            <div className="mt-1.5 text-slate-500 text-[10px] leading-none dark:text-white/45">
-              Vencimento: {formatBRDate(formatDateOnlyISO(vencimentoFaturaAtual))}
-            </div>
-          </div>
+<div className="flex items-start justify-between gap-4 px-1 pt-1">
+  <div className="pr-4">
+    <div className="text-slate-600 text-sm font-medium leading-none dark:text-white/70">
+      Pagamento da fatura
+    </div>
 
-          <span
-            className={`text-[11px] px-2 py-1 rounded-lg border whitespace-nowrap ${faturaStatusClassFinal}`}
-          >
-            {faturaStatusLabelFinal}
-          </span>
-        </div>
+    <div className="mt-1.5 text-slate-600 text-[12px] font-semibold leading-none dark:text-white/70">
+      Ciclo da fatura:{" "}
+      <span className="text-slate-900 dark:text-white">{cicloLabel}</span>
+    </div>
+
+<div className="mt-2">
+  <span
+    className="inline-flex items-center rounded-full border border-[#4600ac] bg-[#4600ac] px-2.5 py-1 text-[11px] font-semibold text-white dark:border-white dark:bg-white dark:text-[#4600ac]"
+  >
+    Venc. {formatBRDate(formatDateOnlyISO(vencimentoFaturaAtual))}
+  </span>
+</div>
+  </div>
+
+  <span
+    className={`text-[11px] px-2 py-1 rounded-lg border whitespace-nowrap ${faturaStatusClassFinal}`}
+  >
+    {faturaStatusLabelFinal}
+  </span>
+</div>
 
         {parcelamentoAtual && <div className="mt-4">{renderParcelamentoHistorico()}</div>}
 
@@ -1307,10 +1360,11 @@ return (
                 <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
                   Data do pagamento
                 </div>
-                <input
-                  type="date"
-                  value={dataPagamentoFatura}
-                  onChange={(e) => setDataPagamentoFatura(e.target.value)}
+<input
+  type="date"
+  value={dataPagamentoFatura}
+ min={dataMinimaPermitidaNaFaturaAtual}
+  onChange={(e) => setDataPagamentoFatura(e.target.value)}
                   className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
                     bg-white border border-slate-200 text-slate-900
                     hover:bg-slate-50
@@ -1391,10 +1445,11 @@ return (
     <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
       Primeira parcela
     </div>
-    <input
-      type="date"
-      value={invoiceParcelamentoPrimeiraParcela}
-      onChange={(e) => setInvoiceParcelamentoPrimeiraParcela(e.target.value)}
+<input
+  type="date"
+  value={invoiceParcelamentoPrimeiraParcela}
+ min={dataMinimaPermitidaNaFaturaAtual}
+  onChange={(e) => setInvoiceParcelamentoPrimeiraParcela(e.target.value)}
       className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
         bg-white border border-slate-200 text-slate-900 outline-none
         dark:bg-transparent dark:border-white/10 dark:text-white"
@@ -2130,7 +2185,7 @@ className="h-8 w-8 inline-flex items-center justify-center transition text-slate
                         ? registrarPagamentoFatura
                         : registrarParcelamentoFatura
                     }
-                    className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold"
+                    className="h-12 rounded-[16px] bg-[#4600ac] px-5 text-[15px] font-extrabold text-white shadow-[0_18px_45px_rgba(70,0,172,0.28)] transition-all duration-200 hover:bg-[#3b0091] hover:shadow-[0_22px_55px_rgba(70,0,172,0.34)] active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-100"
                   >
                     {invoiceActionMode === "pagamento"
                       ? "Registrar pagamento"

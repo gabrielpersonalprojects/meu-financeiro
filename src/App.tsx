@@ -5148,20 +5148,22 @@ const precisaEscolherPrazo =
         const d = new Date(formData + "T12:00:00");
         d.setMonth(d.getMonth() + i);
 
-        newTrans.push({
-          id: Date.now() + i,
-          tipo: "despesa",
-          descricao: `${descFinal} (${i + 1}/${formParcelas})`,
-          valor: -valorParcela,
-          data: d.toISOString().split("T")[0],
-          categoria: formCat,
-          tipoGasto: "fixo",
-          metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
-          qualCartao: formQualCartao,
-          contaId: formQualCartao,
-          pago: i === 0 ? formPago : false,
-          recorrenciaId,
-        });
+newTrans.push({
+  id: Date.now() + i,
+  tipo: "despesa",
+  descricao: `${descFinal} (${i + 1}/${formParcelas})`,
+  valor: -valorParcela,
+  data: d.toISOString().split("T")[0],
+  categoria: formCat,
+  tipoGasto: "fixo",
+  metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
+  qualCartao: formQualCartao,
+  qualConta: formQualCartao,
+  contaId: formQualCartao,
+  profileId: formQualCartao,
+  pago: i === 0 ? formPago : false,
+  recorrenciaId,
+});
       }
     }
 
@@ -5200,22 +5202,24 @@ else if (
         const sign = formTipo === "receita" ? 1 : -1;
         const dataIso = d.toISOString().split("T")[0];
 
-        newTrans.push({
-          id: Date.now() + i,
-          tipo: formTipo,
-          descricao: descFinal,
-          valor: sign * valorNum,
-          data: dataIso,
-          categoria: formCat,
-          tipoGasto: "fixo",
-          metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
-          qualCartao: formQualCartao,
-          contaId: formQualCartao,
-          pago: i === 0 ? formPago : false,
-          isRecorrente: true,
-          recorrenciaId,
-          ...(semPrazoMeta ?? {}),
-        });
+newTrans.push({
+  id: Date.now() + i,
+  tipo: formTipo,
+  descricao: descFinal,
+  valor: sign * valorNum,
+  data: dataIso,
+  categoria: formCat,
+  tipoGasto: "fixo",
+  metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
+  qualCartao: formQualCartao,
+  qualConta: formQualCartao,
+  contaId: formQualCartao,
+  profileId: formQualCartao,
+  pago: i === 0 ? formPago : false,
+  isRecorrente: true,
+  recorrenciaId,
+  ...(semPrazoMeta ?? {}),
+});
       }
     }
 
@@ -5223,22 +5227,24 @@ else if (
     else {
       const sign = formTipo === "receita" ? 1 : -1;
 
-      newTrans.push({
-        id: Date.now(),
-        tipo: formTipo,
-        descricao: descFinal,
-        valor: sign * valorNum,
-        data: formData,
-        categoria: formCat,
-        tipoGasto:
-  formTipo === "despesa"
-    ? ((formTipoGastoNorm || "normal") as SpendingType)
-    : "",
-        metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
-        qualCartao: formQualCartao,
-        contaId: formQualCartao,
-        pago: formPago,
-      });
+newTrans.push({
+  id: Date.now(),
+  tipo: formTipo,
+  descricao: descFinal,
+  valor: sign * valorNum,
+  data: formData,
+  categoria: formCat,
+  tipoGasto:
+    formTipo === "despesa"
+      ? ((formTipoGastoNorm || "normal") as SpendingType)
+      : "",
+  metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
+  qualCartao: formQualCartao,
+  qualConta: formQualCartao,
+  contaId: formQualCartao,
+  profileId: formQualCartao,
+  pago: formPago,
+});
     }
 
 const criadas = await salvarNoSupabase(newTrans);

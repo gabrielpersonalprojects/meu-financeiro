@@ -69,10 +69,11 @@ handleToggleFavoriteAccount: (accountId: string) => void;
   transactions: any[];
 
   hojeStr: string;
-  togglePago: (id: any) => void;
+togglePago: (id: any) => void;
+isTogglePagoLocked: (t: any) => boolean;
 
-  handleEditClick: (t: any) => void;
-  confirmDelete: (t: any) => void;
+handleEditClick: (t: any) => void;
+confirmDelete: (t: any) => void;
 
   stats?: {
     saldoTotal: number;
@@ -122,11 +123,12 @@ handleToggleFavoriteAccount,
   itemsFiltrados,
   transactions,
 
-  hojeStr,
-  togglePago,
+hojeStr,
+togglePago,
+isTogglePagoLocked,
 
-  handleEditClick,
-  confirmDelete,
+handleEditClick,
+confirmDelete,
 
   stats,
 }: Props) {
@@ -744,48 +746,48 @@ label: (
     <div className="w-full sm:w-[220px]">
 <CustomDropdown
   placeholder="Organizar"
-value={
-  organizacaoLista === "receitas_primeiro"
-    ? "Receitas primeiro"
-    : organizacaoLista === "despesas_primeiro"
-    ? "Despesas primeiro"
-    : organizacaoLista === "valor_crescente"
-    ? "Valor crescente"
-    : organizacaoLista === "valor_decrescente"
-    ? "Valor decrescente"
-    : organizacaoLista === "recentes"
-    ? "Mais recentes"
-    : organizacaoLista === "antigas"
-    ? "Mais antigas"
-    : "Organizar"
-}
-options={[
-  "Receitas primeiro",
-  "Despesas primeiro",
-  "Valor crescente",
-  "Valor decrescente",
-  "Mais recentes",
-  "Mais antigas",
-]}
-onSelect={(val) => {
-  if (val === "Receitas primeiro") setOrganizacaoLista("receitas_primeiro");
-  else if (val === "Despesas primeiro") setOrganizacaoLista("despesas_primeiro");
-  else if (val === "Valor crescente") setOrganizacaoLista("valor_crescente");
-  else if (val === "Valor decrescente") setOrganizacaoLista("valor_decrescente");
-  else if (val === "Mais recentes") setOrganizacaoLista("recentes");
-  else if (val === "Mais antigas") setOrganizacaoLista("antigas");
-}}
+  value={
+    organizacaoLista === "receitas_primeiro"
+      ? "Receitas primeiro"
+      : organizacaoLista === "despesas_primeiro"
+      ? "Despesas primeiro"
+      : organizacaoLista === "valor_crescente"
+      ? "Valor crescente"
+      : organizacaoLista === "valor_decrescente"
+      ? "Valor decrescente"
+      : organizacaoLista === "recentes"
+      ? "Mais recentes"
+      : organizacaoLista === "antigas"
+      ? "Mais antigas"
+      : "Organizar"
+  }
+  options={[
+    "Receitas primeiro",
+    "Despesas primeiro",
+    "Valor crescente",
+    "Valor decrescente",
+    "Mais recentes",
+    "Mais antigas",
+  ]}
+  onSelect={(val) => {
+    if (val === "Receitas primeiro") setOrganizacaoLista("receitas_primeiro");
+    else if (val === "Despesas primeiro") setOrganizacaoLista("despesas_primeiro");
+    else if (val === "Valor crescente") setOrganizacaoLista("valor_crescente");
+    else if (val === "Valor decrescente") setOrganizacaoLista("valor_decrescente");
+    else if (val === "Mais recentes") setOrganizacaoLista("recentes");
+    else if (val === "Mais antigas") setOrganizacaoLista("antigas");
+  }}
   className="w-full"
-  triggerClassName="h-11 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
-arrowClassName="text-indigo-600 dark:text-indigo-400"
-renderValue={(displayValue) => (
-  <span className="inline-flex items-center gap-2">
-<SlidersHorizontal className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-   <span className="font-semibold text-[#220055] dark:text-[#220055]">
-      {organizacaoLista === "status" ? "Organizar" : displayValue}
+  triggerClassName="h-11 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+  arrowClassName="text-indigo-600 dark:text-slate-300"
+  renderValue={(displayValue) => (
+    <span className="inline-flex items-center gap-2">
+      <SlidersHorizontal className="h-4 w-4 text-indigo-600 dark:text-slate-300" />
+      <span className="font-semibold text-[#220055] dark:text-white">
+        {organizacaoLista === "status" ? "Organizar" : displayValue}
+      </span>
     </span>
-  </span>
-)}
+  )}
 />
     </div>
 
@@ -868,6 +870,7 @@ renderValue={(displayValue) => (
                             profiles={profiles}
                             hojeStr={hojeStr}
                             togglePago={togglePago}
+                            isTogglePagoLocked={isTogglePagoLocked}
                             formatarData={formatarData}
                             formatarMoeda={formatarMoeda}
                             getContaPartsById={getContaPartsById}
@@ -1050,6 +1053,7 @@ className={[
                         profiles={profiles}
                         hojeStr={hojeStr}
                         togglePago={togglePago}
+                        isTogglePagoLocked={isTogglePagoLocked}
                         formatarData={formatarData}
                         formatarMoeda={formatarMoeda}
                         getContaPartsById={getContaPartsById}

@@ -14,6 +14,7 @@ type Props = {
   profiles: any[];
   hojeStr: string;
   togglePago: (t: any) => void;
+  isTogglePagoLocked?: (t: any) => boolean;
   formatarData: (data: string) => string;
   formatarMoeda: (valor: number) => string;
   getContaPartsById: (id: string, profiles: any[]) => ContaParts | null;
@@ -26,6 +27,7 @@ export default function TransactionItem({
   profiles,
   hojeStr,
   togglePago,
+  isTogglePagoLocked,
   formatarData,
   formatarMoeda,
   getContaPartsById,
@@ -108,6 +110,8 @@ const descricaoSemParcela = isParceladoVisual
   const [showFaturaToggleWarning, setShowFaturaToggleWarning] = useState(false);
 
 const handleTogglePagoClick = () => {
+  if (pagoLocked) return;
+
   if (isTransacaoFatura && paid) {
     setShowFaturaToggleWarning(true);
     return;
@@ -118,6 +122,7 @@ const handleTogglePagoClick = () => {
 };
 
 const warningContainerRef = useRef<HTMLDivElement | null>(null);
+const pagoLocked = isTogglePagoLocked ? isTogglePagoLocked(t) : false;
 
 useEffect(() => {
   if (!showFaturaToggleWarning) return;
@@ -156,18 +161,21 @@ useEffect(() => {
 <button
   type="button"
   onClick={handleTogglePagoClick}
+  disabled={pagoLocked}
   className={`mt-0.5 h-8 w-8 shrink-0 rounded-full border-2 flex items-center justify-center font-bold transition-all ${
     paid
       ? "bg-indigo-600 border-indigo-600 text-white"
       : "border-slate-300 dark:border-slate-700 text-slate-400"
-  }`}
-  title={
-    isTransacaoFatura && paid
-      ? "Pagamento de fatura não pode ser desmarcado por aqui"
-      : paid
-      ? "Marcar como não pago"
-      : "Marcar como pago"
-  }
+  } ${pagoLocked ? "opacity-60 cursor-not-allowed" : ""}`}
+title={
+  pagoLocked
+    ? "Atualizando..."
+    : isTransacaoFatura && paid
+    ? "Pagamento de fatura não pode ser desmarcado por aqui"
+    : paid
+    ? "Marcar como não pago"
+    : "Marcar como pago"
+}
 >
   {paid ? "✓" : ""}
 </button>

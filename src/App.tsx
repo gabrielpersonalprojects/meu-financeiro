@@ -290,10 +290,11 @@ const mergeSemPrazoPayloadMeta = (
     const TOP_BAR_HEIGHT = 110;
 const authLoadInFlightRef = useRef<string>("");
 const authLoadRequestIdRef = useRef(0);
-   const addTxLockRef = useRef(false);
+const addTxLockRef = useRef(false);
 const invoicePaymentInFlightRef = useRef(false);
 const invoiceInstallmentInFlightRef = useRef(false);
 const invoicePaymentRemovalInFlightRef = useRef(false);
+const togglePagoInFlightRef = useRef<Set<string>>(new Set());
     const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
 const [ccTags, setCcTags] = useState<string[]>([]);
 const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -3981,26 +3982,69 @@ const confirmDelete = (t: Transaction) => {
   confirmarExclusao(false);
 };
 
+const getTogglePagoLockKey = (payload: any) => {
+  const sourceIds = Array.isArray(payload?._sourceIds)
+    ? payload._sourceIds
+        .map((v: any) => String(v ?? "").trim())
+        .filter(Boolean)
+        .sort()
+    : [];
+
+  if (sourceIds.length) {
+    return `source:${sourceIds.join("|")}`;
+  }
+
+  const transferId = String(payload?.transferId ?? "").trim();
+  if (transferId) {
+    return `transfer:${transferId}`;
+  }
+
+  const id = String(payload?.id ?? payload?.transactionId ?? "").trim();
+  if (id) {
+    return `tx:${id}`;
+  }
+
+  return "";
+};
+
+const isTogglePagoLocked = (payload: any) => {
+  const key = getTogglePagoLockKey(payload);
+  return !!key && togglePagoInFlightRef.current.has(key);
+};
+
 // ✅ INSERIDO AQUI (logo após o confirmDelete)
 const togglePago = async (payload: any) => {
+  const id = String(payload?.id ?? payload?.transactionId ?? "").trim();
+  const sourceIds = Array.isArray((payload as any)?._sourceIds)
+    ? (payload as any)._sourceIds.map((v: any) => String(v))
+    : [];
+
+  const txAtual = id
+    ? transacoes.find((t: any) => String(t?.id) === id)
+    : sourceIds.length
+    ? transacoes.find((t: any) => sourceIds.includes(String(t?.id)))
+    : null;
+
+  if (!txAtual) return;
+
+  const transferId = String(
+    (payload as any)?.transferId ?? (txAtual as any)?.transferId ?? ""
+  ).trim();
+
+  const lockKey = getTogglePagoLockKey({
+    ...(payload ?? {}),
+    id: id || String((txAtual as any)?.id ?? ""),
+    transferId,
+    _sourceIds: sourceIds,
+  });
+
+  if (!lockKey) return;
+  if (togglePagoInFlightRef.current.has(lockKey)) return;
+
+  togglePagoInFlightRef.current.add(lockKey);
+
   try {
-const id = String(payload?.id ?? payload?.transactionId ?? "").trim();
-const sourceIds = Array.isArray((payload as any)?._sourceIds)
-  ? (payload as any)._sourceIds.map((v: any) => String(v))
-  : [];
-
-const txAtual = id
-  ? transacoes.find((t: any) => String(t?.id) === id)
-  : sourceIds.length
-  ? transacoes.find((t: any) => sourceIds.includes(String(t?.id)))
-  : null;
-
-if (!txAtual) return;
-
-const novoPago = !txAtual.pago;
-const transferId = String(
-  (payload as any)?.transferId ?? (txAtual as any)?.transferId ?? ""
-).trim();
+    const novoPago = !txAtual.pago;
 
     if (transferId) {
       const userId = session?.user?.id;
@@ -4027,7 +4071,8 @@ const transferId = String(
     }
 
     const userId = session?.user?.id;
-if (!userId) return;
+    if (!userId) return;
+
     await updateTransactionPago(id, userId, novoPago);
 
     setTransacoes((prev: any[]) =>
@@ -4038,6 +4083,8 @@ if (!userId) return;
   } catch (err) {
     console.error("ERRO AO ATUALIZAR PAGO:", err);
     toastCompact("Erro ao atualizar status do lançamento.", "error");
+  } finally {
+    togglePagoInFlightRef.current.delete(lockKey);
   }
 };
 
@@ -6714,14 +6761,20 @@ const resumoPanelContent = (
                   <div className="text-[13px] font-semibold text-rose-600 dark:text-rose-300">
                     {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => togglePago(t)}
-                    className="rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white"
-                    style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
-                  >
-                    Pagar
-                  </button>
+<button
+  type="button"
+  onClick={() => togglePago(t)}
+  disabled={isTogglePagoLocked(t)}
+  className={[
+    "rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white transition",
+    isTogglePagoLocked(t)
+      ? "opacity-60 cursor-not-allowed"
+      : "hover:brightness-110",
+  ].join(" ")}
+  style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+>
+  {isTogglePagoLocked(t) ? "Pagando..." : "Pagar"}
+</button>
                 </div>
               </div>
             ))
@@ -6759,14 +6812,20 @@ const resumoPanelContent = (
                     <div className="text-[13px] font-semibold text-rose-600 dark:text-rose-300">
                       {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => togglePago(t)}
-                      className="rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white"
-                      style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
-                    >
-                      Pagar
-                    </button>
+<button
+  type="button"
+  onClick={() => togglePago(t)}
+  disabled={isTogglePagoLocked(t)}
+  className={[
+    "rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white transition",
+    isTogglePagoLocked(t)
+      ? "opacity-60 cursor-not-allowed"
+      : "hover:brightness-110",
+  ].join(" ")}
+  style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+>
+  {isTogglePagoLocked(t) ? "Pagando..." : "Pagar"}
+</button>
                   </div>
                 </div>
               ))
@@ -8221,6 +8280,7 @@ className={[
     transactions={transacoes}
     hojeStr={hojeStr}
     togglePago={togglePago}
+    isTogglePagoLocked={isTogglePagoLocked}
     handleEditClick={handleEditClick}
     confirmDelete={confirmDelete}
     stats={stats}

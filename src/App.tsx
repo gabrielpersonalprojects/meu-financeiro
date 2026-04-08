@@ -3692,22 +3692,34 @@ const findCardFromTransaction = (t: any) => {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
 
-  const filtered = (transacoes ?? []).filter((t: any) => {
-    const tipo = norm(t?.tipo);
-    if (tipo !== "cartao_credito") return false;
+const filtered = (transacoes ?? []).filter((t: any) => {
+  const tipo = norm(t?.tipo);
+  if (tipo !== "cartao_credito") return false;
 
-    const data = String(t?.data ?? "").trim();
-    if (!data || !data.startsWith(`${ym}-`)) return false;
+  const data = String(t?.data ?? "").trim();
+  if (!data) return false;
 
-const cartao = findCardFromTransaction(t);
-const perfilCartao = String(
-  cartao?.perfil ?? ""
-).trim().toLowerCase();
+  const cartao = findCardFromTransaction(t);
+  if (!cartao) return false;
 
-    if (perfilNorm !== "geral" && perfilCartao !== perfilNorm) return false;
+  const faturaMesTx = String(
+    getCardCycleMonthFromDate(
+      data,
+      Number(cartao?.diaFechamento ?? 1),
+      Number(cartao?.diaVencimento ?? 1)
+    )
+  ).trim();
 
-    return true;
-  });
+  if (!faturaMesTx || faturaMesTx !== ym) return false;
+
+  const perfilCartao = String(
+    cartao?.perfil ?? ""
+  ).trim().toLowerCase();
+
+  if (perfilNorm !== "geral" && perfilCartao !== perfilNorm) return false;
+
+  return true;
+});
 
   const grouped = new Map<string, number>();
 
@@ -7415,10 +7427,11 @@ onClick={() => {
     return;
   }
 
-  if (activeTab === "cartoes" && tab !== "cartoes") {
-    setIsCcExpanded(false);
-    setSelectedCreditCardId("");
-  }
+if (activeTab === "cartoes" && tab !== "cartoes") {
+  setIsCcExpanded(false);
+  setSelectedCreditCardId("");
+  setCreditCardsPage(1);
+}
 
   setActiveTab(tab);
 }}

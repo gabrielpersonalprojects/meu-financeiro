@@ -111,24 +111,75 @@ const getPerfilContaFromTransaction = (t: Transaction): "PF" | "PJ" | null => {
     .map((v) => String(v ?? "").trim())
     .filter(Boolean);
 
-  if (idsCartao.length > 0) {
-    const cartao = (creditCards ?? []).find((c: any) => {
-      const cardId = String(c?.id ?? "").trim();
-      const cardName = String(c?.name ?? "").trim();
+if (idsCartao.length > 0) {
+  const normalize = (value: any) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const cartao = (creditCards ?? []).find((c: any) => {
+    const cardId = String(c?.id ?? "").trim();
+    const cardName = String(c?.name ?? c?.nome ?? "").trim();
+    const cardIssuer = String(c?.emissor ?? c?.bankText ?? "").trim();
+
+    return idsCartao.some((ref) => {
+      const refNorm = normalize(ref);
+
       return (
-        (cardId && idsCartao.includes(cardId)) ||
-        (cardName && idsCartao.includes(cardName))
+        (cardId && ref === cardId) ||
+        (cardName && refNorm === normalize(cardName)) ||
+        (cardIssuer && refNorm === normalize(cardIssuer))
       );
     });
+  });
 
-    const perfilCartao = String((cartao as any)?.perfil ?? "")
-      .trim()
-      .toUpperCase();
+const perfilCartao = String((cartao as any)?.perfil ?? "")
+  .trim()
+  .toUpperCase();
 
-    if (perfilCartao === "PF" || perfilCartao === "PJ") return perfilCartao;
+if (perfilCartao === "PF" || perfilCartao === "PJ") return perfilCartao;
+}
+
+const tipo = String((t as any)?.tipo ?? "").trim().toLowerCase();
+
+if (tipo === "cartao_credito") {
+  const perfisCartoes = Array.from(
+    new Set(
+      (creditCards ?? [])
+        .map((c: any) => String(c?.perfil ?? "").trim().toUpperCase())
+        .filter((p) => p === "PF" || p === "PJ")
+    )
+  );
+
+  if (perfisCartoes.length === 1) {
+    return perfisCartoes[0] as "PF" | "PJ";
   }
+}
 
-  return null;
+const perfisContas = Array.from(
+  new Set(
+    (profiles ?? [])
+      .map((p: any) =>
+        String(
+          (p as any)?.perfilConta ??
+          (p as any)?.perfil ??
+          (p as any)?.brand ??
+          ""
+        )
+          .trim()
+          .toUpperCase()
+      )
+      .filter((p) => p === "PF" || p === "PJ")
+  )
+);
+
+if (perfisContas.length === 1) {
+  return perfisContas[0] as "PF" | "PJ";
+}
+
+return null;
 };
 
 const transacoesFiltradas =

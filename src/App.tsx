@@ -67,7 +67,7 @@ import {
   deleteUserTag,
 } from "./services/tags";
 import { sortStringsAsc } from "./app/utils/sort";
-import { computeSpendingByCategoryData } from "./app/transactions/summary";
+import { computeSpendingByCategoryData, type SpendingByCategoryDatum } from "./app/transactions/summary";
 import { sumDespesasAbs, sumReceitas } from "./app/transactions/totals";
 import { getCartoesDisponiveis } from "./app/profiles/selectors";
 import { newId } from "./app/utils/ids";
@@ -2301,7 +2301,8 @@ const [showProfileMenu, setShowProfileMenu] = useState(false);
   // --- Filtros ---
   const [filtroMesTransacoes, setFiltroMesTransacoes] = useState(getHojeLocal().substring(0, 7));
   const [filtroMesAnalise, setFiltroMesAnalise] = useState(getHojeLocal().substring(0, 7));
-  const [analisePerfilView, setAnalisePerfilView] = useState<"geral" | "pf" | "pj">("geral");
+const [analisePerfilView, setAnalisePerfilView] = useState<"geral" | "pf" | "pj">("pf");
+  const [analiseFonteView, setAnaliseFonteView] = useState<"geral" | "cartoes">("geral");
   const [projecaoPerfilView, setProjecaoPerfilView] = useState<"geral" | "pf" | "pj">("geral");
   const [filtroLancamento, setFiltroLancamento] = useState<
   "despesa" | "receita" | "todos" | "transferencia"
@@ -3647,6 +3648,96 @@ const spendingByCategoryData = useMemo(() => {
     profiles
   );
 }, [transacoes, filtroMesAnalise, analisePerfilView, profiles]);
+
+const spendingByCardData = useMemo<SpendingByCategoryDatum[]>(() => {
+  const ym = String(filtroMesAnalise ?? "").trim();
+  const perfilNorm = String(analisePerfilView ?? "geral").trim().toLowerCase();
+
+const cardsList = creditCards ?? [];
+
+const findCardFromTransaction = (t: any) => {
+  const rawRefs = [
+    t?.cartaoId,
+    t?.qualCartao,
+    t?.payload?.cartaoId,
+    t?.payload?.qualCartao,
+  ]
+    .map((v: any) => String(v ?? "").trim())
+    .filter(Boolean);
+
+  if (!rawRefs.length) return null;
+
+  return (
+    cardsList.find((c: any) => {
+      const cardId = String(c?.id ?? "").trim();
+      const cardName = String(c?.name ?? c?.nome ?? "").trim();
+      const cardIssuer = String(c?.emissor ?? c?.bankText ?? "").trim();
+
+      return rawRefs.some((ref) => {
+        const refNorm = norm(ref);
+        return (
+          ref === cardId ||
+          refNorm === norm(cardName) ||
+          refNorm === norm(cardIssuer)
+        );
+      });
+    }) ?? null
+  );
+};
+
+  const norm = (v: any) =>
+    String(v ?? "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const filtered = (transacoes ?? []).filter((t: any) => {
+    const tipo = norm(t?.tipo);
+    if (tipo !== "cartao_credito") return false;
+
+    const data = String(t?.data ?? "").trim();
+    if (!data || !data.startsWith(`${ym}-`)) return false;
+
+const cartao = findCardFromTransaction(t);
+const perfilCartao = String(
+  cartao?.perfil ?? ""
+).trim().toLowerCase();
+
+    if (perfilNorm !== "geral" && perfilCartao !== perfilNorm) return false;
+
+    return true;
+  });
+
+  const grouped = new Map<string, number>();
+
+  filtered.forEach((t: any) => {
+    const categoria = String(
+      t?.categoria ??
+      t?.payload?.categoria ??
+      "Sem categoria"
+    ).trim() || "Sem categoria";
+
+    const categoriaNorm = norm(categoria);
+    if (categoriaNorm.includes("transfer")) return;
+
+    const atual = Number(grouped.get(categoria) ?? 0);
+    grouped.set(categoria, atual + Math.abs(Number(t?.valor ?? 0)));
+  });
+
+  const total = Array.from(grouped.values()).reduce(
+    (acc, value) => acc + Number(value || 0),
+    0
+  );
+
+  return Array.from(grouped.entries())
+    .map(([name, value]) => ({
+      name,
+      value,
+      percentage: total > 0 ? ((value / total) * 100).toFixed(1) : "0.0",
+    }))
+    .sort((a, b) => b.value - a.value);
+}, [transacoes, filtroMesAnalise, analisePerfilView, creditCards]);
 
 // --- Base anual da Projeção (independente do mês da aba Transações) ---
 const anoBaseProjecao = useMemo(() => getHojeLocal().slice(0, 4), []);
@@ -8288,14 +8379,17 @@ className={[
 </div>
 
 <div className={activeTab === "gastos" ? "block" : "hidden"}>
-  <GastosTab
-    spendingByCategoryData={spendingByCategoryData}
-    filtroMes={filtroMesAnalise}
-    setFiltroMes={setFiltroMesAnalise}
-    perfilView={analisePerfilView}
-    setPerfilView={setAnalisePerfilView}
-    isDarkMode={isDarkMode}
-  />
+<GastosTab
+  spendingByCategoryData={spendingByCategoryData}
+  spendingByCardData={spendingByCardData}
+  filtroMes={filtroMesAnalise}
+  setFiltroMes={setFiltroMesAnalise}
+  perfilView={analisePerfilView}
+  setPerfilView={setAnalisePerfilView}
+  fonteView={analiseFonteView}
+  setFonteView={setAnaliseFonteView}
+  isDarkMode={isDarkMode}
+/>
 </div>
 
 <div className={activeTab === "projecao" ? "block" : "hidden"}>

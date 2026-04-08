@@ -572,20 +572,16 @@ label: (
 </>
  
 
-  <div className="w-full sm:w-auto lg:ml-auto shrink-0">
-    <button
-      type="button"
-      onClick={handleLimparFiltros}
-      className="h-10 w-full sm:w-auto px-4 rounded-xl
-        border border-slate-200 dark:border-slate-700
-        bg-white dark:bg-slate-900
-        text-slate-700 dark:text-slate-200 text-sm font-semibold
-        hover:bg-slate-50 dark:hover:bg-slate-800
-        transition"
-    >
-      Limpar
-    </button>
-  </div>
+<div className="w-full sm:w-auto lg:ml-auto shrink-0 flex justify-end">
+  <button
+    type="button"
+    onClick={handleLimparFiltros}
+    title="Limpar filtros"
+    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.05] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
+  >
+    <RotateCcw className="h-4 w-4" />
+  </button>
+</div>
 </div>
 </div>
 
@@ -791,18 +787,14 @@ label: (
 />
     </div>
 
-    <button
-      type="button"
-      onClick={() => setOrganizacaoLista("status")}
-      title="Voltar ao padrão"
-      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-sm transition ${
-  organizacaoLista === "status"
-    ? "border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-900 opacity-60"
-    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800"
-}`}
-    >
-<RotateCcw className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-    </button>
+<button
+  type="button"
+  onClick={() => setOrganizacaoLista("status")}
+  title="Voltar ao padrão"
+  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.05] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
+>
+  <RotateCcw className="h-4 w-4" />
+</button>
   </div>
 </div>
       </div>

@@ -1,4 +1,5 @@
 import { formatarMoeda } from "../../utils/formatters";
+import { RotateCcw } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ProjectionMode, ProjectionRow } from "../../app/transactions/projection";
 
@@ -99,6 +100,17 @@ export default function ProjecaoTab({
       PJ
     </button>
   </div>
+  <button
+  type="button"
+  onClick={() => {
+    setProjectionMode("acumulado");
+    setPerfilView("geral");
+  }}
+  title="Voltar ao padrão"
+  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.05] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
+>
+  <RotateCcw className="h-4 w-4" />
+</button>
 </div>
 
         {/* micro-ajuda opcional (se quiser, deixa; se não, apaga) */}

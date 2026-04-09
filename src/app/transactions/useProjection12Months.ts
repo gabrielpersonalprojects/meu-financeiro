@@ -32,5 +32,13 @@ export function useProjection12Months({
       creditCards,
       mode,
     });
-  }, [transactions, getMesAnoExtenso, saldoInicialBase, perfilView, profiles, mode]);
+   }, [
+    transactions,
+    getMesAnoExtenso,
+    saldoInicialBase,
+    perfilView,
+    profiles,
+    creditCards,
+    mode,
+  ]);
 }

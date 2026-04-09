@@ -94,7 +94,7 @@ import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
-import { Moon, Pencil, PencilLine, Star, Trash2, X } from "lucide-react";
+import { Archive, Moon, Pencil, PencilLine, Star, Trash2, X } from "lucide-react";
 import {
   STORAGE_KEYS,
   PROFILE_KEYS,
@@ -562,24 +562,30 @@ const carregarDadosUsuario = async (userId: string) => {
       return;
     }
 
-    setCreditCards(
-      creditCardRows.map((row: any) => {
-        const mapped = mapCreditCardRowToApp(row) as any;
+setCreditCards(
+  creditCardRows.map((row: any) => {
+    const mapped = mapCreditCardRowToApp(row) as any;
 
-        return {
-          ...mapped,
-          perfil:
-            String(
-              mapped?.perfil ??
-                row?.perfil ??
-                row?.brand ??
-                "pf"
-            ).toLowerCase() === "pj"
-              ? "pj"
-              : "pf",
-        };
-      }) as any
-    );
+    return {
+      ...mapped,
+      is_active:
+        typeof mapped?.is_active === "boolean"
+          ? mapped.is_active
+          : typeof row?.is_active === "boolean"
+          ? row.is_active
+          : true,
+      perfil:
+        String(
+          mapped?.perfil ??
+            row?.perfil ??
+            row?.brand ??
+            "pf"
+        ).toLowerCase() === "pj"
+          ? "pj"
+          : "pf",
+    };
+  }) as any
+);
     setCreditCardsLoaded(true);
 
 const profilesFromDb = rows.map(mapAccountRowToProfile);
@@ -2386,6 +2392,19 @@ useEffect(() => {
 
 const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
 
+const activeCreditCards = useMemo(
+  () => (creditCards ?? []).filter((c: any) => c?.is_active !== false),
+  [creditCards]
+);
+
+const inactiveCreditCards = useMemo(
+  () => (creditCards ?? []).filter((c: any) => c?.is_active === false),
+  [creditCards]
+);
+
+const activeCreditCardsCount = activeCreditCards.length;
+
+
 const getFaturaMesByCartaoId = (dataIso: string, cartaoId: string) => {
   const cartao = (creditCards ?? []).find(
     (c: any) => String(c?.id ?? "").trim() === String(cartaoId ?? "").trim()
@@ -2640,6 +2659,10 @@ const orderedCreditCards = useMemo(() => {
   };
 
   return [...(creditCards ?? [])].sort((a: any, b: any) => {
+  const aInactive = a?.is_active === false ? 1 : 0;
+  const bInactive = b?.is_active === false ? 1 : 0;
+
+  if (aInactive !== bInactive) return aInactive - bInactive;
     const rankA = getCardRank(a);
     const rankB = getCardRank(b);
 
@@ -2687,11 +2710,11 @@ const getCardCycleMonthOnOpen = (card: any) => {
 const toggleCcExpanded = () => setIsCcExpanded((v) => !v);
 
 const toggleCcDetails = (id: string) => {
-  const card = creditCards.find((c) => c.id === id);
+  const card = (creditCards ?? []).find((c: any) => c.id === id);
 
-  if (card) {
-    setCreditJumpMonth(getCardCycleMonthOnOpen(card));
-  }
+  if (!card || (card as any)?.is_active === false) return;
+
+  setCreditJumpMonth(getCardCycleMonthOnOpen(card as any));
 
   setIsCcExpanded((open) => {
     const same = selectedCreditCardId === id;
@@ -2714,7 +2737,8 @@ const toggleCcDetails = (id: string) => {
 
 const closeCcDetails = () => setIsCcExpanded(false);
 
-const selectedCard = creditCards.find((c) => c.id === selectedCreditCardId) ?? null;
+const selectedCard =
+  activeCreditCards.find((c) => c.id === selectedCreditCardId) ?? null;
 
 const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
 useEffect(() => {
@@ -2835,10 +2859,11 @@ const resetAddCardModal = () => {
   };
 
 const openAddCardModal = () => {
-if (creditCards.length >= 20) {
-  toastCompact("Você atingiu o limite de 20 cartões cadastrados.", "info");
-  return;
-}
+  if (activeCreditCardsCount >= 20) {
+    toastCompact("Você atingiu o limite de 20 cartões ativos cadastrados.", "info");
+    return;
+  }
+
   resetAddCardModal();
   setIsAddCardModalOpen(true);
 };
@@ -3088,6 +3113,177 @@ useEffect(() => {
     setSelectedCreditCardId(creditCards[0].id);
   }
 }, [creditCards, selectedCreditCardId]);
+
+const getCardLinkStats = useCallback(
+  (rawCardId: any) => {
+    const cardId = String(rawCardId ?? "").trim();
+    if (!cardId) {
+      return {
+        hasAny: false,
+        transacoes: 0,
+        pagamentos: 0,
+        status: 0,
+        parcelamentos: 0,
+      };
+    }
+
+    const transacoesCount = (transacoes ?? []).filter((t: any) => {
+      const idsRelacionados = [
+        t?.cartaoId,
+        t?.payload?.cartaoId,
+        t?.qualCartao,
+        t?.payload?.qualCartao,
+      ]
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean);
+
+      return idsRelacionados.includes(cardId);
+    }).length;
+
+    const pagamentosCount = (pagamentosFatura ?? []).filter((p: any) => {
+      const idsRelacionados = [p?.cartaoId, p?.cardId]
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean);
+
+      return idsRelacionados.includes(cardId);
+    }).length;
+
+    const statusCount = (faturasStatusManual ?? []).filter((item: any) => {
+      const idsRelacionados = [item?.cartaoId, item?.cardId]
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean);
+
+      return idsRelacionados.includes(cardId);
+    }).length;
+
+    const parcelamentosCount = (parcelamentosFatura ?? []).filter((item: any) => {
+      const idsRelacionados = [item?.cartaoId, item?.cardId]
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean);
+
+      return idsRelacionados.includes(cardId);
+    }).length;
+
+    return {
+      hasAny:
+        transacoesCount > 0 ||
+        pagamentosCount > 0 ||
+        statusCount > 0 ||
+        parcelamentosCount > 0,
+      transacoes: transacoesCount,
+      pagamentos: pagamentosCount,
+      status: statusCount,
+      parcelamentos: parcelamentosCount,
+    };
+  },
+  [transacoes, pagamentosFatura, faturasStatusManual, parcelamentosFatura]
+);
+
+const handleDeactivateCreditCard = useCallback(
+  async (card: any) => {
+    const cardId = String(card?.id ?? "").trim();
+    if (!cardId) return;
+
+    const userId = String(session?.user?.id ?? "").trim();
+    if (!userId) {
+      toastCompact("Sessão inválida para desativar cartão.", "error");
+      return;
+    }
+
+    const ok = await confirm({
+      title: "Desativar cartão",
+      message:
+        "Esta ação fará com que este cartão deixe de ser utilizado no app. Todas as transações, projeções, gráficos e demais informações vinculadas a ele deixarão de aparecer nos cálculos e nas análises enquanto o cartão estiver desativado. Você poderá reativá-lo depois, e nesse caso os dados voltarão a aparecer normalmente. Deseja desativar este cartão?",
+      confirmText: "Desativar",
+      cancelText: "Cancelar",
+    });
+
+    if (!ok) return;
+
+    try {
+      await updateCreditCardById(cardId, userId, {
+        is_active: false,
+      } as any);
+
+      setCreditCards((prev) => {
+        const next = (prev ?? []).map((x: any) =>
+          String(x?.id ?? "").trim() === cardId
+            ? { ...x, is_active: false }
+            : x
+        );
+
+        if (String(selectedCreditCardId ?? "").trim() === cardId) {
+          const primeiroAtivo = next.find((x: any) => x?.is_active !== false);
+          setSelectedCreditCardId(String(primeiroAtivo?.id ?? ""));
+          setIsCcExpanded(false);
+          setIsEditingLimite(false);
+        }
+
+        return next;
+      });
+
+      toastCompact("Cartão desativado com sucesso.", "success");
+    } catch (err) {
+      console.error("ERRO AO DESATIVAR CARTÃO:", err);
+      toastCompact("Erro ao desativar cartão no banco.", "error");
+    }
+  },
+  [session?.user?.id, selectedCreditCardId]
+);
+
+const handleReactivateCreditCard = useCallback(
+  async (card: any) => {
+    const cardId = String(card?.id ?? "").trim();
+    if (!cardId) return;
+
+    const userId = String(session?.user?.id ?? "").trim();
+    if (!userId) {
+      toastCompact("Sessão inválida para reativar cartão.", "error");
+      return;
+    }
+
+    const isCurrentlyInactive = String(card?.is_active ?? "true") === "false" || card?.is_active === false;
+    if (!isCurrentlyInactive) return;
+
+    if (activeCreditCardsCount >= 20) {
+      toastCompact(
+        "Você já atingiu o limite de 20 cartões ativos. Desative ou exclua outro cartão antes de reativar este.",
+        "info"
+      );
+      return;
+    }
+
+    const ok = await confirm({
+      title: "Reativar cartão",
+      message:
+        "Ao reativar este cartão, todas as transações e informações vinculadas voltarão a aparecer nos cálculos, gráficos, projeções e análises do app. Deseja reativar este cartão?",
+      confirmText: "Reativar",
+      cancelText: "Cancelar",
+    });
+
+    if (!ok) return;
+
+    try {
+      await updateCreditCardById(cardId, userId, {
+        is_active: true,
+      } as any);
+
+      setCreditCards((prev) =>
+        (prev ?? []).map((x: any) =>
+          String(x?.id ?? "").trim() === cardId
+            ? { ...x, is_active: true }
+            : x
+        )
+      );
+
+      toastCompact("Cartão reativado com sucesso.", "success");
+    } catch (err) {
+      console.error("ERRO AO REATIVAR CARTÃO:", err);
+      toastCompact("Erro ao reativar cartão no banco.", "error");
+    }
+  },
+  [session?.user?.id, activeCreditCardsCount]
+);
 
   const inverterContas = () => {
   const origemAtual = formContaOrigem;
@@ -3819,7 +4015,7 @@ const projection12Months = useProjection12Months({
   saldoInicialBase: saldoInicialProjecao,
   perfilView: projecaoPerfilView,
   profiles,
-  creditCards,
+  creditCards: activeCreditCards as any,
   mode: projectionMode,
 });
 
@@ -5774,13 +5970,13 @@ const cancelScheduledBanner =
   ? profiles.find((p) => p.id === activeProfileId)
   : undefined;
 
-  const selectedCc =
-  creditCards.find((c) => c.id === selectedCreditCardId) ??
-  creditCards[0] ??
+const selectedCc =
+  activeCreditCards.find((c) => c.id === selectedCreditCardId) ??
+  activeCreditCards[0] ??
   null;
 
-  const selectedCcCard =
-  creditCards.find((c) => c.id === selectedCreditCardId) ?? null;
+const selectedCcCard =
+  activeCreditCards.find((c) => c.id === selectedCreditCardId) ?? null;
 
 const currentHour = new Date().getHours();
 
@@ -7541,6 +7737,8 @@ className={[
         </button>
 
         {paginatedCreditCards.map((c) => {
+          const isCardInactive = (c as any)?.is_active === false;
+const cardLinks = getCardLinkStats(c.id);
           const roundMoney = (value: number) => {
             const n = Number(value || 0);
             return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -7952,6 +8150,7 @@ const statusResumoFaturaAtual: "paga" | "parcelada" | "atrasada" | "fechada" | "
                 }}
 className={[
   "w-full block text-left rounded-2xl transition-all overflow-hidden",
+  isCardInactive ? "cursor-default opacity-45 saturate-50" : "cursor-pointer",
 ].join(" ")}
               >
                 <CreditCardVisual
@@ -7972,6 +8171,14 @@ className={[
                   }}
                 />
               </button>
+
+              {isCardInactive && (
+  <div className="mt-2 flex justify-end">
+    <span className="inline-flex items-center rounded-full bg-white/10 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-white/80">
+      Desativado
+    </span>
+  </div>
+)}
 
               <div
                 className="
@@ -8009,50 +8216,79 @@ className={[
                   <Pencil className="h-4 w-4" />
                 </button>
 
-                <button
-                  type="button"
-                  title="Excluir"
-                  className="h-8 w-8 rounded-lg bg-red-500/30 hover:bg-red-500/40 border border-red-300/20 text-white backdrop-blur-sm flex items-center justify-center transition shadow-sm"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={async (e) => {
-                    e.stopPropagation();
+<button
+  type="button"
+  title={
+    (c as any)?.is_active === false
+      ? "Reativar"
+      : cardLinks.hasAny
+      ? "Desativar"
+      : "Excluir"
+  }
+  className={
+    (c as any)?.is_active === false
+      ? "h-8 w-8 rounded-lg bg-emerald-500/30 hover:bg-emerald-500/40 border border-emerald-300/20 text-white backdrop-blur-sm flex items-center justify-center transition shadow-sm"
+      : cardLinks.hasAny
+      ? "h-8 w-8 rounded-lg bg-amber-500/30 hover:bg-amber-500/40 border border-amber-300/20 text-white backdrop-blur-sm flex items-center justify-center transition shadow-sm"
+      : "h-8 w-8 rounded-lg bg-red-500/30 hover:bg-red-500/40 border border-red-300/20 text-white backdrop-blur-sm flex items-center justify-center transition shadow-sm"
+  }
+  onMouseDown={(e) => e.stopPropagation()}
+  onClick={async (e) => {
+    e.stopPropagation();
 
-                    const ok = await confirm({
-                      title: "Excluir cartão",
-                      message: "Tem certeza que deseja excluir este cartão?",
-                      confirmText: "Excluir",
-                      cancelText: "Cancelar",
-                    });
+    if ((c as any)?.is_active === false) {
+      await handleReactivateCreditCard(c);
+      return;
+    }
 
-                    if (!ok) return;
+    if (cardLinks.hasAny) {
+      await handleDeactivateCreditCard(c);
+      return;
+    }
 
-                    try {
-                      const userId = session?.user?.id;
-                      if (!userId) return;
+    const ok = await confirm({
+      title: "Excluir cartão",
+      message: "Tem certeza que deseja excluir este cartão?",
+      confirmText: "Excluir",
+      cancelText: "Cancelar",
+    });
 
-                      await deleteCreditCardById(c.id, userId);
+    if (!ok) return;
 
-                      setCreditCards((prev) => {
-                        const next = prev.filter((x) => x.id !== c.id);
+    try {
+      const userId = session?.user?.id;
+      if (!userId) return;
 
-                        if (selectedCreditCardId === c.id) {
-                          setSelectedCreditCardId(next[0]?.id ?? "");
-                          setIsCcExpanded(false);
-                          setIsEditingLimite(false);
-                        }
+      await deleteCreditCardById(c.id, userId);
 
-                        return next;
-                      });
+      setCreditCards((prev) => {
+        const next = prev.filter((x) => x.id !== c.id);
 
-                      toastCompact("Cartão excluído.", "success");
-                    } catch (err) {
-                      console.error("ERRO AO EXCLUIR CARTÃO:", err);
-                      toastCompact("Erro ao excluir cartão no banco.", "error");
-                    }
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+        if (selectedCreditCardId === c.id) {
+          const primeiroAtivo = next.find((x: any) => (x as any)?.is_active !== false);
+          setSelectedCreditCardId(primeiroAtivo?.id ?? "");
+          setIsCcExpanded(false);
+          setIsEditingLimite(false);
+        }
+
+        return next;
+      });
+
+      toastCompact("Cartão excluído.", "success");
+    } catch (err) {
+      console.error("ERRO AO EXCLUIR CARTÃO:", err);
+      toastCompact("Erro ao excluir cartão no banco.", "error");
+    }
+  }}
+>
+  {(c as any)?.is_active === false ? (
+    <Archive className="h-4 w-4" />
+  ) : cardLinks.hasAny ? (
+    <Archive className="h-4 w-4" />
+  ) : (
+    <Trash2 className="h-4 w-4" />
+  )}
+</button>
               </div>
             </div>
           );

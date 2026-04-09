@@ -107,6 +107,7 @@ type UpdateCreditCardInput = {
   brand?: string | null;
   gradient_from?: string | null;
   gradient_to?: string | null;
+  is_active?: boolean;
 };
 
 export async function updateCreditCardById(
@@ -129,6 +130,7 @@ export async function updateCreditCardById(
 ...(input.brand !== undefined ? { brand: input.brand } : {}),
 ...(input.gradient_from !== undefined ? { gradient_from: input.gradient_from } : {}),
 ...(input.gradient_to !== undefined ? { gradient_to: input.gradient_to } : {}),
+...(input.is_active !== undefined ? { is_active: input.is_active } : {}),
 })
     .eq("id", id)
     .eq("user_id", userId)

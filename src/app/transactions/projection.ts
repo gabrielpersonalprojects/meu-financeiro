@@ -58,6 +58,52 @@ const {
 
 const perfilViewNorm = String(perfilView ?? "geral").trim().toLowerCase();
 
+const isActiveCardTransaction = (t: Transaction) => {
+  const tipo = String((t as any)?.tipo ?? "").trim().toLowerCase();
+
+  if (tipo !== "cartao_credito") return true;
+
+  const idsCartao = [
+    (t as any)?.qualCartao,
+    (t as any)?.cartaoId,
+    (t as any)?.creditCardId,
+    (t as any)?.selectedCreditCardId,
+    (t as any)?.payload?.qualCartao,
+    (t as any)?.payload?.cartaoId,
+    (t as any)?.payload?.creditCardId,
+    (t as any)?.payload?.selectedCreditCardId,
+  ]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
+
+  if (idsCartao.length === 0) return false;
+
+  const normalize = (value: any) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const cartaoAtivo = (creditCards ?? []).find((c: any) => {
+    const cardId = String(c?.id ?? "").trim();
+    const cardName = String(c?.name ?? c?.nome ?? "").trim();
+    const cardIssuer = String(c?.emissor ?? c?.bankText ?? "").trim();
+
+    return idsCartao.some((ref) => {
+      const refNorm = normalize(ref);
+
+      return (
+        (cardId && ref === cardId) ||
+        (cardName && refNorm === normalize(cardName)) ||
+        (cardIssuer && refNorm === normalize(cardIssuer))
+      );
+    });
+  });
+
+  return !!cartaoAtivo;
+};
+
 const getPerfilContaFromTransaction = (t: Transaction): "PF" | "PJ" | null => {
   const idsConta = [
     (t as any)?.profileId,
@@ -182,15 +228,17 @@ if (perfisContas.length === 1) {
 return null;
 };
 
-const transacoesFiltradas =
-  perfilViewNorm === "geral"
-    ? transacoes
-    : (transacoes ?? []).filter((t) => {
-        const perfilConta = getPerfilContaFromTransaction(t);
-        return perfilViewNorm === "pf"
-          ? perfilConta === "PF"
-          : perfilConta === "PJ";
-      });
+const transacoesFiltradas = (transacoes ?? []).filter((t) => {
+  if (!isActiveCardTransaction(t)) return false;
+
+  if (perfilViewNorm === "geral") return true;
+
+  const perfilConta = getPerfilContaFromTransaction(t);
+
+  return perfilViewNorm === "pf"
+    ? perfilConta === "PF"
+    : perfilConta === "PJ";
+});
 
   const results: ProjectionRow[] = [];
   const now = new Date();

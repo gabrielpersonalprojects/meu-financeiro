@@ -298,6 +298,9 @@ const togglePagoInFlightRef = useRef<Set<string>>(new Set());
     const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
 const [ccTags, setCcTags] = useState<string[]>([]);
 const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+const semPrazoRenewInFlightRef = useRef<Set<string>>(new Set());
+const semPrazoCancelInFlightRef = useRef<Set<string>>(new Set());
+const semPrazoDismissInFlightRef = useRef<Set<string>>(new Set());
 
 const [activeTab, setActiveTab] = useState<TabType>("transacoes");
 
@@ -764,46 +767,9 @@ const handleRegistrarPagamentoFatura = async (payload: {
   };
 
 try {
-  // 1) salva a transação de despesa no Supabase
-  const txRow = await insertTransaction({
-    user_id: session.user.id,
-    tipo: novaTransacao.tipo,
-    valor: Number(novaTransacao.valor ?? 0),
-    data: String(novaTransacao.data ?? ""),
-    descricao: String(novaTransacao.descricao ?? ""),
-    categoria:
-      typeof novaTransacao.categoria === "string"
-        ? novaTransacao.categoria
-        : String((novaTransacao as any).categoria?.nome ?? ""),
-    tag: String((novaTransacao as any).tag ?? ""),
-    pago: true,
-
-    conta_id: novaTransacao.contaId ? String(novaTransacao.contaId) : null,
-    conta_origem_id: null,
-    conta_destino_id: null,
-    cartao_id: null,
-
-    transfer_from_id: "",
-    transfer_to_id: "",
-    qual_conta: String(novaTransacao.qualConta ?? novaTransacao.contaId ?? ""),
-    criado_em: Date.now(),
-
-    payload: {
-      metodoPagamento: "",
-      tipoGasto: "",
-      recorrenciaId: "",
-      isRecorrente: false,
-      contraParte: "",
-      transferId: "",
-      observacoes: "",
-      parcelaAtual: null,
-      totalParcelas: null,
-      qualCartao: "",
-    },
-  });
-
-  const txApp = mapTransactionRowToApp(txRow);
-  const txIdSalva = String((txApp as any)?.id ?? "").trim();
+const createdTransactions = await persistTransactionsBatch([novaTransacao] as any);
+const txApp = createdTransactions?.[0] as any;
+const txIdSalva = String((txApp as any)?.id ?? "").trim();
 
   try {
     // 2) salva o registro de pagamento da fatura no Supabase
@@ -990,69 +956,10 @@ const novasParcelasBase: Transaction[] = Array.from(
   }
 );
 
-let txRows: any[] = [];
 let savedTransactions: any[] = [];
 
 try {
-  txRows = await Promise.all(
-    novasParcelasBase.map((tx: any) =>
-      insertTransaction({
-        user_id: session.user.id,
-        tipo: tx.tipo,
-        valor: Number(tx.valor ?? 0),
-        data: String(tx.data ?? ""),
-        descricao: String(tx.descricao ?? ""),
-        categoria:
-          typeof tx.categoria === "string"
-            ? tx.categoria
-            : String(tx.categoria?.nome ?? ""),
-        tag: String(tx.tag ?? ""),
-        pago: !!tx.pago,
-
-        conta_id: tx.contaId ? String(tx.contaId) : null,
-        conta_origem_id: tx.contaOrigemId ? String(tx.contaOrigemId) : null,
-        conta_destino_id: tx.contaDestinoId
-          ? String(tx.contaDestinoId)
-          : null,
-        cartao_id: tx.cartaoId ? String(tx.cartaoId) : null,
-
-        transfer_from_id: String(tx.transferFromId ?? ""),
-        transfer_to_id: String(tx.transferToId ?? ""),
-        qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
-        criado_em: Number(tx.criadoEm ?? Date.now()),
-
-payload: {
-  metodoPagamento: tx.metodoPagamento ?? "",
-  tipoGasto: tx.tipoGasto ?? "",
-  recorrenciaId: tx.recorrenciaId ?? "",
-  isRecorrente: !!tx.isRecorrente,
-
-  recurrenceKind: tx.recurrenceKind ?? "",
-  recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
-  recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
-  recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
-  recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
-  recurrenceStatus: tx.recurrenceStatus ?? "",
-  recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
-  recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
-  recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
-  recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
-
-  contraParte: tx.contraParte ?? "",
-  transferId: tx.transferId ?? "",
-  observacoes: tx.observacoes ?? "",
-  parcelaAtual: tx.parcelaAtual ?? null,
-  totalParcelas: tx.totalParcelas ?? null,
-  qualCartao: String(tx.qualCartao ?? ""),
-  origemLancamento: tx.origemLancamento ?? "",
-  parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
-  faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
-},
-      })
-    )
-  );
-
-  savedTransactions = txRows.map(mapTransactionRowToApp);
+  savedTransactions = await persistTransactionsBatch(novasParcelasBase as any);
 
   const statusManualApp = {
     id:
@@ -1099,8 +1006,8 @@ payload: {
     return [...semAtual, savedManualStatus as any];
   });
 } catch (innerErr) {
-  const txIdsCriadas = (txRows ?? [])
-    .map((row: any) => String(row?.id ?? "").trim())
+  const txIdsCriadas = (savedTransactions ?? [])
+    .map((tx: any) => String((tx as any)?.id ?? "").trim())
     .filter((id: string) => !!id && isUuid(id));
 
   if (txIdsCriadas.length > 0) {
@@ -1146,28 +1053,34 @@ const handleDispensarRecorrenciaEncerrada = async (recorrenciaId: string) => {
     return;
   }
 
-  const relacionadas = (transacoes ?? []).filter((tx: any) => {
-    const payload = (tx as any)?.payload ?? tx ?? {};
-    const recurrenceIdTx = String(
-      (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
-    ).trim();
-
-    const meta = getSemPrazoMetaFromPayload(payload);
-
-    return (
-      recurrenceIdTx === recurrenceIdSafe &&
-      meta.recurrenceKind === "sem_prazo"
-    );
-  });
-
-  if (!relacionadas.length) {
-    toastCompact("Recorrência não encontrada.", "error");
+  if (semPrazoDismissInFlightRef.current.has(recurrenceIdSafe)) {
     return;
   }
 
-  const dismissedAt = new Date().toISOString();
+  semPrazoDismissInFlightRef.current.add(recurrenceIdSafe);
 
   try {
+    const relacionadas = (transacoes ?? []).filter((tx: any) => {
+      const payload = (tx as any)?.payload ?? tx ?? {};
+      const recurrenceIdTx = String(
+        (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
+      ).trim();
+
+      const meta = getSemPrazoMetaFromPayload(payload);
+
+      return (
+        recurrenceIdTx === recurrenceIdSafe &&
+        meta.recurrenceKind === "sem_prazo"
+      );
+    });
+
+    if (!relacionadas.length) {
+      toastCompact("Recorrência não encontrada.", "error");
+      return;
+    }
+
+    const dismissedAt = new Date().toISOString();
+
     await Promise.all(
       relacionadas.map(async (tx: any) => {
         const txId = String((tx as any)?.id ?? "").trim();
@@ -1218,6 +1131,8 @@ const handleDispensarRecorrenciaEncerrada = async (recorrenciaId: string) => {
   } catch (err) {
     console.error("ERRO AO DISPENSAR RECORRENCIA ENCERRADA:", err);
     toastCompact("Erro ao remover aviso.", "error");
+  } finally {
+    semPrazoDismissInFlightRef.current.delete(recurrenceIdSafe);
   }
 };
 
@@ -1230,28 +1145,34 @@ const handleCancelarRenovacaoSemPrazo = async (recorrenciaId: string) => {
     return;
   }
 
-  const relacionadas = (transacoes ?? []).filter((tx: any) => {
-    const payload = (tx as any)?.payload ?? tx ?? {};
-    const recurrenceIdTx = String(
-      (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
-    ).trim();
-
-    const meta = getSemPrazoMetaFromPayload(payload);
-
-    return (
-      recurrenceIdTx === recurrenceIdSafe &&
-      meta.recurrenceKind === "sem_prazo"
-    );
-  });
-
-  if (!relacionadas.length) {
-    toastCompact("Recorrência não encontrada.", "error");
+  if (semPrazoCancelInFlightRef.current.has(recurrenceIdSafe)) {
     return;
   }
 
-  const canceledAt = new Date().toISOString();
+  semPrazoCancelInFlightRef.current.add(recurrenceIdSafe);
 
   try {
+    const relacionadas = (transacoes ?? []).filter((tx: any) => {
+      const payload = (tx as any)?.payload ?? tx ?? {};
+      const recurrenceIdTx = String(
+        (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
+      ).trim();
+
+      const meta = getSemPrazoMetaFromPayload(payload);
+
+      return (
+        recurrenceIdTx === recurrenceIdSafe &&
+        meta.recurrenceKind === "sem_prazo"
+      );
+    });
+
+    if (!relacionadas.length) {
+      toastCompact("Recorrência não encontrada.", "error");
+      return;
+    }
+
+    const canceledAt = new Date().toISOString();
+
     await Promise.all(
       relacionadas.map(async (tx: any) => {
         const txId = String((tx as any)?.id ?? "").trim();
@@ -1304,6 +1225,8 @@ const handleCancelarRenovacaoSemPrazo = async (recorrenciaId: string) => {
   } catch (err) {
     console.error("ERRO AO CANCELAR RENOVACAO SEM PRAZO:", err);
     toastCompact("Erro ao cancelar renovação.", "error");
+  } finally {
+    semPrazoCancelInFlightRef.current.delete(recurrenceIdSafe);
   }
 };
 
@@ -1316,101 +1239,105 @@ const handleRenovarRecorrenciaSemPrazo = async (recorrenciaId: string) => {
     return;
   }
 
-  const relacionadas = (transacoes ?? []).filter((tx: any) => {
-    const payload = (tx as any)?.payload ?? tx ?? {};
-    const recurrenceIdTx = String(
-      (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
-    ).trim();
-
-    const meta = getSemPrazoMetaFromPayload(payload);
-
-    return (
-      recurrenceIdTx === recurrenceIdSafe &&
-      meta.recurrenceKind === "sem_prazo"
-    );
-  });
-
-  if (!relacionadas.length) {
-    toastCompact("Recorrência não encontrada.", "error");
+  if (semPrazoRenewInFlightRef.current.has(recurrenceIdSafe)) {
     return;
   }
 
-  const ordenadas = [...relacionadas].sort((a: any, b: any) =>
-    String((a as any)?.data ?? "").localeCompare(String((b as any)?.data ?? ""))
-  );
+  semPrazoRenewInFlightRef.current.add(recurrenceIdSafe);
 
-  const ultima = ordenadas[ordenadas.length - 1];
-  if (!ultima) {
-    toastCompact("Não foi possível localizar a última ocorrência.", "error");
-    return;
-  }
+  try {
+    const relacionadas = (transacoes ?? []).filter((tx: any) => {
+      const payload = (tx as any)?.payload ?? tx ?? {};
+      const recurrenceIdTx = String(
+        (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
+      ).trim();
 
-  const ultimaData = String((ultima as any)?.data ?? "").trim();
-  if (!isIsoDate(ultimaData)) {
-    toastCompact("Data final da recorrência inválida.", "error");
-    return;
-  }
+      const meta = getSemPrazoMetaFromPayload(payload);
 
-  const payloadUltima = (ultima as any)?.payload ?? {};
-  const metaUltima = getSemPrazoMetaFromPayload(payloadUltima);
+      return (
+        recurrenceIdTx === recurrenceIdSafe &&
+        meta.recurrenceKind === "sem_prazo"
+      );
+    });
 
-  const datasExistentes = new Set(
-  relacionadas
-    .map((tx: any) => String((tx as any)?.data ?? "").trim())
-    .filter((value: string) => isIsoDate(value))
-);
-  const novasTransacoes: any[] = [];
-
-  const novoWindowStart = addMonthsToIsoDate(ultimaData, 1);
-  const novoWindowEnd = addMonthsToIsoDate(ultimaData, SEM_PRAZO_MESES);
-
-  if (!isIsoDate(novoWindowStart) || !isIsoDate(novoWindowEnd)) {
-    toastCompact("Não foi possível calcular a nova janela.", "error");
-    return;
-  }
-
-  const renewedAt = new Date().toISOString();
-
-  for (let i = 1; i <= SEM_PRAZO_MESES; i++) {
-    const novaData = addMonthsToIsoDate(ultimaData, i);
-    if (!isIsoDate(novaData)) continue;
-    if (datasExistentes.has(novaData)) continue;
-
-    novasTransacoes.push({
-      ...ultima,
-      id: newId(),
-      data: novaData,
-      pago: false,
-      createdAt: Date.now() + i,
-      criadoEm: Date.now() + i,
-      recorrenciaId: recurrenceIdSafe,
-      cartaoId:
-  String((ultima as any)?.cartaoId ?? (ultima as any)?.payload?.cartaoId ?? "").trim() || undefined,
-...(String((ultima as any)?.tipo ?? "") === "cartao_credito"
-  ? {
-faturaMes: getFaturaMesByCartaoId(
-  novaData,
-  String(
-    (ultima as any)?.cartaoId ??
-      (ultima as any)?.payload?.cartaoId ??
-      ""
-  )
-),
+    if (!relacionadas.length) {
+      toastCompact("Recorrência não encontrada.", "error");
+      return;
     }
-  : {}),
-      recurrenceKind: "sem_prazo",
-      recurrenceWindowMonths: SEM_PRAZO_MESES,
-      recurrenceOriginDate:
-        metaUltima.recurrenceOriginDate ||
-        String((ultima as any)?.data ?? "").trim(),
-      recurrenceWindowStart: novoWindowStart,
-      recurrenceWindowEnd: novoWindowEnd,
-      recurrenceStatus: "ativa",
-      recurrenceRenewalDecision: "pendente",
-      recurrenceDismissedAt: "",
-      recurrenceCanceledAt: "",
-      recurrenceLastActionAt: renewedAt,
-      payload: mergeSemPrazoPayloadMeta((ultima as any)?.payload ?? {}, {
+
+    const ordenadas = [...relacionadas].sort((a: any, b: any) =>
+      String((a as any)?.data ?? "").localeCompare(
+        String((b as any)?.data ?? "")
+      )
+    );
+
+    const ultima = ordenadas[ordenadas.length - 1];
+    if (!ultima) {
+      toastCompact("Não foi possível localizar a última ocorrência.", "error");
+      return;
+    }
+
+    const ultimaData = String((ultima as any)?.data ?? "").trim();
+    if (!isIsoDate(ultimaData)) {
+      toastCompact("Data final da recorrência inválida.", "error");
+      return;
+    }
+
+    const payloadUltima = (ultima as any)?.payload ?? {};
+    const metaUltima = getSemPrazoMetaFromPayload(payloadUltima);
+
+    const datasExistentes = new Set(
+      relacionadas
+        .map((tx: any) => String((tx as any)?.data ?? "").trim())
+        .filter((value: string) => isIsoDate(value))
+    );
+
+    const novasTransacoes: any[] = [];
+
+    const novoWindowStart = addMonthsToIsoDate(ultimaData, 1);
+    const novoWindowEnd = addMonthsToIsoDate(
+      ultimaData,
+      SEM_PRAZO_MESES
+    );
+
+    if (!isIsoDate(novoWindowStart) || !isIsoDate(novoWindowEnd)) {
+      toastCompact("Não foi possível calcular a nova janela.", "error");
+      return;
+    }
+
+    const renewedAt = new Date().toISOString();
+
+    for (let i = 1; i <= SEM_PRAZO_MESES; i++) {
+      const novaData = addMonthsToIsoDate(ultimaData, i);
+      if (!isIsoDate(novaData)) continue;
+      if (datasExistentes.has(novaData)) continue;
+
+      novasTransacoes.push({
+        ...ultima,
+        id: newId(),
+        data: novaData,
+        pago: false,
+        createdAt: Date.now() + i,
+        criadoEm: Date.now() + i,
+        recorrenciaId: recurrenceIdSafe,
+        cartaoId:
+          String(
+            (ultima as any)?.cartaoId ??
+              (ultima as any)?.payload?.cartaoId ??
+              ""
+          ).trim() || undefined,
+        ...(String((ultima as any)?.tipo ?? "") === "cartao_credito"
+          ? {
+              faturaMes: getFaturaMesByCartaoId(
+                novaData,
+                String(
+                  (ultima as any)?.cartaoId ??
+                    (ultima as any)?.payload?.cartaoId ??
+                    ""
+                )
+              ),
+            }
+          : {}),
         recurrenceKind: "sem_prazo",
         recurrenceWindowMonths: SEM_PRAZO_MESES,
         recurrenceOriginDate:
@@ -1423,17 +1350,71 @@ faturaMes: getFaturaMesByCartaoId(
         recurrenceDismissedAt: "",
         recurrenceCanceledAt: "",
         recurrenceLastActionAt: renewedAt,
-      }),
-    });
+        payload: mergeSemPrazoPayloadMeta((ultima as any)?.payload ?? {}, {
+          recurrenceKind: "sem_prazo",
+          recurrenceWindowMonths: SEM_PRAZO_MESES,
+          recurrenceOriginDate:
+            metaUltima.recurrenceOriginDate ||
+            String((ultima as any)?.data ?? "").trim(),
+          recurrenceWindowStart: novoWindowStart,
+          recurrenceWindowEnd: novoWindowEnd,
+          recurrenceStatus: "ativa",
+          recurrenceRenewalDecision: "pendente",
+          recurrenceDismissedAt: "",
+          recurrenceCanceledAt: "",
+          recurrenceLastActionAt: renewedAt,
+        }),
+      });
+    }
+
+    if (!novasTransacoes.length) {
+      toastCompact("Essa recorrência já foi renovada.", "info");
+      return;
+    }
+
+const criadas = await persistTransactionsBatch(novasTransacoes);
+
+try {
+  await Promise.all(
+    relacionadas.map(async (tx: any) => {
+      const txId = String((tx as any)?.id ?? "").trim();
+      if (!txId) return;
+
+      const payloadAtual = (tx as any)?.payload ?? {};
+
+      const payloadAtualizado = mergeSemPrazoPayloadMeta(payloadAtual, {
+        recurrenceStatus: "ativa",
+        recurrenceRenewalDecision: "pendente",
+        recurrenceDismissedAt: "",
+        recurrenceCanceledAt: "",
+        recurrenceLastActionAt: renewedAt,
+      });
+
+      await updateTransactionById(txId, userId, {
+        payload: payloadAtualizado,
+      } as any);
+    })
+  );
+} catch (updateRelacionadasErr) {
+  const createdIds = (criadas ?? [])
+    .map((tx: any) => String((tx as any)?.id ?? "").trim())
+    .filter((id: string) => !!id && isUuid(id));
+
+  if (createdIds.length > 0) {
+    for (const txId of createdIds) {
+      try {
+        await deleteTransactionById(txId, userId);
+      } catch (rollbackCriadasErr) {
+        console.error(
+          "ERRO NO ROLLBACK DAS NOVAS OCORRENCIAS DA RECORRENCIA:",
+          rollbackCriadasErr
+        );
+      }
+    }
   }
 
-  if (!novasTransacoes.length) {
-    toastCompact("Essa recorrência já foi renovada.", "info");
-    return;
-  }
-
-  try {
-   const criadas = await persistTransactionsBatch(novasTransacoes);
+  throw updateRelacionadasErr;
+}
 
     setTransacoes((prev) => {
       const atualizadas = (prev ?? []).map((tx: any) => {
@@ -1470,6 +1451,8 @@ faturaMes: getFaturaMesByCartaoId(
   } catch (err) {
     console.error("ERRO AO RENOVAR RECORRENCIA SEM PRAZO:", err);
     toastCompact("Erro ao renovar recorrência.", "error");
+  } finally {
+    semPrazoRenewInFlightRef.current.delete(recurrenceIdSafe);
   }
 };
 
@@ -2417,77 +2400,107 @@ const getFaturaMesByCartaoId = (dataIso: string, cartaoId: string) => {
   );
 };
 
+const buildInsertTransactionPayload = (userId: string, tx: any) => ({
+  user_id: userId,
+  tipo: tx.tipo,
+  valor: Number(tx.valor ?? 0),
+  data: String(tx.data ?? ""),
+  descricao: String(tx.descricao ?? ""),
+  categoria:
+    typeof tx.categoria === "string"
+      ? tx.categoria
+      : String(
+          tx.categoria?.nome ??
+            tx.categoria?.label ??
+            tx.categoria?.value ??
+            ""
+        ),
+  tag: String(tx.tag ?? ""),
+  pago: !!tx.pago,
+
+  conta_id: tx.contaId ? String(tx.contaId) : null,
+  conta_origem_id: tx.contaOrigemId ? String(tx.contaOrigemId) : null,
+  conta_destino_id: tx.contaDestinoId ? String(tx.contaDestinoId) : null,
+  cartao_id:
+    tx.tipo === "cartao_credito"
+      ? String(tx.cartaoId ?? tx.payload?.cartaoId ?? "").trim() || null
+      : null,
+
+  transfer_from_id: String(tx.transferFromId ?? ""),
+  transfer_to_id: String(tx.transferToId ?? ""),
+  qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
+  criado_em: Number(tx.criadoEm ?? tx.createdAt ?? Date.now()),
+
+  payload: {
+    metodoPagamento: tx.metodoPagamento ?? "",
+    tipoGasto: tx.tipoGasto ?? "",
+    recorrenciaId: tx.recorrenciaId ?? "",
+    isRecorrente: !!tx.isRecorrente,
+
+    recurrenceKind: tx.recurrenceKind ?? "",
+    recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
+    recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
+    recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
+    recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
+    recurrenceStatus: tx.recurrenceStatus ?? "",
+    recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
+    recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
+    recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
+    recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
+
+    contraParte: tx.contraParte ?? "",
+    transferId: tx.transferId ?? "",
+    observacoes: tx.observacoes ?? "",
+    parcelaAtual: tx.parcelaAtual ?? null,
+    totalParcelas: tx.totalParcelas ?? null,
+    qualCartao: String(tx.qualCartao ?? ""),
+    origemLancamento: tx.origemLancamento ?? "",
+    parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
+    faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
+  },
+});
+
 const persistTransactionsBatch = async (items: any[]) => {
   const userId = String(session?.user?.id ?? "").trim();
   if (!userId) {
     throw new Error("Sessão inválida para salvar transações.");
   }
 
-  const rows = await Promise.all(
-    (items ?? []).map((tx: any) =>
-      insertTransaction({
-        user_id: userId,
-        tipo: tx.tipo,
-        valor: Number(tx.valor ?? 0),
-        data: String(tx.data ?? ""),
-        descricao: String(tx.descricao ?? ""),
-        categoria:
-          typeof tx.categoria === "string"
-            ? tx.categoria
-            : String(
-                tx.categoria?.nome ??
-                  tx.categoria?.label ??
-                  tx.categoria?.value ??
-                  ""
-              ),
-        tag: String(tx.tag ?? ""),
-        pago: !!tx.pago,
+  const safeItems = Array.isArray(items) ? items.filter(Boolean) : [];
 
-        conta_id: tx.contaId ? String(tx.contaId) : null,
-        conta_origem_id: tx.contaOrigemId ? String(tx.contaOrigemId) : null,
-        conta_destino_id: tx.contaDestinoId ? String(tx.contaDestinoId) : null,
-cartao_id:
-  tx.tipo === "cartao_credito"
-    ? String(tx.cartaoId ?? tx.payload?.cartaoId ?? "").trim() || null
-    : null,
+if (!safeItems.length) {
+  return [];
+}
 
-        transfer_from_id: String(tx.transferFromId ?? ""),
-        transfer_to_id: String(tx.transferToId ?? ""),
-        qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
-        criado_em: Number(tx.criadoEm ?? tx.createdAt ?? Date.now()),
+  const createdRows: any[] = [];
 
-        payload: {
-          metodoPagamento: tx.metodoPagamento ?? "",
-          tipoGasto: tx.tipoGasto ?? "",
-          recorrenciaId: tx.recorrenciaId ?? "",
-          isRecorrente: !!tx.isRecorrente,
+  try {
+    for (const tx of safeItems) {
+      const row = await insertTransaction(
+        buildInsertTransactionPayload(userId, tx)
+      );
+      createdRows.push(row);
+    }
 
-          recurrenceKind: tx.recurrenceKind ?? "",
-          recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
-          recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
-          recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
-          recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
-          recurrenceStatus: tx.recurrenceStatus ?? "",
-          recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
-          recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
-          recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
-          recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
+    return createdRows.map(mapTransactionRowToApp);
+  } catch (err) {
+    const createdIds = createdRows
+      .map((row: any) => String(row?.id ?? "").trim())
+      .filter((id: string) => !!id && isUuid(id));
 
-          contraParte: tx.contraParte ?? "",
-          transferId: tx.transferId ?? "",
-          observacoes: tx.observacoes ?? "",
-          parcelaAtual: tx.parcelaAtual ?? null,
-          totalParcelas: tx.totalParcelas ?? null,
-          qualCartao: String(tx.qualCartao ?? ""),
-          origemLancamento: tx.origemLancamento ?? "",
-          parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
-          faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
-        },
-      })
-    )
-  );
+    for (const id of createdIds) {
+      try {
+        await deleteTransactionById(id, userId);
+      } catch (rollbackErr) {
+        console.error(
+          "ERRO NO ROLLBACK DO BATCH DE TRANSACOES:",
+          rollbackErr
+        );
+      }
+    }
 
-  return rows.map((row: any) => mapTransactionRowToApp(row));
+    throw err;
+  }
 };
 
 const [selectedCreditCardId, setSelectedCreditCardId] = useState<string>("");
@@ -3595,6 +3608,9 @@ const executarLimpezaTotal = async () => {
 
     if (errAuthUser) throw errAuthUser;
 
+await setUserFavoriteAccount(userId, null);
+setFavoriteAccountId(null);
+
     // 8) limpa estados em memória
     setTransacoes([]);
     setPagamentosFatura([]);
@@ -4287,18 +4303,33 @@ if (!userId) return;
               : String(tx.categoria?.nome ?? ""),
           tag: String(tx.tag ?? ""),
           pago: !!tx.pago,
-          payload: {
-            metodoPagamento: tx.metodoPagamento ?? "",
-            tipoGasto: tx.tipoGasto ?? "",
-            recorrenciaId: tx.recorrenciaId ?? "",
-            isRecorrente: !!tx.isRecorrente,
-            contraParte: tx.contraParte ?? "",
-            transferId: tx.transferId ?? "",
-            observacoes: tx.observacoes ?? "",
-            parcelaAtual: tx.parcelaAtual ?? null,
-            totalParcelas: tx.totalParcelas ?? null,
-            qualCartao: String(tx.qualCartao ?? ""),
-          },
+payload: {
+  metodoPagamento: tx.metodoPagamento ?? "",
+  tipoGasto: tx.tipoGasto ?? "",
+  recorrenciaId: tx.recorrenciaId ?? "",
+  isRecorrente: !!tx.isRecorrente,
+
+  recurrenceKind: tx.recurrenceKind ?? "",
+  recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
+  recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
+  recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
+  recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
+  recurrenceStatus: tx.recurrenceStatus ?? "",
+  recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
+  recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
+  recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
+  recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
+
+  contraParte: tx.contraParte ?? "",
+  transferId: tx.transferId ?? "",
+  observacoes: tx.observacoes ?? "",
+  parcelaAtual: tx.parcelaAtual ?? null,
+  totalParcelas: tx.totalParcelas ?? null,
+  qualCartao: String(tx.qualCartao ?? ""),
+  origemLancamento: tx.origemLancamento ?? "",
+  parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
+  faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
+},
         });
       })
     );
@@ -7037,64 +7068,69 @@ const cardsPanelContent = (
 const semPrazoResumoAlertsContent =
   semPrazoActionAlerts.length > 0 || semPrazoEndedAlerts.length > 0 ? (
     <div className="mt-4 space-y-3">
-      {semPrazoActionAlerts.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[13px] font-bold uppercase tracking-[0.14em] text-violet-700 dark:text-violet-300">
-              Recorrências sem prazo
-            </h3>
-            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
-              {semPrazoActionAlerts.length}
-            </span>
-          </div>
+{semPrazoActionAlerts.map((item) => {
+  const recorrenciaId = String(item.recorrenciaId ?? "").trim();
+  const isRenewingSemPrazo =
+    semPrazoRenewInFlightRef.current.has(recorrenciaId);
+  const isCancelingSemPrazo =
+    semPrazoCancelInFlightRef.current.has(recorrenciaId);
+  const isDismissingSemPrazo =
+    semPrazoDismissInFlightRef.current.has(recorrenciaId);
+    const isAnySemPrazoActionBusy =
+  isRenewingSemPrazo || isCancelingSemPrazo;
 
-          {semPrazoActionAlerts.map((item) => (
-            <div
-              key={`sem-prazo-acao-${item.recorrenciaId}`}
-              className="rounded-[20px] border border-violet-200 bg-violet-50/90 px-4 py-4 shadow-sm dark:border-violet-900/60 dark:bg-violet-950/25"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[14px] font-semibold text-slate-900 dark:text-white">
-                    {item.descricao}
-                  </p>
-                  <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-300">
-                    {formatSemPrazoDiasRestantes(item.diasRestantes)}
-                  </p>
-                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-                    Última ocorrência em {formatarData(item.ultimaData)}
-                  </p>
-                </div>
-
-                <div className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-violet-700 shadow-sm dark:bg-white/10 dark:text-violet-300">
-                  {formatResumoBRL(item.valor)}
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-<button
-  type="button"
-  onClick={() => handleRenovarRecorrenciaSemPrazo(item.recorrenciaId)}
-  className="rounded-xl px-3 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:opacity-95"
-  style={{
-    background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
-  }}
->
-  Renovar 12 meses
-</button>
-
-<button
-  type="button"
-  onClick={() => handleCancelarRenovacaoSemPrazo(item.recorrenciaId)}
-  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
->
-  Cancelar renovação
-</button>
-              </div>
-            </div>
-          ))}
+  return (
+    <div
+      key={`sem-prazo-acao-${item.recorrenciaId}`}
+      className="rounded-[20px] border border-violet-200 bg-violet-50/90 px-4 py-4 shadow-sm dark:border-violet-900/60 dark:bg-violet-950/25"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[14px] font-semibold text-slate-900 dark:text-white">
+            {item.descricao}
+          </p>
+          <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-300">
+            {formatSemPrazoDiasRestantes(item.diasRestantes)}
+          </p>
+          <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+            Última ocorrência em {formatarData(item.ultimaData)}
+          </p>
         </div>
-      )}
+
+        <div className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-violet-700 shadow-sm dark:bg-white/10 dark:text-violet-300">
+        {formatResumoBRL(item.valor)}
+        </div>
+      </div>
+
+     <div
+  className={`mt-3 flex flex-wrap gap-2 ${
+    isAnySemPrazoActionBusy ? "pointer-events-none" : ""
+  }`}
+>
+        <button
+          type="button"
+         disabled={isRenewingSemPrazo || isCancelingSemPrazo}
+          onClick={() => handleRenovarRecorrenciaSemPrazo(recorrenciaId)}
+          className="rounded-xl px-3 py-2 text-[12px] font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 hover:opacity-95"
+          style={{
+            background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
+          }}
+        >
+          {isRenewingSemPrazo ? "Renovando..." : "Renovar 12 meses"}
+        </button>
+
+        <button
+          type="button"
+          disabled={isCancelingSemPrazo || isRenewingSemPrazo}
+          onClick={() => handleCancelarRenovacaoSemPrazo(recorrenciaId)}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:disabled:hover:bg-slate-900"
+        >
+          {isCancelingSemPrazo ? "Cancelando..." : "Cancelar renovação"}
+        </button>
+      </div>
+    </div>
+  );
+})}   
 
       {semPrazoEndedAlerts.length > 0 && (
         <div className="space-y-3">
@@ -7107,7 +7143,13 @@ const semPrazoResumoAlertsContent =
             </span>
           </div>
 
-          {semPrazoEndedAlerts.map((item) => (
+          {semPrazoEndedAlerts.map((item) => {
+  const recorrenciaId = String(item.recorrenciaId ?? "").trim();
+  const isDismissingSemPrazo =
+    semPrazoDismissInFlightRef.current.has(recorrenciaId);
+const isEndedSemPrazoBusy = isDismissingSemPrazo;
+
+  return (
             <div
               key={`sem-prazo-encerrada-${item.recorrenciaId}`}
               className="rounded-[20px] border border-amber-200 bg-amber-50/90 px-4 py-4 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/25"
@@ -7127,19 +7169,23 @@ const semPrazoResumoAlertsContent =
                 </div>
               </div>
 
-              <div className="mt-3 flex justify-end">
+              <div
+  className={`mt-3 flex justify-end ${
+    isEndedSemPrazoBusy ? "pointer-events-none" : ""
+  }`}
+>
 <button
   type="button"
-  onClick={() => handleDispensarRecorrenciaEncerrada(item.recorrenciaId)}
-  className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
-  aria-label="Dispensar aviso"
-  title="Dispensar aviso"
+  disabled={isDismissingSemPrazo}
+  onClick={() => handleDispensarRecorrenciaEncerrada(recorrenciaId)}
+  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:disabled:hover:bg-slate-900"
 >
-  <X className="h-4 w-4" />
+  {isDismissingSemPrazo ? "Removendo..." : "Dispensar aviso"}
 </button>
               </div>
             </div>
-          ))}
+           );
+})}
         </div>
       )}
     </div>

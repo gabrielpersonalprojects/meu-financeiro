@@ -162,20 +162,23 @@ function getGreetingMeta() {
   if (hour >= 5 && hour < 12) {
     return {
       greeting: "Bom dia",
-      icon: "🌤️",
+      iconSrc: "/icon-sun.svg",
+      iconAlt: "Sol",
     };
   }
 
   if (hour >= 12 && hour < 18) {
     return {
       greeting: "Boa tarde",
-      icon: "☀️",
+      iconSrc: "/icon-sun.svg",
+      iconAlt: "Sol",
     };
   }
 
   return {
     greeting: "Boa noite",
-    icon: "🌙",
+    iconSrc: "/icon-moon.svg",
+    iconAlt: "Lua",
   };
 }
 
@@ -199,7 +202,7 @@ export default function SidebarShell({
   const sidebarExpanded = isHovered || isPinnedOpen;
   const panelOpen = activePanel !== null;
 
-    const { greeting, icon: greetingIcon } = getGreetingMeta();
+   const { greeting, iconSrc: greetingIconSrc, iconAlt: greetingIconAlt } = getGreetingMeta();
   const displayNameSafe = String(userDisplayName ?? "").trim() || "Usuário";
 
   const closeAll = () => {
@@ -479,7 +482,11 @@ export default function SidebarShell({
   <>
     <div className="flex w-full items-center justify-between gap-3 pr-3">
       <div className="flex items-center gap-3">
-        <div className="text-3xl leading-none shrink-0">{greetingIcon}</div>
+        <img
+  src={greetingIconSrc}
+  alt={greetingIconAlt}
+  className="h-10 w-10 shrink-0 object-contain"
+/>
 
         <div>
           <div className="flex items-center gap-2">
@@ -588,7 +595,11 @@ export default function SidebarShell({
             {activePanel === "resumo" ? (
               <>
 <div className="flex w-full items-center gap-3 pr-3">
-  <div className="text-3xl leading-none shrink-0">{greetingIcon}</div>
+ <img
+  src={greetingIconSrc}
+  alt={greetingIconAlt}
+  className="h-10 w-10 shrink-0 object-contain"
+/>
 
   <div>
     <div className="flex items-center gap-2">

@@ -3420,48 +3420,19 @@ useEffect(() => {
 }, [formTipo]);
 
 
-  // --- Persistência por Perfil ---
-  useEffect(() => {
-    isDataLoadedRef.current = false;
-
-    const safeProfileId = activeProfileId?.trim();
-
-    const savedMetodos =
-      (safeProfileId
-        ? localStorage.getItem(buildProfileStorageKey(safeProfileId, "metodosPagamento"))
-        : null) ??
-      localStorage.getItem("meu-financeiro-metodos");
-
-    if (safeProfileId) {
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, safeProfileId);
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.ACTIVE_PROFILE_ID);
-    }
-
-    isDataLoadedRef.current = true;
-  }, [activeProfileId]);
-
 useEffect(() => {
-  if (!isDataLoadedRef.current) return;
+  isDataLoadedRef.current = false;
+
   const safeProfileId = activeProfileId?.trim();
 
-  if (!safeProfileId) {
-    localStorage.setItem("meu-financeiro-categorias", JSON.stringify(categorias));
-    localStorage.setItem("meu-financeiro-metodos", JSON.stringify(metodosPagamento));
-    return;
+  if (safeProfileId) {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, safeProfileId);
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_PROFILE_ID);
   }
 
-  localStorage.setItem(
-    buildProfileStorageKey(safeProfileId, "categorias"),
-    JSON.stringify(categorias)
-  );
-
-  localStorage.setItem(
-    buildProfileStorageKey(safeProfileId, "metodosPagamento"),
-    JSON.stringify(metodosPagamento)
-  );
-
-}, [activeProfileId, categorias, metodosPagamento]);
+  isDataLoadedRef.current = true;
+}, [activeProfileId]);
 
   // --- Helpers ---
 
@@ -5783,21 +5754,18 @@ if (checkoutSyncing) {
 
 const handleCheckoutAssinatura = async () => {
   try {
-    if (!session?.user?.email || !session?.user?.id) {
-      alert("Sessão inválida. Faça login novamente.");
-      return;
-    }
+if (!session?.user?.email || !session?.user?.id || !session?.access_token) {
+  alert("Sessão inválida. Faça login novamente.");
+  return;
+}
 
-    const response = await fetch("/api/stripe/create-checkout-session", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: session.user.email,
-        userId: session.user.id,
-      }),
-    });
+const response = await fetch("/api/stripe/create-checkout-session", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${session.access_token}`,
+  },
+});
 
     const data = await response.json();
 
@@ -5816,20 +5784,18 @@ const handleCheckoutAssinatura = async () => {
 
 const handleGerenciarAssinatura = async () => {
   try {
-    if (!session?.user?.id) {
-      alert("Sessão inválida. Faça login novamente.");
-      return;
-    }
+if (!session?.user?.id || !session?.access_token) {
+  alert("Sessão inválida. Faça login novamente.");
+  return;
+}
 
-    const response = await fetch("/api/stripe/create-portal-session", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        userId: session.user.id,
-      }),
-    });
+const response = await fetch("/api/stripe/create-portal-session", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${session.access_token}`,
+  },
+});
 
     const data = await response.json();
 

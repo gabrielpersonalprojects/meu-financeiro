@@ -3,6 +3,7 @@ const { createClient } = require("@supabase/supabase-js");
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const appUrl = process.env.APP_URL;
 
@@ -14,6 +15,10 @@ if (!supabaseUrl) {
   throw new Error("Missing SUPABASE_URL");
 }
 
+if (!supabaseAnonKey) {
+  throw new Error("Missing SUPABASE_ANON_KEY");
+}
+
 if (!supabaseServiceRoleKey) {
   throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
 }
@@ -23,7 +28,6 @@ if (!appUrl) {
 }
 
 const stripe = new Stripe(stripeSecretKey);
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -31,16 +35,48 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { userId } = req.body || {};
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length).trim()
+      : "";
 
-    if (!userId) {
-      return res.status(400).json({ error: "Missing userId" });
+    if (!token) {
+      return res.status(401).json({ error: "Missing bearer token" });
     }
 
-    const { data: subscription, error } = await supabase
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAuth.auth.getUser(token);
+
+    if (authError || !user?.id) {
+      console.error("Erro ao validar usuário da sessão:", authError);
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
+    const { data: subscription, error } = await supabaseAdmin
       .from("subscriptions")
       .select("stripe_customer_id, status")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (error) {
@@ -52,11 +88,11 @@ module.exports = async function handler(req, res) {
       return res.status(404).json({ error: "Stripe customer not found" });
     }
 
-const portalSession = await stripe.billingPortal.sessions.create({
-  customer: subscription.stripe_customer_id,
-  return_url: `${appUrl}/?billing=returned`,
-  locale: "pt-BR",
-});
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: subscription.stripe_customer_id,
+      return_url: `${appUrl}/?billing=returned`,
+      locale: "pt-BR",
+    });
 
     return res.status(200).json({ url: portalSession.url });
   } catch (error) {

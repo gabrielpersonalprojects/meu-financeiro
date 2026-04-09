@@ -1,8 +1,12 @@
 const Stripe = require("stripe");
+const { createClient } = require("@supabase/supabase-js");
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const appUrl = process.env.APP_URL;
 const stripePriceId = process.env.STRIPE_PRICE_ID;
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
 if (!stripeSecretKey) {
   throw new Error("Missing STRIPE_SECRET_KEY");
@@ -16,6 +20,14 @@ if (!stripePriceId) {
   throw new Error("Missing STRIPE_PRICE_ID");
 }
 
+if (!supabaseUrl) {
+  throw new Error("Missing SUPABASE_URL");
+}
+
+if (!supabaseAnonKey) {
+  throw new Error("Missing SUPABASE_ANON_KEY");
+}
+
 const stripe = new Stripe(stripeSecretKey);
 
 module.exports = async function handler(req, res) {
@@ -24,17 +36,42 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { email, userId } = req.body || {};
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length).trim()
+      : "";
 
-    if (!email || !userId) {
-      return res.status(400).json({ error: "Missing email or userId" });
+    if (!token) {
+      return res.status(401).json({ error: "Missing bearer token" });
+    }
+
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAuth.auth.getUser(token);
+
+    if (authError || !user?.id || !user?.email) {
+      console.error("Erro ao validar usuário da sessão:", authError);
+      return res.status(401).json({ error: "Invalid session" });
     }
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       locale: "pt-BR",
       payment_method_types: ["card"],
-      customer_email: email,
+      customer_email: user.email,
       line_items: [
         {
           price: stripePriceId,
@@ -42,11 +79,11 @@ module.exports = async function handler(req, res) {
         },
       ],
       metadata: {
-        userId: String(userId),
+        userId: String(user.id),
       },
       subscription_data: {
         metadata: {
-          userId: String(userId),
+          userId: String(user.id),
         },
       },
       success_url: `${appUrl}?checkout=success`,

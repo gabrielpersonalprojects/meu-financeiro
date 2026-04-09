@@ -4996,24 +4996,25 @@ else if (ehFixo) {
           const d = addMonthsSafe(baseDate, i);
           const dataIso = d.toISOString().split("T")[0];
 
-          novos.push({
-            id: makeId(`fixo_${i}`),
-            tipo: "cartao_credito",
-            criadoEm: Date.now(),
-            descricao: descBase,
-            valor: -Math.abs(total),
-            data: dataIso,
-            faturaMes: getFaturaMesTx(dataIso),
-            categoria: categoriaBase || undefined,
-            tag: tagCC || undefined,
-            tipoGasto: "fixo",
-            qualCartao: selectedCreditCardId,
-            contaId: contaIdDoCartao,
-            pago: i === 0 ? formPago : false,
-            isRecorrente: true,
-            recorrenciaId,
-            ...(semPrazoMeta ?? {}),
-          } as any);
+novos.push({
+  id: makeId(`fixo_${i}`),
+  tipo: "cartao_credito",
+  criadoEm: Date.now(),
+  descricao: descBase,
+  valor: -Math.abs(total),
+  data: dataIso,
+  faturaMes: getFaturaMesTx(dataIso),
+  categoria: categoriaBase || undefined,
+  tag: tagCC || undefined,
+  tipoGasto: "fixo",
+  qualCartao: selectedCreditCardId,
+  cartaoId: selectedCreditCardId,
+  contaId: contaIdDoCartao,
+  pago: i === 0 ? formPago : false,
+  isRecorrente: true,
+  recorrenciaId,
+  ...(semPrazoMeta ?? {}),
+} as any);
         }
       }
 

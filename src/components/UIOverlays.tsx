@@ -63,8 +63,16 @@ export function UIOverlays({
 
     return (
       <>
-        {body ? <p className="ui-modal-message">{body}</p> : null}
-        {note ? <p className="ui-modal-note">{note}</p> : null}
+        {body ? (
+          <p className="text-sm leading-6 text-slate-700 dark:text-slate-300">
+            {body}
+          </p>
+        ) : null}
+        {note ? (
+          <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">
+            {note}
+          </p>
+        ) : null}
       </>
     );
   })()}
@@ -83,11 +91,16 @@ export function UIOverlays({
       </div>
 
       {/* Toasts */}
-      <div id="ui-toasts" className="ui-toasts">
-        {toasts.map((t) => (
-          <ToastItem key={t.id} message={t.message} type={t.type} />
-        ))}
-      </div>
+<div
+  id="ui-toasts"
+  className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none"
+>
+  <div className="pointer-events-auto flex flex-col items-center gap-3">
+    {toasts.map((t) => (
+      <ToastItem key={t.id} message={t.message} type={t.type} />
+    ))}
+  </div>
+</div>
     </>
   );
 }

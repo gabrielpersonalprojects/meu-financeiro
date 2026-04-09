@@ -94,7 +94,7 @@ import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
-import { Archive, Moon, Pencil, PencilLine, Star, Trash2, X } from "lucide-react";
+import { Archive, Home, Moon, Pencil, PencilLine, Star, Trash2, X } from "lucide-react";
 import {
   STORAGE_KEYS,
   PROFILE_KEYS,
@@ -7905,16 +7905,38 @@ if (activeTab === "cartoes" && tab !== "cartoes") {
   ].join(" ")}
   style={{ WebkitTapHighlightColor: "transparent" }}
 >
-  <span className="relative z-10">
-    {tab === "transacoes"
-      ? "Transações"
-      : tab === "cartoes"
-      ? "Cartões"
-      : tab === "gastos"
-      ? "Análise"
-      : "Projeção"}
-  </span>
+<span className="relative z-10 inline-flex items-center">
+  {tab === "transacoes" ? (
+    <>
+<Home
+  className="hidden md:block h-[16px] w-[16px] mr-12 text-slate-400/90 dark:text-slate-400 transition-all duration-200 group-hover:text-violet-200 group-hover:scale-125 group-active:scale-95"
+  strokeWidth={2.2}
+/>
 
+      <span className="relative inline-flex items-center">
+        <span>Transações</span>
+
+        <span
+          className={[
+            "pointer-events-none absolute left-0 right-0 -bottom-[6px] hidden md:block",
+            "h-[1.5px] rounded-full transition-all duration-200",
+            activeTab === tab
+              ? "bg-gradient-to-r from-transparent via-violet-400 to-transparent opacity-100"
+              : "bg-transparent opacity-0 group-hover:opacity-40 group-hover:bg-gradient-to-r group-hover:from-transparent group-hover:via-slate-500/40 dark:group-hover:via-white/30 group-hover:to-transparent",
+          ].join(" ")}
+        />
+      </span>
+    </>
+  ) : tab === "cartoes" ? (
+    "Cartões"
+  ) : tab === "gastos" ? (
+    "Análise"
+  ) : (
+    "Projeção"
+  )}
+</span>
+
+{tab !== "transacoes" && (
   <span
     className={[
       "pointer-events-none absolute left-4 right-4 bottom-1 hidden md:block",
@@ -7924,6 +7946,7 @@ if (activeTab === "cartoes" && tab !== "cartoes") {
         : "bg-transparent opacity-0 group-hover:opacity-40 group-hover:bg-gradient-to-r group-hover:from-transparent group-hover:via-slate-500/40 dark:group-hover:via-white/30 group-hover:to-transparent",
     ].join(" ")}
   />
+)}
 </button>
     ))}
   </div>

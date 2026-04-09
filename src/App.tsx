@@ -4755,49 +4755,51 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
   const transferenciaPagoInicial = formData <= hoje ? formPago : false;
 
       // saída (negativa) na origem
-      const saida: Transaction = {
-        id: newId("tx"),
-        tipo: "despesa" as any,
-        descricao: descFinal,
-        valor: -Math.abs(valorNum),
-        data: formData,
-        categoria: "Transferência",
-        pago: transferenciaPagoInicial,
+const saida: Transaction = {
+  id: newId("tx"),
+  tipo: "despesa" as any,
+  descricao: descFinal,
+  valor: -Math.abs(valorNum),
+  data: formData,
+  categoria: "Transferência",
+  pago: transferenciaPagoInicial,
 
-        profileId: origemId as any,
-        contaId: origemId as any,
+  profileId: origemId as any,
+  contaId: origemId as any,
+  qualConta: origemId as any,
 
-        transferId: tid as any,
-        transferFromId: origemId as any,
-        transferToId: destinoId as any,
-        contraParte: destinoNome as any,
+  transferId: tid as any,
+  transferFromId: origemId as any,
+  transferToId: destinoId as any,
+  contraParte: destinoNome as any,
 
-        // pra filtro/UI
-        contaOrigemId: origemId as any,
-        contaDestinoId: destinoId as any,
-      } as any;
+  // pra filtro/UI
+  contaOrigemId: origemId as any,
+  contaDestinoId: destinoId as any,
+} as any;
 
       // entrada (positiva) no destino
-      const entrada: Transaction = {
-        id: newId("tx"),
-        tipo: "receita" as any,
-        descricao: descFinal,
-        valor: Math.abs(valorNum),
-        data: formData,
-        categoria: "Transferência",
-        pago: transferenciaPagoInicial,
+const entrada: Transaction = {
+  id: newId("tx"),
+  tipo: "receita" as any,
+  descricao: descFinal,
+  valor: Math.abs(valorNum),
+  data: formData,
+  categoria: "Transferência",
+  pago: transferenciaPagoInicial,
 
-        profileId: destinoId as any,
-        contaId: destinoId as any,
+  profileId: destinoId as any,
+  contaId: destinoId as any,
+  qualConta: destinoId as any,
 
-        transferId: tid as any,
-        transferFromId: origemId as any,
-        transferToId: destinoId as any,
-        contraParte: origemNome as any,
+  transferId: tid as any,
+  transferFromId: origemId as any,
+  transferToId: destinoId as any,
+  contraParte: origemNome as any,
 
-        // pra filtro/UI
-        contaOrigemId: origemId as any,
-        contaDestinoId: destinoId as any,
+  // pra filtro/UI
+  contaOrigemId: origemId as any,
+  contaDestinoId: destinoId as any,
       } as any;
 
 const criadas = await salvarNoSupabase([saida, entrada]);

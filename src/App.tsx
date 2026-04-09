@@ -3849,7 +3849,7 @@ const spendingByCardData = useMemo<SpendingByCategoryDatum[]>(() => {
   const ym = String(filtroMesAnalise ?? "").trim();
   const perfilNorm = String(analisePerfilView ?? "geral").trim().toLowerCase();
 
-const cardsList = creditCards ?? [];
+const cardsList = activeCreditCards ?? [];
 
 const findCardFromTransaction = (t: any) => {
   const rawRefs = [
@@ -3945,7 +3945,7 @@ const filtered = (transacoes ?? []).filter((t: any) => {
       percentage: total > 0 ? ((value / total) * 100).toFixed(1) : "0.0",
     }))
     .sort((a, b) => b.value - a.value);
-}, [transacoes, filtroMesAnalise, analisePerfilView, creditCards]);
+}, [transacoes, filtroMesAnalise, analisePerfilView, activeCreditCards]);
 
 // --- Base anual da Projeção (independente do mês da aba Transações) ---
 const anoBaseProjecao = useMemo(() => getHojeLocal().slice(0, 4), []);

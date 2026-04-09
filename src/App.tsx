@@ -6585,6 +6585,57 @@ const despesasAtrasadasLista = despesasResumoLista
   })
   .sort((a: any, b: any) => String(a?.data ?? "").localeCompare(String(b?.data ?? "")));
 
+  const receitasEmAbertoResumo = (transacoes ?? [])
+  .filter((t: any) => {
+    const tipo = String(t?.tipo ?? "").trim().toLowerCase();
+    if (tipo !== "receita") return false;
+    if (Boolean(t?.pago)) return false;
+
+    const data = String(t?.data ?? "").trim();
+    if (!data) return false;
+
+    const perfilTx =
+      String((t as any)?.perfil ?? "").trim().toUpperCase() ||
+      resolvePerfilContaResumo(
+        (t as any)?.profileId ??
+          (t as any)?.contaId ??
+          (t as any)?.qualConta ??
+          ""
+      );
+
+    if (!pertenceAoResumoPerfil(perfilTx)) return false;
+
+    return true;
+  })
+  .sort((a: any, b: any) =>
+    String(a?.data ?? "").localeCompare(String(b?.data ?? ""))
+  );
+
+const receitasVencendoHojeLista = receitasEmAbertoResumo
+  .filter((t: any) => String(t?.data ?? "").trim() === hojeResumoStr)
+  .sort((a: any, b: any) =>
+    String(a?.data ?? "").localeCompare(String(b?.data ?? ""))
+  );
+
+const receitasAtrasadasLista = receitasEmAbertoResumo
+  .filter((t: any) => {
+    const data = String(t?.data ?? "").trim();
+    return !!data && data < hojeResumoStr;
+  })
+  .sort((a: any, b: any) =>
+    String(a?.data ?? "").localeCompare(String(b?.data ?? ""))
+  );
+
+const getResumoReceitaMeta = (t: any) => {
+  const categoria = String(
+    typeof t?.categoria === "string"
+      ? t?.categoria
+      : t?.categoria?.nome ?? t?.categoria?.label ?? t?.categoria?.value ?? ""
+  ).trim();
+
+  return categoria || "";
+};
+
 const getResumoDespesaMeta = (t: any) => {
   const categoria = String(t?.categoria ?? "").trim();
   const metodo = String(t?.metodoPagamento ?? t?.payload?.metodoPagamento ?? "").trim();
@@ -7097,16 +7148,21 @@ const semPrazoResumoAlertsContent =
 const resumoAlertsCount =
   despesasVencendoHojeLista.length +
   despesasAtrasadasLista.length +
+  receitasVencendoHojeLista.length +
+  receitasAtrasadasLista.length +
   cartoesVencendoHojeLista.length +
   cartoesAtrasadosLista.length +
   semPrazoActionAlerts.length +
   semPrazoEndedAlerts.length;
 
+
+  
 const resumoPanelContent = (
-<div className="space-y-4">
+<div className="h-full overflow-y-auto space-y-4 resumo-scroll pr-1">
+  {semPrazoResumoAlertsContent}
 
     <div className="mt-5 space-y-3">
-      <div className="py-4">
+      <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-4">
         <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
           Despesas vencendo hoje
         </div>
@@ -7209,7 +7265,111 @@ const resumoPanelContent = (
         </div>
       </div>
 
-      <div className="py-4">
+<div className="rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-4">
+  <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
+    Receitas vencendo hoje
+  </div>
+
+  <div className="mt-3 space-y-2">
+    {receitasVencendoHojeLista.length ? (
+      receitasVencendoHojeLista.map((t: any) => (
+        <div
+          key={`receita_hoje_${String(t?.id ?? "")}`}
+          className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-400/20 dark:bg-emerald-500/10"
+        >
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+              {String(t?.descricao ?? "Receita")}
+            </div>
+            <div className="mt-1 text-[11px] text-slate-500 dark:text-white/55">
+              {formatarData(String(t?.data ?? ""))}
+              {getResumoReceitaMeta(t) ? ` • ${getResumoReceitaMeta(t)}` : ""}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-300">
+              {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => togglePago(t)}
+              disabled={isTogglePagoLocked(t)}
+              className={[
+                "rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white transition",
+                isTogglePagoLocked(t)
+                  ? "opacity-60 cursor-not-allowed"
+                  : "hover:brightness-110",
+              ].join(" ")}
+              style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+            >
+              {isTogglePagoLocked(t) ? "Recebendo..." : "Receber"}
+            </button>
+          </div>
+        </div>
+      ))
+    ) : (
+      <div className="text-[12px] text-slate-500 dark:text-white/50">
+        Nenhuma receita vencendo hoje.
+      </div>
+    )}
+  </div>
+
+  <div className="mt-4 border-t border-slate-200 pt-3 dark:border-white/10">
+    <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
+      Em atraso
+    </div>
+
+    <div className="mt-3 space-y-2">
+      {receitasAtrasadasLista.length ? (
+        receitasAtrasadasLista.map((t: any) => (
+          <div
+            key={`receita_atraso_${String(t?.id ?? "")}`}
+            className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-400/20 dark:bg-amber-500/10"
+          >
+            <div className="min-w-0">
+              <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+                {String(t?.descricao ?? "Receita")}
+              </div>
+              <div className="mt-1 text-[11px] text-slate-500 dark:text-white/55">
+                {formatarData(String(t?.data ?? ""))}
+                {getResumoReceitaMeta(t) ? ` • ${getResumoReceitaMeta(t)}` : ""}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="text-[13px] font-semibold text-amber-600 dark:text-amber-300">
+                {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => togglePago(t)}
+                disabled={isTogglePagoLocked(t)}
+                className={[
+                  "rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white transition",
+                  isTogglePagoLocked(t)
+                    ? "opacity-60 cursor-not-allowed"
+                    : "hover:brightness-110",
+                ].join(" ")}
+                style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+              >
+                {isTogglePagoLocked(t) ? "Recebendo..." : "Receber"}
+              </button>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="text-[12px] text-slate-500 dark:text-white/50">
+          Nenhuma receita em atraso.
+        </div>
+      )}
+    </div>
+  </div>
+</div>
+
+      <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-4">
         <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
           Faturas vencendo hoje
         </div>
@@ -7299,7 +7459,6 @@ const resumoPanelContent = (
         </div>
       </div>
     </div>
-        {semPrazoResumoAlertsContent}
   </div>
 );
 

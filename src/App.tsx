@@ -5019,21 +5019,22 @@ else if (ehFixo) {
 
       // 3) À VISTA NORMAL
       else {
-        novos.push({
-          id: makeId("avista"),
-          tipo: "cartao_credito",
-          criadoEm: Date.now(),
-          descricao: descBase,
-          valor: -Math.abs(total),
-          data: baseDate.toISOString().split("T")[0],
-          faturaMes: getFaturaMesTx(baseDate.toISOString().split("T")[0]),
-          categoria: categoriaBase || undefined,
-          tag: tagCC || undefined,
-          tipoGasto: (formTipoGasto as any) ?? "",
-          qualCartao: selectedCreditCardId,
-          contaId: contaIdDoCartao,
-          pago: formPago,
-        } as any);
+novos.push({
+  id: makeId("avista"),
+  tipo: "cartao_credito",
+  criadoEm: Date.now(),
+  descricao: descBase,
+  valor: -Math.abs(total),
+  data: baseDate.toISOString().split("T")[0],
+  faturaMes: getFaturaMesTx(baseDate.toISOString().split("T")[0]),
+  categoria: categoriaBase || undefined,
+  tag: tagCC || undefined,
+  tipoGasto: (formTipoGasto as any) ?? "",
+  qualCartao: selectedCreditCardId,
+  cartaoId: selectedCreditCardId,
+  contaId: contaIdDoCartao,
+  pago: formPago,
+} as any);
       }
 
 if (tagCC && session?.user?.id) {

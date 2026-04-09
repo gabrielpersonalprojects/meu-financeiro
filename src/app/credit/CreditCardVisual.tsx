@@ -153,7 +153,7 @@ const mostrarFutura = !mostrarOculto && statusMiniCard === "futura";
 
 <div className="mt-[-2px] mb-2 flex items-center gap-2 text-[11px] text-white/80 whitespace-nowrap flex-wrap">
   {mostrarAtraso && (
-    <span className="inline-flex items-center rounded-full border border-rose-300/40 bg-rose-500/18 px-3 py-[5px] text-[11px] font-bold leading-none text-rose-100 shadow-sm backdrop-blur-sm">
+    <span className="inline-flex items-center rounded-full border border-red-300/60 bg-red-600/55 px-3 py-[5px] text-[11px] font-extrabold leading-none text-white">
       Em atraso
     </span>
   )}

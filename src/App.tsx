@@ -2805,13 +2805,67 @@ type CreditCard = {
 const makeId = () =>
   (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`)
 
-
-// se tiver cartões e nenhum selecionado, seleciona o primeiro
 useEffect(() => {
-  if (creditCards.length > 0 && !selectedCreditCardId) {
-    setSelectedCreditCardId(creditCards[0].id);
+  const firstActiveCardId = String(activeCreditCards[0]?.id ?? "").trim();
+  const currentSelectedCardId = String(selectedCreditCardId ?? "").trim();
+
+  if (!firstActiveCardId) {
+    if (currentSelectedCardId) {
+      setSelectedCreditCardId("");
+    }
+    return;
   }
-}, [creditCards, selectedCreditCardId]);
+
+  const selectedStillExists = activeCreditCards.some(
+    (c: any) => String(c?.id ?? "").trim() === currentSelectedCardId
+  );
+
+  if (!currentSelectedCardId || !selectedStillExists) {
+    setSelectedCreditCardId(firstActiveCardId);
+  }
+}, [activeCreditCards, selectedCreditCardId]);
+
+useEffect(() => {
+  const currentValue = String(formQualCartao ?? "").trim();
+
+  if (formTipo === "cartao_credito") {
+    const firstActiveCardId = String(activeCreditCards[0]?.id ?? "").trim();
+
+    if (!firstActiveCardId) {
+      if (currentValue) setFormQualCartao("");
+      return;
+    }
+
+    const currentCardStillExists = activeCreditCards.some(
+      (c: any) => String(c?.id ?? "").trim() === currentValue
+    );
+
+    if (!currentValue || !currentCardStillExists) {
+      setFormQualCartao(firstActiveCardId);
+    }
+
+    return;
+  }
+
+  if (formTipo === "receita" || formTipo === "despesa") {
+    const firstProfileId = String(profiles[0]?.id ?? "").trim();
+
+    if (!firstProfileId) {
+      if (currentValue) setFormQualCartao("");
+      return;
+    }
+
+    const currentProfileStillExists = profiles.some(
+      (p: any) => String(p?.id ?? "").trim() === currentValue
+    );
+
+    if (!currentValue || !currentProfileStillExists) {
+      setFormQualCartao(firstProfileId);
+    }
+
+    return;
+  }
+}, [formTipo, formQualCartao, activeCreditCards, profiles]);
 
 const formatBRLFromIntegers = (digits: string) => {
   const only = (digits || "").replace(/\D/g, "");
@@ -3106,13 +3160,6 @@ const [newCardLimite, setNewCardLimite] = useState("");
 const [newCardContaVinculadaId, setNewCardContaVinculadaId] = useState<string>("");
 
 
-// garante que, se existir cartão e não tiver seleção ainda, seleciona o primeiro
-
-useEffect(() => {
-  if (!selectedCreditCardId && creditCards.length > 0) {
-    setSelectedCreditCardId(creditCards[0].id);
-  }
-}, [creditCards, selectedCreditCardId]);
 
 const getCardLinkStats = useCallback(
   (rawCardId: any) => {
@@ -3190,13 +3237,13 @@ const handleDeactivateCreditCard = useCallback(
       return;
     }
 
-    const ok = await confirm({
-      title: "Desativar cartão",
-      message:
-        "Esta ação fará com que este cartão deixe de ser utilizado no app. Todas as transações, projeções, gráficos e demais informações vinculadas a ele deixarão de aparecer nos cálculos e nas análises enquanto o cartão estiver desativado. Você poderá reativá-lo depois, e nesse caso os dados voltarão a aparecer normalmente. Deseja desativar este cartão?",
-      confirmText: "Desativar",
-      cancelText: "Cancelar",
-    });
+const ok = await confirm({
+  title: "Desativar cartão",
+ message:
+  "Ao desativar este cartão, ele deixará de ser usado no app.\n\nAs informações vinculadas a ele deixarão de aparecer nas projeções, gráficos e análises enquanto ele permanecer desativado.\n\nVocê poderá reativá-lo depois, e os dados voltarão a aparecer normalmente.\n\nSe quiser excluir este cartão em definitivo, primeiro será necessário excluir todas as transações vinculadas a ele.",
+  confirmText: "Desativar",
+  cancelText: "Cancelar",
+});
 
     if (!ok) return;
 
@@ -3212,12 +3259,15 @@ const handleDeactivateCreditCard = useCallback(
             : x
         );
 
-        if (String(selectedCreditCardId ?? "").trim() === cardId) {
-          const primeiroAtivo = next.find((x: any) => x?.is_active !== false);
-          setSelectedCreditCardId(String(primeiroAtivo?.id ?? ""));
-          setIsCcExpanded(false);
-          setIsEditingLimite(false);
-        }
+if (String(selectedCreditCardId ?? "").trim() === cardId) {
+  const primeiroAtivo = next.find((x: any) => x?.is_active !== false);
+  const nextCardId = String(primeiroAtivo?.id ?? "").trim();
+
+  setSelectedCreditCardId(nextCardId);
+  setFormQualCartao(nextCardId);
+  setIsCcExpanded(false);
+  setIsEditingLimite(false);
+}
 
         return next;
       });
@@ -3275,6 +3325,9 @@ const handleReactivateCreditCard = useCallback(
             : x
         )
       );
+
+      setSelectedCreditCardId(cardId);
+setFormQualCartao(cardId);
 
       toastCompact("Cartão reativado com sucesso.", "success");
     } catch (err) {
@@ -6388,19 +6441,25 @@ if (saldoItem <= 0.009) return null;
   .filter(Boolean)
   .sort((a: any, b: any) => String(b.ciclo).localeCompare(String(a.ciclo)));
 
+const faturasFechadasAtrasadas = ciclosFechadosPendentes.filter(
+  (item: any) => item?.vencimento instanceof Date && item.vencimento.getTime() < hojeResumoDate.getTime()
+);
+
+const faturasFechadasAguardandoPagamento = ciclosFechadosPendentes.filter(
+  (item: any) => item?.vencimento instanceof Date && item.vencimento.getTime() >= hojeResumoDate.getTime()
+);
+
 const faturaFechadaMaisRecente =
   ciclosFechadosPendentes.length > 0 ? ciclosFechadosPendentes[0] : undefined;
 
-const faturasFechadasAnterioresPendentes =
-  ciclosFechadosPendentes.length > 1 ? ciclosFechadosPendentes.slice(1) : [];
-
-const existeFaturaAtrasada = faturasFechadasAnterioresPendentes.length > 0;
+const existeFaturaAtrasada = faturasFechadasAtrasadas.length > 0;
 
 const faturaFechadaAguardandoPagamento =
-  !existeFaturaAtrasada ? faturaFechadaMaisRecente : undefined;
+  faturasFechadasAguardandoPagamento.length > 0
+    ? faturasFechadasAguardandoPagamento[0]
+    : undefined;
 
 const existeFaturaFechadaPendente =
-  !existeFaturaAtrasada &&
   Boolean(faturaFechadaAguardandoPagamento) &&
   Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0)) > 0;
 
@@ -6416,8 +6475,8 @@ if (String(c?.emissor ?? "").toLowerCase().includes("nubank") || String(c?.emiss
         existeFaturaFechadaPendente,
         faturaFechadaAguardandoPagamento,
         faturaFechadaMaisRecente,
-        faturasFechadasAnterioresPendentes,
-        pagamentosDoCartao: (pagamentosFatura ?? [])
+        faturasFechadasAtrasadas,
+pagamentosDoCartao: (pagamentosFatura ?? [])
           .filter((p: any) => String(p?.cartaoId ?? "").trim() === cartaoId)
           .map((p: any) => ({
             id: p?.id,
@@ -6439,30 +6498,32 @@ if (existeFaturaFechadaPendente && faturaFechadaAguardandoPagamento) {
     Number(faturaFechadaAguardandoPagamento.saldo || 0)
   );
 
-if (!cartoesFechadosAguardandoPagamentoKeys.has(cartaoId)) {
-  cartoesFechadosAguardandoPagamentoKeys.add(cartaoId);
+  const pendenteKey = `${cartaoId}__${String(faturaFechadaAguardandoPagamento.ciclo)}`;
 
-  cartoesFechadosAguardandoPagamentoLista.push({
-    cartaoId,
-    label: labelCartaoResumo,
-    ciclo,
-  });
-}
+  if (!cartoesFechadosAguardandoPagamentoKeys.has(pendenteKey)) {
+    cartoesFechadosAguardandoPagamentoKeys.add(pendenteKey);
+
+    cartoesFechadosAguardandoPagamentoLista.push({
+      cartaoId,
+      label: labelCartaoResumo,
+      ciclo: String(faturaFechadaAguardandoPagamento.ciclo),
+    });
+  }
 }
 
-faturasFechadasAnterioresPendentes.forEach((item: any) => {
+faturasFechadasAtrasadas.forEach((item: any) => {
   resumoCartoesAtrasadasValor += Math.max(0, Number(item?.saldo || 0));
-const atrasoKey = `${cartaoId}__${ciclo}`;
+  const atrasoKey = `${cartaoId}__${String(item?.ciclo ?? "")}`;
 
-if (!cartoesAtrasadosKeys.has(atrasoKey)) {
-  cartoesAtrasadosKeys.add(atrasoKey);
+  if (!cartoesAtrasadosKeys.has(atrasoKey)) {
+    cartoesAtrasadosKeys.add(atrasoKey);
 
-  cartoesAtrasadosLista.push({
-    cartaoId,
-    label: labelCartaoResumo,
-    ciclo,
-  });
-}
+    cartoesAtrasadosLista.push({
+      cartaoId,
+      label: labelCartaoResumo,
+      ciclo: String(item?.ciclo ?? ""),
+    });
+  }
 });
 
   });
@@ -6637,7 +6698,7 @@ const expensePanelContent = (
     onboardingStep={onboardingStep}
     formTipo={formTipo}
     setFormTipo={setFormTipo}
-    creditCards={creditCards}
+    creditCards={activeCreditCards as any}
     selectedCreditCardId={selectedCreditCardId}
     setSelectedCreditCardId={setSelectedCreditCardId}
     openAddAccountModal={openAddAccountModal}
@@ -6710,7 +6771,7 @@ const incomePanelContent = (
     onboardingStep={onboardingStep}
     formTipo={formTipo}
     setFormTipo={setFormTipo}
-    creditCards={creditCards}
+    creditCards={activeCreditCards as any}
     selectedCreditCardId={selectedCreditCardId}
     setSelectedCreditCardId={setSelectedCreditCardId}
     openAddAccountModal={openAddAccountModal}
@@ -6783,7 +6844,7 @@ const transferPanelContent = (
     onboardingStep={onboardingStep}
     formTipo={formTipo}
     setFormTipo={setFormTipo}
-    creditCards={creditCards}
+    creditCards={activeCreditCards as any}
     selectedCreditCardId={selectedCreditCardId}
     setSelectedCreditCardId={setSelectedCreditCardId}
     openAddAccountModal={openAddAccountModal}
@@ -6856,7 +6917,7 @@ const cardsPanelContent = (
     onboardingStep={onboardingStep}
     formTipo={formTipo}
     setFormTipo={setFormTipo}
-    creditCards={creditCards}
+    creditCards={activeCreditCards as any}
     selectedCreditCardId={selectedCreditCardId}
     setSelectedCreditCardId={setSelectedCreditCardId}
     openAddAccountModal={openAddAccountModal}
@@ -8079,24 +8140,32 @@ const cicloAtualFechadoAguardandoPagamento =
               vencimento: Date;
             }>;
 
+const faturasFechadasAtrasadas = ciclosFechadosPendentes.filter((item: any) => {
+  const vencimentoTime = item?.vencimento instanceof Date ? item.vencimento.getTime() : Number.NaN;
+  return Number.isFinite(vencimentoTime) && vencimentoTime < hojeNoCicloAtual.getTime();
+});
+
+const faturasFechadasAguardandoPagamento = ciclosFechadosPendentes.filter((item: any) => {
+  const vencimentoTime = item?.vencimento instanceof Date ? item.vencimento.getTime() : Number.NaN;
+  return Number.isFinite(vencimentoTime) && vencimentoTime >= hojeNoCicloAtual.getTime();
+});
+
 const faturaFechadaMaisRecente =
   ciclosFechadosPendentes.length > 0 ? ciclosFechadosPendentes[0] : undefined;
 
-const faturasFechadasAnterioresPendentes =
-  ciclosFechadosPendentes.length > 1 ? ciclosFechadosPendentes.slice(1) : [];
+const existeFaturaAtrasada = faturasFechadasAtrasadas.length > 0;
 
-const existeFaturaAtrasada = faturasFechadasAnterioresPendentes.length > 0;
-
-const valorEmAtraso = faturasFechadasAnterioresPendentes.reduce(
-  (acc, item) => acc + Math.max(0, item.saldo),
+const valorEmAtraso = faturasFechadasAtrasadas.reduce(
+  (acc: number, item: any) => acc + Math.max(0, Number(item?.saldo || 0)),
   0
 );
 
 const faturaFechadaAguardandoPagamento =
-  !existeFaturaAtrasada ? faturaFechadaMaisRecente : undefined;
+  faturasFechadasAguardandoPagamento.length > 0
+    ? faturasFechadasAguardandoPagamento[0]
+    : undefined;
 
 const existeFaturaFechadaPendente =
-  !existeFaturaAtrasada &&
   Boolean(faturaFechadaAguardandoPagamento) &&
   Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0)) > 0;
 
@@ -8264,12 +8333,15 @@ className={[
       setCreditCards((prev) => {
         const next = prev.filter((x) => x.id !== c.id);
 
-        if (selectedCreditCardId === c.id) {
-          const primeiroAtivo = next.find((x: any) => (x as any)?.is_active !== false);
-          setSelectedCreditCardId(primeiroAtivo?.id ?? "");
-          setIsCcExpanded(false);
-          setIsEditingLimite(false);
-        }
+if (selectedCreditCardId === c.id) {
+  const primeiroAtivo = next.find((x: any) => (x as any)?.is_active !== false);
+  const nextCardId = String(primeiroAtivo?.id ?? "").trim();
+
+  setSelectedCreditCardId(nextCardId);
+  setFormQualCartao(nextCardId);
+  setIsCcExpanded(false);
+  setIsEditingLimite(false);
+}
 
         return next;
       });
@@ -9972,9 +10044,27 @@ profiles.map((p) => {
         {confirmState.title}
       </div>
 
-      <div className="mt-2 text-sm text-white/80">
-        {confirmState.message}
-      </div>
+<div className="mt-4 space-y-3">
+  {String(confirmState.message ?? "")
+    .split("\n\n")
+    .filter(Boolean)
+    .map((paragraph, index, arr) => {
+      const isLast = index === arr.length - 1;
+
+      return (
+        <p
+          key={`${index}-${paragraph.slice(0, 20)}`}
+          className={
+            isLast
+              ? "text-[12px] leading-5 text-white/55"
+              : "text-[15px] leading-6 text-white/82"
+          }
+        >
+          {paragraph}
+        </p>
+      );
+    })}
+</div>
 
       <div className="mt-5 flex items-center justify-end gap-3">
         <button

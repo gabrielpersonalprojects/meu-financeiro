@@ -52,9 +52,23 @@ export function UIOverlays({
             </h3>
           ) : null}
 
-          <p id="ui-modal-message" className="ui-modal-message">
-            {confirmOpts.message}
-          </p>
+<div id="ui-modal-message" className="mt-4">
+  {(() => {
+    const parts = String(confirmOpts.message ?? "")
+      .split("\n\n")
+      .filter(Boolean);
+
+    const body = parts.slice(0, -1).join(" ");
+    const note = parts[parts.length - 1] ?? "";
+
+    return (
+      <>
+        {body ? <p className="ui-modal-message">{body}</p> : null}
+        {note ? <p className="ui-modal-note">{note}</p> : null}
+      </>
+    );
+  })()}
+</div>
 
           <div className="ui-modal-actions">
             <button className="ui-btn ui-btn-ghost" onClick={() => onCloseConfirm(false)}>

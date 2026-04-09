@@ -174,10 +174,10 @@ const renderedValue = renderValue ? renderValue(displayValue) : displayValue;
             border border-slate-200 bg-white shadow-lg text-slate-900
             dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
         >
-          <div
-            className="overflow-y-auto overflow-x-hidden overscroll-y-contain"
-            style={{ maxHeight: menuMaxH }}
-          >
+<div
+  className="overflow-y-auto overflow-x-hidden overscroll-y-contain [scrollbar-width:thin] [scrollbar-color:rgba(64,0,156,0.55)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#40009c]/55 hover:[&::-webkit-scrollbar-thumb]:bg-[#40009c]/80"
+  style={{ maxHeight: menuMaxH }}
+>
             {onAddNew && (
               <button
                 type="button"

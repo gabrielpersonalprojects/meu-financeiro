@@ -573,14 +573,14 @@ label: (
  
 
 <div className="w-full sm:w-auto lg:ml-auto shrink-0 flex justify-end">
-  <button
-    type="button"
-    onClick={handleLimparFiltros}
-    title="Limpar filtros"
-    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.05] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
-  >
-    <RotateCcw className="h-4 w-4" />
-  </button>
+<button
+  type="button"
+  onClick={handleLimparFiltros}
+  title="Limpar filtros"
+  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
+>
+  <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
+</button>
 </div>
 </div>
 </div>
@@ -791,9 +791,9 @@ label: (
   type="button"
   onClick={() => setOrganizacaoLista("status")}
   title="Voltar ao padrão"
-  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.05] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
+  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
 >
-  <RotateCcw className="h-4 w-4" />
+  <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
 </button>
   </div>
 </div>

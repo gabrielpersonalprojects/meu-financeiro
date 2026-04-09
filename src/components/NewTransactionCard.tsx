@@ -542,7 +542,7 @@ const ccCategoryOptions = despesaCategoryOptions;
         {isTagOpen && (ccTags?.length ?? 0) > 0 && (
           <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-lg">
           <div className="p-1">
-<div className="max-h-[232px] overflow-y-auto px-1">
+<div className="max-h-[232px] overflow-y-auto px-1 [scrollbar-width:thin] [scrollbar-color:rgba(64,0,156,0.55)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#40009c]/55 hover:[&::-webkit-scrollbar-thumb]:bg-[#40009c]/80">
   {(ccTags || [])
     .filter((t) => {
       const q = (formTagCC || "").trim().toLowerCase();

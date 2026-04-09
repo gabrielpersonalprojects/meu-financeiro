@@ -7909,7 +7909,7 @@ if (activeTab === "cartoes" && tab !== "cartoes") {
   {tab === "transacoes" ? (
     <>
 <Home
-  className="hidden md:block h-[16px] w-[16px] mr-12 text-slate-400/90 dark:text-slate-400 transition-all duration-200 group-hover:text-violet-200 group-hover:scale-125 group-active:scale-95"
+  className="relative top-[1px] hidden md:block h-[17px] w-[17px] mr-12 text-slate-600 dark:text-slate-400 transition-all duration-200 group-hover:text-violet-600 dark:group-hover:text-violet-200 group-hover:scale-125 group-active:scale-95"
   strokeWidth={2.2}
 />
 
@@ -9954,7 +9954,7 @@ const isRecorrenciaComumBtn =
 {/* modal */}
 <div className="absolute inset-0 flex items-center justify-center p-4">
   <div className="w-full max-w-[460px] rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-200/10 dark:bg-slate-900/90">
-<div className="px-4 py-3 border-b border-slate-200 dark:border-slate-200/10 flex items-start justify-between gap-3">
+<div className="px-5 py-4 border-b border-[#4600ac]/10 dark:border-white/10 flex items-start justify-between gap-3">
   <div>
     <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.18em] dark:text-slate-400">
       {editingProfileId ? "Editar conta" : "Nova conta"}
@@ -10016,8 +10016,8 @@ const isRecorrenciaComumBtn =
               onClick={() => setAccPerfilConta("PF")}
               className={`py-1.5 rounded-lg border text-sm font-bold transition ${
                 accPerfilConta === "PF"
-                  ? "bg-indigo-600 border-indigo-500 text-white"
-                  : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+  ? "border-[#4600ac] bg-gradient-to-r from-[#220055] to-[#4600ac] text-white shadow-[0_12px_28px_-18px_rgba(70,0,172,0.65)]"
+  : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-[#4600ac]/[0.06] hover:border-[#4600ac]/25 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-white/10"
               }`}
             >
               PF
@@ -10027,9 +10027,9 @@ const isRecorrenciaComumBtn =
               type="button"
               onClick={() => setAccPerfilConta("PJ")}
               className={`py-1.5 rounded-lg border text-sm font-bold transition ${
-                accPerfilConta === "PJ"
-                  ? "bg-indigo-600 border-indigo-500 text-white"
-                  : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+accPerfilConta === "PJ"
+  ? "border-[#4600ac] bg-gradient-to-r from-[#220055] to-[#4600ac] text-white shadow-[0_12px_28px_-18px_rgba(70,0,172,0.65)]"
+  : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-[#4600ac]/[0.06] hover:border-[#4600ac]/25 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-white/10"
               }`}
             >
               PJ
@@ -10204,7 +10204,7 @@ profiles.map((p) => {
             setIsAddAccountOpen(false);
             setEditingProfileId(null);
           }}
-         className="flex-1 py-2 rounded-lg border border-slate-300 bg-slate-100 text-sm text-slate-700 font-bold hover:bg-slate-200 transition dark:border-slate-700 dark:bg-slate-800/60"
+    className="flex-1 h-11 rounded-2xl border border-[#4600ac]/12 bg-[#4600ac]/[0.04] text-sm text-[#220055] font-extrabold transition hover:bg-[#4600ac]/[0.08] dark:border-white/10 dark:bg-white/5 dark:text-white"
         >
           Cancelar
         </button>
@@ -10216,7 +10216,7 @@ profiles.map((p) => {
     if (isSavingAccount) return;
     handleConfirmAddAccount();
   }}
-  className="flex-1 py-2 rounded-lg bg-indigo-600 text-sm text-white font-extrabold hover:bg-indigo-500 transition"
+className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac] text-sm text-white font-extrabold shadow-[0_18px_35px_-20px_rgba(70,0,172,0.75)] transition-all hover:brightness-110 active:scale-[0.99]"
 >
   {isSavingAccount
     ? "Salvando..."

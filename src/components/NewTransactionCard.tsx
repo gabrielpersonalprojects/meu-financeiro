@@ -509,8 +509,8 @@ const ccCategoryOptions = despesaCategoryOptions;
   <div className="mt-1 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
     <div className="min-w-0 w-full">
       <div className="w-full">
-        <CustomDropdown
-          label="Cartão"
+<CustomDropdown
+  label="Cartão *"
           value={ccCardValue}
           options={ccCardOptions as any}
           onSelect={(val) => setSelectedCreditCardId(String(val))}
@@ -601,9 +601,9 @@ const ccCategoryOptions = despesaCategoryOptions;
 
         {/* Descrição */}
         <div>
-          <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-            Descrição
-          </label>
+<label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+  Descrição <span className="text-violet-600 dark:text-violet-400">*</span>
+</label>
           <input
             type="text"
             value={formDesc}
@@ -622,7 +622,9 @@ const ccCategoryOptions = despesaCategoryOptions;
         <div className="flex gap-3">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1.5">
-              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Valor (R$)</label>
+            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
+  Valor (R$) <span className="text-violet-600 dark:text-violet-400">*</span>
+</label>
 
 {!isCC && (
   <label className="flex items-center gap-2 ml-2">
@@ -651,7 +653,7 @@ const ccCategoryOptions = despesaCategoryOptions;
           </div>
 
           <div className="flex-1">
-            <CustomDateInput label="Data" value={formData} onChange={setFormData} />
+            <CustomDateInput label="Data *" value={formData} onChange={setFormData} />
           </div>
         </div>
 
@@ -728,10 +730,10 @@ onClick={() => {
         />
       </div>
     ) : (
-      <CustomDropdown
-        label="Tipo de Gasto"
-        value={formTipoGasto}
-        options={["Variável", "Fixo"] as any}
+<CustomDropdown
+  label="Tipo de Gasto *"
+  value={formTipoGasto}
+  options={["Variável", "Fixo"] as any}
         onSelect={(val) => {
           setFormTipoGasto(val);
           if (String(val) !== "Fixo") {
@@ -816,9 +818,9 @@ onClick={() => {
   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
     {/* DESPESA: Conta no lugar da Categoria | RECEITA: Categoria normal */}
     {formTipo === "despesa" ? (
-      <CustomDropdown
-        label="Conta"
-        value={formQualCartao}
+<CustomDropdown
+  label="Conta *"
+  value={formQualCartao}
         options={profiles.map((p) => ({ label: getProfileLabel(p), value: p.id })) as any}
         onSelect={(val) => setFormQualCartao(String(val))}
         onAddNew={() => {
@@ -862,8 +864,8 @@ onClick={() => {
         onSelect={(val) => setFormMetodo(val as PaymentMethod)}
       />
     ) : (
-      <CustomDropdown
-        label="Conta"
+<CustomDropdown
+  label="Conta *"
         value={formQualCartao}
         options={profiles.map((p) => ({ label: getProfileLabel(p), value: p.id })) as any}
         onSelect={(val) => setFormQualCartao(String(val))}
@@ -951,10 +953,10 @@ onClick={() => {
                     />
                   </div>
                 ) : (
-                  <CustomDropdown
-                    label="Tipo de Gasto"
-                    value={formTipoGasto}
-                    options={["Variável", "Fixo"] as any}
+<CustomDropdown
+  label="Tipo de Gasto *"
+  value={formTipoGasto}
+  options={["Variável", "Fixo"] as any}
                     onSelect={(val) => {
                       setFormTipoGasto(val);
                       if (String(val) !== "Fixo") {
@@ -982,12 +984,12 @@ onClick={() => {
         {formTipo === "transferencia" && (
           <div className="mt-2">
             <div className="grid grid-cols-[minmax(0,1fr)_44px_minmax(0,1fr)] gap-x-3 gap-y-1 items-end">
-              <p className="col-start-1 row-start-1 pl-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                Origem
-              </p>
-              <p className="col-start-3 row-start-1 pl-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                Destino
-              </p>
+<p className="col-start-1 row-start-1 pl-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+  Origem <span className="text-violet-600 dark:text-violet-400">*</span>
+</p>
+<p className="col-start-3 row-start-1 pl-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+  Destino <span className="text-violet-600 dark:text-violet-400">*</span>
+</p>
 
               <div className="col-start-1 row-start-2 min-w-0">
                 <button

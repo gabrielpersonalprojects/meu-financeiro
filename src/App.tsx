@@ -8965,9 +8965,9 @@ if (selectedCreditCardId === c.id) {
 
       <div className="space-y-2">
         <div>
-          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
-            Nome impresso no cartão
-          </label>
+<label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+  Nome impresso no cartão <span className="text-violet-600 dark:text-violet-400">*</span>
+</label>
           <input
             value={ccNome}
             onChange={(e) => setCcNome(e.target.value)}
@@ -9065,9 +9065,9 @@ if (selectedCreditCardId === c.id) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
-              Banco emissor
-            </label>
+<label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+  Banco emissor <span className="text-violet-600 dark:text-violet-400">*</span>
+</label>
             <input
               value={ccEmissor}
               onChange={(e) => setCcEmissor(e.target.value)}
@@ -9105,9 +9105,9 @@ if (selectedCreditCardId === c.id) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
-              Dia de fechamento
-            </label>
+<label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+  Dia de fechamento <span className="text-violet-600 dark:text-violet-400">*</span>
+</label>
             <input
               type="text"
               value={ccFechamento}
@@ -9120,9 +9120,9 @@ if (selectedCreditCardId === c.id) {
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
-              Dia de vencimento
-            </label>
+<label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+  Dia de vencimento <span className="text-violet-600 dark:text-violet-400">*</span>
+</label>
             <input
               type="text"
               value={ccVencimento}
@@ -10061,9 +10061,9 @@ accPerfilConta === "PJ"
         {/* Banco / Conta / Agência */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <div className="md:col-span-1">
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 dark:text-slate-400">
-              Banco
-            </label>
+<label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 dark:text-slate-400">
+  Banco <span className="text-violet-600 dark:text-violet-400">*</span>
+</label>
             <input
               value={accBanco}
               onChange={(e) =>

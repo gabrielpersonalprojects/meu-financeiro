@@ -128,11 +128,18 @@ const renderedValue = renderValue ? renderValue(displayValue) : displayValue;
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
-      {label && (
-        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-          {label}
-        </label>
-      )}
+{label && (
+  <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+    {String(label).includes("*") ? (
+      <>
+        {String(label).replace("*", "").trim()}{" "}
+        <span className="text-violet-600 dark:text-violet-400">*</span>
+      </>
+    ) : (
+      label
+    )}
+  </label>
+)}
 
 <button
   type="button"

@@ -112,11 +112,18 @@ const CustomDateInput: FC<{
 
     return (
       <div ref={wrapperRef} className={`w-full ${className}`}>
-        {label && (
-          <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-            {label}
-          </label>
-        )}
+{label && (
+  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+    {String(label).includes("*") ? (
+      <>
+        {String(label).replace("*", "").trim()}{" "}
+        <span className="text-violet-600 dark:text-violet-400">*</span>
+      </>
+    ) : (
+      label
+    )}
+  </label>
+)}
 
         <div className="relative">
           <button
@@ -205,11 +212,18 @@ const CustomDateInput: FC<{
 
   return (
     <div ref={wrapperRef} className={`w-full ${className}`}>
-      {label && (
-        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-          {label}
-        </label>
-      )}
+{label && (
+  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+    {String(label).includes("*") ? (
+      <>
+        {String(label).replace("*", "").trim()}{" "}
+        <span className="text-violet-600 dark:text-violet-400">*</span>
+      </>
+    ) : (
+      label
+    )}
+  </label>
+)}
 
       <div className="relative">
         <button

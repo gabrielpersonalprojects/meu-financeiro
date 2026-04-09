@@ -4947,7 +4947,7 @@ getCardCycleMonthFromDate(
           const d = addMonthsSafe(baseDate, i);
 
 novos.push({
-  id: makeId(String(i)),
+  id: makeId(`parc_${i}`),
   tipo: "cartao_credito",
   criadoEm: Date.now(),
   descricao: `${descBase} (${i + 1}/${parcelas})`,
@@ -4958,6 +4958,7 @@ novos.push({
   tag: tagCC || undefined,
   tipoGasto: "fixo",
   qualCartao: selectedCreditCardId,
+  cartaoId: selectedCreditCardId,
   contaId: contaIdDoCartao,
   pago: i === 0 ? formPago : false,
   recorrenciaId,

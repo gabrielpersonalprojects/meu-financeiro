@@ -20,7 +20,7 @@ export function AppHeader({
           <img
             src="/logo_tela_do_app.svg"
             alt="Logo FluxMoney"
-            className="h-14 w-auto select-none invert-0 dark:invert-0 dark:brightness-150 dark:contrast-110"
+            className="h-[80px] w-auto select-none invert-0 dark:invert-0 dark:brightness-150 dark:contrast-110"
           />
         </a>
 
@@ -55,7 +55,7 @@ export function AppHeader({
           <img
             src="/logo_tela_do_app.svg"
             alt="Logo FluxMoney"
-           className="h-14 w-auto select-none invert-0 dark:invert-0 dark:brightness-150 dark:contrast-110"
+           className="h-[80px] w-auto select-none invert-0 dark:invert-0 dark:brightness-150 dark:contrast-110"
           />
         </a>
 

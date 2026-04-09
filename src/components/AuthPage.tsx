@@ -307,7 +307,11 @@ async function onEntrar(e: FormEvent) {
         {/* Header */}
         <div className="px-7 pt-6 pb-3">
           <div className="flex flex-col items-center">
-            <img src={LOGO_SRC} alt="Logo" className="w-[165px] h-[165px] object-contain drop-shadow" />
+<img
+  src={LOGO_SRC}
+  alt="Logo"
+  className="mt-2 w-[202px] h-[202px] object-contain drop-shadow md:w-[212px] md:h-[212px]"
+/>
             <div className="mt-6 w-full h-px bg-white/20" />
           </div>
 

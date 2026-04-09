@@ -8402,7 +8402,7 @@ className={[
 
               {isCardInactive && (
   <div className="mt-2 flex justify-end">
-    <span className="inline-flex items-center rounded-full bg-white/10 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-white/80">
+    <span className="inline-flex items-center rounded-full border border-[#4600ac]/25 bg-[#4600ac]/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#4600ac] dark:border-white/10 dark:bg-white/10 dark:text-white/80">
       Desativado
     </span>
   </div>

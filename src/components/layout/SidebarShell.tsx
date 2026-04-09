@@ -226,14 +226,18 @@ export default function SidebarShell({
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white">
       {/* BOTÃO MOBILE */}
-      <button
-        type="button"
-        onClick={() => setMobileMenuOpen(true)}
-        aria-label="Abrir menu"
-        className="fixed left-4 top-4 z-[120] flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-[#40009c] shadow-md transition hover:scale-[1.02] dark:border-white/10 dark:bg-slate-900 dark:text-white md:hidden"
-      >
-        <Menu size={20} />
-      </button>
+<button
+  type="button"
+  onClick={() => setMobileMenuOpen(true)}
+  aria-label="Abrir menu"
+  className="fixed left-4 top-4 z-[120] flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-[#40009c] shadow-md transition hover:scale-[1.02] md:hidden dark:border-white/10 dark:bg-slate-900 dark:text-white"
+>
+  <img
+    src="/favicon.png"
+    alt="FluxMoney"
+    className="h-6 w-6 object-contain"
+  />
+</button>
 
       {/* SIDEBAR DESKTOP */}
       <aside
@@ -243,30 +247,43 @@ export default function SidebarShell({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <div
-          className="flex items-center gap-3 border-b border-slate-200 px-5 dark:border-white/10"
-          style={{ height: "88px" }}
-        >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#40009c]/10 text-[#40009c] dark:bg-[#40009c]/15 dark:text-white">
-            <Wallet size={22} />
-          </div>
+<div
+  className="flex h-[88px] items-center justify-center border-b border-slate-200 px-4 dark:border-white/10"
+>
+<div className="flex items-center gap-2">
+  <a
+    href="https://fluxmoneyapp.com.br"
+    target="_blank"
+    rel="noreferrer"
+    title="Ir para o site do FluxMoney"
+    aria-label="Ir para o site do FluxMoney"
+    className="flex h-8 w-8 shrink-0 items-center justify-center"
+  >
+    <img
+      src="/favicon.png"
+      alt="FluxMoney"
+      className="block h-8 w-8 object-contain"
+    />
+  </a>
 
-          <div
-            className={`overflow-hidden transition-all duration-300 ${
-              sidebarExpanded ? "max-w-[180px] opacity-100" : "max-w-0 opacity-0"
-            }`}
-          >
-            <div className="whitespace-nowrap text-[28px] font-medium tracking-[-0.02em] text-[#40009c] dark:text-white">
-              Menu
-            </div>
-           <div className="mt-0 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
-              {(() => {
-                const email = userEmail ?? "";
-                const atIndex = email.indexOf("@");
-                return atIndex >= 0 ? email.slice(0, atIndex + 1) : email;
-              })()}
-            </div>
-          </div>
+  <div
+    className={`overflow-hidden transition-all duration-300 ${
+      sidebarExpanded ? "max-w-[170px] opacity-100" : "max-w-0 opacity-0"
+    }`}
+  >
+    <div className="whitespace-nowrap text-[24px] leading-none font-semibold tracking-[-0.02em] text-[#40009c] dark:text-white">
+      Menu
+    </div>
+
+    <div className="mt-1 whitespace-nowrap text-[12px] leading-[1.2] font-light text-slate-400 dark:text-slate-500">
+      {(() => {
+        const email = userEmail ?? "";
+        const atIndex = email.indexOf("@");
+        return atIndex >= 0 ? email.slice(0, atIndex + 1) : email;
+      })()}
+    </div>
+  </div>
+</div>
         </div>
 
         <nav className="flex flex-col gap-2 p-4">
@@ -359,10 +376,12 @@ export default function SidebarShell({
             className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 dark:border-white/10"
             style={{ height: "88px" }}
           >
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#40009c]/10 text-[#40009c] dark:bg-[#40009c]/15 dark:text-white">
-                <Wallet size={22} />
-              </div>
+<div className="flex items-center gap-3">
+  <img
+    src="/favicon.png"
+    alt="FluxMoney"
+    className="block h-10 w-10 shrink-0 object-contain"
+  />
 
               <div className="overflow-hidden">
                 <div className="whitespace-nowrap text-[24px] font-medium tracking-[-0.02em] text-[#40009c] dark:text-white">

@@ -136,8 +136,8 @@ const [paginaAtual, setPaginaAtual] = useState(1);
 const [mostrarValoresResumo, setMostrarValoresResumo] = useState(true);
 const [organizacaoLista, setOrganizacaoLista] = useState<
   | "status"
-  | "recentes"
-  | "antigas"
+  | "proximas"
+  | "distantes"
   | "receitas_primeiro"
   | "despesas_primeiro"
   | "valor_crescente"
@@ -208,17 +208,17 @@ const sortedTransactions = useMemo(() => {
     return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
   };
 
-  const compareRecentes = (a: any, b: any) => {
-    const diff = toDateNumber(b?.data) - toDateNumber(a?.data);
-    if (diff !== 0) return diff;
-    return compareStable(a, b);
-  };
+const compareProximas = (a: any, b: any) => {
+  const diff = toDateNumber(a?.data) - toDateNumber(b?.data);
+  if (diff !== 0) return diff;
+  return compareStable(a, b);
+};
 
-  const compareAntigas = (a: any, b: any) => {
-    const diff = toDateNumber(a?.data) - toDateNumber(b?.data);
-    if (diff !== 0) return diff;
-    return compareStable(a, b);
-  };
+const compareDistantes = (a: any, b: any) => {
+  const diff = toDateNumber(b?.data) - toDateNumber(a?.data);
+  if (diff !== 0) return diff;
+  return compareStable(a, b);
+};
 
   const compareStatusAtual = (a: any, b: any) => {
     const aPaid = isPaid(a?.pago);
@@ -251,34 +251,34 @@ const sortedTransactions = useMemo(() => {
   };
 
   return [...getFilteredTransactions].sort((a: any, b: any) => {
-    if (organizacaoLista === "recentes") {
-      return compareRecentes(a, b);
-    }
+if (organizacaoLista === "proximas") {
+  return compareProximas(a, b);
+}
 
-    if (organizacaoLista === "antigas") {
-      return compareAntigas(a, b);
-    }
+if (organizacaoLista === "distantes") {
+  return compareDistantes(a, b);
+}
 
-    if (organizacaoLista === "receitas_primeiro") {
-      const aPriority = isReceita(a) ? 0 : 1;
-      const bPriority = isReceita(b) ? 0 : 1;
-      if (aPriority !== bPriority) return aPriority - bPriority;
-      return compareRecentes(a, b);
-    }
+if (organizacaoLista === "receitas_primeiro") {
+  const aPriority = isReceita(a) ? 0 : 1;
+  const bPriority = isReceita(b) ? 0 : 1;
+  if (aPriority !== bPriority) return aPriority - bPriority;
+  return compareProximas(a, b);
+}
 
-    if (organizacaoLista === "despesas_primeiro") {
-      const aPriority = isDespesa(a) ? 0 : 1;
-      const bPriority = isDespesa(b) ? 0 : 1;
-      if (aPriority !== bPriority) return aPriority - bPriority;
-      return compareRecentes(a, b);
-    }
+if (organizacaoLista === "despesas_primeiro") {
+  const aPriority = isDespesa(a) ? 0 : 1;
+  const bPriority = isDespesa(b) ? 0 : 1;
+  if (aPriority !== bPriority) return aPriority - bPriority;
+  return compareProximas(a, b);
+}
 
 if (organizacaoLista === "valor_crescente") {
   const aValue = Math.abs(Number(a?.valor ?? 0));
   const bValue = Math.abs(Number(b?.valor ?? 0));
   const diff = aValue - bValue;
   if (diff !== 0) return diff;
-  return compareRecentes(a, b);
+  return compareProximas(a, b);
 }
 
 if (organizacaoLista === "valor_decrescente") {
@@ -286,7 +286,7 @@ if (organizacaoLista === "valor_decrescente") {
   const bValue = Math.abs(Number(b?.valor ?? 0));
   const diff = bValue - aValue;
   if (diff !== 0) return diff;
-  return compareRecentes(a, b);
+  return compareProximas(a, b);
 }
 
     return compareStatusAtual(a, b);
@@ -742,37 +742,37 @@ label: (
     <div className="w-full sm:w-[220px]">
 <CustomDropdown
   placeholder="Organizar"
-  value={
-    organizacaoLista === "receitas_primeiro"
-      ? "Receitas primeiro"
-      : organizacaoLista === "despesas_primeiro"
-      ? "Despesas primeiro"
-      : organizacaoLista === "valor_crescente"
-      ? "Valor crescente"
-      : organizacaoLista === "valor_decrescente"
-      ? "Valor decrescente"
-      : organizacaoLista === "recentes"
-      ? "Mais recentes"
-      : organizacaoLista === "antigas"
-      ? "Mais antigas"
-      : "Organizar"
-  }
-  options={[
-    "Receitas primeiro",
-    "Despesas primeiro",
-    "Valor crescente",
-    "Valor decrescente",
-    "Mais recentes",
-    "Mais antigas",
-  ]}
-  onSelect={(val) => {
-    if (val === "Receitas primeiro") setOrganizacaoLista("receitas_primeiro");
-    else if (val === "Despesas primeiro") setOrganizacaoLista("despesas_primeiro");
-    else if (val === "Valor crescente") setOrganizacaoLista("valor_crescente");
-    else if (val === "Valor decrescente") setOrganizacaoLista("valor_decrescente");
-    else if (val === "Mais recentes") setOrganizacaoLista("recentes");
-    else if (val === "Mais antigas") setOrganizacaoLista("antigas");
-  }}
+value={
+  organizacaoLista === "receitas_primeiro"
+    ? "Receitas primeiro"
+    : organizacaoLista === "despesas_primeiro"
+    ? "Despesas primeiro"
+    : organizacaoLista === "valor_crescente"
+    ? "Valor crescente"
+    : organizacaoLista === "valor_decrescente"
+    ? "Valor decrescente"
+    : organizacaoLista === "proximas"
+    ? "Mais próximas"
+    : organizacaoLista === "distantes"
+    ? "Mais distantes"
+    : "Organizar"
+}
+options={[
+  "Receitas primeiro",
+  "Despesas primeiro",
+  "Valor crescente",
+  "Valor decrescente",
+  "Mais próximas",
+  "Mais distantes",
+]}
+onSelect={(val) => {
+  if (val === "Receitas primeiro") setOrganizacaoLista("receitas_primeiro");
+  else if (val === "Despesas primeiro") setOrganizacaoLista("despesas_primeiro");
+  else if (val === "Valor crescente") setOrganizacaoLista("valor_crescente");
+  else if (val === "Valor decrescente") setOrganizacaoLista("valor_decrescente");
+  else if (val === "Mais próximas") setOrganizacaoLista("proximas");
+  else if (val === "Mais distantes") setOrganizacaoLista("distantes");
+}}
   className="w-full"
   triggerClassName="h-11 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
   arrowClassName="text-indigo-600 dark:text-slate-300"

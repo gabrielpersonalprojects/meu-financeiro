@@ -720,11 +720,13 @@ const faturaAnteriorEmAberto =
   agoraAnterior0 <= cicloFimAnteriorEOD;
 
 const faturaAnteriorEstaAtrasada =
+  !faturaAnteriorParcelada &&
   valorTotalFaturaAnterior > 0 &&
   saldoFaturaAnterior > 0 &&
   agoraAnterior0 > startOfDay(vencimentoFaturaAnterior).getTime();
 
 const faturaAnteriorFechadaAguardandoPagamento =
+  !faturaAnteriorParcelada &&
   valorTotalFaturaAnterior > 0 &&
   saldoFaturaAnterior > 0 &&
   agoraAnterior0 > cicloFimAnteriorEOD &&
@@ -810,12 +812,11 @@ const faturaStatus =
     : "aberta";
 
 
-const miniCardTemAtraso =
-  faturaStatus === "ATRASADA" || faturaAnteriorEstaAtrasada;
+const miniCardTemAtraso = faturaAnteriorEstaAtrasada;
 
 const miniCardFechadaAguardandoPagamento =
   !miniCardTemAtraso &&
-  (faturaStatus === "FECHADA" || faturaAnteriorFechadaAguardandoPagamento);
+  faturaAnteriorFechadaAguardandoPagamento;
 
 const miniCardStatus: "normal" | "atrasada" | "zerada" =
   miniCardTemAtraso
@@ -826,17 +827,9 @@ const miniCardStatus: "normal" | "atrasada" | "zerada" =
 
 const miniCardValor =
   miniCardTemAtraso
-    ? Math.max(
-        0,
-        faturaAnteriorEstaAtrasada ? saldoFaturaAnterior : saldoRestanteFatura
-      )
+    ? Math.max(0, saldoFaturaAnterior)
     : miniCardFechadaAguardandoPagamento
-      ? Math.max(
-          0,
-          faturaAnteriorFechadaAguardandoPagamento
-            ? saldoFaturaAnterior
-            : saldoRestanteFatura
-        )
+      ? Math.max(0, saldoFaturaAnterior)
       : Math.max(0, saldoRestanteFatura);
 
 /**

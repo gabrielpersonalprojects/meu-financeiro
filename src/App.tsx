@@ -2521,17 +2521,24 @@ const normalizePaymentCycleKeyToYm = (raw: any): string => {
 
   if (value.includes("__")) {
     const parts = value.split("__");
+    const cartaoId = String(parts[0] ?? "").trim();
     const endIso = String(parts[2] ?? "").trim();
 
     if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
-      const [yearStr, monthStr] = endIso.split("-");
-      const year = Number(yearStr);
-      const month = Number(monthStr);
+      const endDate = new Date(`${endIso}T12:00:00`);
+      if (!Number.isNaN(endDate.getTime())) {
+        const cartao = (creditCards ?? []).find(
+          (c: any) => String(c?.id ?? "").trim() === cartaoId
+        );
 
-      if (Number.isFinite(year) && Number.isFinite(month)) {
-        const nextMonth = month === 12 ? 1 : month + 1;
-        const nextYear = month === 12 ? year + 1 : year;
-        return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+        const diaFechamento = Number(cartao?.diaFechamento ?? 1);
+        const diaVencimento = Number(cartao?.diaVencimento ?? 1);
+
+        const invoiceStartOffset = diaVencimento > diaFechamento ? 0 : 1;
+
+        endDate.setMonth(endDate.getMonth() + invoiceStartOffset);
+
+        return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
       }
     }
   }
@@ -6142,12 +6149,23 @@ const normalizeCycleResumo = (raw: any): string => {
 
   if (value.includes("__")) {
     const parts = value.split("__");
+    const cartaoId = String(parts[0] ?? "").trim();
     const endIso = String(parts[2] ?? "").trim();
 
     if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
       const endDate = new Date(`${endIso}T12:00:00`);
       if (!Number.isNaN(endDate.getTime())) {
-        endDate.setMonth(endDate.getMonth() + 1);
+        const cartao = (creditCards ?? []).find(
+          (c: any) => String(c?.id ?? "").trim() === cartaoId
+        );
+
+        const diaFechamento = Number(cartao?.diaFechamento ?? 1);
+        const diaVencimento = Number(cartao?.diaVencimento ?? 1);
+
+        const invoiceStartOffset = diaVencimento > diaFechamento ? 0 : 1;
+
+        endDate.setMonth(endDate.getMonth() + invoiceStartOffset);
+
         return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
       }
     }
@@ -6294,32 +6312,8 @@ const getPagoNoCicloResumo = (cartaoId: string, cicloYm: string) => {
   return (pagamentosFatura ?? [])
     .filter((p: any) => String(p?.cartaoId ?? "").trim() === cartaoId)
     .filter((p: any) => {
-      const cicloRaw = String(p?.cicloKey ?? "").trim();
-      if (!cicloRaw) return false;
-
-      if (/^\d{4}-\d{2}$/.test(cicloRaw)) {
-        return cicloRaw === cicloYm;
-      }
-
-if (cicloRaw.includes("__")) {
-  const parts = cicloRaw.split("__").map((part) => String(part ?? "").trim());
-  const endIso = String(parts[parts.length - 1] ?? "").trim();
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
-    const [yearStr, monthStr] = endIso.split("-");
-    const year = Number(yearStr);
-    const month = Number(monthStr);
-
-    if (Number.isFinite(year) && Number.isFinite(month)) {
-      const nextMonth = month === 12 ? 1 : month + 1;
-      const nextYear = month === 12 ? year + 1 : year;
-      const ym = `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
-      return ym === cicloYm;
-    }
-  }
-}
-
-      return false;
+      const cicloNormalizado = normalizeCycleResumo(p?.cicloKey);
+      return cicloNormalizado === cicloYm;
     })
     .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0);
 };
@@ -6357,17 +6351,24 @@ const labelCartaoResumo = `${String(
   String(c?.perfil ?? "").trim().toLowerCase() === "pj" ? "PJ" : "PF"
 }`;
 
-if (vencimento.getTime() === hojeResumoDate.getTime()) {
-  resumoCartoesVencendoHojeValor += saldo;
-if (!cartoesVencendoHojeKeys.has(cartaoId)) {
-  cartoesVencendoHojeKeys.add(cartaoId);
+const hojeResumoIso = String(hojeResumoStr).trim();
+const vencimentoIso = `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(
+  Math.min(28, Math.max(1, Number(c?.diaVencimento ?? 10)))
+).padStart(2, "0")}`;
 
-  cartoesVencendoHojeLista.push({
-    cartaoId,
-    label: labelCartaoResumo,
-    ciclo,
-  });
-}
+if (vencimentoIso === hojeResumoIso) {
+  resumoCartoesVencendoHojeValor += saldo;
+
+  if (!cartoesVencendoHojeKeys.has(cartaoId)) {
+    cartoesVencendoHojeKeys.add(cartaoId);
+
+    cartoesVencendoHojeLista.push({
+      cartaoId,
+      label: labelCartaoResumo,
+      ciclo,
+    });
+  }
+
   return;
 }
 
@@ -6439,11 +6440,15 @@ if (saldoItem <= 0.009) return null;
   .sort((a: any, b: any) => String(b.ciclo).localeCompare(String(a.ciclo)));
 
 const faturasFechadasAtrasadas = ciclosFechadosPendentes.filter(
-  (item: any) => item?.vencimento instanceof Date && item.vencimento.getTime() < hojeResumoDate.getTime()
+  (item: any) =>
+    item?.vencimento instanceof Date &&
+    item.vencimento.getTime() < hojeResumoDate.getTime()
 );
 
 const faturasFechadasAguardandoPagamento = ciclosFechadosPendentes.filter(
-  (item: any) => item?.vencimento instanceof Date && item.vencimento.getTime() >= hojeResumoDate.getTime()
+  (item: any) =>
+    item?.vencimento instanceof Date &&
+    item.vencimento.getTime() > hojeResumoDate.getTime()
 );
 
 const faturaFechadaMaisRecente =
@@ -6490,21 +6495,24 @@ pagamentosDoCartao: (pagamentosFatura ?? [])
 }
 
 if (existeFaturaFechadaPendente && faturaFechadaAguardandoPagamento) {
-  resumoCartoesPendentesValor += Math.max(
-    0,
-    Number(faturaFechadaAguardandoPagamento.saldo || 0)
-  );
-
   const pendenteKey = `${cartaoId}__${String(faturaFechadaAguardandoPagamento.ciclo)}`;
+  const jaEstaEmVencendoHoje = cartoesVencendoHojeKeys.has(cartaoId);
 
-  if (!cartoesFechadosAguardandoPagamentoKeys.has(pendenteKey)) {
-    cartoesFechadosAguardandoPagamentoKeys.add(pendenteKey);
+  if (!jaEstaEmVencendoHoje) {
+    resumoCartoesPendentesValor += Math.max(
+      0,
+      Number(faturaFechadaAguardandoPagamento.saldo || 0)
+    );
 
-    cartoesFechadosAguardandoPagamentoLista.push({
-      cartaoId,
-      label: labelCartaoResumo,
-      ciclo: String(faturaFechadaAguardandoPagamento.ciclo),
-    });
+    if (!cartoesFechadosAguardandoPagamentoKeys.has(pendenteKey)) {
+      cartoesFechadosAguardandoPagamentoKeys.add(pendenteKey);
+
+      cartoesFechadosAguardandoPagamentoLista.push({
+        cartaoId,
+        label: labelCartaoResumo,
+        ciclo: String(faturaFechadaAguardandoPagamento.ciclo),
+      });
+    }
   }
 }
 

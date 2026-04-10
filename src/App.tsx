@@ -2546,7 +2546,7 @@ const normalizePaymentCycleKeyToYm = (raw: any): string => {
   return value;
 };
 
-const CREDIT_CARDS_PER_PAGE = 5;
+const CREDIT_CARDS_PER_PAGE = 11;
 const [creditCardsPage, setCreditCardsPage] = useState(1);
 
 const orderedCreditCards = useMemo(() => {

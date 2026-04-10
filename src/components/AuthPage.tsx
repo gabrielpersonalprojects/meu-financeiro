@@ -310,9 +310,9 @@ async function onEntrar(e: FormEvent) {
 <img
   src={LOGO_SRC}
   alt="Logo"
-  className="mt-2 w-[202px] h-[202px] object-contain drop-shadow md:w-[212px] md:h-[212px]"
+  className="mt-4 translate-x-[2px] w-[214px] h-[214px] object-contain drop-shadow md:w-[224px] md:h-[224px]"
 />
-            <div className="mt-6 w-full h-px bg-white/20" />
+           <div className="mt-1 w-full h-px bg-white/20" />
           </div>
 
           <div className="mt-5 text-center">
@@ -634,7 +634,7 @@ className="group relative overflow-hidden mt-4 h-10 max-w-[280px] w-full mx-auto
   Desenvolvido por Inpulso Digital LTDA
 </div>
           <div className="pt-4 text-center text-[11px] text-white/25 tracking-wide">
-  v0.1.0
+  v0.2.0
 </div>
     </div>
     

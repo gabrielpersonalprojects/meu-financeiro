@@ -254,14 +254,12 @@ export default function SidebarShell({
   className="flex h-[88px] items-center justify-center border-b border-slate-200 px-4 dark:border-white/10"
 >
 <div className="flex items-center gap-2">
-  <a
-    href="https://fluxmoneyapp.com.br"
-    target="_blank"
-    rel="noreferrer"
-    title="Ir para o site do FluxMoney"
-    aria-label="Ir para o site do FluxMoney"
-    className="flex h-8 w-8 shrink-0 items-center justify-center"
-  >
+<a
+  href="https://fluxmoneyapp.com.br"
+  title="Ir para o site do FluxMoney"
+  aria-label="Ir para o site do FluxMoney"
+  className="flex h-8 w-8 shrink-0 items-center justify-center"
+>
     <img
       src="/favicon.png"
       alt="FluxMoney"

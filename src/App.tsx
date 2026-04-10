@@ -6495,8 +6495,12 @@ pagamentosDoCartao: (pagamentosFatura ?? [])
 }
 
 if (existeFaturaFechadaPendente && faturaFechadaAguardandoPagamento) {
-  const pendenteKey = `${cartaoId}__${String(faturaFechadaAguardandoPagamento.ciclo)}`;
-  const jaEstaEmVencendoHoje = cartoesVencendoHojeKeys.has(cartaoId);
+const pendenteKey = `${cartaoId}__${String(faturaFechadaAguardandoPagamento.ciclo)}`;
+const jaEstaEmVencendoHoje = cartoesVencendoHojeLista.some(
+  (item) =>
+    String(item.cartaoId) === cartaoId &&
+    String(item.ciclo) === String(faturaFechadaAguardandoPagamento.ciclo)
+);
 
   if (!jaEstaEmVencendoHoje) {
     resumoCartoesPendentesValor += Math.max(
@@ -7171,6 +7175,7 @@ const resumoAlertsCount =
   receitasVencendoHojeLista.length +
   receitasAtrasadasLista.length +
   cartoesVencendoHojeLista.length +
+  cartoesFechadosAguardandoPagamentoLista.length +
   cartoesAtrasadosLista.length +
   semPrazoActionAlerts.length +
   semPrazoEndedAlerts.length;

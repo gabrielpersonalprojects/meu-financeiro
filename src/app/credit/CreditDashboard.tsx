@@ -2238,25 +2238,26 @@ className="h-8 w-8 inline-flex items-center justify-center transition text-slate
 {confirmExcluirPagamentoId
   ? createPortal(
       <div
-        className="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[10000] bg-slate-900/30 backdrop-blur-[8px] dark:bg-[rgba(2,6,23,0.68)]"
         onClick={() => setConfirmExcluirPagamentoId(null)}
       >
         <div
-          className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden dark:border-white/10 dark:bg-[#071235] dark:text-white"
+          className="absolute left-1/2 top-1/2 w-full max-w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-[22px] border border-slate-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] px-[34px] pb-[30px] pt-[34px] text-slate-900 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-slate-400/10 dark:bg-[linear-gradient(180deg,rgba(8,15,34,0.98)_0%,rgba(5,10,24,0.98)_100%)] dark:text-white dark:shadow-[0_24px_70px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.03)]"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="p-4 border-b border-slate-200 dark:border-white/10">
-            <div className="font-semibold">Excluir pagamento?</div>
-            <div className="text-slate-600 text-sm mt-1 dark:text-white/70">
-              Excluir este pagamento da fatura? Isso também removerá a transação relacionada.
-            </div>
+          <h3 className="text-[18px] leading-[1.2] font-semibold tracking-[-0.02em] text-slate-900 dark:text-slate-50">
+            Excluir pagamento de fatura?
+          </h3>
+
+          <div className="mt-3 text-[14px] leading-[1.75] text-slate-600 dark:text-slate-300">
+            Isso também removerá a transação relacionada gerada em sua lista de Transações.
           </div>
 
-          <div className="p-4 flex items-center justify-end gap-2">
+          <div className="mt-[26px] flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={() => setConfirmExcluirPagamentoId(null)}
-              className="px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold dark:border-white/10 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              className="h-11 rounded-[14px] border border-slate-300/80 bg-white/80 px-5 text-sm font-medium text-slate-900 transition hover:bg-slate-50 dark:border-slate-400/15 dark:bg-slate-900/50 dark:text-slate-50 dark:hover:bg-slate-800/70"
             >
               Cancelar
             </button>
@@ -2268,7 +2269,7 @@ className="h-8 w-8 inline-flex items-center justify-center transition text-slate
                 setConfirmExcluirPagamentoId(null);
                 removerPagamentoFatura(id);
               }}
-              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold"
+              className="h-11 rounded-[14px] border border-violet-400/20 bg-[linear-gradient(135deg,#7c3aed_0%,#8b5cf6_100%)] px-5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(124,58,237,0.35)] transition hover:brightness-105"
             >
               Excluir
             </button>

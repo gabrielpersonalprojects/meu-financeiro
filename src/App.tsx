@@ -7178,11 +7178,11 @@ const resumoAlertsCount =
 
   
 const resumoPanelContent = (
-<div className="h-full overflow-y-auto space-y-4 resumo-scroll pr-1">
+<div className="h-full overflow-y-auto space-y-0 resumo-scroll pr-1">
   {semPrazoResumoAlertsContent}
 
     <div className="mt-5 space-y-3">
-      <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-4">
+     <div className="px-2 py-4">
         <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
           Despesas vencendo hoje
         </div>
@@ -7285,7 +7285,7 @@ const resumoPanelContent = (
         </div>
       </div>
 
-<div className="rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-4">
+<div className="border-t border-white/6 px-2 pt-5 pb-4">
   <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
     Receitas vencendo hoje
   </div>
@@ -7389,7 +7389,7 @@ const resumoPanelContent = (
   </div>
 </div>
 
-      <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-4">
+      <div className="border-t border-white/8 px-2 pt-5 pb-4">
         <div className="text-[12px] font-semibold text-slate-700 dark:text-white/80">
           Faturas vencendo hoje
         </div>
@@ -8797,74 +8797,76 @@ if (selectedCreditCardId === c.id) {
                   return;
                 }
 
-                confirmToast({
-                  title: "Excluir transação",
-                  message: "Tem certeza que deseja excluir esta transação?",
-                  confirmText: "Excluir",
-                  cancelText: "Cancelar",
-                  onConfirm: async () => {
-                    const alvoPagamento = (pagamentosFatura ?? []).find(
-                      (p: any) => String(p?.transacaoId ?? "") === String(id)
-                    );
+const ok = await confirm({
+  title: "Excluir transação",
+  message: "Tem certeza que deseja excluir esta transação?",
+  confirmText: "Excluir",
+  cancelText: "Cancelar",
+  tone: "danger",
+});
 
-                    try {
-                      if (alvoPagamento) {
-                        const userId = session?.user?.id;
-                        if (!userId) return;
+if (!ok) return;
 
-                        await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
+const alvoPagamento = (pagamentosFatura ?? []).find(
+  (p: any) => String(p?.transacaoId ?? "") === String(id)
+);
 
-                        setPagamentosFatura((prev) =>
-                          (prev ?? []).filter(
-                            (p: any) => String(p?.id ?? "") !== String(alvoPagamento.id)
-                          )
-                        );
-                      }
+try {
+  if (alvoPagamento) {
+    const userId = session?.user?.id;
+    if (!userId) return;
 
-                      if (isUuid(String(id))) {
-                        const userId = session?.user?.id;
-                        if (!userId) return;
+    await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
 
-                        await deleteTransactionById(String(id), userId);
-                      }
+    setPagamentosFatura((prev) =>
+      (prev ?? []).filter(
+        (p: any) => String(p?.id ?? "") !== String(alvoPagamento.id)
+      )
+    );
+  }
 
-                      setTransacoes((prev) => {
-                        const current = prev.find((t) => String(t.id) === String(id));
-                        if (!current) return prev;
+  if (isUuid(String(id))) {
+    const userId = session?.user?.id;
+    if (!userId) return;
 
-                        const transferId = (current as any)?.transferId;
+    await deleteTransactionById(String(id), userId);
+  }
 
-                        if (transferId) {
-                          return prev.filter(
-                            (t) => String((t as any)?.transferId) !== String(transferId)
-                          );
-                        }
+  setTransacoes((prev) => {
+    const current = prev.find((t) => String(t.id) === String(id));
+    if (!current) return prev;
 
-                        const isCC = current.tipo === "cartao_credito";
-                        const rid = (current as any).recorrenciaId;
-                        const cardId = (current as any).qualCartao;
+    const transferId = (current as any)?.transferId;
 
-                        if (isCC && rid) {
-                          return prev.filter(
-                            (t) =>
-                              !(
-                                t.tipo === "cartao_credito" &&
-                                String((t as any).qualCartao) === String(cardId) &&
-                                String((t as any).recorrenciaId) === String(rid)
-                              )
-                          );
-                        }
+    if (transferId) {
+      return prev.filter(
+        (t) => String((t as any)?.transferId) !== String(transferId)
+      );
+    }
 
-                        return prev.filter((t) => String(t.id) !== String(id));
-                      });
+    const isCC = current.tipo === "cartao_credito";
+    const rid = (current as any).recorrenciaId;
+    const cardId = (current as any).qualCartao;
 
-                      toastCompact("Transação excluída.", "success");
-                    } catch (err) {
-                      console.error("ERRO AO EXCLUIR TRANSAÇÃO:", err);
-                      toastCompact("Erro ao excluir transação.", "error");
-                    }
-                  },
-                });
+    if (isCC && rid) {
+      return prev.filter(
+        (t) =>
+          !(
+            t.tipo === "cartao_credito" &&
+            String((t as any).qualCartao) === String(cardId) &&
+            String((t as any).recorrenciaId) === String(rid)
+          )
+      );
+    }
+
+    return prev.filter((t) => String(t.id) !== String(id));
+  });
+
+  toastCompact("Transação excluída.", "success");
+} catch (err) {
+  console.error("ERRO AO EXCLUIR TRANSAÇÃO:", err);
+  toastCompact("Erro ao excluir transação.", "error");
+}
               }}
             />
           </div>
@@ -9587,180 +9589,197 @@ if (selectedCreditCardId === c.id) {
   </div>
 )}
 
-      {/* DELETE MODAL */}
-      {deletingTransaction && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-[460px] rounded-[2rem] border border-slate-800/80 bg-[#020b2d] text-white shadow-2xl animate-in zoom-in-95 p-5">
-            <h3 className="mb-3 text-[18px] leading-tight font-extrabold text-white">
-              Confirmar Exclusão
-            </h3>
+{/* DELETE MODAL */}
+{deletingTransaction && (
+  <div
+    className="fixed inset-0 z-[70] bg-slate-900/30 backdrop-blur-[8px] dark:bg-[rgba(2,6,23,0.68)]"
+    onClick={() => setDeletingTransaction(null)}
+  >
+    <div
+      className="absolute left-1/2 top-1/2 w-full max-w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-[22px] border border-slate-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] px-[34px] pb-[30px] pt-[34px] text-slate-900 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-slate-400/10 dark:bg-[linear-gradient(180deg,rgba(8,15,34,0.98)_0%,rgba(5,10,24,0.98)_100%)] dark:text-white dark:shadow-[0_24px_70px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.03)]"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <h3 className="text-[18px] leading-[1.2] font-semibold tracking-[-0.02em] text-slate-900 dark:text-slate-50">
+        Confirmar exclusão
+      </h3>
 
-            <div className="mb-5 text-[14px] leading-7 text-slate-200/90">
-              {(() => {
-                const tx: any = deletingTransaction;
+      <div className="mt-3 text-[14px] leading-[1.75] text-slate-600 dark:text-slate-300">
+        {(() => {
+          const tx: any = deletingTransaction;
 
-                const catNorm = String(tx?.categoria ?? "")
-                  .toLowerCase()
-                  .normalize("NFD")
-                  .replace(/[\u0300-\u036f]/g, "");
+          const catNorm = String(tx?.categoria ?? "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
 
-                const isTransfer =
-                  catNorm === "transferencia" || catNorm.includes("transfer");
+          const isTransfer =
+            catNorm === "transferencia" || catNorm.includes("transfer");
 
-                const parcelaAtualNum = Number(
-                  tx?.parcelaAtual ?? tx?.payload?.parcelaAtual ?? 0
-                );
+          const parcelaAtualNum = Number(
+            tx?.parcelaAtual ?? tx?.payload?.parcelaAtual ?? 0
+          );
 
-                const totalParcelasNum = Number(
-                  tx?.totalParcelas ?? tx?.payload?.totalParcelas ?? 0
-                );
+          const totalParcelasNum = Number(
+            tx?.totalParcelas ?? tx?.payload?.totalParcelas ?? 0
+          );
 
-                const recorrenciaIdTx = String(
-                  tx?.recorrenciaId ?? tx?.payload?.recorrenciaId ?? ""
-                ).trim();
+          const recorrenciaIdTx = String(
+            tx?.recorrenciaId ?? tx?.payload?.recorrenciaId ?? ""
+          ).trim();
 
-                const isCartaoParceladoComum =
-                  String(tx?.tipo ?? "") === "cartao_credito" &&
-                  !!recorrenciaIdTx &&
-                  totalParcelasNum > 1 &&
-                  parcelaAtualNum > 0;
+          const isCartaoParceladoComum =
+            String(tx?.tipo ?? "") === "cartao_credito" &&
+            !!recorrenciaIdTx &&
+            totalParcelasNum > 1 &&
+            parcelaAtualNum > 0;
 
-                const isPagamentoFatura =
-                  /(pagamento\s*fatura|^fatura\s*:)/i.test(
-                    String(tx?.descricao ?? "")
-                  ) ||
-                  !!tx?.pagamentoFaturaId ||
-                  !!tx?.faturaPaymentId ||
-                  !!tx?.meta?.pagamentoFaturaId ||
-                  !!tx?.meta?.faturaPaymentId;
+          const isPagamentoFatura =
+            /(pagamento\s*fatura|^fatura\s*:)/i.test(
+              String(tx?.descricao ?? "")
+            ) ||
+            !!tx?.pagamentoFaturaId ||
+            !!tx?.faturaPaymentId ||
+            !!tx?.meta?.pagamentoFaturaId ||
+            !!tx?.meta?.faturaPaymentId;
 
-                if (isCartaoParceladoComum) {
-                  return (
-                    <>
-                      Tem certeza que deseja excluir esta parcela e as próximas?
-                      As parcelas anteriores serão mantidas. Você está apagando{" "}
-                      <span className="font-black text-white">
-                        "{deletingTransaction.descricao}"
-                      </span>
-                      .
-                    </>
-                  );
-                }
+          if (isCartaoParceladoComum) {
+            return (
+              <>
+                Tem certeza que deseja excluir esta parcela e as próximas?
+                As parcelas anteriores serão mantidas. Você está apagando{" "}
+                <span className="font-semibold text-slate-900 dark:text-slate-50">
+                  "{deletingTransaction.descricao}"
+                </span>
+                .
+              </>
+            );
+          }
 
-                if (isTransfer) {
-                  return (
-                    <>
-                      Tem certeza que quer excluir esta transferência? Você está
-                      apagando{" "}
-                      <span className="font-black text-white">
-                        "{deletingTransaction.descricao}"
-                      </span>
-                      .
-                    </>
-                  );
-                }
+          if (isTransfer) {
+            return (
+              <>
+                Tem certeza que quer excluir esta transferência? Você está
+                apagando{" "}
+                <span className="font-semibold text-slate-900 dark:text-slate-50">
+                  "{deletingTransaction.descricao}"
+                </span>
+                .
+              </>
+            );
+          }
 
-                if (recorrenciaIdTx) {
-                  return (
-                    <>
-                      Você está apagando{" "}
-                      <span className="font-black text-white">
-                        "{deletingTransaction.descricao}"
-                      </span>
-                      .
-                      {isPagamentoFatura ? (
-                        <span className="block mt-3 text-sm leading-7 text-slate-200/85">
-                          <span className="font-bold">Atenção:</span> isso também
-                          apagará o <span className="font-bold">registro do pagamento</span>{" "}
-                          da fatura.
-                        </span>
-                      ) : null}
-                      {" "}Como deseja prosseguir?
-                    </>
-                  );
-                }
+          if (recorrenciaIdTx) {
+            return (
+              <>
+                Você está apagando{" "}
+                <span className="font-semibold text-slate-900 dark:text-slate-50">
+                  "{deletingTransaction.descricao}"
+                </span>
+                .
+                {isPagamentoFatura ? (
+                  <span className="mt-3 block text-sm leading-7 text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">
+                      Atenção:
+                    </span>{" "}
+                    isso também apagará o{" "}
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">
+                      registro do pagamento
+                    </span>{" "}
+                    da fatura.
+                  </span>
+                ) : null}{" "}
+                Como deseja prosseguir?
+              </>
+            );
+          }
 
-                return (
-                  <>
-                    Tem certeza que quer excluir este lançamento? Você está apagando{" "}
-                    <span className="font-black text-white">
-                      "{deletingTransaction.descricao}"
-                    </span>
-                    .
-                    {/^fatura\s*:/i.test(
-                      String(deletingTransaction?.descricao ?? "")
-                    ) && (
-                      <span className="block mt-3 text-sm leading-7 text-slate-200/85">
-                        Atenção: ao excluir esta fatura, o registro de pagamento do
-                        cartão relacionado a ela também será apagado.
-                      </span>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
+          return (
+            <>
+              Tem certeza que quer excluir este lançamento? Você está apagando{" "}
+              <span className="font-semibold text-slate-900 dark:text-slate-50">
+                "{deletingTransaction.descricao}"
+              </span>
+              .
+              {/^fatura\s*:/i.test(
+                String(deletingTransaction?.descricao ?? "")
+              ) && (
+                <span className="mt-3 block text-sm leading-7 text-slate-600 dark:text-slate-300">
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">
+                    Atenção:
+                  </span>{" "}
+                  ao excluir esta fatura, o registro de pagamento do cartão
+                  relacionado a ela também será apagado.
+                </span>
+              )}
+            </>
+          );
+        })()}
+      </div>
 
-            <div className="space-y-2">
-              {(() => {
-                const txBtn: any = deletingTransaction;
-                const parcelaAtualBtn = Number(
-                  txBtn?.parcelaAtual ?? txBtn?.payload?.parcelaAtual ?? 0
-                );
-                const totalParcelasBtn = Number(
-                  txBtn?.totalParcelas ?? txBtn?.payload?.totalParcelas ?? 0
-                );
+      <div className="mt-[26px] space-y-2">
+        {(() => {
+          const txBtn: any = deletingTransaction;
+          const parcelaAtualBtn = Number(
+            txBtn?.parcelaAtual ?? txBtn?.payload?.parcelaAtual ?? 0
+          );
+          const totalParcelasBtn = Number(
+            txBtn?.totalParcelas ?? txBtn?.payload?.totalParcelas ?? 0
+          );
 
-                const recorrenciaIdBtn = String(
-                  txBtn?.recorrenciaId ?? txBtn?.payload?.recorrenciaId ?? ""
-                ).trim();
+          const recorrenciaIdBtn = String(
+            txBtn?.recorrenciaId ?? txBtn?.payload?.recorrenciaId ?? ""
+          ).trim();
 
-                const isCartaoParceladoComumBtn =
-                  String(txBtn?.tipo ?? "") === "cartao_credito" &&
-                  !!recorrenciaIdBtn &&
-                  totalParcelasBtn > 1 &&
-                  parcelaAtualBtn > 0;
+          const isCartaoParceladoComumBtn =
+            String(txBtn?.tipo ?? "") === "cartao_credito" &&
+            !!recorrenciaIdBtn &&
+            totalParcelasBtn > 1 &&
+            parcelaAtualBtn > 0;
 
-const isRecorrenciaComumBtn =
-  !!recorrenciaIdBtn && !isCartaoParceladoComumBtn;
+          const isRecorrenciaComumBtn =
+            !!recorrenciaIdBtn && !isCartaoParceladoComumBtn;
 
-                return (
-                  <>
-                    <button
-                      onClick={() => confirmarExclusao(false)}
-                      className="w-full rounded-2xl bg-rose-600 py-3 text-[14px] font-black text-white transition-colors hover:bg-rose-700"
-                    >
-                      {deletingTransaction.categoria === "Transferência"
-                        ? "Excluir transferência"
-                        : isCartaoParceladoComumBtn
-                        ? "Excluir esta parcela em diante"
-                        : isRecorrenciaComumBtn
-                        ? "Excluir apenas este lançamento"
-                        : "Sim, excluir lançamento"}
-                    </button>
+          return (
+            <>
+              <button
+                type="button"
+                onClick={() => confirmarExclusao(false)}
+                className="h-11 w-full rounded-[14px] border border-violet-400/20 bg-[linear-gradient(135deg,#7c3aed_0%,#8b5cf6_100%)] px-4 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(124,58,237,0.35)] transition hover:brightness-105"
+              >
+                {deletingTransaction.categoria === "Transferência"
+                  ? "Excluir transferência"
+                  : isCartaoParceladoComumBtn
+                  ? "Excluir esta parcela em diante"
+                  : isRecorrenciaComumBtn
+                  ? "Excluir apenas este lançamento"
+                  : "Sim, excluir lançamento"}
+              </button>
 
-                        {isRecorrenciaComumBtn &&
-                          deletingTransaction.categoria !== "Transferência" && (
-                        <button
-                          onClick={() => confirmarExclusao(true)}
-                          className="w-full rounded-2xl bg-rose-600 py-3 text-[14px] font-black text-white transition-colors hover:bg-rose-700"
-                        >
-                          Excluir deste mês em diante
-                        </button>
-                      )}
+              {isRecorrenciaComumBtn &&
+              deletingTransaction.categoria !== "Transferência" ? (
+                <button
+                  type="button"
+                  onClick={() => confirmarExclusao(true)}
+                  className="h-11 w-full rounded-[14px] border border-violet-400/20 bg-[linear-gradient(135deg,#7c3aed_0%,#8b5cf6_100%)] px-4 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(124,58,237,0.35)] transition hover:brightness-105"
+                >
+                  Excluir este e os próximos
+                </button>
+              ) : null}
 
-                    <button
-                      onClick={() => setDeletingTransaction(null)}
-                      className="w-full py-2 text-[13px] font-bold uppercase text-slate-300/80 transition-colors hover:text-white"
-                    >
-                      Voltar
-                    </button>
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
+              <button
+                type="button"
+                onClick={() => setDeletingTransaction(null)}
+                className="h-11 w-full rounded-[14px] border border-slate-300/80 bg-white/80 px-4 text-sm font-medium text-slate-900 transition hover:bg-slate-50 dark:border-slate-400/15 dark:bg-slate-900/50 dark:text-slate-50 dark:hover:bg-slate-800/70"
+              >
+                Cancelar
+              </button>
+            </>
+          );
+        })()}
+      </div>
+    </div>
+  </div>
+)}
 
       {/* MODAL NOVO BANCO/CARTAO */}
       {showModalMetodo && (
@@ -10240,37 +10259,46 @@ className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac] 
 )}
 
 {confirmState && (
-  <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
-    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1020] p-5 shadow-2xl">
-      <div className="text-lg font-semibold text-white">
+  <div
+    className="fixed inset-0 z-[9999] bg-slate-900/30 backdrop-blur-[8px] dark:bg-[rgba(2,6,23,0.68)]"
+    onClick={() => {
+      confirmState.onCancel?.();
+      fecharConfirmacao();
+    }}
+  >
+    <div
+      className="absolute left-1/2 top-1/2 w-full max-w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-[22px] border border-slate-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] px-[34px] pb-[30px] pt-[34px] text-slate-900 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-slate-400/10 dark:bg-[linear-gradient(180deg,rgba(8,15,34,0.98)_0%,rgba(5,10,24,0.98)_100%)] dark:text-white dark:shadow-[0_24px_70px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.03)]"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="text-[18px] leading-[1.2] font-semibold tracking-[-0.02em] text-slate-900 dark:text-slate-50">
         {confirmState.title}
       </div>
 
-<div className="mt-4 space-y-3">
-  {String(confirmState.message ?? "")
-    .split("\n\n")
-    .filter(Boolean)
-    .map((paragraph, index, arr) => {
-      const isLast = index === arr.length - 1;
+      <div className="mt-3 space-y-3">
+        {String(confirmState.message ?? "")
+          .split("\n\n")
+          .filter(Boolean)
+          .map((paragraph, index, arr) => {
+            const isLast = index === arr.length - 1;
 
-      return (
-        <p
-          key={`${index}-${paragraph.slice(0, 20)}`}
-          className={
-            isLast
-              ? "text-[12px] leading-5 text-white/55"
-              : "text-[15px] leading-6 text-white/82"
-          }
-        >
-          {paragraph}
-        </p>
-      );
-    })}
-</div>
+            return (
+              <p
+                key={`${index}-${paragraph.slice(0, 20)}`}
+                className={
+                  isLast
+                    ? "text-[13px] leading-6 text-slate-500 dark:text-slate-400"
+                    : "text-[14px] leading-[1.75] text-slate-600 dark:text-slate-300"
+                }
+              >
+                {paragraph}
+              </p>
+            );
+          })}
+      </div>
 
-      <div className="mt-5 flex items-center justify-end gap-3">
+      <div className="mt-[26px] flex items-center justify-end gap-3">
         <button
-          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+          className="h-11 rounded-[14px] border border-slate-300/80 bg-white/80 px-5 text-sm font-medium text-slate-900 transition hover:bg-slate-50 dark:border-slate-400/15 dark:bg-slate-900/50 dark:text-slate-50 dark:hover:bg-slate-800/70"
           onClick={() => {
             confirmState.onCancel?.();
             fecharConfirmacao();
@@ -10280,7 +10308,7 @@ className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac] 
         </button>
 
         <button
-          className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+          className="h-11 rounded-[14px] border border-violet-400/20 bg-[linear-gradient(135deg,#7c3aed_0%,#8b5cf6_100%)] px-5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(124,58,237,0.35)] transition hover:brightness-105"
           onClick={() => {
             confirmState.onConfirm();
             fecharConfirmacao();

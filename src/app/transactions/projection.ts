@@ -104,6 +104,113 @@ const isActiveCardTransaction = (t: Transaction) => {
   return !!cartaoAtivo;
 };
 
+const pad2 = (value: number) => String(value).padStart(2, "0");
+
+const clampDay = (year: number, monthIndex0: number, day: number) => {
+  const lastDay = new Date(year, monthIndex0 + 1, 0).getDate();
+  return Math.max(1, Math.min(day, lastDay));
+};
+
+const makeDate = (year: number, monthIndex0: number, day: number) => {
+  const dd = clampDay(year, monthIndex0, day);
+  return new Date(year, monthIndex0, dd, 12, 0, 0, 0);
+};
+
+const parseISODateLocal = (iso: string) => {
+  const [y, m, d] = String(iso || "").split("-").map(Number);
+  if (!y || !m || !d) return new Date(NaN);
+  return new Date(y, m - 1, d, 12, 0, 0, 0);
+};
+
+const addMonths = (base: Date, delta: number) => {
+  const d = new Date(base);
+  d.setDate(1);
+  d.setMonth(d.getMonth() + delta);
+  return d;
+};
+
+const getCardRefFromTransaction = (t: Transaction) => {
+  const refs = [
+    (t as any)?.cartaoId,
+    (t as any)?.qualCartao,
+    (t as any)?.creditCardId,
+    (t as any)?.selectedCreditCardId,
+    (t as any)?.payload?.cartaoId,
+    (t as any)?.payload?.qualCartao,
+    (t as any)?.payload?.creditCardId,
+    (t as any)?.payload?.selectedCreditCardId,
+  ]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
+
+  if (!refs.length) return null;
+
+  const normalize = (value: any) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  return (
+    (creditCards ?? []).find((c: any) => {
+      const cardId = String(c?.id ?? "").trim();
+      const cardName = String(c?.name ?? c?.nome ?? "").trim();
+      const cardIssuer = String(c?.emissor ?? c?.bankText ?? "").trim();
+
+      return refs.some((ref) => {
+        const refNorm = normalize(ref);
+        return (
+          (cardId && ref === cardId) ||
+          (cardName && refNorm === normalize(cardName)) ||
+          (cardIssuer && refNorm === normalize(cardIssuer))
+        );
+      });
+    }) ?? null
+  );
+};
+
+const getMesCompetenciaProjection = (t: Transaction) => {
+  const tipo = String((t as any)?.tipo ?? "").trim().toLowerCase();
+  const data = String((t as any)?.data ?? "").trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return "";
+
+  if (tipo !== "cartao_credito") {
+    return data.slice(0, 7);
+  }
+
+  const cartao = getCardRefFromTransaction(t);
+  if (!cartao) {
+    return data.slice(0, 7);
+  }
+
+const diaFechamento =
+  Number((cartao as any)?.diaFechamento ?? (cartao as any)?.closingDay ?? 1) || 1;
+
+const diaVencimento =
+  Number((cartao as any)?.diaVencimento ?? (cartao as any)?.dueDay ?? 1) || 1;
+
+const invoiceStartOffset = diaVencimento > diaFechamento ? 0 : 1;
+
+const dt = parseISODateLocal(data);
+
+if (Number.isNaN(dt.getTime())) {
+  return data.slice(0, 7);
+}
+
+const fechamentoAtualDaData = makeDate(dt.getFullYear(), dt.getMonth(), diaFechamento);
+
+const mesFechamento =
+  dt.getTime() > fechamentoAtualDaData.getTime()
+    ? addMonths(new Date(dt.getFullYear(), dt.getMonth(), 1), 1)
+    : new Date(dt.getFullYear(), dt.getMonth(), 1);
+
+const mesFatura = addMonths(mesFechamento, invoiceStartOffset);
+
+return `${mesFatura.getFullYear()}-${pad2(mesFatura.getMonth() + 1)}`;
+};
+
 const getPerfilContaFromTransaction = (t: Transaction): "PF" | "PJ" | null => {
   const idsConta = [
     (t as any)?.profileId,
@@ -181,7 +288,11 @@ if (idsCartao.length > 0) {
     });
   });
 
-const perfilCartao = String((cartao as any)?.perfil ?? "")
+const perfilCartao = String(
+  (cartao as any)?.perfil ??
+  (cartao as any)?.brand ??
+  ""
+)
   .trim()
   .toUpperCase();
 
@@ -284,7 +395,7 @@ const transacoesFiltradas = (transacoes ?? []).filter((t) => {
     ).padStart(2, "0")}`;
 
 const monthTransactions = (transacoesFiltradas || [])
-  .filter((t) => String((t as any).data || "").startsWith(targetMonthStr))
+  .filter((t) => getMesCompetenciaProjection(t) === targetMonthStr)
   .filter((t) => !isTransfer(t));
 
 const isPgtoFatura = (t: any) => {
@@ -292,15 +403,33 @@ const isPgtoFatura = (t: any) => {
     .toLowerCase()
     .trim();
 
-  const categoria = String((t as any)?.categoria ?? "")
+  const categoriaRaw = (t as any)?.categoria;
+  const categoria = String(
+    typeof categoriaRaw === "string"
+      ? categoriaRaw
+      : categoriaRaw?.nome ?? categoriaRaw?.label ?? categoriaRaw?.value ?? ""
+  )
     .toLowerCase()
+    .trim()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-  return (
-    desc.startsWith("fatura:") ||
-    categoria.includes("fatura")
-  );
+  const origemLancamento = String(
+    (t as any)?.origemLancamento ??
+      (t as any)?.payload?.origemLancamento ??
+      ""
+  )
+    .toLowerCase()
+    .trim();
+
+  const isParcelamentoFatura =
+    origemLancamento === "parcelamento_fatura" ||
+    desc.startsWith("parcelamento de fatura") ||
+    categoria === "parcelamento de fatura";
+
+  if (isParcelamentoFatura) return false;
+
+  return desc.startsWith("fatura:");
 };
 
 const fixas = monthTransactions
@@ -317,17 +446,43 @@ const fixas = monthTransactions
 
 const variaveis = monthTransactions
   .filter((t) => {
-    const tipo = String((t as any).tipo ?? "").toLowerCase();
-    const tipoGasto = String((t as any).tipoGasto ?? "")
+    const tipo = String((t as any).tipo ?? "").trim().toLowerCase();
+
+    const tipoGasto = String(
+      (t as any).tipoGasto ??
+        (t as any).payload?.tipoGasto ??
+        ""
+    )
+      .trim()
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
 
+    const origemLancamento = String(
+      (t as any).origemLancamento ??
+        (t as any).payload?.origemLancamento ??
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
     const isCartao = tipo === "cartao_credito";
-    const isDespesaVariavel = tipo === "despesa" && tipoGasto === "variavel";
+
+    const isDespesaVariavel =
+      tipo === "despesa" &&
+      (tipoGasto === "normal" || tipoGasto === "variavel");
+
+    const isParcelamentoFatura =
+      origemLancamento === "parcelamento_fatura";
+
     const isPagamentoFatura = isPgtoFatura(t);
 
-    return isCartao || isDespesaVariavel || isPagamentoFatura;
+    return (
+      isCartao ||
+      isDespesaVariavel ||
+      isParcelamentoFatura ||
+      isPagamentoFatura
+    );
   })
   .filter((t) => !isPgtoFatura(t))
   .reduce((s, t) => s + Math.abs(Number((t as any).valor) || 0), 0);

@@ -32,6 +32,7 @@ import {
   mapCreditCardRowToApp,
   updateCreditCardById,
   deleteCreditCardById,
+  touchCreditCardById,
 } from "./services/creditCards";
 import {
   fetchInvoicePayments,
@@ -653,6 +654,37 @@ setAccountsLoaded(true);
   }
 };
 
+const touchCardAndRefreshInState = async (cardId: string) => {
+  const userId = String(session?.user?.id ?? "").trim();
+  const id = String(cardId ?? "").trim();
+
+  if (!userId || !id) return;
+
+  try {
+    const touchedRow = await touchCreditCardById(id, userId);
+    const mappedTouched = mapCreditCardRowToApp(touchedRow as any) as any;
+
+    setCreditCards((prev: any[]) =>
+      (Array.isArray(prev) ? prev : []).map((card: any) =>
+        String(card?.id ?? "") === id
+          ? {
+              ...card,
+              ...mappedTouched,
+              is_active:
+                typeof card?.is_active === "boolean"
+                  ? card.is_active
+                  : typeof (touchedRow as any)?.is_active === "boolean"
+                  ? (touchedRow as any).is_active
+                  : true,
+            }
+          : card
+      )
+    );
+  } catch (err) {
+    console.error("ERRO AO ATUALIZAR ORDEM DO CARTAO:", err);
+  }
+};
+
 useEffect(() => {
   let isAlive = true;
 
@@ -800,6 +832,9 @@ const txIdSalva = String((txApp as any)?.id ?? "").trim();
       const base = Array.isArray(prev) ? prev : [];
       return [...base, savedPagamento as any];
     });
+
+    await touchCardAndRefreshInState(payload.cartaoId);
+
   } catch (invoiceErr) {
     if (txIdSalva && isUuid(txIdSalva)) {
       try {
@@ -1005,6 +1040,9 @@ try {
     );
     return [...semAtual, savedManualStatus as any];
   });
+
+  await touchCardAndRefreshInState(cartaoId);
+
 } catch (innerErr) {
   const txIdsCriadas = (savedTransactions ?? [])
     .map((tx: any) => String((tx as any)?.id ?? "").trim())
@@ -1486,19 +1524,24 @@ const handleRemoverPagamentoFatura = async (pagamentoId: string) => {
       await deleteTransactionById(String(alvo.transacaoId), userId);
     }
 
-    setPagamentosFatura((prev) =>
-      (prev ?? []).filter((p: any) => String(p?.id ?? "") !== String(pagamentoId))
-    );
+setPagamentosFatura((prev) =>
+  (prev ?? []).filter((p: any) => String(p?.id ?? "") !== String(pagamentoId))
+);
 
-    if (alvo.transacaoId) {
-      setTransacoes((prev) =>
-        (prev ?? []).filter(
-          (t: any) => String(t?.id ?? "") !== String(alvo.transacaoId)
-        )
-      );
-    }
+if (alvo.transacaoId) {
+  setTransacoes((prev) =>
+    (prev ?? []).filter(
+      (t: any) => String(t?.id ?? "") !== String(alvo.transacaoId)
+    )
+  );
+}
 
-    toastCompact("Pagamento removido.", "success");
+if (alvo.cartaoId) {
+  await touchCardAndRefreshInState(alvo.cartaoId);
+}
+
+toastCompact("Pagamento removido.", "success");
+
   } catch (err) {
     console.error("ERRO AO REMOVER PAGAMENTO DE FATURA:", err);
     toastCompact("Erro ao remover pagamento da fatura.", "error");
@@ -1714,6 +1757,10 @@ await Promise.all(
     return !(batePorId || (batePorAssinaturaDeParcela && batePorMesmoCartaoECiclo));
   })
 );
+
+if (cartaoIdFinal) {
+  await touchCardAndRefreshInState(cartaoIdFinal);
+}
 
     toastCompact("Parcelamento cancelado.", "success");
 } catch (err) {
@@ -2482,7 +2529,32 @@ if (!safeItems.length) {
       createdRows.push(row);
     }
 
-    return createdRows.map(mapTransactionRowToApp);
+  const mappedRows = createdRows.map(mapTransactionRowToApp);
+
+const cardIdsToTouch = Array.from(
+  new Set(
+    mappedRows
+      .map((tx: any) =>
+        String(
+          tx?.tipo === "cartao_credito"
+            ? tx?.cartaoId ??
+              tx?.qualCartao ??
+              tx?.payload?.cartaoId ??
+              tx?.payload?.qualCartao ??
+              ""
+            : ""
+        ).trim()
+      )
+      .filter(Boolean)
+  )
+);
+
+for (const cardId of cardIdsToTouch) {
+  await touchCardAndRefreshInState(cardId);
+}
+
+return mappedRows;
+
   } catch (err) {
     const createdIds = createdRows
       .map((row: any) => String(row?.id ?? "").trim())
@@ -2678,21 +2750,35 @@ const orderedCreditCards = useMemo(() => {
     return 2;
   };
 
-  return [...(creditCards ?? [])].sort((a: any, b: any) => {
+return [...(creditCards ?? [])].sort((a: any, b: any) => {
   const aInactive = a?.is_active === false ? 1 : 0;
   const bInactive = b?.is_active === false ? 1 : 0;
 
   if (aInactive !== bInactive) return aInactive - bInactive;
-    const rankA = getCardRank(a);
-    const rankB = getCardRank(b);
 
-    if (rankA !== rankB) return rankA - rankB;
+  const aTime = Math.max(
+    new Date(String(a?.updatedAt ?? a?.updated_at ?? "")).getTime() || 0,
+    new Date(String(a?.createdAt ?? a?.created_at ?? "")).getTime() || 0
+  );
 
-    return String(a?.name ?? a?.nome ?? "").localeCompare(
-      String(b?.name ?? b?.nome ?? ""),
-      "pt-BR"
-    );
-  });
+  const bTime = Math.max(
+    new Date(String(b?.updatedAt ?? b?.updated_at ?? "")).getTime() || 0,
+    new Date(String(b?.createdAt ?? b?.created_at ?? "")).getTime() || 0
+  );
+
+  if (aTime !== bTime) return bTime - aTime;
+
+  const rankA = getCardRank(a);
+  const rankB = getCardRank(b);
+
+  if (rankA !== rankB) return rankA - rankB;
+
+  return String(a?.name ?? a?.nome ?? "").localeCompare(
+    String(b?.name ?? b?.nome ?? ""),
+    "pt-BR"
+  );
+});
+
 }, [
   creditCards,
   transacoes,
@@ -3267,33 +3353,43 @@ const ok = await confirm({
 
     if (!ok) return;
 
-    try {
-      await updateCreditCardById(cardId, userId, {
-        is_active: false,
-      } as any);
+try {
+  const updatedRow = await updateCreditCardById(cardId, userId, {
+    is_active: false,
+  } as any);
 
-      setCreditCards((prev) => {
-        const next = (prev ?? []).map((x: any) =>
-          String(x?.id ?? "").trim() === cardId
-            ? { ...x, is_active: false }
-            : x
-        );
+  const updatedCard = mapCreditCardRowToApp(updatedRow as any) as any;
 
-if (String(selectedCreditCardId ?? "").trim() === cardId) {
-  const primeiroAtivo = next.find((x: any) => x?.is_active !== false);
-  const nextCardId = String(primeiroAtivo?.id ?? "").trim();
+  setCreditCards((prev) => {
+    const next = (prev ?? []).map((x: any) =>
+      String(x?.id ?? "").trim() === cardId
+        ? {
+            ...x,
+            ...updatedCard,
+            is_active:
+              typeof (updatedRow as any)?.is_active === "boolean"
+                ? (updatedRow as any).is_active
+                : false,
+          }
+        : x
+    );
 
-  setSelectedCreditCardId(nextCardId);
-  setFormQualCartao(nextCardId);
-  setIsCcExpanded(false);
-  setIsEditingLimite(false);
-}
+    if (String(selectedCreditCardId ?? "").trim() === cardId) {
+      const primeiroAtivo = next.find((x: any) => x?.is_active !== false);
+      const nextCardId = String(primeiroAtivo?.id ?? "").trim();
 
-        return next;
-      });
+      setSelectedCreditCardId(nextCardId);
+      setFormQualCartao(nextCardId);
+      setIsCcExpanded(false);
+      setIsEditingLimite(false);
+    }
 
-      toastCompact("Cartão desativado com sucesso.", "success");
-    } catch (err) {
+    return next;
+  });
+
+  toastCompact("Cartão desativado com sucesso.", "success");
+} catch (err) {
+    
       console.error("ERRO AO DESATIVAR CARTÃO:", err);
       toastCompact("Erro ao desativar cartão no banco.", "error");
     }
@@ -3333,24 +3429,34 @@ const handleReactivateCreditCard = useCallback(
 
     if (!ok) return;
 
-    try {
-      await updateCreditCardById(cardId, userId, {
-        is_active: true,
-      } as any);
+try {
+  const updatedRow = await updateCreditCardById(cardId, userId, {
+    is_active: true,
+  } as any);
 
-      setCreditCards((prev) =>
-        (prev ?? []).map((x: any) =>
-          String(x?.id ?? "").trim() === cardId
-            ? { ...x, is_active: true }
-            : x
-        )
-      );
+  const updatedCard = mapCreditCardRowToApp(updatedRow as any) as any;
 
-      setSelectedCreditCardId(cardId);
-setFormQualCartao(cardId);
+  setCreditCards((prev) =>
+    (prev ?? []).map((x: any) =>
+      String(x?.id ?? "").trim() === cardId
+        ? {
+            ...x,
+            ...updatedCard,
+            is_active:
+              typeof (updatedRow as any)?.is_active === "boolean"
+                ? (updatedRow as any).is_active
+                : true,
+          }
+        : x
+    )
+  );
 
-      toastCompact("Cartão reativado com sucesso.", "success");
-    } catch (err) {
+  setSelectedCreditCardId(cardId);
+  setFormQualCartao(cardId);
+
+  toastCompact("Cartão reativado com sucesso.", "success");
+} catch (err) {
+
       console.error("ERRO AO REATIVAR CARTÃO:", err);
       toastCompact("Erro ao reativar cartão no banco.", "error");
     }
@@ -4313,6 +4419,47 @@ payload: {
     );
 
     setTransacoes(listaEditada as any);
+
+    const cardIdsToTouch = Array.from(
+  new Set(
+    (listaEditada ?? [])
+      .filter((t: any) => {
+        const currentId = String((t as any)?.id ?? "").trim();
+        const currentRid = String(
+          (t as any)?.recorrenciaId ?? (t as any)?.payload?.recorrenciaId ?? ""
+        ).trim();
+
+        const editingId = String((editingTransaction as any)?.id ?? "").trim();
+        const editingRid = String(
+          (editingTransaction as any)?.recorrenciaId ??
+            (editingTransaction as any)?.payload?.recorrenciaId ??
+            ""
+        ).trim();
+
+        if (currentId === editingId) return true;
+        if (applyToAllRelated && editingRid && currentRid === editingRid) return true;
+
+        return false;
+      })
+      .map((t: any) =>
+        String(
+          (t as any)?.tipo === "cartao_credito"
+            ? (t as any)?.cartaoId ??
+              (t as any)?.qualCartao ??
+              (t as any)?.payload?.cartaoId ??
+              (t as any)?.payload?.qualCartao ??
+              ""
+            : ""
+        ).trim()
+      )
+      .filter(Boolean)
+  )
+);
+
+for (const cardId of cardIdsToTouch) {
+  await touchCardAndRefreshInState(cardId);
+}
+
     setEditingTransaction(null);
     toastCompact("Alteração salva com sucesso.", "success");
   } catch (err) {
@@ -4458,6 +4605,16 @@ const confirmarExclusao = async (apagarTodas: boolean) => {
     const desc = deletingTransaction.descricao;
     const tx: any = deletingTransaction;
 
+    const cardIdToTouch = String(
+  tx?.tipo === "cartao_credito"
+    ? tx?.cartaoId ??
+      tx?.qualCartao ??
+      tx?.payload?.cartaoId ??
+      tx?.payload?.qualCartao ??
+      ""
+    : ""
+).trim();
+
     const catNorm = String(tx?.categoria ?? "")
       .toLowerCase()
       .normalize("NFD")
@@ -4595,6 +4752,10 @@ await Promise.all(
     })
   );
 
+  if (cardIdToTouch) {
+  await touchCardAndRefreshInState(cardIdToTouch);
+}
+
   toastCompact(`Parcelamento atualizado: "${desc}".`, "success");
 } else {
       const userId = session?.user?.id;
@@ -4606,6 +4767,9 @@ await deleteTransactionById(String(deletingTransaction.id), userId);
         prev.filter((t) => String(t.id) !== String(deletingTransaction.id))
       );
 
+      if (cardIdToTouch) {
+  await touchCardAndRefreshInState(cardIdToTouch);
+}
       toastCompact(`Lançamento excluído: "${desc}".`, "success");
     }
 
@@ -4968,7 +5132,31 @@ payload: {
     )
   );
 
-  return createdRows.map(mapTransactionRowToApp);
+ const mappedRows = createdRows.map(mapTransactionRowToApp);
+
+const cardIdsToTouch = Array.from(
+  new Set(
+    mappedRows
+      .map((tx: any) =>
+        String(
+          tx?.tipo === "cartao_credito"
+            ? tx?.cartaoId ??
+              tx?.qualCartao ??
+              tx?.payload?.cartaoId ??
+              tx?.payload?.qualCartao ??
+              ""
+            : ""
+        ).trim()
+      )
+      .filter(Boolean)
+  )
+);
+
+for (const cardId of cardIdsToTouch) {
+  await touchCardAndRefreshInState(cardId);
+}
+
+return mappedRows;
 };
     // =========================
     // TRANSFERÊNCIA
@@ -5329,6 +5517,12 @@ setCcTags((prev) =>
 
 const criadas = await salvarNoSupabase(novos);
 setTransacoes((prev) => [...prev, ...(criadas as any)]);
+
+if (String(selectedCreditCardId || formQualCartao || "").trim()) {
+  await touchCardAndRefreshInState(
+    String(selectedCreditCardId || formQualCartao || "").trim()
+  );
+}
 
 const cartaoLancadoId = String(selectedCreditCardId || formQualCartao || "").trim();
 
@@ -8812,6 +9006,20 @@ const ok = await confirm({
 
 if (!ok) return;
 
+const txAlvoAtual = (transacoes ?? []).find(
+  (t: any) => String((t as any)?.id ?? "") === String(id)
+);
+
+const cardIdToTouch = String(
+  (txAlvoAtual as any)?.tipo === "cartao_credito"
+    ? (txAlvoAtual as any)?.cartaoId ??
+      (txAlvoAtual as any)?.qualCartao ??
+      (txAlvoAtual as any)?.payload?.cartaoId ??
+      (txAlvoAtual as any)?.payload?.qualCartao ??
+      ""
+    : ""
+).trim();
+
 const alvoPagamento = (pagamentosFatura ?? []).find(
   (p: any) => String(p?.transacaoId ?? "") === String(id)
 );
@@ -8866,6 +9074,10 @@ try {
 
     return prev.filter((t) => String(t.id) !== String(id));
   });
+
+  if (cardIdToTouch) {
+  await touchCardAndRefreshInState(cardIdToTouch);
+}
 
   toastCompact("Transação excluída.", "success");
 } catch (err) {

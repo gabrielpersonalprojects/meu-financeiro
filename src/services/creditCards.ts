@@ -32,6 +32,8 @@ export type CreditCardApp = {
   gradientTo?: string;
   categoria?: string;
   perfil: "pf" | "pj";
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export const mapCreditCardRowToApp = (row: CreditCardRow): CreditCardApp => {
@@ -49,6 +51,8 @@ export const mapCreditCardRowToApp = (row: CreditCardRow): CreditCardApp => {
     gradientTo: row.gradient_to ?? "#4600ac",
     categoria: row.categoria ?? "",
     perfil: String((row as any).brand ?? "pf").toLowerCase() === "pj" ? "pj" : "pf",
+    createdAt: row.created_at ?? "",
+    updatedAt: row.updated_at ?? "",
   };
 };
 
@@ -132,6 +136,21 @@ export async function updateCreditCardById(
 ...(input.gradient_to !== undefined ? { gradient_to: input.gradient_to } : {}),
 ...(input.is_active !== undefined ? { is_active: input.is_active } : {}),
 })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as CreditCardRow;
+}
+
+export async function touchCreditCardById(id: string, userId: string) {
+  const { data, error } = await supabase
+    .from("credit_cards")
+    .update({
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id)
     .eq("user_id", userId)
     .select()

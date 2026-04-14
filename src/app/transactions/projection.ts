@@ -45,7 +45,10 @@ export const computeProjection12Months = (params: {
   perfilView?: PerfilView;
   profiles?: Profile[];
   creditCards?: any[];
+  selectedProfileIds?: string[];
+  selectedCreditCardIds?: string[];
 }): ProjectionRow[] => {
+
 const {
   transacoes,
   getMesAnoExtenso,
@@ -54,9 +57,26 @@ const {
   perfilView = "geral",
   profiles = [],
   creditCards = [],
+  selectedProfileIds = [],
+  selectedCreditCardIds = [],
 } = params;
 
 const perfilViewNorm = String(perfilView ?? "geral").trim().toLowerCase();
+
+const selectedProfileIdsSet = new Set(
+  (selectedProfileIds ?? [])
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean)
+);
+
+const selectedCreditCardIdsSet = new Set(
+  (selectedCreditCardIds ?? [])
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean)
+);
+
+const hasProfileSelection = selectedProfileIdsSet.size > 0;
+const hasCreditCardSelection = selectedCreditCardIdsSet.size > 0;
 
 const isActiveCardTransaction = (t: Transaction) => {
   const tipo = String((t as any)?.tipo ?? "").trim().toLowerCase();
@@ -339,16 +359,69 @@ if (perfisContas.length === 1) {
 return null;
 };
 
+const getContaIdFromTransaction = (t: Transaction) => {
+  const idsConta = [
+    (t as any)?.profileId,
+    (t as any)?.contaId,
+    (t as any)?.qualConta,
+    (t as any)?.contaOrigemId,
+    (t as any)?.contaDestinoId,
+    (t as any)?.transferFromId,
+    (t as any)?.transferToId,
+    (t as any)?.conta?.id,
+    (t as any)?.profile?.id,
+    (t as any)?.payload?.profileId,
+    (t as any)?.payload?.contaId,
+    (t as any)?.payload?.qualConta,
+    (t as any)?.payload?.contaOrigemId,
+    (t as any)?.payload?.contaDestinoId,
+    (t as any)?.payload?.transferFromId,
+    (t as any)?.payload?.transferToId,
+  ]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
+
+  return idsConta[0] ?? "";
+};
+
+const getCreditCardIdFromTransaction = (t: Transaction) => {
+  const cartao = getCardRefFromTransaction(t);
+  return String((cartao as any)?.id ?? "").trim();
+};
+
 const transacoesFiltradas = (transacoes ?? []).filter((t) => {
   if (!isActiveCardTransaction(t)) return false;
 
-  if (perfilViewNorm === "geral") return true;
+  const tipo = String((t as any)?.tipo ?? "").trim().toLowerCase();
 
-  const perfilConta = getPerfilContaFromTransaction(t);
+  if (perfilViewNorm !== "geral") {
+    const perfilConta = getPerfilContaFromTransaction(t);
 
-  return perfilViewNorm === "pf"
-    ? perfilConta === "PF"
-    : perfilConta === "PJ";
+    const batePerfil =
+      perfilViewNorm === "pf" ? perfilConta === "PF" : perfilConta === "PJ";
+
+    if (!batePerfil) return false;
+  }
+
+  if (perfilViewNorm === "geral") {
+    return true;
+  }
+
+if (tipo === "cartao_credito") {
+  const cardId = getCreditCardIdFromTransaction(t);
+
+  if (!cardId) return false;
+  if (!hasCreditCardSelection) return false;
+
+  return selectedCreditCardIdsSet.has(cardId);
+}
+
+const contaId = getContaIdFromTransaction(t);
+
+if (!contaId) return false;
+if (!hasProfileSelection) return false;
+
+return selectedProfileIdsSet.has(contaId);
 });
 
   const results: ProjectionRow[] = [];

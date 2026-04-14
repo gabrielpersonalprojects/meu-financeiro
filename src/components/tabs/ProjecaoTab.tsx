@@ -1,6 +1,8 @@
 import { formatarMoeda } from "../../utils/formatters";
 import { RotateCcw } from "lucide-react";
+import { useMemo } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import type { Profile } from "../../app/types";
 import type { ProjectionMode, ProjectionRow } from "../../app/transactions/projection";
 
 type Props = {
@@ -10,6 +12,12 @@ type Props = {
   saldoInicial: number;
   perfilView: "geral" | "pf" | "pj";
   setPerfilView: Dispatch<SetStateAction<"geral" | "pf" | "pj">>;
+  profiles: Profile[];
+  creditCards: any[];
+  selectedProfileIds: string[];
+  selectedCreditCardIds: string[];
+  setSelectedProfileIds: Dispatch<SetStateAction<string[]>>;
+  setSelectedCreditCardIds: Dispatch<SetStateAction<string[]>>;
 };
 
 
@@ -20,9 +28,101 @@ export default function ProjecaoTab({
   saldoInicial,
   perfilView,
   setPerfilView,
+  profiles,
+  creditCards,
+  selectedProfileIds,
+  selectedCreditCardIds,
+  setSelectedProfileIds,
+  setSelectedCreditCardIds,
 }: Props) {
+
   const lastColTitle =
     projectionMode === "acumulado" ? "Saldo projetado" : "Resultado do mês";
+
+    const perfilLabel =
+  perfilView === "pf" ? "PF" : perfilView === "pj" ? "PJ" : "geral";
+
+const contasDoPerfil = useMemo(() => {
+  if (perfilView === "geral") return [];
+
+  return (profiles ?? []).filter((p: any) => {
+    const perfil = String(
+      (p as any)?.perfilConta ??
+        (p as any)?.perfil ??
+        (p as any)?.brand ??
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
+    return perfil === perfilView;
+  });
+}, [profiles, perfilView]);
+
+const cartoesDoPerfil = useMemo(() => {
+  if (perfilView === "geral") return [];
+
+  return (creditCards ?? []).filter((c: any) => {
+    const perfil = String((c as any)?.perfil ?? (c as any)?.brand ?? "")
+      .trim()
+      .toLowerCase();
+
+    return perfil === perfilView;
+  });
+}, [creditCards, perfilView]);
+
+const todosPerfisMarcados =
+  perfilView !== "geral" &&
+  contasDoPerfil.every((p: any) =>
+    selectedProfileIds.includes(String((p as any)?.id ?? ""))
+  ) &&
+  cartoesDoPerfil.every((c: any) =>
+    selectedCreditCardIds.includes(String((c as any)?.id ?? ""))
+  );
+
+const toggleConta = (id: string) => {
+  const cleanId = String(id ?? "").trim();
+  if (!cleanId) return;
+
+  setSelectedProfileIds((prev) =>
+    prev.includes(cleanId)
+      ? prev.filter((item) => item !== cleanId)
+      : [...prev, cleanId]
+  );
+};
+
+const toggleCartao = (id: string) => {
+  const cleanId = String(id ?? "").trim();
+  if (!cleanId) return;
+
+  setSelectedCreditCardIds((prev) =>
+    prev.includes(cleanId)
+      ? prev.filter((item) => item !== cleanId)
+      : [...prev, cleanId]
+  );
+};
+
+const handleToggleAll = () => {
+  if (perfilView === "geral") return;
+
+  if (todosPerfisMarcados) {
+    setSelectedProfileIds([]);
+    setSelectedCreditCardIds([]);
+    return;
+  }
+
+  setSelectedProfileIds(
+    contasDoPerfil
+      .map((p: any) => String((p as any)?.id ?? ""))
+      .filter(Boolean)
+  );
+
+  setSelectedCreditCardIds(
+    cartoesDoPerfil
+      .map((c: any) => String((c as any)?.id ?? ""))
+      .filter(Boolean)
+  );
+};
 
   return (
     <div className="animate-in fade-in py-4 overflow-x-auto no-scrollbar">
@@ -66,7 +166,11 @@ export default function ProjecaoTab({
   <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
     <button
       type="button"
-      onClick={() => setPerfilView("geral")}
+      onClick={() => {
+  setPerfilView("geral");
+  setSelectedProfileIds([]);
+  setSelectedCreditCardIds([]);
+}}
       className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
         perfilView === "geral"
           ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
@@ -78,7 +182,29 @@ export default function ProjecaoTab({
 
     <button
       type="button"
-      onClick={() => setPerfilView("pf")}
+     onClick={() => {
+  setPerfilView("pf");
+  setSelectedProfileIds(
+    (profiles ?? [])
+      .filter((p: any) =>
+        String((p as any)?.perfilConta ?? (p as any)?.perfil ?? (p as any)?.brand ?? "")
+          .trim()
+          .toLowerCase() === "pf"
+      )
+      .map((p: any) => String((p as any)?.id ?? ""))
+      .filter(Boolean)
+  );
+  setSelectedCreditCardIds(
+    (creditCards ?? [])
+      .filter((c: any) =>
+        String((c as any)?.perfil ?? (c as any)?.brand ?? "")
+          .trim()
+          .toLowerCase() === "pf"
+      )
+      .map((c: any) => String((c as any)?.id ?? ""))
+      .filter(Boolean)
+  );
+}}
       className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
         perfilView === "pf"
           ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
@@ -90,7 +216,29 @@ export default function ProjecaoTab({
 
     <button
       type="button"
-      onClick={() => setPerfilView("pj")}
+      onClick={() => {
+  setPerfilView("pj");
+  setSelectedProfileIds(
+    (profiles ?? [])
+      .filter((p: any) =>
+        String((p as any)?.perfilConta ?? (p as any)?.perfil ?? (p as any)?.brand ?? "")
+          .trim()
+          .toLowerCase() === "pj"
+      )
+      .map((p: any) => String((p as any)?.id ?? ""))
+      .filter(Boolean)
+  );
+  setSelectedCreditCardIds(
+    (creditCards ?? [])
+      .filter((c: any) =>
+        String((c as any)?.perfil ?? (c as any)?.brand ?? "")
+          .trim()
+          .toLowerCase() === "pj"
+      )
+      .map((c: any) => String((c as any)?.id ?? ""))
+      .filter(Boolean)
+  );
+}}
       className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
         perfilView === "pj"
           ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
@@ -102,10 +250,12 @@ export default function ProjecaoTab({
   </div>
 <button
   type="button"
-  onClick={() => {
-    setProjectionMode("acumulado");
-    setPerfilView("geral");
-  }}
+onClick={() => {
+  setProjectionMode("acumulado");
+  setPerfilView("geral");
+  setSelectedProfileIds([]);
+  setSelectedCreditCardIds([]);
+}}
   title="Voltar ao padrão"
   className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
 >
@@ -119,6 +269,94 @@ export default function ProjecaoTab({
     ? "Saldo Projetado = Saldo Inicial + Receita - Despesa e Gastos c/ Cartões"
     : "Resultado do mês = Entradas no mês - Saídas no mês e Gastos c/ Cartões"}
 </p>
+
+{perfilView !== "geral" && (
+  <>
+    <div className="mt-3 w-full min-w-[800px] rounded-[2rem] border border-violet-100/80 bg-white p-4 shadow-[0_10px_28px_rgba(34,0,85,0.04)] dark:border-violet-400/10 dark:bg-[#0f0a1f]/80">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="min-w-0">
+          <p className="mb-2 text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
+            Contas
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            {contasDoPerfil.map((conta: any) => {
+              const id = String((conta as any)?.id ?? "");
+              const ativo = selectedProfileIds.includes(id);
+              const nome = String(
+                (conta as any)?.name ?? (conta as any)?.banco ?? "Conta"
+              ).trim();
+
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => toggleConta(id)}
+                  className={`rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                    ativo
+                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                  }`}
+                >
+                  {nome}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+       <div className="min-w-0 md:pl-6">
+          <p className="mb-2 text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
+            Cartões
+          </p>
+
+         <div className="flex flex-wrap items-start content-start gap-2">
+            {cartoesDoPerfil.map((cartao: any) => {
+              const id = String((cartao as any)?.id ?? "");
+              const ativo = selectedCreditCardIds.includes(id);
+const nome = String(
+  (cartao as any)?.emissor ??
+    (cartao as any)?.bankText ??
+    (cartao as any)?.name ??
+    (cartao as any)?.nome ??
+    "Cartão"
+).trim();
+
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => toggleCartao(id)}
+                  className={`inline-flex min-w-[88px] justify-center rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                    ativo
+                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                  }`}
+                >
+                  {nome}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+
+ <div className="mt-0.5 flex w-full min-w-[800px] items-center justify-between gap-3">
+     <p className="-mt-2 ml-[14px] text-[12px] md:text-[13px] font-semibold text-slate-500 dark:text-slate-300">
+        Escolha quais contas e cartões entram na projeção.
+      </p>
+
+      <button
+        type="button"
+        onClick={handleToggleAll}
+        className="inline-flex rounded-2xl border border-[#4600ac]/20 bg-gradient-to-r from-[#220055] to-[#4600ac] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_10px_rgba(70,0,172,0.12)] transition hover:brightness-110 active:scale-[0.98]"
+      >
+        {todosPerfisMarcados ? "Desmarcar tudo" : "Marcar tudo"}
+      </button>
+    </div>
+  </>
+)}
       </div>
 
 <div className="min-w-[800px] rounded-[2rem] border border-violet-100/80 bg-white p-4 shadow-[0_10px_28px_rgba(34,0,85,0.04)] dark:border-violet-400/10 dark:bg-[#0f0a1f]/80">

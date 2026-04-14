@@ -557,7 +557,7 @@ export default function SidebarShell({
           )}
         </div>
 
-        <div className="h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 dark:bg-slate-950">
+ <div className="sidebar-panel-scroll h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 pr-2 dark:bg-slate-950">
           {activePanel && panelContent[activePanel] ? (
             panelContent[activePanel]
           ) : (
@@ -665,7 +665,7 @@ export default function SidebarShell({
             )}
           </div>
 
-          <div className="h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 dark:bg-slate-950">
+       <div className="sidebar-panel-scroll h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 pr-2 dark:bg-slate-950">
             {activePanel && panelContent[activePanel] ? (
               panelContent[activePanel]
             ) : (

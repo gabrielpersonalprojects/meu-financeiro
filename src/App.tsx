@@ -383,6 +383,8 @@ const [parcelamentosFatura, setParcelamentosFatura] = useState<ParcelamentoFatur
 const [faturasStatusManual, setFaturasStatusManual] = useState<FaturaStatusManualApp[]>([]);
   
   const [projectionMode, setProjectionMode] = useState<"acumulado" | "mensal">("acumulado");
+  const [selectedProjectionProfileIds, setSelectedProjectionProfileIds] = useState<string[]>([]);
+const [selectedProjectionCreditCardIds, setSelectedProjectionCreditCardIds] = useState<string[]>([]);
 
   const ui = useUI();
  
@@ -4168,7 +4170,9 @@ const projection12Months = useProjection12Months({
   saldoInicialBase: saldoInicialProjecao,
   perfilView: projecaoPerfilView,
   profiles,
-  creditCards: activeCreditCards as any,
+  creditCards,
+  selectedProfileIds: selectedProjectionProfileIds,
+  selectedCreditCardIds: selectedProjectionCreditCardIds,
   mode: projectionMode,
 });
 
@@ -7377,7 +7381,7 @@ const resumoAlertsCount =
 
   
 const resumoPanelContent = (
-<div className="h-full overflow-y-auto space-y-0 resumo-scroll pr-1">
+<div className="space-y-0">
   {semPrazoResumoAlertsContent}
 
     <div className="mt-5 space-y-3">
@@ -9146,14 +9150,20 @@ try {
 </div>
 
 <div className={activeTab === "projecao" ? "block" : "hidden"}>
-  <ProjecaoTab
-    projection12Months={projection12Months}
-    projectionMode={projectionMode}
-    setProjectionMode={setProjectionMode}
-    saldoInicial={saldoInicialProjecao}
-    perfilView={projecaoPerfilView}
-    setPerfilView={setProjecaoPerfilView}
-  />
+<ProjecaoTab
+  projection12Months={projection12Months}
+  projectionMode={projectionMode}
+  setProjectionMode={setProjectionMode}
+  saldoInicial={saldoInicialProjecao}
+  perfilView={projecaoPerfilView}
+  setPerfilView={setProjecaoPerfilView}
+  profiles={profiles}
+  creditCards={creditCards}
+  selectedProfileIds={selectedProjectionProfileIds}
+  selectedCreditCardIds={selectedProjectionCreditCardIds}
+  setSelectedProfileIds={setSelectedProjectionProfileIds}
+  setSelectedCreditCardIds={setSelectedProjectionCreditCardIds}
+/>
 </div>
   </div>
 

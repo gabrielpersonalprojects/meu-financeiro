@@ -10,6 +10,8 @@ type Params = {
   perfilView?: "geral" | "pf" | "pj";
   profiles?: Profile[];
   creditCards?: any[];
+  selectedProfileIds?: string[];
+  selectedCreditCardIds?: string[];
   mode: ProjectionMode;
 };
 
@@ -20,25 +22,32 @@ export function useProjection12Months({
   perfilView = "geral",
   profiles = [],
   creditCards = [],
+  selectedProfileIds = [],
+  selectedCreditCardIds = [],
   mode,
 }: Params): ProjectionRow[] {
+
   return useMemo(() => {
-    return computeProjection12Months({
-      transacoes: transactions,
-      getMesAnoExtenso,
-      saldoInicialBase,
-      perfilView,
-      profiles,
-      creditCards,
-      mode,
-    });
+return computeProjection12Months({
+  transacoes: transactions,
+  getMesAnoExtenso,
+  saldoInicialBase,
+  perfilView,
+  profiles,
+  creditCards,
+  selectedProfileIds,
+  selectedCreditCardIds,
+  mode,
+});
    }, [
-    transactions,
-    getMesAnoExtenso,
-    saldoInicialBase,
-    perfilView,
-    profiles,
-    creditCards,
-    mode,
+transactions,
+getMesAnoExtenso,
+saldoInicialBase,
+perfilView,
+profiles,
+creditCards,
+selectedProfileIds,
+selectedCreditCardIds,
+mode,
   ]);
 }

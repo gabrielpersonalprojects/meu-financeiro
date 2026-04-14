@@ -3,6 +3,7 @@ import { CATEGORIAS_PADRAO } from "../constants";
 import CustomDateInput from "./CustomDateInput";
 import CustomDropdown from "./CustomDropdown";
 import { PlusIcon } from "./LucideIcons";
+import { Archive } from "lucide-react";
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect } from "react";
@@ -14,6 +15,7 @@ type PrazoMode = "com_prazo" | "sem_prazo" | null;
 type Props = {
  onboardingStep?: "loading" | "nome" | "conta" | "ok";
   openAddCreditCardModal: () => void;
+    onOpenStatementImport?: () => void;
   // tipo
   formTipo: TransactionType;
   setFormTipo: (v: TransactionType) => void;
@@ -172,6 +174,7 @@ function normalizeCategory(val: any): string {
 export default function NewTransactionCard({
   onboardingStep,
   openAddCreditCardModal,
+  onOpenStatementImport,
   formTipo,
   setFormTipo,
 
@@ -426,10 +429,22 @@ const ccCategoryOptions = despesaCategoryOptions;
 
   return (
    <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 lg:p-4">
-<div className="flex items-center justify-between mb-2">
+<div className="mb-2 flex items-center justify-between gap-3">
   <h2 className="text-base lg:text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
     <PlusIcon /> Novo Lançamento
   </h2>
+
+  {onOpenStatementImport ? (
+    <button
+      type="button"
+      onClick={onOpenStatementImport}
+      className="inline-flex h-10 shrink-0 items-center gap-2 rounded-2xl border border-[#4600ac]/15 bg-[#4600ac]/[0.07] px-3 text-[13px] font-semibold text-[#4600ac] transition hover:bg-[#4600ac]/[0.11] dark:border-white/10 dark:bg-white/5 dark:text-violet-200 dark:hover:bg-white/10"
+      title="Importar extrato"
+    >
+      <Archive className="h-4 w-4" />
+      <span className="hidden sm:inline">Importar Extrato</span>
+    </button>
+  ) : null}
 </div>
 
      <div className="space-y-3">

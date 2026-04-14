@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import CustomDropdown from "../../components/CustomDropdown";
 import { CreditCardVisual } from "./CreditCardVisual";
 import { createPortal } from "react-dom";
+import { Archive } from "lucide-react";
 
 type CartaoUI = {
   id: string;
@@ -93,6 +94,7 @@ type Props = {
   transacoes: TransacaoCCUI[];
   onPickOtherCard?: () => void;
   onDeleteTransacao?: (id: string) => void;
+    onOpenStatementImport?: () => void;
   onSaldoRestanteChange?: (value: number) => void;
 
   contaPagamentoOptions?: Array<{ value: string; label: string }>;
@@ -160,6 +162,7 @@ export function CreditDashboard({
   transacoes,
   onPickOtherCard,
   onDeleteTransacao,
+  onOpenStatementImport,
   contaPagamentoOptions: contaPagamentoOptionsProp,
   pagamentosFatura: pagamentosFaturaProp,
   onRegistrarPagamentoFatura,
@@ -1553,8 +1556,20 @@ return (
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start justify-items-center lg:justify-items-stretch text-slate-900 dark:text-white">
-       <div className="w-full max-w-[320px] justify-self-center lg:justify-self-start">
-          <div>
+<div className="w-full max-w-[320px] justify-self-center lg:justify-self-start">
+  <div className="mb-2 flex items-center justify-end">
+    <button
+      type="button"
+      onClick={() => onOpenStatementImport?.()}
+      className="inline-flex h-10 shrink-0 items-center gap-2 rounded-2xl border border-[#4600ac]/15 bg-[#4600ac]/[0.07] px-3 text-[13px] font-semibold text-[#4600ac] transition hover:bg-[#4600ac]/[0.11] dark:border-white/10 dark:bg-white/5 dark:text-violet-200 dark:hover:bg-white/10"
+      title="Importar extrato"
+    >
+      <Archive className="h-4 w-4" />
+      <span>Importar Extrato</span>
+    </button>
+  </div>
+
+  <div>
 {onPickOtherCard ? (
   <button type="button" onClick={onPickOtherCard} className="w-full text-left">
 <CreditCardVisual

@@ -76,6 +76,12 @@ import { AppTopBar } from "./components/AppTopBar";
 import { confirm, type ConfirmOpts } from "./services/confirm";
 import { getContaBadge, getContaLabel } from "./domain";
 import { toastCompact, type ToastKind } from "./services/toast";
+import {
+  readStatementImportFileAsText,
+  validateStatementImportFile,
+} from "./services/statementImport";
+import { parseStatementImportPreview } from "./services/statementImportParser";
+import { buildStatementImportDraft } from "./services/statementImportDraft";
 import { getHojeLocal } from "./domain/date";
 import { AppHeader } from "./components/AppHeader";
 import NewTransactionCard from "./components/NewTransactionCard";
@@ -123,6 +129,7 @@ import type {
   ParcelamentoFaturaApp,
   FaturaStatusManualApp,
   Profile,
+  StatementImportPreviewState,
 } from "./app/types";
 
 import {
@@ -148,6 +155,8 @@ import {
   getNotificationsWithReadStatus,
   markNotificationAsRead,
 } from "./services/notifications";
+import StatementImportModal from "./components/import/StatementImportModal";
+import StatementImportPreviewModal from "./components/import/StatementImportPreviewModal";
 
 
 
@@ -299,6 +308,33 @@ const togglePagoInFlightRef = useRef<Set<string>>(new Set());
     const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
 const [ccTags, setCcTags] = useState<string[]>([]);
 const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+const [isAccountStatementImportOpen, setIsAccountStatementImportOpen] = useState(false);
+const [isCreditCardStatementImportOpen, setIsCreditCardStatementImportOpen] = useState(false);
+const [statementImportAccountId, setStatementImportAccountId] = useState("");
+const [statementImportCreditCardId, setStatementImportCreditCardId] = useState("");
+const [statementImportPreview, setStatementImportPreview] =
+  useState<StatementImportPreviewState | null>(null);
+
+  const handlePrepareStatementImport = () => {
+  if (!statementImportPreview) return;
+
+  const draft = buildStatementImportDraft(statementImportPreview);
+
+  console.log("STATEMENT_IMPORT_DRAFT", {
+    mode: statementImportPreview.mode,
+    format: statementImportPreview.format,
+    fileName: statementImportPreview.fileName,
+    targetId: statementImportPreview.targetId,
+    totalDraftItems: draft.length,
+    items: draft,
+  });
+
+  toastCompact(
+    `${draft.length} lançamentos prontos para importação.`,
+    "success"
+  );
+};
+
 const semPrazoRenewInFlightRef = useRef<Set<string>>(new Set());
 const semPrazoCancelInFlightRef = useRef<Set<string>>(new Set());
 const semPrazoDismissInFlightRef = useRef<Set<string>>(new Set());
@@ -1790,6 +1826,8 @@ const cartoesDisponiveis = useMemo(() => {
   return getCartoesDisponiveis(profiles);
 }, [profiles]);
 
+
+
 // ===== Modal "Adicionar Conta" =====
 const TIPOS_CONTA = [
   "Conta Corrente",
@@ -2423,6 +2461,30 @@ useEffect(() => {
   const [formBancoId, setFormBancoId] = useState<string>("");
 
 const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
+
+const statementImportAccountOptions = useMemo(
+  () =>
+    (profiles ?? []).map((profile: any) => ({
+      value: String(profile?.id ?? "").trim(),
+      label: String(profile?.name ?? profile?.banco ?? "Conta").trim(),
+    })),
+  [profiles]
+);
+
+const statementImportCreditCardOptions = useMemo(
+  () =>
+    (creditCards ?? []).map((card: any) => ({
+      value: String(card?.id ?? "").trim(),
+      label: String(
+        card?.emissor ??
+          card?.bankText ??
+          card?.categoria ??
+          card?.brand ??
+          "Cartão"
+      ).trim(),
+    })),
+  [creditCards]
+);
 
 const activeCreditCards = useMemo(
   () => (creditCards ?? []).filter((c: any) => c?.is_active !== false),
@@ -6962,6 +7024,7 @@ const expensePanelContent = (
     openAddAccountModal={openAddAccountModal}
     onOpenManageAccounts={openManageAccountsModal}
     openAddCreditCardModal={openAddCardModal}
+    onOpenStatementImport={() => setIsAccountStatementImportOpen(true)}
     ccIsParceladoMode={ccIsParceladoMode}
     setCcIsParceladoMode={setCcIsParceladoMode}
     isParceladoMode={isParceladoMode}
@@ -7181,6 +7244,7 @@ const cardsPanelContent = (
     openAddAccountModal={openAddAccountModal}
     onOpenManageAccounts={openManageAccountsModal}
     openAddCreditCardModal={openAddCardModal}
+    onOpenStatementImport={() => setIsCreditCardStatementImportOpen(true)}
     ccIsParceladoMode={ccIsParceladoMode}
     setCcIsParceladoMode={setCcIsParceladoMode}
     isParceladoMode={isParceladoMode}
@@ -8905,6 +8969,7 @@ if (selectedCreditCardId === c.id) {
               onPickOtherCard={toggleCcExpanded}
               onSaldoRestanteChange={setSaldoRestanteAtual}
               onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
+              onOpenStatementImport={() => setIsCreditCardStatementImportOpen(true)}
               isInvoiceModalOpen={isInvoiceModalOpen}
               onCloseInvoiceModal={() => setIsInvoiceModalOpen(false)}
               pagamentosFatura={pagamentosFatura}
@@ -10614,6 +10679,107 @@ className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac] 
     </div>
   </div>
 )}
+<StatementImportModal
+  open={isAccountStatementImportOpen}
+  mode="account"
+  options={statementImportAccountOptions}
+  selectedTargetId={statementImportAccountId}
+  onChangeTargetId={setStatementImportAccountId}
+  onClose={() => setIsAccountStatementImportOpen(false)}
+onContinue={async ({ mode, format, file, targetId }) => {
+  try {
+    validateStatementImportFile(file, format);
+
+    const rawContent = await readStatementImportFileAsText(file);
+    const preview = parseStatementImportPreview({
+      format,
+      rawContent,
+    });
+
+    console.log("IMPORT_ACCOUNT_V1", {
+      mode,
+      format,
+      fileName: file.name,
+      targetId,
+      rawLength: rawContent.length,
+      summary: preview.summary,
+      rawPreview: rawContent.split(/\r?\n/).slice(0, 12),
+rows: preview.rows.slice(0, 10),
+    });
+
+setStatementImportPreview({
+  open: true,
+  mode,
+  format,
+  fileName: file.name,
+  targetId,
+  rows: preview.rows,
+  summary: preview.summary,
+});
+
+setIsAccountStatementImportOpen(false);
+
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Erro ao gerar prévia da conta.";
+    toastCompact(message, "error");
+  }
+}}
+/>
+
+<StatementImportModal
+  open={isCreditCardStatementImportOpen}
+  mode="credit_card"
+  options={statementImportCreditCardOptions}
+  selectedTargetId={statementImportCreditCardId}
+  onChangeTargetId={setStatementImportCreditCardId}
+  onClose={() => setIsCreditCardStatementImportOpen(false)}
+onContinue={async ({ mode, format, file, targetId }) => {
+  try {
+    validateStatementImportFile(file, format);
+
+    const rawContent = await readStatementImportFileAsText(file);
+    const preview = parseStatementImportPreview({
+      format,
+      rawContent,
+    });
+
+    console.log("IMPORT_CREDIT_CARD_V1", {
+      mode,
+      format,
+      fileName: file.name,
+      targetId,
+      rawLength: rawContent.length,
+      summary: preview.summary,
+     rawPreview: rawContent.split(/\r?\n/).slice(0, 20),
+rows: preview.rows.slice(0, 10),
+    });
+
+setStatementImportPreview({
+  open: true,
+  mode,
+  format,
+  fileName: file.name,
+  targetId,
+  rows: preview.rows,
+  summary: preview.summary,
+});
+
+setIsCreditCardStatementImportOpen(false);
+
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Erro ao gerar prévia do cartão.";
+    toastCompact(message, "error");
+  }
+}}
+/>
+
+<StatementImportPreviewModal
+  preview={statementImportPreview}
+  onClose={() => setStatementImportPreview(null)}
+  onPrepareImport={handlePrepareStatementImport}
+/>
     </SidebarShell>
   );
 };

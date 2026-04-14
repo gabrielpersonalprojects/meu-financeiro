@@ -120,3 +120,58 @@ export type Profile = {
   diaFechamento?: number;
   diaVencimento?: number;
 };
+
+export type StatementImportTargetType = "account" | "credit_card";
+export type StatementImportSourceFormat = "csv" | "ofx";
+export type StatementImportRowStatus = "valid" | "invalid" | "warning";
+export type StatementImportDuplicateStatus =
+  | "none"
+  | "possible_duplicate"
+  | "duplicate";
+
+export type StatementImportContext = {
+  targetType: StatementImportTargetType;
+  targetId: string;
+  targetLabel: string;
+};
+
+export type StatementImportRow = {
+  lineIndex: number;
+  rawDate: string | null;
+  normalizedDate: string | null;
+  rawDescription: string;
+  normalizedDescription: string;
+  amount: number | null;
+  direction: "entrada" | "saida" | null;
+  parseStatus: StatementImportRowStatus;
+  duplicateStatus: StatementImportDuplicateStatus;
+  selected?: boolean;
+  rowHash: string;
+};
+
+export type StatementImportModalMode = "account" | "credit_card";
+
+export type StatementImportPreviewState = {
+  open: boolean;
+  mode: StatementImportModalMode;
+  format: StatementImportSourceFormat;
+  fileName: string;
+  targetId: string;
+  rows: StatementImportRow[];
+  summary: {
+    total: number;
+    valid: number;
+    invalid: number;
+  };
+};
+
+export type StatementImportDraftItem = {
+  externalRowHash: string;
+  targetId: string;
+  mode: StatementImportModalMode;
+  transactionType: "despesa" | "receita" | "cartao_credito";
+  descricao: string;
+  valor: number;
+  data: string;
+  direction: "entrada" | "saida";
+};

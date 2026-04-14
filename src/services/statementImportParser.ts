@@ -39,11 +39,27 @@ function normalizeDateCandidate(value: string) {
 function normalizeAmountCandidate(value: string) {
   const raw = normalizeText(value)
     .replace(/\s/g, "")
-    .replace(/R\$/gi, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
+    .replace(/R\$/gi, "");
 
-  const n = Number(raw);
+  if (!raw) return null;
+
+  const hasComma = raw.includes(",");
+  const hasDot = raw.includes(".");
+
+  let normalized = raw;
+
+  if (hasComma && hasDot) {
+    // Ex.: 1.234,56  -> 1234.56
+    normalized = raw.replace(/\./g, "").replace(",", ".");
+  } else if (hasComma) {
+    // Ex.: 1234,56 -> 1234.56
+    normalized = raw.replace(",", ".");
+  } else {
+    // Ex.: 1234.56 -> mantém como decimal com ponto
+    normalized = raw;
+  }
+
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -74,9 +90,11 @@ function buildRow(params: {
     amount,
     direction,
     parseStatus,
-    duplicateStatus: "none",
-    selected: parseStatus === "valid",
-    rowHash: hashRow(
+duplicateStatus: "none",
+selected: parseStatus === "valid",
+editedDescription: normalizedDescription,
+selectedCategory: "",
+rowHash: hashRow(
       `${params.lineIndex}|${params.rawDate}|${params.rawDescription}|${params.rawAmount}`
     ),
   };

@@ -4,6 +4,7 @@ import type {
   StatementImportModalMode,
   StatementImportSourceFormat,
 } from "../../app/types";
+import CustomDropdown from "../CustomDropdown";
 
 type Option = {
   value: string;
@@ -86,7 +87,7 @@ export default function StatementImportModal({
       onClick={onClose}
     >
       <div
-        className="absolute left-1/2 top-1/2 w-[min(92vw,560px)] -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-slate-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] p-6 text-slate-900 shadow-[0_28px_80px_rgba(15,23,42,0.18),inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-slate-400/10 dark:bg-[linear-gradient(180deg,rgba(8,15,34,0.98)_0%,rgba(5,10,24,0.98)_100%)] dark:text-white dark:shadow-[0_28px_80px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.03)]"
+        className="absolute left-1/2 top-1/2 w-[min(92vw,560px)] [scrollbar-width:thin] [scrollbar-color:rgba(64,0,156,0.55)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#40009c]/55 hover:[&::-webkit-scrollbar-thumb]:bg-[#40009c]/80 ... -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-slate-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] p-6 text-slate-900 shadow-[0_28px_80px_rgba(15,23,42,0.18),inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-slate-400/10 dark:bg-[linear-gradient(180deg,rgba(8,15,34,0.98)_0%,rgba(5,10,24,0.98)_100%)] dark:text-white dark:shadow-[0_28px_80px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.03)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -116,24 +117,20 @@ export default function StatementImportModal({
         </div>
 
         <div className="mt-6 space-y-4">
-          <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-slate-400 dark:text-slate-500">
-              {targetLabel} *
-            </label>
-
-            <select
-              value={selectedTargetId}
-              onChange={(e) => onChangeTargetId(e.target.value)}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#4600ac]/30 focus:ring-2 focus:ring-[#4600ac]/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
-            >
-              <option value="">Selecione</option>
-              {options.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+<div>
+<CustomDropdown
+  label={`${targetLabel} *`}
+  value={selectedTargetId}
+  options={options.map((option) => ({
+    label: option.label,
+    value: option.value,
+  }))}
+  onSelect={(value) => onChangeTargetId(String(value))}
+  menuMaxHeightPx={220}
+  menuMinHeightPx={120}
+  renderMenuInPortal
+/>
+</div>
 
           <div>
             <label className="mb-1.5 block text-xs font-bold uppercase text-slate-400 dark:text-slate-500">

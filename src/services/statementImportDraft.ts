@@ -19,20 +19,23 @@ const rows = (preview.rows ?? []).filter(
   return rows.map((row) => {
     const amountAbs = Math.abs(Number(row.amount ?? 0));
 
-    return {
-      externalRowHash: row.rowHash,
-      targetId: preview.targetId,
-      mode: preview.mode,
-      transactionType:
-        preview.mode === "credit_card"
-          ? "cartao_credito"
-          : row.direction === "entrada"
-          ? "receita"
-          : "despesa",
-      descricao: String(row.normalizedDescription ?? "").trim(),
-      valor: amountAbs,
-      data: String(row.normalizedDate ?? "").trim(),
-      direction: row.direction as "entrada" | "saida",
-    };
+return {
+  externalRowHash: row.rowHash,
+  targetId: preview.targetId,
+  mode: preview.mode,
+  transactionType:
+    preview.mode === "credit_card"
+      ? "cartao_credito"
+      : row.direction === "entrada"
+      ? "receita"
+      : "despesa",
+  descricao: String(
+    row.editedDescription ?? row.normalizedDescription ?? ""
+  ).trim(),
+  categoria: String(row.selectedCategory ?? "").trim() || "Importação de Extrato",
+  valor: amountAbs,
+  data: String(row.normalizedDate ?? "").trim(),
+  direction: row.direction as "entrada" | "saida",
+};
   });
 }

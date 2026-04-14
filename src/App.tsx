@@ -82,6 +82,7 @@ import {
 } from "./services/statementImport";
 import { parseStatementImportPreview } from "./services/statementImportParser";
 import { buildStatementImportDraft } from "./services/statementImportDraft";
+import { buildTransactionsFromStatementImportDraft } from "./services/statementImportTransactions";
 import { getHojeLocal } from "./domain/date";
 import { AppHeader } from "./components/AppHeader";
 import NewTransactionCard from "./components/NewTransactionCard";
@@ -315,10 +316,91 @@ const [statementImportCreditCardId, setStatementImportCreditCardId] = useState("
 const [statementImportPreview, setStatementImportPreview] =
   useState<StatementImportPreviewState | null>(null);
 
-  const handlePrepareStatementImport = () => {
+const handleToggleStatementImportRowSelection = (rowHash: string) => {
+  setStatementImportPreview((prev) => {
+    if (!prev) return prev;
+
+    return {
+      ...prev,
+      rows: prev.rows.map((row) =>
+        row.rowHash === rowHash
+          ? { ...row, selected: !row.selected }
+          : row
+      ),
+    };
+  });
+};
+
+const handleUpdateStatementImportRowDescription = (
+  rowHash: string,
+  value: string
+) => {
+  setStatementImportPreview((prev) => {
+    if (!prev) return prev;
+
+    return {
+      ...prev,
+      rows: prev.rows.map((row) =>
+        row.rowHash === rowHash
+          ? { ...row, editedDescription: value }
+          : row
+      ),
+    };
+  });
+};
+
+const handleUpdateStatementImportRowCategory = (
+  rowHash: string,
+  value: string
+) => {
+  setStatementImportPreview((prev) => {
+    if (!prev) return prev;
+
+    return {
+      ...prev,
+      rows: prev.rows.map((row) =>
+        row.rowHash === rowHash
+          ? { ...row, selectedCategory: value }
+          : row
+      ),
+    };
+  });
+};
+
+const handlePrepareStatementImport = async () => {
   if (!statementImportPreview) return;
+  if (!session?.user?.id) {
+    toastCompact("Sessão inválida para importar extrato.", "error");
+    return;
+  }
 
   const draft = buildStatementImportDraft(statementImportPreview);
+
+  if (!draft.length) {
+    toastCompact("Nenhuma linha selecionada para importar.", "error");
+    return;
+  }
+
+const selectedCard = (creditCards ?? []).find(
+  (card: any) =>
+    String(card?.id ?? "").trim() ===
+    String(statementImportPreview.targetId ?? "").trim()
+) as any;
+
+const selectedCardLabel =
+  statementImportPreview.mode === "credit_card"
+    ? String(
+        selectedCard?.emissor ??
+          selectedCard?.bankText ??
+          selectedCard?.categoria ??
+          "Cartão"
+      ).trim()
+    : "";
+
+  const transactionsToImport = buildTransactionsFromStatementImportDraft({
+    draftItems: draft,
+    selectedCardLabel,
+  });
 
   console.log("STATEMENT_IMPORT_DRAFT", {
     mode: statementImportPreview.mode,
@@ -329,10 +411,31 @@ const [statementImportPreview, setStatementImportPreview] =
     items: draft,
   });
 
-  toastCompact(
-    `${draft.length} lançamentos prontos para importação.`,
-    "success"
-  );
+  console.log("STATEMENT_IMPORT_TRANSACTIONS", {
+    totalTransactions: transactionsToImport.length,
+    transactions: transactionsToImport,
+  });
+
+  try {
+    const createdTransactions = await persistTransactionsBatch(
+      transactionsToImport as any
+    );
+
+    setTransacoes((prev) => [
+      ...(createdTransactions as any[]),
+      ...(Array.isArray(prev) ? prev : []),
+    ]);
+
+    setStatementImportPreview(null);
+
+    toastCompact(
+      `${createdTransactions.length} lançamentos importados com sucesso.`,
+      "success"
+    );
+  } catch (err) {
+    console.error("ERRO AO IMPORTAR LANCAMENTOS DO EXTRATO:", err);
+    toastCompact("Erro ao importar lançamentos do extrato.", "error");
+  }
 };
 
 const semPrazoRenewInFlightRef = useRef<Set<string>>(new Set());
@@ -10713,6 +10816,9 @@ setStatementImportPreview({
   format,
   fileName: file.name,
   targetId,
+  targetLabel:
+    statementImportAccountOptions.find((item) => item.value === targetId)?.label ??
+    targetId,
   rows: preview.rows,
   summary: preview.summary,
 });
@@ -10761,6 +10867,9 @@ setStatementImportPreview({
   format,
   fileName: file.name,
   targetId,
+  targetLabel:
+    statementImportCreditCardOptions.find((item) => item.value === targetId)?.label ??
+    targetId,
   rows: preview.rows,
   summary: preview.summary,
 });
@@ -10777,8 +10886,12 @@ setIsCreditCardStatementImportOpen(false);
 
 <StatementImportPreviewModal
   preview={statementImportPreview}
+  categorias={categorias}
   onClose={() => setStatementImportPreview(null)}
   onPrepareImport={handlePrepareStatementImport}
+  onToggleRowSelection={handleToggleStatementImportRowSelection}
+  onEditRowDescription={handleUpdateStatementImportRowDescription}
+  onChangeRowCategory={handleUpdateStatementImportRowCategory}
 />
     </SidebarShell>
   );

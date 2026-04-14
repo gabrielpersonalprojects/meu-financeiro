@@ -144,9 +144,11 @@ export type StatementImportRow = {
   amount: number | null;
   direction: "entrada" | "saida" | null;
   parseStatus: StatementImportRowStatus;
-  duplicateStatus: StatementImportDuplicateStatus;
-  selected?: boolean;
-  rowHash: string;
+duplicateStatus: StatementImportDuplicateStatus;
+selected?: boolean;
+editedDescription?: string;
+selectedCategory?: string;
+rowHash: string;
 };
 
 export type StatementImportModalMode = "account" | "credit_card";
@@ -157,6 +159,7 @@ export type StatementImportPreviewState = {
   format: StatementImportSourceFormat;
   fileName: string;
   targetId: string;
+  targetLabel: string;
   rows: StatementImportRow[];
   summary: {
     total: number;
@@ -170,8 +173,9 @@ export type StatementImportDraftItem = {
   targetId: string;
   mode: StatementImportModalMode;
   transactionType: "despesa" | "receita" | "cartao_credito";
-  descricao: string;
-  valor: number;
-  data: string;
-  direction: "entrada" | "saida";
+descricao: string;
+categoria: string;
+valor: number;
+data: string;
+direction: "entrada" | "saida";
 };

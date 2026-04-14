@@ -653,14 +653,14 @@ export default function SidebarShell({
   )}
 </div>
 
-                <button
-                  type="button"
-                  onClick={closeAll}
-                  className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
-                  aria-label="Fechar painel"
-                >
-                  <X size={20} />
-                </button>
+<button
+  type="button"
+  onClick={closeAll}
+  className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+  aria-label="Fechar painel"
+>
+  <X size={20} />
+</button>
               </>
             )}
           </div>

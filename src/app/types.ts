@@ -170,12 +170,13 @@ export type StatementImportPreviewState = {
 
 export type StatementImportDraftItem = {
   externalRowHash: string;
+  sourceHash: string;
   targetId: string;
   mode: StatementImportModalMode;
   transactionType: "despesa" | "receita" | "cartao_credito";
-descricao: string;
-categoria: string;
-valor: number;
-data: string;
-direction: "entrada" | "saida";
+  descricao: string;
+  categoria: string;
+  valor: number;
+  data: string;
+  direction: "entrada" | "saida";
 };

@@ -16,6 +16,7 @@ type Props = {
   onToggleRowSelection: (rowHash: string) => void;
   onEditRowDescription: (rowHash: string, value: string) => void;
   onChangeRowCategory: (rowHash: string, value: string) => void;
+    isImporting?: boolean;
 };
 
 function moedaBR(value: number | null) {
@@ -43,6 +44,7 @@ export default function StatementImportPreviewModal({
   onToggleRowSelection,
   onEditRowDescription,
   onChangeRowCategory,
+  isImporting,
 }: Props) {
   if (!preview?.open) return null;
   const hasSelectedRows = preview.rows.some((row) => row.selected === true);
@@ -248,7 +250,7 @@ const getCategoryOptionsForRow = (row: any) => {
 <button
   type="button"
   onClick={onPrepareImport}
-  disabled={!hasSelectedRows}
+  disabled={!hasSelectedRows || !!isImporting}
   className={`h-11 rounded-[14px] px-5 text-sm font-semibold transition ${
     hasSelectedRows
       ? "border border-violet-400/20 bg-[linear-gradient(135deg,#220055_0%,#4600ac_100%)] text-white shadow-[0_12px_28px_rgba(70,0,172,0.28)] hover:brightness-105"
@@ -256,7 +258,7 @@ const getCategoryOptionsForRow = (row: any) => {
   }`}
   title="Preparar payload interno da importação"
 >
-  Importar lançamentos
+  {isImporting ? "Importando..." : "Importar lançamentos"}
 </button>
         </div>
       </div>

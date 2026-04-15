@@ -1927,11 +1927,14 @@ const descricaoLimpa = String(t.descricao ?? "")
     sm:px-3 sm:py-2
     dark:border-white/10 dark:bg-black/20 dark:hover:bg-black/25"
 >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-<div className="text-slate-900 text-[15px] sm:text-sm font-medium leading-snug truncate dark:text-white/90">
-  {descricaoLimpa || "—"}
-</div>
+<div className="flex items-start justify-between gap-3 overflow-hidden">
+  <div className="min-w-0 flex-1">
+    <div
+      className="text-slate-900 text-[15px] sm:text-sm font-medium leading-snug break-words line-clamp-2 dark:text-white/90"
+      title={descricaoLimpa || "—"}
+    >
+      {descricaoLimpa || "—"}
+    </div>
 
 <div className="mt-1.5 space-y-1.5 sm:mt-1 sm:space-y-1">
   <div className="text-slate-500 text-xs dark:text-white/60">

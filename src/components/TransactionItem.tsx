@@ -190,9 +190,12 @@ title={
 
   <div className="min-w-0 flex-1">
     <div className="flex flex-wrap items-center gap-2">
-      <p className="font-bold leading-snug text-slate-800 dark:text-slate-100 break-words">
-        {descricaoSemParcela || descricaoRaw}
-      </p>
+<p
+  className="font-bold leading-snug text-slate-800 dark:text-slate-100 truncate"
+  title={descricaoSemParcela || descricaoRaw}
+>
+  {descricaoSemParcela || descricaoRaw}
+</p>
 
       {isParceladoVisual && (
         <span

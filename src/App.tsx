@@ -83,6 +83,14 @@ import {
 import { parseStatementImportPreview } from "./services/statementImportParser";
 import { buildStatementImportDraft } from "./services/statementImportDraft";
 import { buildTransactionsFromStatementImportDraft } from "./services/statementImportTransactions";
+import {
+  findExistingStatementImportSourceHashes,
+  findStatementImportEntriesBySourceHashes,
+  insertStatementImportEntries,
+  relinkStatementImportEntries,
+  clearStatementImportEntryTransactionLink,
+} from "./services/statementImportEntries";
+import { insertStatementImportBatch } from "./services/statementImportBatches";
 import { getHojeLocal } from "./domain/date";
 import { AppHeader } from "./components/AppHeader";
 import NewTransactionCard from "./components/NewTransactionCard";
@@ -316,6 +324,9 @@ const [statementImportCreditCardId, setStatementImportCreditCardId] = useState("
 const [statementImportPreview, setStatementImportPreview] =
   useState<StatementImportPreviewState | null>(null);
 
+  const statementImportInFlightRef = useRef(false);
+const [isStatementImporting, setIsStatementImporting] = useState(false);
+
 const handleToggleStatementImportRowSelection = (rowHash: string) => {
   setStatementImportPreview((prev) => {
     if (!prev) return prev;
@@ -368,58 +379,245 @@ const handleUpdateStatementImportRowCategory = (
 };
 
 const handlePrepareStatementImport = async () => {
-  if (!statementImportPreview) return;
-  if (!session?.user?.id) {
-    toastCompact("Sessão inválida para importar extrato.", "error");
+  if (statementImportInFlightRef.current) {
     return;
   }
 
-  const draft = buildStatementImportDraft(statementImportPreview);
-
-  if (!draft.length) {
-    toastCompact("Nenhuma linha selecionada para importar.", "error");
-    return;
-  }
-
-const selectedCard = (creditCards ?? []).find(
-  (card: any) =>
-    String(card?.id ?? "").trim() ===
-    String(statementImportPreview.targetId ?? "").trim()
-) as any;
-
-const selectedCardLabel =
-  statementImportPreview.mode === "credit_card"
-    ? String(
-        selectedCard?.emissor ??
-          selectedCard?.bankText ??
-          selectedCard?.categoria ??
-          "Cartão"
-      ).trim()
-    : "";
-
-  const transactionsToImport = buildTransactionsFromStatementImportDraft({
-    draftItems: draft,
-    selectedCardLabel,
-  });
-
-  console.log("STATEMENT_IMPORT_DRAFT", {
-    mode: statementImportPreview.mode,
-    format: statementImportPreview.format,
-    fileName: statementImportPreview.fileName,
-    targetId: statementImportPreview.targetId,
-    totalDraftItems: draft.length,
-    items: draft,
-  });
-
-  console.log("STATEMENT_IMPORT_TRANSACTIONS", {
-    totalTransactions: transactionsToImport.length,
-    transactions: transactionsToImport,
-  });
+  statementImportInFlightRef.current = true;
+  setIsStatementImporting(true);
 
   try {
+    if (!statementImportPreview) {
+      return;
+    }
+
+    if (!session?.user?.id) {
+      toastCompact("Sessão inválida para importar extrato.", "error");
+      return;
+    }
+
+    const draft = await buildStatementImportDraft(
+      statementImportPreview,
+      session.user.id
+    );
+
+    if (!draft.length) {
+      toastCompact("Nenhuma linha selecionada para importar.", "error");
+      return;
+    }
+
+    const existingSourceHashes = await findExistingStatementImportSourceHashes({
+      userId: session.user.id,
+      mode: statementImportPreview.mode === "account" ? "conta" : "cartao",
+      targetAccountId:
+        statementImportPreview.mode === "account"
+          ? statementImportPreview.targetId
+          : null,
+      targetCreditCardId:
+        statementImportPreview.mode === "credit_card"
+          ? statementImportPreview.targetId
+          : null,
+      sourceHashes: draft.map((item) => item.sourceHash),
+    });
+
+    const draftSemDuplicadas = draft.filter(
+      (item) => !existingSourceHashes.has(item.sourceHash)
+    );
+
+    const totalDuplicadas = draft.length - draftSemDuplicadas.length;
+
+    const previewRowsByHash = new Map(
+      (statementImportPreview.rows ?? []).map((row) => [
+        String(row.rowHash ?? "").trim(),
+        row,
+      ])
+    );
+
+    const buildEntryPayloadsFromDraftItem = (item: any) => {
+      const row = previewRowsByHash.get(
+        String(item.externalRowHash ?? "").trim()
+      );
+
+      return {
+        rawPayload: {
+          lineIndex: Number(row?.lineIndex ?? -1),
+          rawDate: row?.rawDate ?? null,
+          rawDescription: row?.rawDescription ?? "",
+          amount: row?.amount ?? null,
+          direction: row?.direction ?? null,
+          rowHash: row?.rowHash ?? "",
+        },
+        normalizedPayload: {
+          externalRowHash: item.externalRowHash,
+          sourceHash: item.sourceHash,
+          targetId: item.targetId,
+          mode: item.mode,
+          transactionType: item.transactionType,
+          descricao: item.descricao,
+          categoria: item.categoria,
+          valor: item.valor,
+          data: item.data,
+          direction: item.direction,
+        },
+        sourceLineIndex: Number(row?.lineIndex ?? -1),
+      };
+    };
+
+    if (!draftSemDuplicadas.length) {
+      toastCompact(
+        totalDuplicadas === 1
+          ? "Essa linha já foi importada anteriormente."
+          : "Todas as linhas selecionadas já foram importadas anteriormente.",
+        "error"
+      );
+      return;
+    }
+
+    const selectedCard = (creditCards ?? []).find(
+      (card: any) =>
+        String(card?.id ?? "").trim() ===
+        String(statementImportPreview.targetId ?? "").trim()
+    ) as any;
+
+    const selectedCardLabel =
+      statementImportPreview.mode === "credit_card"
+        ? String(
+            selectedCard?.emissor ??
+              selectedCard?.bankText ??
+              selectedCard?.categoria ??
+              "Cartão"
+          ).trim()
+        : "";
+
+    const transactionsToImport = buildTransactionsFromStatementImportDraft({
+      draftItems: draftSemDuplicadas,
+      selectedCardLabel,
+    });
+
+    console.log("STATEMENT_IMPORT_DRAFT", {
+      mode: statementImportPreview.mode,
+      format: statementImportPreview.format,
+      fileName: statementImportPreview.fileName,
+      targetId: statementImportPreview.targetId,
+      totalDraftItems: draft.length,
+      items: draft,
+    });
+
+    console.log("STATEMENT_IMPORT_TRANSACTIONS", {
+      totalTransactions: transactionsToImport.length,
+      transactions: transactionsToImport,
+    });
+
     const createdTransactions = await persistTransactionsBatch(
       transactionsToImport as any
     );
+
+    const batch = await insertStatementImportBatch({
+      userId: session.user.id,
+      mode: statementImportPreview.mode === "account" ? "conta" : "cartao",
+      fileType: statementImportPreview.format,
+      fileName: statementImportPreview.fileName,
+      targetAccountId:
+        statementImportPreview.mode === "account"
+          ? statementImportPreview.targetId
+          : null,
+      targetCreditCardId:
+        statementImportPreview.mode === "credit_card"
+          ? statementImportPreview.targetId
+          : null,
+      totalRows: statementImportPreview.summary.total,
+      selectedRows: draft.length,
+      validRows: statementImportPreview.summary.valid,
+      importedRows: createdTransactions.length,
+      skippedRows: totalDuplicadas + statementImportPreview.summary.invalid,
+      duplicateRows: totalDuplicadas,
+      invalidRows: statementImportPreview.summary.invalid,
+      status:
+        createdTransactions.length === draft.length ? "completed" : "partial",
+      metadata: {
+        previewMode: statementImportPreview.mode,
+        targetLabel: statementImportPreview.targetLabel,
+      },
+    });
+
+    const modeSafe =
+      statementImportPreview.mode === "account" ? "conta" : "cartao";
+
+    const preparedImportedEntries = draftSemDuplicadas.map((item, index) => ({
+      sourceHash: item.sourceHash,
+      occurredOn: item.data,
+      description: item.descricao,
+      amountCents: Math.round(Math.abs(Number(item.valor || 0)) * 100),
+      direction: item.direction,
+      category: item.categoria,
+      transactionId:
+        String((createdTransactions?.[index] as any)?.id ?? "").trim() || null,
+      ...buildEntryPayloadsFromDraftItem(item),
+    }));
+
+    const existingEntries = await findStatementImportEntriesBySourceHashes({
+      userId: session.user.id,
+      mode: modeSafe,
+      targetAccountId:
+        modeSafe === "conta" ? statementImportPreview.targetId : null,
+      targetCreditCardId:
+        modeSafe === "cartao" ? statementImportPreview.targetId : null,
+      sourceHashes: preparedImportedEntries.map((item) => item.sourceHash),
+    });
+
+    const existingHashes = new Set(
+      existingEntries
+        .map((row: any) => String(row?.source_hash ?? "").trim())
+        .filter(Boolean)
+    );
+
+    const entriesToRelink = preparedImportedEntries.filter((item) =>
+      existingHashes.has(item.sourceHash)
+    );
+
+    const entriesToInsert = preparedImportedEntries.filter(
+      (item) => !existingHashes.has(item.sourceHash)
+    );
+
+    if (entriesToRelink.length) {
+      await relinkStatementImportEntries({
+        userId: session.user.id,
+        mode: modeSafe,
+        targetAccountId:
+          modeSafe === "conta" ? statementImportPreview.targetId : null,
+        targetCreditCardId:
+          modeSafe === "cartao" ? statementImportPreview.targetId : null,
+        entries: entriesToRelink,
+      });
+    }
+
+    if (entriesToInsert.length) {
+      await insertStatementImportEntries({
+        batchId: String((batch as any)?.id ?? "").trim(),
+        userId: session.user.id,
+        mode: modeSafe,
+        targetAccountId:
+          modeSafe === "conta" ? statementImportPreview.targetId : null,
+        targetCreditCardId:
+          modeSafe === "cartao" ? statementImportPreview.targetId : null,
+        entries: entriesToInsert.map((item) => ({
+          sourceHash: item.sourceHash,
+          occurredOn: item.occurredOn,
+          description: item.description,
+          amountCents: item.amountCents,
+          direction: item.direction,
+          category: item.category,
+          transactionId: item.transactionId,
+          wasImported: true,
+          wasDuplicate: false,
+          wasInvalid: false,
+          invalidReason: null,
+          rawPayload: item.rawPayload,
+          normalizedPayload: item.normalizedPayload,
+          sourceLineIndex: item.sourceLineIndex,
+        })),
+      });
+    }
 
     setTransacoes((prev) => [
       ...(createdTransactions as any[]),
@@ -429,12 +627,37 @@ const selectedCardLabel =
     setStatementImportPreview(null);
 
     toastCompact(
-      `${createdTransactions.length} lançamentos importados com sucesso.`,
+      totalDuplicadas > 0
+        ? `${createdTransactions.length} lançamentos importados. ${totalDuplicadas} duplicadas foram ignoradas.`
+        : `${createdTransactions.length} lançamentos importados com sucesso.`,
       "success"
     );
-  } catch (err) {
+  } catch (err: any) {
     console.error("ERRO AO IMPORTAR LANCAMENTOS DO EXTRATO:", err);
-    toastCompact("Erro ao importar lançamentos do extrato.", "error");
+
+    const errorText = String(
+      err?.message ?? err?.details ?? err?.hint ?? ""
+    ).toLowerCase();
+
+    if (
+      err?.code === "23505" ||
+      errorText.includes("duplicate") ||
+      errorText.includes("unique")
+    ) {
+      toastCompact(
+        "Essas transações já foram importadas anteriormente para este destino.",
+        "error"
+      );
+      return;
+    }
+
+    toastCompact(
+      "Não foi possível concluir a importação do extrato.",
+      "error"
+    );
+  } finally {
+    statementImportInFlightRef.current = false;
+    setIsStatementImporting(false);
   }
 };
 
@@ -9210,12 +9433,15 @@ try {
     );
   }
 
-  if (isUuid(String(id))) {
-    const userId = session?.user?.id;
-    if (!userId) return;
+if (isUuid(String(id))) {
+  const userId = session?.user?.id;
+  if (!userId) return;
 
-    await deleteTransactionById(String(id), userId);
-  }
+  const txIdToDelete = String(id);
+
+  await deleteTransactionById(txIdToDelete, userId);
+  await clearStatementImportEntryTransactionLink(userId, txIdToDelete);
+}
 
   setTransacoes((prev) => {
     const current = prev.find((t) => String(t.id) === String(id));
@@ -10892,6 +11118,7 @@ setIsCreditCardStatementImportOpen(false);
   onToggleRowSelection={handleToggleStatementImportRowSelection}
   onEditRowDescription={handleUpdateStatementImportRowDescription}
   onChangeRowCategory={handleUpdateStatementImportRowCategory}
+  isImporting={isStatementImporting}
 />
     </SidebarShell>
   );

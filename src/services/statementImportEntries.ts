@@ -29,7 +29,7 @@ export async function findExistingStatementImportSourceHashes({
 
   let query = supabase
     .from("statement_import_entries")
-    .select("source_hash, transaction_id")
+    .select("source_hash, transaction_id, was_imported, was_invalid")
     .eq("user_id", userId)
     .eq("mode", mode)
     .in("source_hash", hashes);
@@ -51,39 +51,12 @@ export async function findExistingStatementImportSourceHashes({
 
   const rows = Array.isArray(data) ? data : [];
 
-  const transactionIds = Array.from(
-    new Set(
-      rows
-        .map((row: any) => String(row?.transaction_id ?? "").trim())
-        .filter(Boolean)
-    )
-  );
-
-  if (!transactionIds.length) {
-    return new Set<string>();
-  }
-
-  const { data: activeTransactions, error: activeTransactionsError } =
-    await supabase
-      .from("transactions")
-      .select("id")
-      .in("id", transactionIds);
-
-  if (activeTransactionsError) {
-    throw activeTransactionsError;
-  }
-
-  const activeTransactionIds = new Set(
-    (activeTransactions ?? [])
-      .map((row: any) => String(row?.id ?? "").trim())
-      .filter(Boolean)
-  );
-
   return new Set(
     rows
-      .filter((row: any) =>
-        activeTransactionIds.has(String(row?.transaction_id ?? "").trim())
-      )
+      .filter((row: any) => {
+        const transactionId = String(row?.transaction_id ?? "").trim();
+        return !!transactionId && row?.was_imported === true && row?.was_invalid !== true;
+      })
       .map((row: any) => String(row?.source_hash ?? "").trim())
       .filter(Boolean)
   );

@@ -378,6 +378,127 @@ const handleUpdateStatementImportRowCategory = (
   });
 };
 
+const handleUpdateStatementImportRowPlanningType = (
+  rowHash: string,
+  planningType: "normal" | "mensal_sem_prazo" | "mensal_com_prazo" | "parcelado"
+) => {
+  setStatementImportPreview((prev) => {
+    if (!prev) return prev;
+
+    return {
+      ...prev,
+      rows: prev.rows.map((row) => {
+        if (row.rowHash !== rowHash) return row;
+
+        if (planningType === "normal") {
+          return {
+            ...row,
+            planning: {
+              type: "normal",
+              endDate: null,
+              installment: null,
+              touched: true,
+            },
+          };
+        }
+
+        if (planningType === "mensal_sem_prazo") {
+          return {
+            ...row,
+            planning: {
+              type: "mensal_sem_prazo",
+              endDate: null,
+              installment: null,
+              touched: true,
+            },
+          };
+        }
+
+        if (planningType === "mensal_com_prazo") {
+          return {
+            ...row,
+            planning: {
+              type: "mensal_com_prazo",
+              endDate: row.planning?.endDate ?? row.normalizedDate ?? null,
+              installment: null,
+              touched: true,
+            },
+          };
+        }
+
+        return {
+          ...row,
+          planning: {
+            type: "parcelado",
+            endDate: null,
+            installment: {
+              current: row.planning?.installment?.current ?? 1,
+              total: row.planning?.installment?.total ?? 2,
+            },
+            touched: true,
+          },
+        };
+      }),
+    };
+  });
+};
+
+const handleUpdateStatementImportRowPlanningEndDate = (
+  rowHash: string,
+  endDate: string
+) => {
+  setStatementImportPreview((prev) => {
+    if (!prev) return prev;
+
+    return {
+      ...prev,
+      rows: prev.rows.map((row) =>
+        row.rowHash === rowHash
+          ? {
+              ...row,
+              planning: {
+                type: "mensal_com_prazo",
+                endDate,
+                installment: null,
+                touched: true,
+              },
+            }
+          : row
+      ),
+    };
+  });
+};
+
+const handleUpdateStatementImportRowInstallmentConfig = (
+  rowHash: string,
+  current: number,
+  total: number
+) => {
+  setStatementImportPreview((prev) => {
+    if (!prev) return prev;
+
+    return {
+      ...prev,
+      rows: prev.rows.map((row) =>
+        row.rowHash === rowHash
+          ? {
+              ...row,
+              planning: {
+                type: "parcelado",
+                endDate: null,
+                installment: {
+                  current,
+                  total,
+                },
+                touched: true,
+              },
+            }
+          : row
+      ),
+    };
+  });
+};
+
 const handlePrepareStatementImport = async () => {
   if (statementImportInFlightRef.current) {
     return;
@@ -447,18 +568,22 @@ const handlePrepareStatementImport = async () => {
           direction: row?.direction ?? null,
           rowHash: row?.rowHash ?? "",
         },
-        normalizedPayload: {
-          externalRowHash: item.externalRowHash,
-          sourceHash: item.sourceHash,
-          targetId: item.targetId,
-          mode: item.mode,
-          transactionType: item.transactionType,
-          descricao: item.descricao,
-          categoria: item.categoria,
-          valor: item.valor,
-          data: item.data,
-          direction: item.direction,
-        },
+normalizedPayload: {
+  externalRowHash: item.externalRowHash,
+  sourceHash: item.sourceHash,
+  targetId: item.targetId,
+  mode: item.mode,
+  transactionType: item.transactionType,
+  descricao: item.descricao,
+  categoria: item.categoria,
+  valor: item.valor,
+  data: item.data,
+  direction: item.direction,
+  planningType: item.planningType,
+  planningEndDate: item.planningEndDate ?? null,
+  installmentCurrent: item.installmentCurrent ?? null,
+  installmentTotal: item.installmentTotal ?? null,
+},
         sourceLineIndex: Number(row?.lineIndex ?? -1),
       };
     };
@@ -543,17 +668,37 @@ const handlePrepareStatementImport = async () => {
     const modeSafe =
       statementImportPreview.mode === "account" ? "conta" : "cartao";
 
-    const preparedImportedEntries = draftSemDuplicadas.map((item, index) => ({
-      sourceHash: item.sourceHash,
-      occurredOn: item.data,
-      description: item.descricao,
-      amountCents: Math.round(Math.abs(Number(item.valor || 0)) * 100),
-      direction: item.direction,
-      category: item.categoria,
-      transactionId:
-        String((createdTransactions?.[index] as any)?.id ?? "").trim() || null,
-      ...buildEntryPayloadsFromDraftItem(item),
-    }));
+const createdTransactionsByRowHash = new Map<string, any[]>();
+
+for (const tx of createdTransactions as any[]) {
+  const rowHash = String((tx as any)?.payload?.externalRowHash ?? "").trim();
+  if (!rowHash) continue;
+
+  const current = createdTransactionsByRowHash.get(rowHash) ?? [];
+  current.push(tx);
+  createdTransactionsByRowHash.set(rowHash, current);
+}
+
+const preparedImportedEntries = draftSemDuplicadas.map((item) => {
+  const txsFromRow =
+    createdTransactionsByRowHash.get(
+      String(item.externalRowHash ?? "").trim()
+    ) ?? [];
+
+  const firstTransactionId =
+    String((txsFromRow[0] as any)?.id ?? "").trim() || null;
+
+  return {
+    sourceHash: item.sourceHash,
+    occurredOn: item.data,
+    description: item.descricao,
+    amountCents: Math.round(Math.abs(Number(item.valor || 0)) * 100),
+    direction: item.direction,
+    category: item.categoria,
+    transactionId: firstTransactionId,
+    ...buildEntryPayloadsFromDraftItem(item),
+  };
+});
 
     const existingEntries = await findStatementImportEntriesBySourceHashes({
       userId: session.user.id,
@@ -619,12 +764,44 @@ const handlePrepareStatementImport = async () => {
       });
     }
 
-    setTransacoes((prev) => [
-      ...(createdTransactions as any[]),
-      ...(Array.isArray(prev) ? prev : []),
-    ]);
+setTransacoes((prev) => [
+  ...(createdTransactions as any[]),
+  ...(Array.isArray(prev) ? prev : []),
+]);
 
-    setStatementImportPreview(null);
+if (statementImportPreview.mode === "credit_card") {
+  const cartaoImportadoId = String(statementImportPreview.targetId ?? "").trim();
+
+  const dataMaisRecenteImportada = [...(createdTransactions as any[])]
+    .map((tx: any) => String(tx?.data ?? "").trim())
+    .filter(Boolean)
+    .sort((a, b) => b.localeCompare(a))[0];
+
+  if (cartaoImportadoId && dataMaisRecenteImportada) {
+    const mesDestinoCartao = getCardCycleMonthFromDate(
+      dataMaisRecenteImportada,
+      Number(selectedCard?.diaFechamento ?? 1),
+      Number(selectedCard?.diaVencimento ?? 1)
+    );
+
+    setSelectedCreditCardId(cartaoImportadoId);
+    setFormQualCartao(cartaoImportadoId);
+    setCreditJumpMonth(mesDestinoCartao);
+    setModoCentro("credito");
+    setActiveTab("cartoes");
+    setIsCcExpanded(true);
+  }
+} else if (statementImportPreview.mode === "account") {
+  const contaImportadaId = String(statementImportPreview.targetId ?? "").trim();
+
+  if (contaImportadaId) {
+    setActiveTab("transacoes");
+    setFiltroConta(contaImportadaId);
+    setTransacoesCardsPerfilView("geral");
+  }
+}
+
+setStatementImportPreview(null);
 
     toastCompact(
       totalDuplicadas > 0
@@ -666,6 +843,12 @@ const semPrazoCancelInFlightRef = useRef<Set<string>>(new Set());
 const semPrazoDismissInFlightRef = useRef<Set<string>>(new Set());
 
 const [activeTab, setActiveTab] = useState<TabType>("transacoes");
+const [transacoesResetPageSignal, setTransacoesResetPageSignal] = useState(0);
+
+const handleHomeTransacoesClick = () => {
+  setActiveTab("transacoes");
+  setTransacoesResetPageSignal((prev) => prev + 1);
+};
 
 const scrollPorAbaRef = useRef<Record<string, number>>({
   transacoes: 0,
@@ -2868,33 +3051,40 @@ const buildInsertTransactionPayload = (userId: string, tx: any) => ({
   qual_conta: String(tx.qualConta ?? tx.qualCartao ?? tx.contaId ?? ""),
   criado_em: Number(tx.criadoEm ?? tx.createdAt ?? Date.now()),
 
-  payload: {
-    metodoPagamento: tx.metodoPagamento ?? "",
-    tipoGasto: tx.tipoGasto ?? "",
-    recorrenciaId: tx.recorrenciaId ?? "",
-    isRecorrente: !!tx.isRecorrente,
+payload: {
+  metodoPagamento: tx.metodoPagamento ?? "",
+  tipoGasto: tx.tipoGasto ?? "",
+  recorrenciaId: tx.recorrenciaId ?? "",
+  isRecorrente: !!tx.isRecorrente,
 
-    recurrenceKind: tx.recurrenceKind ?? "",
-    recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
-    recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
-    recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
-    recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
-    recurrenceStatus: tx.recurrenceStatus ?? "",
-    recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
-    recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
-    recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
-    recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
+  recurrenceKind: tx.recurrenceKind ?? "",
+  recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
+  recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
+  recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
+  recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
+  recurrenceStatus: tx.recurrenceStatus ?? "",
+  recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
+  recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
+  recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
+  recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
 
-    contraParte: tx.contraParte ?? "",
-    transferId: tx.transferId ?? "",
-    observacoes: tx.observacoes ?? "",
-    parcelaAtual: tx.parcelaAtual ?? null,
-    totalParcelas: tx.totalParcelas ?? null,
-    qualCartao: String(tx.qualCartao ?? ""),
-    origemLancamento: tx.origemLancamento ?? "",
-    parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
-    faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
-  },
+  contraParte: tx.contraParte ?? "",
+  transferId: tx.transferId ?? "",
+  observacoes: tx.observacoes ?? "",
+  parcelaAtual: tx.parcelaAtual ?? null,
+  totalParcelas: tx.totalParcelas ?? null,
+  qualCartao: String(tx.qualCartao ?? ""),
+  origemLancamento: tx.origemLancamento ?? "",
+  parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
+  faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
+
+  externalRowHash: String(tx?.payload?.externalRowHash ?? "").trim(),
+  planningType: tx?.payload?.planningType ?? "",
+  planningEndDate: tx?.payload?.planningEndDate ?? null,
+  installmentCurrent: tx?.payload?.installmentCurrent ?? null,
+  installmentTotal: tx?.payload?.installmentTotal ?? null,
+  importSource: tx?.payload?.importSource ?? "",
+},
 });
 
 const persistTransactionsBatch = async (items: any[]) => {
@@ -4805,6 +4995,13 @@ payload: {
   origemLancamento: tx.origemLancamento ?? "",
   parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
   faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
+
+  externalRowHash: String(tx?.payload?.externalRowHash ?? "").trim(),
+  planningType: tx?.payload?.planningType ?? "",
+  planningEndDate: tx?.payload?.planningEndDate ?? null,
+  installmentCurrent: tx?.payload?.installmentCurrent ?? null,
+  installmentTotal: tx?.payload?.installmentTotal ?? null,
+  importSource: tx?.payload?.importSource ?? "",
 },
         });
       })
@@ -8510,7 +8707,11 @@ if (activeTab === "cartoes" && tab !== "cartoes") {
   {tab === "transacoes" ? (
     <>
 <Home
-  className="relative top-[1px] hidden md:block h-[17px] w-[17px] mr-12 text-slate-600 dark:text-slate-400 transition-all duration-200 group-hover:text-violet-600 dark:group-hover:text-violet-200 group-hover:scale-125 group-active:scale-95"
+  onClick={(e) => {
+    e.stopPropagation();
+    handleHomeTransacoesClick();
+  }}
+  className="relative top-[1px] hidden md:block h-[17px] w-[17px] mr-12 cursor-pointer text-slate-600 dark:text-slate-400 transition-all duration-200 group-hover:text-violet-600 dark:group-hover:text-violet-200 group-hover:scale-125 group-active:scale-95"
   strokeWidth={2.2}
 />
 
@@ -9526,6 +9727,7 @@ if (isUuid(String(id))) {
     handleEditClick={handleEditClick}
     confirmDelete={confirmDelete}
     stats={stats}
+    resetPaginationSignal={transacoesResetPageSignal}
   />
 </div>
 
@@ -10224,7 +10426,7 @@ if (isUuid(String(id))) {
         Confirmar exclusão
       </h3>
 
-      <div className="mt-3 text-[14px] leading-[1.75] text-slate-600 dark:text-slate-300">
+<div className="mt-3 min-w-0 overflow-hidden break-words text-[14px] leading-[1.75] text-slate-600 dark:text-slate-300">
         {(() => {
           const tx: any = deletingTransaction;
 
@@ -10268,9 +10470,9 @@ if (isUuid(String(id))) {
               <>
                 Tem certeza que deseja excluir esta parcela e as próximas?
                 As parcelas anteriores serão mantidas. Você está apagando{" "}
-                <span className="font-semibold text-slate-900 dark:text-slate-50">
-                  "{deletingTransaction.descricao}"
-                </span>
+<span className="font-semibold break-all whitespace-normal text-slate-900 dark:text-slate-50">
+  "{deletingTransaction.descricao}"
+</span>
                 .
               </>
             );
@@ -10293,9 +10495,9 @@ if (isUuid(String(id))) {
             return (
               <>
                 Você está apagando{" "}
-                <span className="font-semibold text-slate-900 dark:text-slate-50">
-                  "{deletingTransaction.descricao}"
-                </span>
+<span className="font-semibold break-all whitespace-normal text-slate-900 dark:text-slate-50">
+  "{deletingTransaction.descricao}"
+</span>
                 .
                 {isPagamentoFatura ? (
                   <span className="mt-3 block text-sm leading-7 text-slate-600 dark:text-slate-300">
@@ -10317,9 +10519,9 @@ if (isUuid(String(id))) {
           return (
             <>
               Tem certeza que quer excluir este lançamento? Você está apagando{" "}
-              <span className="font-semibold text-slate-900 dark:text-slate-50">
-                "{deletingTransaction.descricao}"
-              </span>
+<span className="font-semibold break-all whitespace-normal text-slate-900 dark:text-slate-50">
+  "{deletingTransaction.descricao}"
+</span>
               .
               {/^fatura\s*:/i.test(
                 String(deletingTransaction?.descricao ?? "")
@@ -11118,6 +11320,9 @@ setIsCreditCardStatementImportOpen(false);
   onToggleRowSelection={handleToggleStatementImportRowSelection}
   onEditRowDescription={handleUpdateStatementImportRowDescription}
   onChangeRowCategory={handleUpdateStatementImportRowCategory}
+  onChangeRowPlanningType={handleUpdateStatementImportRowPlanningType}
+  onSetRowPlanningEndDate={handleUpdateStatementImportRowPlanningEndDate}
+  onSetRowInstallmentConfig={handleUpdateStatementImportRowInstallmentConfig}
   isImporting={isStatementImporting}
 />
     </SidebarShell>

@@ -1,4 +1,5 @@
 import type {
+  StatementImportPlanningConfig,
   StatementImportRow,
   StatementImportSourceFormat,
 } from "../app/types";
@@ -9,16 +10,89 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function hashRow(value: string) {
-  let hash = 0;
-  const input = String(value ?? "");
+function buildRowHash(params: {
+  lineIndex: number;
+  rawDate: string;
+  rawDescription: string;
+  rawAmount: string;
+}) {
+  return [
+    "row",
+    String(params.lineIndex),
+    normalizeText(params.rawDate),
+    normalizeText(params.rawDescription),
+    normalizeText(params.rawAmount),
+  ].join("|");
+}
 
-  for (let i = 0; i < input.length; i++) {
-    hash = (hash << 5) - hash + input.charCodeAt(i);
-    hash |= 0;
+function detectInstallmentFromDescription(value: string) {
+  const input = normalizeText(value).toLowerCase();
+
+  if (!input) {
+    return { current: null, total: null };
   }
 
-  return `row_${Math.abs(hash)}`;
+  const slashMatch = input.match(/\b(\d{1,2})\s*\/\s*(\d{1,2})\b/);
+  if (slashMatch) {
+    const current = Number(slashMatch[1]);
+    const total = Number(slashMatch[2]);
+
+    if (
+      Number.isInteger(current) &&
+      Number.isInteger(total) &&
+      current >= 1 &&
+      total >= 2 &&
+      current <= total
+    ) {
+      return { current, total };
+    }
+  }
+
+  const parcelaPorExtensoMatch = input.match(
+    /\bparcela\s+(\d{1,2})\s+de\s+(\d{1,2})\b/
+  );
+  if (parcelaPorExtensoMatch) {
+    const current = Number(parcelaPorExtensoMatch[1]);
+    const total = Number(parcelaPorExtensoMatch[2]);
+
+    if (
+      Number.isInteger(current) &&
+      Number.isInteger(total) &&
+      current >= 1 &&
+      total >= 2 &&
+      current <= total
+    ) {
+      return { current, total };
+    }
+  }
+
+  return { current: null, total: null };
+}
+
+function buildDefaultPlanning(params: {
+  rawDescription: string;
+  direction: "entrada" | "saida" | null;
+}): StatementImportPlanningConfig {
+  const installmentSuggestion =
+    params.direction === "saida"
+      ? detectInstallmentFromDescription(params.rawDescription)
+      : { current: null, total: null };
+
+  const hasInstallmentSuggestion =
+    Number(installmentSuggestion.current) > 0 &&
+    Number(installmentSuggestion.total) > 1;
+
+  return {
+    type: "normal",
+    endDate: null,
+    installment: hasInstallmentSuggestion
+      ? {
+          current: installmentSuggestion.current,
+          total: installmentSuggestion.total,
+        }
+      : null,
+    touched: false,
+  };
 }
 
 function normalizeDateCandidate(value: string) {
@@ -81,6 +155,11 @@ function buildRow(params: {
   const direction =
     amount === null ? null : amount < 0 ? "saida" : "entrada";
 
+  const planning = buildDefaultPlanning({
+    rawDescription: normalizedDescription,
+    direction,
+  });
+
   return {
     lineIndex: params.lineIndex,
     rawDate: params.rawDate || null,
@@ -90,13 +169,17 @@ function buildRow(params: {
     amount,
     direction,
     parseStatus,
-duplicateStatus: "none",
-selected: parseStatus === "valid",
-editedDescription: normalizedDescription,
-selectedCategory: "",
-rowHash: hashRow(
-      `${params.lineIndex}|${params.rawDate}|${params.rawDescription}|${params.rawAmount}`
-    ),
+    duplicateStatus: "none",
+    selected: parseStatus === "valid",
+    editedDescription: normalizedDescription,
+    selectedCategory: "",
+    planning,
+rowHash: buildRowHash({
+  lineIndex: params.lineIndex,
+  rawDate: params.rawDate,
+  rawDescription: params.rawDescription,
+  rawAmount: params.rawAmount,
+}),
   };
 }
 

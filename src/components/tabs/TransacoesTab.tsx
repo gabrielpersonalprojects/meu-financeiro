@@ -82,6 +82,7 @@ confirmDelete: (t: any) => void;
     pendenteReceita: number;
     pendenteDespesa: number;
   };
+  resetPaginationSignal?: number;
 };
 
 export default function TransacoesTab({
@@ -131,6 +132,7 @@ handleEditClick,
 confirmDelete,
 
   stats,
+  resetPaginationSignal = 0,
 }: Props) {
 const [paginaAtual, setPaginaAtual] = useState(1);
 const [mostrarValoresResumo, setMostrarValoresResumo] = useState(true);
@@ -304,6 +306,10 @@ useEffect(() => {
   itemsFiltrados,
   organizacaoLista,
 ]);
+
+useEffect(() => {
+  setPaginaAtual(1);
+}, [resetPaginationSignal]);
 
  const totalPaginas = Math.max(1, Math.ceil(sortedTransactions.length / ITENS_POR_PAGINA));
 

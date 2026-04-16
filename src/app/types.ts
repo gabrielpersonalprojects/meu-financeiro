@@ -129,6 +129,29 @@ export type StatementImportDuplicateStatus =
   | "possible_duplicate"
   | "duplicate";
 
+  export type StatementImportPlanningType =
+  | "normal"
+  | "mensal_sem_prazo"
+  | "mensal_com_prazo"
+  | "parcelado";
+
+export type StatementImportPlanningSummary = {
+  label: string;
+  tone?: "default" | "violet" | "amber" | "emerald";
+};
+
+export type StatementImportInstallmentConfig = {
+  current: number | null;
+  total: number | null;
+};
+
+export type StatementImportPlanningConfig = {
+  type: StatementImportPlanningType;
+  endDate?: string | null; // YYYY-MM-DD
+  installment?: StatementImportInstallmentConfig | null;
+  touched?: boolean;
+};
+
 export type StatementImportContext = {
   targetType: StatementImportTargetType;
   targetId: string;
@@ -144,11 +167,12 @@ export type StatementImportRow = {
   amount: number | null;
   direction: "entrada" | "saida" | null;
   parseStatus: StatementImportRowStatus;
-duplicateStatus: StatementImportDuplicateStatus;
-selected?: boolean;
-editedDescription?: string;
-selectedCategory?: string;
-rowHash: string;
+  duplicateStatus: StatementImportDuplicateStatus;
+  selected?: boolean;
+  editedDescription?: string;
+  selectedCategory?: string;
+  planning?: StatementImportPlanningConfig;
+  rowHash: string;
 };
 
 export type StatementImportModalMode = "account" | "credit_card";
@@ -179,4 +203,8 @@ export type StatementImportDraftItem = {
   valor: number;
   data: string;
   direction: "entrada" | "saida";
+  planningType: StatementImportPlanningType;
+  planningEndDate?: string | null;
+  installmentCurrent?: number | null;
+  installmentTotal?: number | null;
 };

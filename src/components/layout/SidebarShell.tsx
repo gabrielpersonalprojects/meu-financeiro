@@ -330,8 +330,8 @@ export default function SidebarShell({
 
 {item.key === "resumo" && resumoAlertsCount > 0 && (
   <span
-    className={`absolute flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6d28d9] px-1.5 text-[11px] font-semibold text-white shadow-sm ${
-      sidebarExpanded ? "right-4 top-4" : "right-2 top-2"
+    className={`absolute flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-white/15 bg-[#4c12b3] px-1.5 text-[10px] font-semibold text-white shadow-[0_6px_14px_rgba(76,18,179,0.28)] ${
+      sidebarExpanded ? "right-4 top-[18px]" : "right-[10px] top-[10px]"
     }`}
   >
     {resumoAlertsCount > 99 ? "99+" : resumoAlertsCount}
@@ -444,7 +444,7 @@ export default function SidebarShell({
 </span>
 
 {item.key === "resumo" && resumoAlertsCount > 0 && (
-  <span className="absolute right-4 top-4 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6d28d9] px-1.5 text-[11px] font-semibold text-white shadow-sm">
+  <span className="absolute right-4 top-[18px] flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-white/15 bg-[#4c12b3] px-1.5 text-[10px] font-semibold text-white shadow-[0_6px_14px_rgba(76,18,179,0.28)]">
     {resumoAlertsCount > 99 ? "99+" : resumoAlertsCount}
   </span>
 )}

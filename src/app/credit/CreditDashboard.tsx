@@ -94,7 +94,8 @@ type Props = {
   transacoes: TransacaoCCUI[];
   onPickOtherCard?: () => void;
   onDeleteTransacao?: (id: string) => void;
-    onOpenStatementImport?: () => void;
+  onEditTransacao?: (id: string) => void;
+  onOpenStatementImport?: () => void;
   onSaldoRestanteChange?: (value: number) => void;
 
   contaPagamentoOptions?: Array<{ value: string; label: string }>;
@@ -162,6 +163,7 @@ export function CreditDashboard({
   transacoes,
   onPickOtherCard,
   onDeleteTransacao,
+  onEditTransacao,
   onOpenStatementImport,
   contaPagamentoOptions: contaPagamentoOptionsProp,
   pagamentosFatura: pagamentosFaturaProp,
@@ -1980,37 +1982,83 @@ const descricaoLimpa = String(t.descricao ?? "")
                             {valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                           </div>
 
-{onDeleteTransacao &&
- !isParcelaDeAcordoFatura &&
- !isTransacaoOriginalDaFaturaParcelada &&
- podeExcluirCompra(t) ? (
-  <button
-    type="button"
-    onClick={() => {
-      if (!podeExcluirCompra(t)) return;
-      onDeleteTransacao(t.id);
-    }}
-className="h-8 w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
-    title="Excluir transação"
-    aria-label="Excluir transação"
-  >
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M6 6l1 14h10l1-14" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-    </svg>
-  </button>
-) : null}
+{(() => {
+  const podeEditarCompra =
+    !!onEditTransacao &&
+    !isParcelaDeAcordoFatura &&
+    !isTransacaoOriginalDaFaturaParcelada &&
+    !isParcelado &&
+    podeExcluirCompra(t);
+
+  const podeExcluirCompraFinal =
+    !!onDeleteTransacao &&
+    !isParcelaDeAcordoFatura &&
+    !isTransacaoOriginalDaFaturaParcelada &&
+    podeExcluirCompra(t);
+
+  if (!podeEditarCompra && !podeExcluirCompraFinal) {
+    return null;
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1">
+      {podeEditarCompra ? (
+        <button
+          type="button"
+          onClick={() => {
+            if (!podeEditarCompra || !onEditTransacao) return;
+            onEditTransacao(String(t.id));
+          }}
+          className="h-8 w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-[#4600ac] dark:text-white/55 dark:hover:text-violet-300"
+          title="Editar transação"
+          aria-label="Editar transação"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
+          </svg>
+        </button>
+      ) : null}
+
+      {podeExcluirCompraFinal ? (
+        <button
+          type="button"
+          onClick={() => {
+            if (!podeExcluirCompraFinal || !onDeleteTransacao) return;
+            onDeleteTransacao(String(t.id));
+          }}
+          className="h-8 w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
+          title="Excluir transação"
+          aria-label="Excluir transação"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M3 6h18" />
+            <path d="M8 6V4h8v2" />
+            <path d="M6 6l1 14h10l1-14" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+          </svg>
+        </button>
+      ) : null}
+    </div>
+  );
+})()}
                         </div>
                       </div>
                     </li>

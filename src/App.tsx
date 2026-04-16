@@ -2891,7 +2891,7 @@ const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const [editDataInput, setEditDataInput] = useState<string>("");
   const [editCategoriaInput, setEditCategoriaInput] = useState<string>("");
-
+  const [editTagInput, setEditTagInput] = useState("");
   // --- Inputs Modais ---
   const [inputNovaCat, setInputNovaCat] = useState("");
   const [inputNovoCartao, setInputNovoCartao] = useState("");
@@ -4961,14 +4961,34 @@ const handleEditClick = (t: Transaction) => {
   setEditDescInput(t.descricao);
   setEditDataInput(String((t as any).data ?? ""));
   setEditCategoriaInput(
-  typeof (t as any).categoria === "string"
-    ? (t as any).categoria
-    : String((t as any).categoria?.nome ?? "")
+    typeof (t as any).categoria === "string"
+      ? (t as any).categoria
+      : String((t as any).categoria?.nome ?? "")
+  );
+  setEditTagInput(
+  String((t as any)?.tipo ?? "").toLowerCase() === "cartao_credito"
+    ? ""
+    : String((t as any).tag ?? "")
 );
   setApplyToAllRelated(false);
 };
 const inputModalClass =
   "w-full p-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500";
+
+useEffect(() => {
+  if (!editingTransaction) return;
+
+  const previousOverflow = document.body.style.overflow;
+  const previousPaddingRight = document.body.style.paddingRight;
+
+  document.body.style.overflow = "hidden";
+  document.body.style.paddingRight = "";
+
+  return () => {
+    document.body.style.overflow = previousOverflow;
+    document.body.style.paddingRight = previousPaddingRight;
+  };
+}, [editingTransaction]);
 
 const salvarEdicao = async () => {
   if (!editingTransaction) return;
@@ -4976,8 +4996,11 @@ const salvarEdicao = async () => {
   try {
     const novoValorAbs = extrairValorMoeda(editValueInput);
     const novaDesc = editDescInput.trim() || editingTransaction.descricao;
+    const novaTag = String(editTagInput ?? "").trim();
+const preservarTagCartao =
+  String((editingTransaction as any)?.tipo ?? "").toLowerCase() === "cartao_credito";
 
-    const listaEditada = applyEditToTransactions(
+    const listaEditadaBase = applyEditToTransactions(
       transacoes,
       editingTransaction,
       novoValorAbs,
@@ -4986,6 +5009,33 @@ const salvarEdicao = async () => {
       editDataInput,
       editCategoriaInput
     );
+
+    const editingId = String((editingTransaction as any)?.id ?? "").trim();
+    const editingRid = String(
+      (editingTransaction as any)?.recorrenciaId ??
+        (editingTransaction as any)?.payload?.recorrenciaId ??
+        ""
+    ).trim();
+
+    const listaEditada = (listaEditadaBase ?? []).map((tx: any) => {
+      const currentId = String((tx as any)?.id ?? "").trim();
+      const currentRid = String(
+        (tx as any)?.recorrenciaId ?? (tx as any)?.payload?.recorrenciaId ?? ""
+      ).trim();
+
+      const ehMesma =
+        currentId === editingId ||
+        (applyToAllRelated && !!editingRid && currentRid === editingRid);
+
+      if (!ehMesma) return tx;
+
+return {
+  ...tx,
+  tag: preservarTagCartao
+    ? String((tx as any)?.tag ?? "")
+    : novaTag || "",
+};
+    });
 
     const idsParaAtualizar = applyToAllRelated && editingTransaction.recorrenciaId
       ? transacoes
@@ -9606,6 +9656,44 @@ if (selectedCreditCardId === c.id) {
               onRegistrarPagamentoFatura={handleRegistrarPagamentoFatura}
               onRegistrarParcelamentoFatura={handleRegistrarParcelamentoFatura}
               onRemoverPagamentoFatura={handleRemoverPagamentoFatura}
+              onEditTransacao={(id: string) => {
+  const alvo = (transacoes ?? []).find(
+    (tx: any) => String((tx as any)?.id ?? "").trim() === String(id ?? "").trim()
+  ) as Transaction | undefined;
+
+  if (!alvo) return;
+
+  const origemLancamento = String(
+    (alvo as any)?.origemLancamento ?? (alvo as any)?.payload?.origemLancamento ?? ""
+  ).trim().toLowerCase();
+
+  const parcelaAtual = Number(
+    (alvo as any)?.parcelaAtual ?? (alvo as any)?.payload?.parcelaAtual ?? 0
+  );
+
+  const totalParcelas = Number(
+    (alvo as any)?.totalParcelas ??
+      (alvo as any)?.parcelasTotal ??
+      (alvo as any)?.payload?.totalParcelas ??
+      (alvo as any)?.payload?.parcelasTotal ??
+      0
+  );
+
+  const isCartaoParceladoComum =
+    origemLancamento === "compra_parcelada" ||
+    totalParcelas > 1 ||
+    parcelaAtual > 0;
+
+  const isParcelaDeAcordoFatura =
+    origemLancamento === "parcelamento_fatura" ||
+    !!String((alvo as any)?.parcelamentoFaturaId ?? "").trim();
+
+  if (isCartaoParceladoComum || isParcelaDeAcordoFatura) {
+    return;
+  }
+
+  handleEditClick(alvo);
+}}
               onDeleteTransacao={async (id: string) => {
                 const sourceList = [
                   ...((creditItSelecionado ?? []) as any[]),
@@ -10437,44 +10525,87 @@ if (isUuid(String(id))) {
           />
         </div>
 
-        {editingTransaction &&
-          (editingTransaction.tipo === "despesa" ||
-            editingTransaction.tipo === "receita") && (
-            <div className="space-y-3">
+{(editingTransaction.tipo === "despesa" ||
+  editingTransaction.tipo === "receita" ||
+  editingTransaction.tipo === "cartao_credito") && (
+  <div className="space-y-3">
 
-              {editingTransaction.tipo === "despesa" && (
-                <>
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                      Data
-                    </label>
+    {editingTransaction.tipo === "despesa" && (
+      <>
+        <div>
+          <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+            Data
+          </label>
 
-                    <input
-                      type="date"
-                      value={editDataInput}
-                      onChange={(e) => setEditDataInput(e.target.value)}
-                      className={inputModalClass}
-                    />
-                  </div>
+          <input
+            type="date"
+            value={editDataInput}
+            onChange={(e) => setEditDataInput(e.target.value)}
+            className={inputModalClass}
+          />
+        </div>
 
-                  <div className="text-xs">
-                    <CustomDropdown
-                      label="Categoria"
-                      value={editCategoriaInput || ""}
-                      options={[
-                        { label: "Sem categoria", value: "" },
-                        ...categoriasFiltradasTransacoes.map((c) => ({
-                          label: c,
-                          value: c,
-                        })),
-                      ]}
-                      onSelect={(v: any) => setEditCategoriaInput(String(v))}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+        <div className="text-xs">
+<CustomDropdown
+  label="Categoria"
+  value={editCategoriaInput || ""}
+  options={[
+    { label: "Sem categoria", value: "" },
+    ...categoriasFiltradasTransacoes.map((c) => ({
+      label: c,
+      value: c,
+    })),
+  ]}
+  onSelect={(v: any) => setEditCategoriaInput(String(v))}
+  renderMenuInPortal={true}
+  menuMaxHeightPx={220}
+  menuMinHeightPx={180}
+/>
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+            Tag
+          </label>
+
+          <input
+            type="text"
+            value={editTagInput}
+            onChange={(e) => setEditTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") salvarEdicao();
+              if (e.key === "Escape") setEditingTransaction(null);
+            }}
+            placeholder="Opcional"
+            className={inputModalClass}
+          />
+        </div>
+      </>
+    )}
+
+    {editingTransaction.tipo === "cartao_credito" && (
+      <>
+        <div className="text-xs">
+<CustomDropdown
+  label="Categoria"
+  value={editCategoriaInput || ""}
+  options={[
+    { label: "Sem categoria", value: "" },
+    ...categorias.despesa.map((c) => ({
+      label: c,
+      value: c,
+    })),
+  ]}
+  onSelect={(v: any) => setEditCategoriaInput(String(v))}
+  renderMenuInPortal={true}
+  menuMaxHeightPx={220}
+  menuMinHeightPx={180}
+/>
+        </div>
+      </>
+    )}
+  </div>
+)}
 
         {editingTransaction.recorrenciaId && (
           <label className="flex items-center gap-3 p-3 rounded-2xl border border-indigo-100 bg-indigo-50 dark:border-indigo-900/40 dark:bg-indigo-900/20 cursor-pointer hover:bg-indigo-100/60 dark:hover:bg-indigo-900/30 transition-colors">
@@ -10498,7 +10629,10 @@ if (isUuid(String(id))) {
 
       <div className="px-5 py-4 border-t border-slate-200/70 dark:border-white/10 flex gap-3">
         <button
-          onClick={() => setEditingTransaction(null)}
+          onClick={() => {
+  setEditingTransaction(null);
+  setEditTagInput("");
+}}
           className="flex-1 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
         >
           Cancelar

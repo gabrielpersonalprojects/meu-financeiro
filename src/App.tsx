@@ -846,6 +846,19 @@ const [activeTab, setActiveTab] = useState<TabType>("transacoes");
 const [transacoesResetPageSignal, setTransacoesResetPageSignal] = useState(0);
 
 const handleHomeTransacoesClick = () => {
+  const favoriteId = String(favoriteAccountId ?? "").trim();
+
+  if (favoriteId) {
+    const favoritaExiste = (profiles ?? []).some(
+      (p: any) => String(p?.id ?? "").trim() === favoriteId
+    );
+
+    setFiltroConta(favoritaExiste ? favoriteId : "todas");
+  } else {
+    setFiltroConta("todas");
+  }
+
+  setTransacoesCardsPerfilView("geral");
   setActiveTab("transacoes");
   setTransacoesResetPageSignal((prev) => prev + 1);
 };
@@ -2895,15 +2908,51 @@ const [analisePerfilView, setAnalisePerfilView] = useState<"geral" | "pf" | "pj"
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroMetodo, setFiltroMetodo] = useState("");
   const [filtroTipoGasto, setFiltroTipoGasto] = useState("");
-  const [filtroConta, setFiltroConta] = useState<string>(() => {
-  const saved = localStorage.getItem(STORAGE_KEYS.FILTRO_CONTA);
-  return normalizeFiltroContaValue(saved);
-});
+const [filtroConta, setFiltroConta] = useState<string>("todas");
 
 useEffect(() => {
   if (!accountsLoaded) return;
 
+  const filtroAtual = normalizeFiltroContaValue(filtroConta);
   const favoriteId = String(favoriteAccountId ?? "").trim();
+
+  const contaAtualExiste =
+    filtroAtual === "todas"
+      ? true
+      : (profiles ?? []).some(
+          (p: any) => String(p?.id ?? "").trim() === filtroAtual
+        );
+
+  if (!contaAtualExiste) {
+    if (favoriteId) {
+      const favoritaExiste = (profiles ?? []).some(
+        (p: any) => String(p?.id ?? "").trim() === favoriteId
+      );
+
+      if (favoritaExiste) {
+        setFiltroConta(favoriteId);
+      } else {
+        setFavoriteAccountId(null);
+        setFiltroConta("todas");
+      }
+    } else {
+      setFiltroConta("todas");
+    }
+
+    filtroContaBootstrapRef.current = true;
+    return;
+  }
+
+  if (filtroContaBootstrapRef.current) {
+    return;
+  }
+
+  filtroContaBootstrapRef.current = true;
+
+  if (filtroAtual !== "todas") {
+    return;
+  }
+
   if (!favoriteId) {
     setFiltroConta("todas");
     return;
@@ -2919,11 +2968,12 @@ useEffect(() => {
     setFavoriteAccountId(null);
     setFiltroConta("todas");
   }
-}, [favoriteAccountId, profiles, accountsLoaded]);
+}, [favoriteAccountId, profiles, accountsLoaded, filtroConta]);
 
 const [transacoesCardsPerfilView, setTransacoesCardsPerfilView] = useState<"geral" | "PF" | "PJ">("geral");
 const [resumoPerfilView, setResumoPerfilView] = useState<"geral" | "PF" | "PJ">("geral");
 const resumoPerfilRef = useRef<HTMLDivElement | null>(null);
+const filtroContaBootstrapRef = useRef(false);
 
 useEffect(() => {
   const isGeralConta =
@@ -4748,7 +4798,7 @@ const projection12Months = useProjection12Months({
   saldoInicialBase: saldoInicialProjecao,
   perfilView: projecaoPerfilView,
   profiles,
-  creditCards,
+  creditCards: activeCreditCards,
   selectedProfileIds: selectedProjectionProfileIds,
   selectedCreditCardIds: selectedProjectionCreditCardIds,
   mode: projectionMode,
@@ -7980,21 +8030,23 @@ const resumoPanelContent = (
     {semPrazoResumoAlertsContent}
 
     {!hasResumoAlerts ? (
-      <div className="flex min-h-[calc(100vh-240px)] items-center justify-center px-4">
-        <div className="w-full max-w-[360px] rounded-[28px] border border-slate-200/80 bg-white/95 px-6 py-10 text-center shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur dark:border-white/10 dark:bg-slate-900/90 dark:shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#220055_0%,#4600ac_100%)] text-xl text-white shadow-sm">
-            ✓
-          </div>
+<div className="flex min-h-[calc(100vh-240px)] items-center justify-center px-6">
+  <div className="w-full max-w-[380px] text-center">
+    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#220055_0%,#4600ac_100%)] text-xl text-white shadow-[0_10px_30px_rgba(70,0,172,0.22)] dark:shadow-[0_10px_30px_rgba(70,0,172,0.28)]">
+      ✓
+    </div>
 
-          <h3 className="mt-5 text-[22px] font-semibold tracking-[-0.03em] text-slate-900 dark:text-white">
-            Seu financeiro está em dia
-          </h3>
+    <h3 className="mt-5 text-[24px] font-semibold tracking-[-0.035em] text-slate-900 dark:text-white">
+      Seu financeiro está em dia
+    </h3>
 
-          <p className="mt-2 text-[13px] leading-6 text-slate-500 dark:text-slate-400">
-            No momento, você não possui pendências, vencimentos ou alertas no resumo.
-          </p>
-        </div>
-      </div>
+<p className="mt-2.5 text-[12px] leading-6 text-slate-400 dark:text-slate-500">
+  No momento, você não possui pendências,
+  <br />
+  vencimentos ou alertas no resumo diário.
+</p>
+  </div>
+</div>
     ) : (
       <div className="space-y-4">
         {despesasVencendoHojeLista.length > 0 && (
@@ -9805,7 +9857,7 @@ if (isUuid(String(id))) {
   perfilView={projecaoPerfilView}
   setPerfilView={setProjecaoPerfilView}
   profiles={profiles}
-  creditCards={creditCards}
+  creditCards={activeCreditCards}
   selectedProfileIds={selectedProjectionProfileIds}
   selectedCreditCardIds={selectedProjectionCreditCardIds}
   setSelectedProfileIds={setSelectedProjectionProfileIds}

@@ -1262,293 +1262,253 @@ return (
 );
 };
 
-  const renderPagamentoFaturaModalContent = () => (
-    <div className="space-y-3">
-      <div className="rounded-2xl bg-white shadow-sm border border-slate-200/70 p-4 text-slate-900 dark:bg-white/5 dark:border-white/10 dark:text-white">
-<div className="flex items-start justify-between gap-4 px-1 pt-1">
-  <div className="pr-4">
-    <div className="text-slate-600 text-sm font-medium leading-none dark:text-white/70">
-      Pagamento da fatura
-    </div>
+const renderPagamentoFaturaModalContent = () => (
+  <div className="space-y-4">
+    <div className="rounded-[1.2rem] bg-transparent px-4 pt-2 pb-4 text-slate-900 shadow-none dark:text-white sm:px-5 sm:pt-3 sm:pb-5">
+      <div className="min-w-0">
 
-    <div className="mt-1.5 text-slate-600 text-[12px] font-semibold leading-none dark:text-white/70">
-      Ciclo da fatura:{" "}
-      <span className="text-slate-900 dark:text-white">{cicloLabel}</span>
-    </div>
+<div className="min-w-0" />
 
-<div className="mt-2">
-  <span
-    className="inline-flex items-center rounded-full border border-[#4600ac] bg-[#4600ac] px-2.5 py-1 text-[11px] font-semibold text-white dark:border-white dark:bg-white dark:text-[#4600ac]"
-  >
-    Venc. {formatBRDate(formatDateOnlyISO(vencimentoFaturaAtual))}
-  </span>
-</div>
-  </div>
 
-  <span
-    className={`text-[11px] px-2 py-1 rounded-lg border whitespace-nowrap ${faturaStatusClassFinal}`}
-  >
-    {faturaStatusLabelFinal}
-  </span>
-</div>
-
-        {parcelamentoAtual && <div className="mt-4">{renderParcelamentoHistorico()}</div>}
-
-        {invoiceActionMode === "pagamento" && !parcelamentoAtual && (
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-3">
-              <div>
-                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                  Valor da fatura
-                </div>
-                <input
-                  type="text"
-                  readOnly
-                  value={moedaBR(valorFaturaTotal)}
-                  className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-                    bg-white border border-slate-200 text-rose-700 font-semibold outline-none
-                    dark:bg-transparent dark:border-white/10 dark:text-red-300"
-                />
-              </div>
-
-              <div>
-                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                  Valor já pago
-                </div>
-                <input
-                  type="text"
-                  readOnly
-                  value={moedaBR(valorPagoFatura)}
-                  className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-                    bg-white border border-slate-200 text-emerald-700 font-semibold outline-none
-                    dark:bg-transparent dark:border-white/10 dark:text-emerald-300"
-                />
-              </div>
-
-              <div>
-                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                  Saldo pendente
-                </div>
-                <input
-                  type="text"
-                  readOnly
-                  value={moedaBR(saldoRestanteFatura)}
-                  className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-                    bg-white border border-slate-200 text-slate-900 font-semibold outline-none
-                    dark:bg-transparent dark:border-white/10 dark:text-white/90"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                  Conta p/ pgto
-                </div>
-                <div className="mt-2">
-                  <CustomDropdown
-                    value={contaPagamentoFatura}
-                    options={contaPagamentoOptions}
-                    onSelect={(v) => setContaPagamentoFatura(v)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                  Data do pagamento
-                </div>
-<input
-  type="date"
-  value={dataPagamentoFatura}
- min={dataMinimaPermitidaNaFaturaAtual}
-  onChange={(e) => setDataPagamentoFatura(e.target.value)}
-                  className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-                    bg-white border border-slate-200 text-slate-900
-                    hover:bg-slate-50
-                    dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800/60"
-                />
-              </div>
-
-              <div>
-                <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-                  Valor a pagar
-                </div>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={valorPagamentoInput}
-                  onChange={(e) => setValorPagamentoInput(e.target.value)}
-                  placeholder="0,00"
-                  className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-                    bg-white border border-slate-200 text-slate-900
-                    hover:bg-slate-50
-                    dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800/60"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {invoiceActionMode === "parcelamento" && !parcelamentoAtual && (
-          <div className="mt-3 space-y-3">
-<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-  <div className="space-y-1">
-    <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-      Valor original
-    </div>
-    <input
-      type="text"
-      value={invoiceParcelamentoValorOriginal}
-      onChange={(e) => setInvoiceParcelamentoValorOriginal(e.target.value)}
-      readOnly
-      placeholder="0,00"
-      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-        bg-white border border-slate-200 text-slate-900 outline-none
-        dark:bg-transparent dark:border-white/10 dark:text-white cursor-not-allowed bg-slate-100 text-slate-500"
-    />
-  </div>
-
-  <div className="space-y-1">
-    <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-      Quantidade de parcelas
-    </div>
-    <input
-      type="number"
-      min={2}
-      value={invoiceParcelamentoQtd}
-      onChange={(e) => setInvoiceParcelamentoQtd(e.target.value)}
-      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-        bg-white border border-slate-200 text-slate-900 outline-none
-        dark:bg-transparent dark:border-white/10 dark:text-white"
-    />
-  </div>
-
-  <div className="space-y-1">
-    <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-      Valor da parcela
-    </div>
-    <input
-      type="text"
-      value={invoiceParcelamentoValorParcela}
-      onChange={(e) => setInvoiceParcelamentoValorParcela(e.target.value)}
-      placeholder="0,00"
-      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-        bg-white border border-slate-200 text-slate-900 outline-none
-        dark:bg-transparent dark:border-white/10 dark:text-white"
-    />
-  </div>
-
-  <div className="space-y-1">
-    <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
-      Primeira parcela
-    </div>
-<input
-  type="date"
-  value={invoiceParcelamentoPrimeiraParcela}
- min={dataMinimaPermitidaNaFaturaAtual}
-  onChange={(e) => setInvoiceParcelamentoPrimeiraParcela(e.target.value)}
-      className="mt-2 h-10 w-full rounded-xl px-3 text-[13px]
-        bg-white border border-slate-200 text-slate-900 outline-none
-        dark:bg-transparent dark:border-white/10 dark:text-white"
-    />
-  </div>
-</div>
-
-<div className="mt-3 text-[11px] font-medium leading-relaxed text-rose-600 dark:text-rose-400">
-  Caso exista entrada na negociação, faça esse lançamento separadamente.
-</div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500 dark:text-white/60">Saldo parcelado</span>
-                <span className="font-semibold text-slate-900 dark:text-white">
-                  {moedaBR(saldoParceladoCalculado)}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500 dark:text-white/60">Total final</span>
-                <span className="font-semibold text-slate-900 dark:text-white">
-                  {moedaBR(totalFinalParcelamento)}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500 dark:text-white/60">Juros totais</span>
-                <span className="font-semibold text-slate-900 dark:text-white">
-                  {moedaBR(jurosTotaisParcelamento)}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {!!erroPagamentoFatura && (
-          <div className="mt-3 text-sm text-rose-700 dark:text-rose-300">{erroPagamentoFatura}</div>
-        )}
-        {!!sucessoPagamentoFatura && (
-          <div className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">
-            {sucessoPagamentoFatura}
-          </div>
-        )}
       </div>
 
+      {parcelamentoAtual && <div className="mt-5">{renderParcelamentoHistorico()}</div>}
+
       {invoiceActionMode === "pagamento" && !parcelamentoAtual && (
-        <div className="rounded-[1.75rem] bg-white shadow-sm border border-slate-200/70 px-6 py-6 text-slate-900 dark:bg-white/5 dark:border-white/10 dark:text-white">
-          <div className="text-slate-600 text-[11px] mb-2 dark:text-white/50">
-            Pagamentos registrados neste ciclo
+      <div className="mt-2.5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-3">
+            <div>
+              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                Valor da fatura
+              </div>
+              <input
+                type="text"
+                readOnly
+                value={moedaBR(valorFaturaTotal)}
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-200/80 bg-slate-50/95 px-4 text-[13px] font-semibold text-rose-600 outline-none shadow-none dark:border-white/10 dark:bg-white/5 dark:text-rose-300"
+              />
+            </div>
+
+            <div>
+              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                Valor já pago
+              </div>
+              <input
+                type="text"
+                readOnly
+                value={moedaBR(valorPagoFatura)}
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-200/80 bg-slate-50/95 px-4 text-[13px] font-semibold text-emerald-600 outline-none shadow-none dark:border-white/10 dark:bg-white/5 dark:text-emerald-300"
+              />
+            </div>
+
+            <div>
+              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                Saldo pendente
+              </div>
+              <input
+                type="text"
+                readOnly
+                value={moedaBR(saldoRestanteFatura)}
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-200/80 bg-slate-50/95 px-4 text-[13px] font-semibold text-slate-900 outline-none shadow-none dark:border-white/10 dark:bg-white/5 dark:text-white/90"
+              />
+            </div>
           </div>
 
-          {pagamentosDoCiclo.length ? (
-            <div className="space-y-2">
-              {pagamentosDoCiclo.map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2
-                    dark:border-white/10 dark:bg-black/20"
-                >
-                 <div className="flex items-start justify-between gap-3.5 sm:gap-3">
-                    <div className="min-w-0">
-                      <div className="text-slate-900 text-[12px] font-medium truncate dark:text-white/85">
-                        {p.contaLabel}
-                      </div>
-                      <div className="mt-1.5 text-slate-500 text-[10px] leading-none dark:text-white/45">
-                        {formatBRDate(p.dataPagamento)}
-                      </div>
-                    </div>
-
-                    <div className="shrink-0 flex items-center gap-2">
-                      <div className="text-emerald-700 text-[12px] font-semibold dark:text-emerald-300">
-                        {moedaBR(p.valor)}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setConfirmExcluirPagamentoId(p.id)}
-                        className="h-8 w-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700
-                          dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/70"
-                        title="Remover pagamento"
-                        aria-label="Remover pagamento"
-                      >
-                        🗑
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+          <div className="space-y-3">
+            <div>
+              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                Conta p/ pgto
+              </div>
+              <div className="mt-2">
+                <CustomDropdown
+                  value={contaPagamentoFatura}
+                  options={contaPagamentoOptions}
+                  onSelect={(v) => setContaPagamentoFatura(v)}
+                  triggerClassName="h-11 rounded-2xl border-slate-200/80 bg-slate-50/95 text-slate-900 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                />
+              </div>
             </div>
-          ) : (
-            <div
-              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-[11px]
-              dark:border-white/10 dark:bg-black/10 dark:text-white/50"
-            >
-              Nenhum pagamento registrado para esta fatura.
+
+            <div>
+              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                Data do pagamento
+              </div>
+              <input
+                type="date"
+                value={dataPagamentoFatura}
+                min={dataMinimaPermitidaNaFaturaAtual}
+                onChange={(e) => setDataPagamentoFatura(e.target.value)}
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-200/80 bg-slate-50/95 px-4 text-[13px] text-slate-900 outline-none transition placeholder:text-slate-400 hover:bg-white focus:border-violet-300 focus:ring-2 focus:ring-violet-200/60 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-white/30 dark:hover:bg-white/10 dark:focus:border-violet-400/40 dark:focus:ring-violet-500/20"
+              />
             </div>
-          )}
+
+            <div>
+              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                Valor a pagar
+              </div>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={valorPagamentoInput}
+                onChange={(e) => setValorPagamentoInput(e.target.value)}
+                placeholder="0,00"
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-200/80 bg-slate-50/95 px-4 text-[13px] text-slate-900 outline-none transition placeholder:text-slate-400 hover:bg-white focus:border-violet-300 focus:ring-2 focus:ring-violet-200/60 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-white/30 dark:hover:bg-white/10 dark:focus:border-violet-400/40 dark:focus:ring-violet-500/20"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {invoiceActionMode === "parcelamento" && !parcelamentoAtual && (
+        <div className="mt-5 space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                Valor original
+              </div>
+              <input
+                type="text"
+                value={invoiceParcelamentoValorOriginal}
+                onChange={(e) => setInvoiceParcelamentoValorOriginal(e.target.value)}
+                readOnly
+                placeholder="0,00"
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-200/80 bg-slate-100/95 px-4 text-[13px] text-slate-500 outline-none shadow-none dark:border-white/10 dark:bg-white/5 dark:text-white/45"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                Quantidade de parcelas
+              </div>
+              <input
+                type="number"
+                min={2}
+                value={invoiceParcelamentoQtd}
+                onChange={(e) => setInvoiceParcelamentoQtd(e.target.value)}
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-200/80 bg-slate-50/95 px-4 text-[13px] text-slate-900 outline-none transition hover:bg-white focus:border-violet-300 focus:ring-2 focus:ring-violet-200/60 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 dark:focus:border-violet-400/40 dark:focus:ring-violet-500/20"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                Valor da parcela
+              </div>
+              <input
+                type="text"
+                value={invoiceParcelamentoValorParcela}
+                onChange={(e) => setInvoiceParcelamentoValorParcela(e.target.value)}
+                placeholder="0,00"
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-200/80 bg-slate-50/95 px-4 text-[13px] text-slate-900 outline-none transition placeholder:text-slate-400 hover:bg-white focus:border-violet-300 focus:ring-2 focus:ring-violet-200/60 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-white/30 dark:hover:bg-white/10 dark:focus:border-violet-400/40 dark:focus:ring-violet-500/20"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-slate-500 text-[11px] leading-none dark:text-white/50">
+                Primeira parcela
+              </div>
+              <input
+                type="date"
+                value={invoiceParcelamentoPrimeiraParcela}
+                min={dataMinimaPermitidaNaFaturaAtual}
+                onChange={(e) => setInvoiceParcelamentoPrimeiraParcela(e.target.value)}
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-200/80 bg-slate-50/95 px-4 text-[13px] text-slate-900 outline-none transition hover:bg-white focus:border-violet-300 focus:ring-2 focus:ring-violet-200/60 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 dark:focus:border-violet-400/40 dark:focus:ring-violet-500/20"
+              />
+            </div>
+          </div>
+
+          <div className="text-[11px] font-medium leading-relaxed text-rose-600 dark:text-rose-400">
+            Caso exista entrada na negociação, faça esse lançamento separadamente.
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/90 px-4 py-4 dark:border-white/10 dark:bg-white/5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500 dark:text-white/60">Saldo parcelado</span>
+              <span className="font-semibold text-slate-900 dark:text-white">
+                {moedaBR(saldoParceladoCalculado)}
+              </span>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <span className="text-slate-500 dark:text-white/60">Total final</span>
+              <span className="font-semibold text-slate-900 dark:text-white">
+                {moedaBR(totalFinalParcelamento)}
+              </span>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <span className="text-slate-500 dark:text-white/60">Juros totais</span>
+              <span className="font-semibold text-slate-900 dark:text-white">
+                {moedaBR(jurosTotaisParcelamento)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!!erroPagamentoFatura && (
+        <div className="mt-4 rounded-2xl border border-rose-200/70 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-300">
+          {erroPagamentoFatura}
+        </div>
+      )}
+
+      {!!sucessoPagamentoFatura && (
+        <div className="mt-4 rounded-2xl border border-emerald-200/70 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+          {sucessoPagamentoFatura}
         </div>
       )}
     </div>
-  );
+
+    {invoiceActionMode === "pagamento" && !parcelamentoAtual && (
+      <div className="rounded-[1.2rem] bg-transparent px-4 py-4 text-slate-900 shadow-none dark:text-white sm:px-5 sm:py-5">
+        <div className="text-slate-500 text-[11px] mb-3 dark:text-white/50">
+          Pagamentos registrados neste ciclo
+        </div>
+
+        {pagamentosDoCiclo.length ? (
+          <div className="space-y-3">
+            {pagamentosDoCiclo.map((p) => (
+              <div
+                key={p.id}
+                className="rounded-2xl border border-slate-200/80 bg-slate-50/95 px-4 py-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/5"
+              >
+                <div className="flex items-start justify-between gap-3.5 sm:gap-3">
+                  <div className="min-w-0">
+                    <div className="text-slate-900 text-[12px] font-medium truncate dark:text-white/85">
+                      {p.contaLabel}
+                    </div>
+                    <div className="mt-1.5 text-slate-500 text-[10px] leading-none dark:text-white/45">
+                      {formatBRDate(p.dataPagamento)}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2">
+                    <div className="text-emerald-700 text-[12px] font-semibold dark:text-emerald-300">
+                      {moedaBR(p.valor)}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setConfirmExcluirPagamentoId(p.id)}
+                      className="h-9 w-9 rounded-xl border border-slate-200/80 bg-white text-slate-700 transition hover:bg-rose-50 hover:text-rose-700 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:bg-rose-500/15 dark:hover:text-rose-200"
+                      title="Remover pagamento"
+                      aria-label="Remover pagamento"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/95 px-4 py-3 text-slate-600 text-[11px] dark:border-white/10 dark:bg-white/5 dark:text-white/50">
+            Nenhum pagamento registrado para esta fatura.
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+);
 
   const softCard =
     "rounded-2xl border border-slate-200/70 bg-white p-4 text-slate-900 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white";
@@ -2157,44 +2117,51 @@ const descricaoLimpa = String(t.descricao ?? "")
 
 {isInvoiceModalOpen
   ? createPortal(
-<div
-  className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-[2px] overscroll-contain"
-  onClick={handleCloseInvoiceModal}
->
-  <div className="flex h-[100dvh] w-full items-end justify-center p-0 sm:h-[100dvh] sm:items-center sm:p-6">
-    <div
-      className="flex h-[100dvh] w-full max-w-[600px] min-h-0 flex-col overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-white/10 dark:bg-[#071235] dark:text-white sm:h-auto sm:max-h-[calc(100dvh-48px)] sm:rounded-[2rem]"
-      onClick={(e) => e.stopPropagation()}
+      <div
+        className="fixed inset-0 z-[80] bg-[rgba(2,6,23,0.62)] backdrop-blur-[10px] overscroll-contain"
+        onClick={handleCloseInvoiceModal}
+      >
+        <div className="flex h-[100dvh] w-full items-end justify-center p-0 sm:h-[100dvh] sm:items-center sm:p-5">
+          <div
+            className="flex h-[100dvh] w-full max-w-[620px] min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] text-slate-900 shadow-[0_24px_90px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(34,0,85,0.98)_0%,rgba(10,18,48,0.98)_28%,rgba(7,18,53,0.98)_100%)] dark:text-white dark:shadow-[0_24px_90px_rgba(0,0,0,0.45)] sm:h-auto sm:max-h-[calc(100dvh-64px)] sm:rounded-[1.75rem]"
+            onClick={(e) => e.stopPropagation()}
+          >
+<div className="shrink-0 border-b border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 pt-5 pb-4 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0.01)_100%)] sm:px-6 sm:pt-6">
+  <div className="flex items-start justify-between gap-4">
+<div className="min-w-0 pr-4">
+  <div className="flex flex-col items-start gap-2">
+<div className="text-[17px] font-semibold uppercase tracking-[0.10em] text-violet-700 dark:text-white">
+  Pagamento da fatura
+</div>
+
+<div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[11px] font-medium text-violet-700 dark:border-white/15 dark:bg-white/10 dark:text-white">
+  <span>Ciclo: {cicloLabel}</span>
+  <span className="hidden sm:inline text-violet-400 dark:text-white/55">•</span>
+  <span>Venc. {formatBRDate(formatDateOnlyISO(vencimentoFaturaAtual))}</span>
+</div>
+  </div>
+</div>
+
+    <button
+      type="button"
+      onClick={handleCloseInvoiceModal}
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200/80 bg-white text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-white/85 dark:hover:bg-white/10 dark:hover:text-white"
+      aria-label="Fechar modal"
+      title="Fechar"
     >
-            <div className="shrink-0 flex items-start justify-between gap-4 border-b border-slate-200 px-5 pt-4 pb-4 dark:border-white/10 sm:px-6 sm:pt-5">
-              <div className="min-w-0 pr-4">
-                <div className="text-slate-600 text-[11px] font-medium leading-none dark:text-white/60">
-                  Pagamento da fatura
-                </div>
-                <div className="mt-1.5 text-slate-900 font-semibold text-[22px] leading-none dark:text-white">
-                  Acessar fatura
-                </div>
-              </div>
+      ✕
+    </button>
+  </div>
+</div>
 
-              <button
-                type="button"
-                onClick={handleCloseInvoiceModal}
-                className="h-11 w-11 shrink-0 flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
-                aria-label="Fechar modal"
-                title="Fechar"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4 sm:px-6 sm:pt-5 sm:pb-5">
+            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4 sm:px-6 sm:pt-5 sm:pb-5 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.55)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-violet-500/50 hover:[&::-webkit-scrollbar-thumb]:bg-violet-400/80">
               {renderPagamentoFaturaModalContent()}
             </div>
 
-            <div className="shrink-0 border-t border-slate-200 px-4 py-4 flex items-center justify-between gap-3 dark:border-white/10 sm:px-6">
+            <div className="shrink-0 border-t border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-4 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.02)_0%,rgba(0,0,0,0.08)_100%)] sm:px-6">
               {!parcelamentoAtual ? (
-                <>
-                  <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="inline-flex rounded-2xl border border-slate-200/80 bg-white p-1.5 dark:border-white/10 dark:bg-black/15 dark:backdrop-blur-sm">
                     <button
                       type="button"
                       onClick={() => {
@@ -2202,10 +2169,10 @@ const descricaoLimpa = String(t.descricao ?? "")
                         setErroPagamentoFatura("");
                         setSucessoPagamentoFatura("");
                       }}
-                      className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition ${
+                      className={`rounded-xl px-4 py-2.5 text-[13px] font-bold transition ${
                         invoiceActionMode === "pagamento"
-                          ? "bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900"
-                          : "text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
+                          ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white shadow-[0_12px_30px_rgba(70,0,172,0.35)]"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white"
                       }`}
                     >
                       À vista
@@ -2227,10 +2194,10 @@ const descricaoLimpa = String(t.descricao ?? "")
                         setErroPagamentoFatura("");
                         setInvoiceActionMode("parcelamento");
                       }}
-                      className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition ${
+                      className={`rounded-xl px-4 py-2.5 text-[13px] font-bold transition ${
                         invoiceActionMode === "parcelamento"
-                          ? "bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900"
-                          : "text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white"
+                          ? "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white shadow-[0_12px_30px_rgba(70,0,172,0.35)]"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white"
                       }`}
                     >
                       Parcelado
@@ -2244,56 +2211,25 @@ const descricaoLimpa = String(t.descricao ?? "")
                         ? registrarPagamentoFatura
                         : registrarParcelamentoFatura
                     }
-                    className="h-12 rounded-[16px] bg-[#4600ac] px-5 text-[15px] font-extrabold text-white shadow-[0_18px_45px_rgba(70,0,172,0.28)] transition-all duration-200 hover:bg-[#3b0091] hover:shadow-[0_22px_55px_rgba(70,0,172,0.34)] active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-100"
+                    className="h-12 rounded-[18px] bg-gradient-to-r from-[#220055] to-[#4600ac] px-6 text-[15px] font-extrabold text-white shadow-[0_20px_50px_rgba(70,0,172,0.35)] transition-all duration-200 hover:translate-y-[-1px] hover:shadow-[0_24px_60px_rgba(70,0,172,0.42)] active:scale-[0.995]"
                   >
                     {invoiceActionMode === "pagamento"
                       ? "Registrar pagamento"
                       : "Registrar parcelamento"}
                   </button>
-                </>
+                </div>
               ) : (
-                <div />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleCloseInvoiceModal}
+                    className="h-12 rounded-[18px] bg-gradient-to-r from-[#220055] to-[#4600ac] px-6 text-[15px] font-extrabold text-white shadow-[0_20px_50px_rgba(70,0,172,0.35)] transition-all duration-200 hover:translate-y-[-1px] hover:shadow-[0_24px_60px_rgba(70,0,172,0.42)] active:scale-[0.995]"
+                  >
+                    Fechar
+                  </button>
+                </div>
               )}
             </div>
-          </div>
-        </div>
-      </div>,
-      document.body
-    )
-  : null}
-
-{confirmCancelarNegociacao && parcelamentoAtual
-  ? createPortal(
-      <div
-        className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 px-4 backdrop-blur-[2px]"
-        onClick={() => setConfirmCancelarNegociacao(false)}
-      >
-        <div
-          className="w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-white/10 dark:bg-[#071235] dark:text-white"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="text-[18px] font-bold">Cancelar negociação?</div>
-
-          <div className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-white/70">
-            Isso vai desfazer o parcelamento desta fatura e remover a negociação vinculada.
-          </div>
-
-          <div className="mt-6 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setConfirmCancelarNegociacao(false)}
-              className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
-            >
-              Voltar
-            </button>
-
-            <button
-              type="button"
-              onClick={cancelarNegociacaoFatura}
-              className="h-10 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700"
-            >
-              Confirmar cancelamento
-            </button>
           </div>
         </div>
       </div>,

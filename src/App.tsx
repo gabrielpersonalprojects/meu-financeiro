@@ -110,7 +110,7 @@ import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
-import { Archive, Home, Moon, Pencil, PencilLine, Star, Trash2, X } from "lucide-react";
+import { Archive, Home, LogOut, Moon, Sun, Pencil, PencilLine, Star, Trash2, X } from "lucide-react";
 import {
   STORAGE_KEYS,
   PROFILE_KEYS,
@@ -1100,27 +1100,39 @@ const carregarDadosUsuario = async (userId: string) => {
   const requestId = ++authLoadRequestIdRef.current;
 
   try {
-    const [
-      creditCardRows,
-      rows,
-      txRows,
-      invoicePaymentRows,
-      invoiceInstallmentsRows,
-      invoiceManualStatusRows,
-      categoryRows,
-      tagRows,
-      favoriteId,
-    ] = await Promise.all([
-      fetchCreditCards(cleanUserId),
-      fetchAccounts(cleanUserId),
-      fetchTransactions(cleanUserId),
-      fetchInvoicePayments(cleanUserId),
-      fetchInvoiceInstallments(cleanUserId),
-      fetchInvoiceManualStatus(cleanUserId),
-      fetchUserCategories(cleanUserId),
-      fetchUserTags(cleanUserId),
-      getUserFavoriteAccount(cleanUserId),
-    ]);
+const [
+  creditCardRows,
+  rows,
+  txRows,
+  invoicePaymentRows,
+  invoiceInstallmentsRows,
+  invoiceManualStatusRows,
+  categoryRows,
+  tagRows,
+  favoriteId,
+  importBatchRows,
+] = await Promise.all([
+  fetchCreditCards(cleanUserId),
+  fetchAccounts(cleanUserId),
+  fetchTransactions(cleanUserId),
+  fetchInvoicePayments(cleanUserId),
+  fetchInvoiceInstallments(cleanUserId),
+  fetchInvoiceManualStatus(cleanUserId),
+  fetchUserCategories(cleanUserId),
+  fetchUserTags(cleanUserId),
+  getUserFavoriteAccount(cleanUserId),
+  (async () => {
+    const { data, error } = await supabase
+      .from("statement_import_batches")
+      .select("target_credit_card_id")
+      .eq("user_id", cleanUserId)
+      .eq("mode", "cartao")
+      .not("target_credit_card_id", "is", null);
+
+    if (error) throw error;
+    return data ?? [];
+  })(),
+]);
 
     if (requestId !== authLoadRequestIdRef.current) {
       return;
@@ -1151,6 +1163,14 @@ setCreditCards(
   }) as any
 );
     setCreditCardsLoaded(true);
+
+    setCardsWithImportHistory(
+  new Set(
+    (importBatchRows ?? [])
+      .map((row: any) => String(row?.target_credit_card_id ?? "").trim())
+      .filter(Boolean)
+  )
+);
 
 const profilesFromDb = rows.map(mapAccountRowToProfile);
 setProfiles((profilesFromDb ?? []) as any);
@@ -1245,6 +1265,53 @@ const touchCardAndRefreshInState = async (cardId: string) => {
   }
 };
 
+const clearCardImportHistory = async (cardId: string, userId: string) => {
+  const safeCardId = String(cardId ?? "").trim();
+  const safeUserId = String(userId ?? "").trim();
+
+  if (!safeCardId || !safeUserId) return;
+
+  const { data: batchRows, error: batchFetchError } = await supabase
+    .from("statement_import_batches")
+    .select("id")
+    .eq("user_id", safeUserId)
+    .eq("mode", "cartao")
+    .eq("target_credit_card_id", safeCardId);
+
+  if (batchFetchError) throw batchFetchError;
+
+  const batchIds = (batchRows ?? [])
+    .map((row: any) => String(row?.id ?? "").trim())
+    .filter(Boolean);
+
+  if (batchIds.length > 0) {
+    const { error: entriesByBatchError } = await supabase
+      .from("statement_import_entries")
+      .delete()
+      .in("batch_id", batchIds);
+
+    if (entriesByBatchError) throw entriesByBatchError;
+  }
+
+  const { error: entriesByCardError } = await supabase
+    .from("statement_import_entries")
+    .delete()
+    .eq("user_id", safeUserId)
+    .eq("mode", "cartao")
+    .eq("target_credit_card_id", safeCardId);
+
+  if (entriesByCardError) throw entriesByCardError;
+
+  if (batchIds.length > 0) {
+    const { error: batchDeleteError } = await supabase
+      .from("statement_import_batches")
+      .delete()
+      .in("id", batchIds);
+
+    if (batchDeleteError) throw batchDeleteError;
+  }
+};
+
 useEffect(() => {
   let isAlive = true;
 
@@ -1263,6 +1330,7 @@ setCategorias(CATEGORIAS_PADRAO);
 setCcTags([]);
 setAccountsLoaded(false);
 setCreditCardsLoaded(false);
+setCardsWithImportHistory(new Set());
 };
 
   const aplicarSessao = async (sess: Session | null) => {
@@ -3894,7 +3962,7 @@ const [newCardFechamentoDia, setNewCardFechamentoDia] = useState<string>("");
 const [newCardVencimentoDia, setNewCardVencimentoDia] = useState<string>("");
 const [newCardLimite, setNewCardLimite] = useState("");
 const [newCardContaVinculadaId, setNewCardContaVinculadaId] = useState<string>("");
-
+const [cardsWithImportHistory, setCardsWithImportHistory] = useState<Set<string>>(new Set());
 
 
 const getCardLinkStats = useCallback(
@@ -3907,6 +3975,7 @@ const getCardLinkStats = useCallback(
         pagamentos: 0,
         status: 0,
         parcelamentos: 0,
+        importacoes: 0,
       };
     }
 
@@ -3947,19 +4016,22 @@ const getCardLinkStats = useCallback(
       return idsRelacionados.includes(cardId);
     }).length;
 
-    return {
-      hasAny:
-        transacoesCount > 0 ||
-        pagamentosCount > 0 ||
-        statusCount > 0 ||
-        parcelamentosCount > 0,
-      transacoes: transacoesCount,
-      pagamentos: pagamentosCount,
-      status: statusCount,
-      parcelamentos: parcelamentosCount,
-    };
+    const importacoesCount = cardsWithImportHistory.has(cardId) ? 1 : 0;
+
+return {
+  hasAny:
+    transacoesCount > 0 ||
+    pagamentosCount > 0 ||
+    statusCount > 0 ||
+    parcelamentosCount > 0,
+  transacoes: transacoesCount,
+  pagamentos: pagamentosCount,
+  status: statusCount,
+  parcelamentos: parcelamentosCount,
+  importacoes: importacoesCount,
+};
   },
-  [transacoes, pagamentosFatura, faturasStatusManual, parcelamentosFatura]
+  [transacoes, pagamentosFatura, faturasStatusManual, parcelamentosFatura, cardsWithImportHistory]
 );
 
 const handleDeactivateCreditCard = useCallback(
@@ -3975,8 +4047,8 @@ const handleDeactivateCreditCard = useCallback(
 
 const ok = await confirm({
   title: "Desativar cartão",
- message:
-  "Ao desativar este cartão, ele deixará de ser usado no app.\n\nAs informações vinculadas a ele deixarão de aparecer nas projeções, gráficos e análises enquanto ele permanecer desativado.\n\nVocê poderá reativá-lo depois, e os dados voltarão a aparecer normalmente.\n\nSe quiser excluir este cartão em definitivo, primeiro será necessário excluir todas as transações vinculadas a ele.",
+message:
+  "Ao desativar este cartão, ele deixará de ser usado no app.\n\nAs informações vinculadas a ele deixarão de aparecer nas projeções, gráficos e análises enquanto ele permanecer desativado.\n\nVocê poderá reativá-lo depois, e os dados voltarão a aparecer normalmente.\n\nSe quiser excluir este cartão em definitivo, primeiro será necessário excluir todas as transações, faturas e também o histórico de importação vinculado a ele.",
   confirmText: "Desativar",
   cancelText: "Cancelar",
 });
@@ -8554,6 +8626,11 @@ const handleOnboardingLater = async () => {
   }
 };
 
+const handleLogout = async () => {
+  await supabase.auth.signOut({ scope: "local" });
+  setSettingsOpen(false);
+};
+
 return (
 <SidebarShell
   userEmail={session?.user?.email}
@@ -8769,11 +8846,22 @@ containerStyle={{
   style={{ height: `${TOP_BAR_HEIGHT}px` }}
 >
   <div className="pointer-events-none absolute bottom-0 left-0 hidden md:block w-4 border-b border-slate-200/70 dark:border-white/10" />
-  <div
-    className="mx-auto flex h-full w-full max-w-[1250px] items-center justify-center px-3 lg:px-4"
+<div
+  className="relative mx-auto flex h-full w-full max-w-[1250px] items-center justify-center px-3 lg:px-4"
+>
+  <AppHeader settingsIcon={null} />
+
+  <button
+    type="button"
+    onClick={handleLogout}
+    className="absolute right-3 hidden md:inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/80 px-3 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-slate-900/55 dark:text-slate-200 dark:hover:bg-slate-900/80 dark:hover:text-white lg:right-4"
+    title="Sair da conta"
+    aria-label="Sair da conta"
   >
-    <AppHeader settingsIcon={null} />
-  </div>
+    <LogOut className="h-4 w-4" />
+    <span>Sair</span>
+  </button>
+</div>
 </div>
 
 <div className="mx-auto w-full max-w-[1250px] px-3 lg:px-4">
@@ -9496,10 +9584,79 @@ if (selectedCreditCardId === c.id) {
       });
 
       toastCompact("Cartão excluído.", "success");
-    } catch (err) {
-      console.error("ERRO AO EXCLUIR CARTÃO:", err);
-      toastCompact("Erro ao excluir cartão no banco.", "error");
+} catch (err: any) {
+  console.error("ERRO AO EXCLUIR CARTÃO:", err);
+
+  const errCode = String(err?.code ?? "").trim();
+  const errDetails = String(err?.details ?? err?.message ?? "").toLowerCase();
+
+  const hasImportHistoryBlock =
+    errCode === "23503" &&
+    errDetails.includes("statement_import_batches");
+
+  if (hasImportHistoryBlock) {
+    const userId = String(session?.user?.id ?? "").trim();
+    if (!userId) {
+      toastCompact("Sessão inválida para excluir cartão.", "error");
+      return;
     }
+
+    const cardLinksNow = getCardLinkStats(c.id);
+    const onlyImportHistoryLeft =
+      cardLinksNow.transacoes === 0 &&
+      cardLinksNow.pagamentos === 0 &&
+      cardLinksNow.status === 0 &&
+      cardLinksNow.parcelamentos === 0 &&
+      cardLinksNow.importacoes > 0;
+
+    if (!onlyImportHistoryLeft) {
+      toastCompact(
+        "Este cartão ainda possui vínculos e não pode ser excluído em definitivo.",
+        "error"
+      );
+      return;
+    }
+
+    try {
+      await clearCardImportHistory(String(c.id), userId);
+      await deleteCreditCardById(c.id, userId);
+
+      setCardsWithImportHistory((prev) => {
+        const next = new Set(prev);
+        next.delete(String(c.id));
+        return next;
+      });
+
+      setCreditCards((prev) => {
+        const next = prev.filter((x) => x.id !== c.id);
+
+        if (selectedCreditCardId === c.id) {
+          const primeiroAtivo = next.find((x: any) => (x as any)?.is_active !== false);
+          const nextCardId = String(primeiroAtivo?.id ?? "").trim();
+
+          setSelectedCreditCardId(nextCardId);
+          setFormQualCartao(nextCardId);
+          setIsCcExpanded(false);
+          setIsEditingLimite(false);
+        }
+
+        return next;
+      });
+
+      toastCompact("Cartão excluído.", "success");
+      return;
+    } catch (cleanupErr) {
+      console.error("ERRO AO LIMPAR HISTÓRICO DE IMPORTAÇÃO DO CARTÃO:", cleanupErr);
+      toastCompact(
+        "Não foi possível limpar o histórico de importação deste cartão para concluir a exclusão.",
+        "error"
+      );
+      return;
+    }
+  }
+
+  toastCompact("Erro ao excluir cartão no banco.", "error");
+}
   }}
 >
   {(c as any)?.is_active === false ? (
@@ -10282,19 +10439,40 @@ if (isUuid(String(id))) {
                     <p className="text-[12px] text-slate-500 dark:text-slate-400">Alternar entre claro e escuro</p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsDarkMode((prev) => !prev)}
-                    className="h-9 px-3 rounded-xl text-[13px] font-semibold whitespace-nowrap
-                      bg-white/70 dark:bg-slate-900/60
-                      border border-slate-200 dark:border-slate-700
-                      text-slate-800 dark:text-slate-100
-                      hover:bg-white dark:hover:bg-slate-900
-                      transition
-                      focus:outline-none focus:ring-2 focus:ring-indigo-200/60 dark:focus:ring-indigo-900/60"
-                  >
-                    {isDarkMode ? "Usar modo claro" : "Usar modo escuro"}
-                  </button>
+<button
+  type="button"
+  onClick={() => setIsDarkMode((prev) => !prev)}
+  aria-label={isDarkMode ? "Ativar modo claro" : "Ativar modo escuro"}
+  title={isDarkMode ? "Ativar modo claro" : "Ativar modo escuro"}
+  className={`relative flex h-10 w-[86px] items-center rounded-full border px-1.5 transition-all duration-300 focus:outline-none focus:ring-2 ${
+    isDarkMode
+      ? "border-violet-400/20 bg-[linear-gradient(135deg,rgba(34,0,85,0.95)_0%,rgba(70,0,172,0.95)_100%)] focus:ring-violet-500/30"
+      : "border-violet-200 bg-violet-50 focus:ring-violet-200/70"
+  }`}
+>
+  <span
+    className={`absolute left-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full shadow-sm transition-all duration-300 ${
+      isDarkMode
+        ? "translate-x-[40px] bg-white text-violet-700"
+        : "translate-x-0 bg-white text-amber-500"
+    }`}
+  >
+    {isDarkMode ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+  </span>
+
+  <span className="flex w-full items-center justify-between px-1 text-[12px]">
+    <Sun
+      className={`h-4 w-4 transition ${
+        isDarkMode ? "text-white/35" : "text-amber-500"
+      }`}
+    />
+    <Moon
+      className={`h-4 w-4 transition ${
+        isDarkMode ? "text-white" : "text-violet-300"
+      }`}
+    />
+  </span>
+</button>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-3 flex items-center justify-between gap-4">
@@ -10342,26 +10520,23 @@ if (isUuid(String(id))) {
   </button>
 </div>
 
-                <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/40 px-4 py-3 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Conta</p>
-                    <p className="text-[12px] text-slate-500 dark:text-slate-400">Encerrar sessão deste usuário</p>
-                  </div>
+<div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/40 px-4 py-3 flex md:hidden items-center justify-between gap-4">
+  <div>
+    <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Conta</p>
+    <p className="text-[12px] text-slate-500 dark:text-slate-400">Encerrar sessão deste usuário</p>
+  </div>
 
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await supabase.auth.signOut({ scope: "local" });
-                      setSettingsOpen(false);
-                    }}
-                    className="h-9 px-3 rounded-xl text-[13px] font-semibold whitespace-nowrap
-                      bg-rose-100 text-rose-700 hover:bg-rose-200 transition
-                      dark:bg-rose-950/40 dark:text-rose-200 dark:hover:bg-rose-950/60
-                      focus:outline-none focus:ring-2 focus:ring-rose-200/70 dark:focus:ring-rose-900/60"
-                  >
-                    Sair da conta
-                  </button>
-                </div>
+  <button
+    type="button"
+    onClick={handleLogout}
+    className="h-9 px-3 rounded-xl text-[13px] font-semibold whitespace-nowrap
+      bg-rose-100 text-rose-700 hover:bg-rose-200 transition
+      dark:bg-rose-950/40 dark:text-rose-200 dark:hover:bg-rose-950/60
+      focus:outline-none focus:ring-2 focus:ring-rose-200/70 dark:focus:ring-rose-900/60"
+  >
+    Sair da conta
+  </button>
+</div>
               </div>
             </div>
           </div>

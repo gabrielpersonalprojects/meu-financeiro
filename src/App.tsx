@@ -378,6 +378,24 @@ const handleUpdateStatementImportRowCategory = (
   });
 };
 
+const handleUpdateStatementImportRowTag = (
+  rowHash: string,
+  value: string
+) => {
+  setStatementImportPreview((prev) => {
+    if (!prev) return prev;
+
+    return {
+      ...prev,
+      rows: prev.rows.map((row) =>
+        row.rowHash === rowHash
+          ? { ...row, selectedTag: value }
+          : row
+      ),
+    };
+  });
+};
+
 const handleUpdateStatementImportRowPlanningType = (
   rowHash: string,
   planningType: "normal" | "mensal_sem_prazo" | "mensal_com_prazo" | "parcelado"
@@ -522,10 +540,46 @@ const handlePrepareStatementImport = async () => {
       session.user.id
     );
 
+    const nextTagsToCreate = Array.from(
+  new Set(
+    draft
+      .map((item) => String(item.tag ?? "").trim())
+      .filter(Boolean)
+  )
+).filter(
+  (tag) =>
+    !(ccTags ?? []).some(
+      (existing) => String(existing).trim().toLowerCase() === tag.toLowerCase()
+    )
+);
+
     if (!draft.length) {
       toastCompact("Nenhuma linha selecionada para importar.", "error");
       return;
     }
+
+    if (nextTagsToCreate.length) {
+  try {
+    await Promise.all(
+      nextTagsToCreate.map((tag) =>
+        insertUserTag({
+          userId: session.user.id,
+          nome: tag,
+        })
+      )
+    );
+
+    setCcTags((prev) =>
+      Array.from(new Set([...(prev ?? []), ...nextTagsToCreate])).sort((a, b) =>
+        a.localeCompare(b, "pt-BR")
+      )
+    );
+  } catch (tagErr) {
+    console.error("ERRO AO CRIAR TAGS DA IMPORTACAO:", tagErr);
+    toastCompact("Não foi possível salvar as novas tags da importação.", "error");
+    return;
+  }
+}
 
     const existingSourceHashes = await findExistingStatementImportSourceHashes({
       userId: session.user.id,
@@ -2619,8 +2673,8 @@ const handleConfirmAddAccount = async () => {
  const banco = accBanco.trim();
   const numeroConta = accNumeroConta.trim();
   const numeroAgencia = accNumeroAgencia.trim();
-if (!editingProfileId && profiles.length >= 15) {
-  toastCompact("Você atingiu o limite de 15 contas cadastradas.", "info");
+if (!editingProfileId && profiles.length >= 10) {
+  toastCompact("Você atingiu o limite de 10 contas cadastradas.", "info");
   return;
 }
   const initialBalanceCents =
@@ -3717,10 +3771,10 @@ const resetAddCardModal = () => {
   };
 
 const openAddCardModal = () => {
-  if (activeCreditCardsCount >= 20) {
-    toastCompact("Você atingiu o limite de 20 cartões ativos cadastrados.", "info");
-    return;
-  }
+if (activeCreditCardsCount >= 15) {
+  toastCompact("Você atingiu o limite de 15 cartões ativos cadastrados.", "info");
+  return;
+}
 
   resetAddCardModal();
   setIsAddCardModalOpen(true);
@@ -4113,13 +4167,13 @@ const handleReactivateCreditCard = useCallback(
     const isCurrentlyInactive = String(card?.is_active ?? "true") === "false" || card?.is_active === false;
     if (!isCurrentlyInactive) return;
 
-    if (activeCreditCardsCount >= 20) {
-      toastCompact(
-        "Você já atingiu o limite de 20 cartões ativos. Desative ou exclua outro cartão antes de reativar este.",
-        "info"
-      );
-      return;
-    }
+if (activeCreditCardsCount >= 15) {
+  toastCompact(
+    "Você já atingiu o limite de 15 cartões ativos. Desative ou exclua outro cartão antes de reativar este.",
+    "info"
+  );
+  return;
+}
 
     const ok = await confirm({
       title: "Reativar cartão",
@@ -11727,11 +11781,14 @@ setIsCreditCardStatementImportOpen(false);
 <StatementImportPreviewModal
   preview={statementImportPreview}
   categorias={categorias}
+  ccTags={ccTags}
   onClose={() => setStatementImportPreview(null)}
   onPrepareImport={handlePrepareStatementImport}
   onToggleRowSelection={handleToggleStatementImportRowSelection}
   onEditRowDescription={handleUpdateStatementImportRowDescription}
   onChangeRowCategory={handleUpdateStatementImportRowCategory}
+  onChangeRowTag={handleUpdateStatementImportRowTag}
+  onRemoveTag={removeCCTag}
   onChangeRowPlanningType={handleUpdateStatementImportRowPlanningType}
   onSetRowPlanningEndDate={handleUpdateStatementImportRowPlanningEndDate}
   onSetRowInstallmentConfig={handleUpdateStatementImportRowInstallmentConfig}

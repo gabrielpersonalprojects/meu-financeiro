@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pencil } from "lucide-react";
 import type {
   Categories,
@@ -13,11 +13,14 @@ import CustomDropdown from "../CustomDropdown";
 type Props = {
   preview: StatementImportPreviewState | null;
   categorias: Categories;
+  ccTags: string[];
   onClose: () => void;
   onPrepareImport: () => void;
   onToggleRowSelection: (rowHash: string) => void;
   onEditRowDescription: (rowHash: string, value: string) => void;
   onChangeRowCategory: (rowHash: string, value: string) => void;
+  onChangeRowTag: (rowHash: string, value: string) => void;
+  onRemoveTag?: (tag: string) => void;
   onChangeRowPlanningType: (
     rowHash: string,
     planningType: StatementImportPlanningType
@@ -125,11 +128,14 @@ function getPlanningBadgeClass(row: StatementImportRow) {
 export default function StatementImportPreviewModal({
   preview,
   categorias,
+  ccTags,
   onClose,
   onPrepareImport,
   onToggleRowSelection,
   onEditRowDescription,
   onChangeRowCategory,
+  onChangeRowTag,
+  onRemoveTag,
   onChangeRowPlanningType,
   onSetRowPlanningEndDate,
   onSetRowInstallmentConfig,
@@ -145,6 +151,38 @@ const ignoredCount = preview.rows.filter((row) => row.selected !== true).length;
 
 const hasSelectedRows = selectedCount > 0;
 const [editingRowHash, setEditingRowHash] = useState<string | null>(null);
+
+const [tagOpenRowHash, setTagOpenRowHash] = useState<string | null>(null);
+
+const [tagMenuPosition, setTagMenuPosition] = useState<{
+  top: number;
+  left: number;
+  width: number;
+}>({
+  top: 0,
+  left: 0,
+  width: 0,
+});
+
+const filteredTagsByRow = useMemo(() => {
+  const map = new Map<string, string[]>();
+
+  for (const row of visibleRows) {
+    const q = String(row.selectedTag ?? "").trim().toLowerCase();
+
+    const filtered = (ccTags ?? [])
+      .filter(Boolean)
+      .filter((tag) => {
+        if (!q) return true;
+        return String(tag).toLowerCase().includes(q);
+      })
+      .slice(0, 30);
+
+    map.set(row.rowHash, filtered);
+  }
+
+  return map;
+}, [visibleRows, ccTags]);
 
 useEffect(() => {
   const previousHtmlOverflow = document.documentElement.style.overflow;
@@ -344,63 +382,61 @@ className="absolute left-1/2 top-1/2 flex h-[min(90vh,820px)] w-[min(98vw,1320px
 
 <div className="mt-6 min-h-0 flex flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 dark:border-white/10">
   <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden [scrollbar-width:thin] [scrollbar-color:rgba(64,0,156,0.55)_transparent] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#40009c]/55 hover:[&::-webkit-scrollbar-thumb]:bg-[#40009c]/80">
- <div className="flex h-full min-w-[1260px] flex-col">
-     <div className="grid grid-cols-[95px_minmax(230px,1fr)_175px_140px_100px_90px_90px_105px] gap-0 border-b border-slate-200/80 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-        <div className="px-4 py-3 text-left">Data</div>
-        <div className="px-4 py-3 text-left">Descrição</div>
-        <div className="px-4 py-3 text-left">Planejamento</div>
-        <div className="px-4 py-3 text-left">Categoria</div>
-        <div className="pl-0 pr-4 py-3 text-left">Valor</div>
-        <div className="pl-0 pr-4 py-3 text-left">Direção</div>
-        <div className="pl-0 pr-4 py-3 text-left">Status</div>
-        <div className="pl-1 pr-4 py-3 text-left">Seleção</div>
-      </div>
+<div className="flex h-full min-w-[1370px] flex-col">
+<div className="grid grid-cols-[95px_minmax(170px,1fr)_44px_165px_150px_150px_100px_90px_90px_105px] gap-0 border-b border-slate-200/80 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+  <div className="px-4 py-3 text-left">Data</div>
+  <div className="px-3 py-3 text-left">Descrição</div>
+  <div className="px-2 py-3 text-left"></div>
+  <div className="px-4 py-3 text-left">Planejamento</div>
+  <div className="px-3 py-3 text-left">Categoria</div>
+  <div className="px-3 py-3 text-left">Tag</div>
+  <div className="px-4 py-3 text-left">Valor</div>
+  <div className="px-4 py-3 text-left">Direção</div>
+  <div className="px-4 py-3 text-left">Status</div>
+  <div className="px-4 py-3 text-left">Seleção</div>
+</div>
 
      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-10 [scrollbar-width:thin] [scrollbar-color:rgba(64,0,156,0.55)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#40009c]/55 hover:[&::-webkit-scrollbar-thumb]:bg-[#40009c]/80">
        {visibleRows.map((row) => (
-          <div
-            key={row.rowHash}
-         className={`grid grid-cols-[95px_minmax(230px,1fr)_175px_140px_100px_90px_90px_105px] gap-0 border-b border-slate-200/70 text-sm last:pb-4 dark:border-white/5 ${
+<div
+  key={row.rowHash}
+className={`grid grid-cols-[95px_minmax(170px,1fr)_44px_165px_150px_150px_100px_90px_90px_105px] gap-0 border-b border-slate-200/70 text-sm last:pb-4 dark:border-white/5 ${
   row.selected === true
     ? "opacity-100"
     : "opacity-45"
 }`}
-          >
+>
             <div className="px-4 py-3">{dataBR(row.normalizedDate)}</div>
 
-            <div className="px-4 py-3">
-              {editingRowHash === row.rowHash ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={row.editedDescription ?? ""}
-                    onChange={(e) =>
-                      onEditRowDescription(row.rowHash, e.target.value)
-                    }
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none dark:border-white/10 dark:bg-white/5 dark:text-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setEditingRowHash(null)}
-                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs dark:border-white/10"
-                  >
-                    OK
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-start justify-between gap-2">
-                  <span className="line-clamp-3">{row.editedDescription || "—"}</span>
-                  <button
-                    type="button"
-                    onClick={() => setEditingRowHash(row.rowHash)}
-                    className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/80 bg-white/80 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                    title="Editar descrição"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-            </div>
+<div className="px-3 py-3">
+  {editingRowHash === row.rowHash ? (
+    <input
+      type="text"
+      value={row.editedDescription ?? ""}
+      onChange={(e) =>
+        onEditRowDescription(row.rowHash, e.target.value)
+      }
+      className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none dark:border-white/10 dark:bg-white/5 dark:text-white"
+    />
+  ) : (
+    <span className="line-clamp-2 break-words">
+      {row.editedDescription || "—"}
+    </span>
+  )}
+</div>
+
+<div className="px-1 py-3">
+  <button
+    type="button"
+    onClick={() =>
+      setEditingRowHash((prev) => (prev === row.rowHash ? null : row.rowHash))
+    }
+    className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/80 bg-white/80 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+    title={editingRowHash === row.rowHash ? "Concluir edição" : "Editar descrição"}
+  >
+    <Pencil className="h-4 w-4" />
+  </button>
+</div>
 
             <div className="px-4 py-3">
               {row.parseStatus !== "valid" ? (
@@ -424,25 +460,111 @@ className="absolute left-1/2 top-1/2 flex h-[min(90vh,820px)] w-[min(98vw,1320px
               )}
             </div>
 
-            <div className="px-4 py-3">
-              <CustomDropdown
-                label=""
-                value={row.selectedCategory ?? ""}
-                options={[
-                  { label: "Selecione", value: "" },
-                  ...getCategoryOptionsForRow(row).map((cat) => ({
-                    label: cat,
-                    value: cat,
-                  })),
-                ]}
-                onSelect={(value) =>
-                  onChangeRowCategory(row.rowHash, String(value))
-                }
-                menuMaxHeightPx={220}
-                menuMinHeightPx={120}
-                renderMenuInPortal
-              />
+<div className="px-3 py-3">
+  <CustomDropdown
+    label=""
+    value={row.selectedCategory ?? ""}
+    options={[
+      { label: "Selecione", value: "" },
+      ...getCategoryOptionsForRow(row).map((cat) => ({
+        label: cat,
+        value: cat,
+      })),
+    ]}
+    onSelect={(value) =>
+      onChangeRowCategory(row.rowHash, String(value))
+    }
+    menuMaxHeightPx={220}
+    menuMinHeightPx={120}
+    renderMenuInPortal
+  />
+</div>
+
+<div className="px-3 py-3 min-w-0">
+  <div className="relative w-full">
+    <input
+      type="text"
+      value={row.selectedTag ?? ""}
+      onChange={(e) => onChangeRowTag(row.rowHash, e.target.value)}
+      onFocus={(e) => {
+  const rect = e.currentTarget.getBoundingClientRect();
+
+  setTagMenuPosition({
+    top: rect.bottom + 8,
+    left: rect.left,
+    width: rect.width,
+  });
+
+  setTagOpenRowHash(row.rowHash);
+}}
+      onBlur={() => {
+        window.setTimeout(() => {
+          setTagOpenRowHash((current) =>
+            current === row.rowHash ? null : current
+          );
+        }, 120);
+      }}
+      placeholder="Selecione"
+      className="appearance-none h-10 w-full rounded-xl border border-slate-200 bg-white pl-3.5 pr-9 text-[13px] text-left text-slate-900 outline-none hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800/60"
+    />
+
+    <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-slate-500 dark:text-slate-400">
+      ›
+    </span>
+
+{tagOpenRowHash === row.rowHash &&
+  (filteredTagsByRow.get(row.rowHash)?.length ?? 0) > 0 &&
+  createPortal(
+    <div
+      className="z-[10060] min-w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+      style={{
+        position: "fixed",
+        top: tagMenuPosition.top,
+        left: tagMenuPosition.left,
+        width: tagMenuPosition.width,
+      }}
+    >
+      <div className="p-1">
+        <div className="max-h-[232px] overflow-y-auto px-1 [scrollbar-width:thin] [scrollbar-color:rgba(64,0,156,0.55)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#40009c]/55 hover:[&::-webkit-scrollbar-thumb]:bg-[#40009c]/80">
+          {(filteredTagsByRow.get(row.rowHash) ?? []).map((tag) => (
+            <div
+              key={tag}
+              className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-100/70 dark:hover:bg-slate-800/60"
+            >
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChangeRowTag(row.rowHash, tag);
+                  setTagOpenRowHash(null);
+                }}
+                className="flex-1 text-left text-sm font-semibold text-slate-800 dark:text-slate-100"
+                title="Selecionar tag"
+              >
+                {tag}
+              </button>
+
+              {onRemoveTag ? (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onRemoveTag(tag)}
+                  className="h-8 w-8 rounded-lg border border-slate-200/70 bg-white/60 text-slate-600 hover:bg-white/80 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-800/60"
+                  title="Remover tag"
+                  aria-label={`Remover tag ${tag}`}
+                >
+                  ✕
+                </button>
+              ) : null}
             </div>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
+  )}
+  </div>
+</div>
 
             <div className="px-4 py-3">{moedaBR(row.amount)}</div>
             <div className="px-4 py-3">{row.direction ?? "—"}</div>

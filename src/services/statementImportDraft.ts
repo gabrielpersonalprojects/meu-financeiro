@@ -43,6 +43,8 @@ const rows = (preview.rows ?? []).filter(
       const categoria =
         String(row.selectedCategory ?? "").trim() || "Importação de Extrato";
 
+        const tag = String(row.selectedTag ?? "").trim() || undefined;
+
       const sourceHash = await buildStatementImportSourceHash({
         userId,
         mode: preview.mode === "account" ? "conta" : "cartao",
@@ -69,6 +71,7 @@ return {
       : "despesa",
   descricao,
   categoria,
+  tag,
   valor: amountAbs,
   data: String(row.normalizedDate ?? "").trim(),
   direction: row.direction as "entrada" | "saida",

@@ -171,6 +171,7 @@ export type StatementImportRow = {
   selected?: boolean;
   editedDescription?: string;
   selectedCategory?: string;
+  selectedTag?: string;
   planning?: StatementImportPlanningConfig;
   rowHash: string;
 };
@@ -200,6 +201,7 @@ export type StatementImportDraftItem = {
   transactionType: "despesa" | "receita" | "cartao_credito";
   descricao: string;
   categoria: string;
+  tag?: string;
   valor: number;
   data: string;
   direction: "entrada" | "saida";

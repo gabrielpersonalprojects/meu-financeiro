@@ -8162,7 +8162,7 @@ const resumoPanelContent = (
       Seu financeiro está em dia
     </h3>
 
-<p className="mt-2.5 text-[12px] leading-6 text-slate-400 dark:text-slate-500">
+<p className="mt-2.5 text-[12px] leading-5 text-slate-400 dark:text-slate-500">
   No momento, você não possui pendências,
   <br />
   vencimentos ou alertas no resumo diário.

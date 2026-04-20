@@ -1163,8 +1163,9 @@ const [
   invoiceManualStatusRows,
   categoryRows,
   tagRows,
-  favoriteId,
-  importBatchRows,
+favoriteId,
+importBatchRows,
+accountImportBatchRows,
 ] = await Promise.all([
   fetchCreditCards(cleanUserId),
   fetchAccounts(cleanUserId),
@@ -1175,17 +1176,30 @@ const [
   fetchUserCategories(cleanUserId),
   fetchUserTags(cleanUserId),
   getUserFavoriteAccount(cleanUserId),
-  (async () => {
-    const { data, error } = await supabase
-      .from("statement_import_batches")
-      .select("target_credit_card_id")
-      .eq("user_id", cleanUserId)
-      .eq("mode", "cartao")
-      .not("target_credit_card_id", "is", null);
 
-    if (error) throw error;
-    return data ?? [];
-  })(),
+(async () => {
+  const { data, error } = await supabase
+    .from("statement_import_batches")
+    .select("target_credit_card_id")
+    .eq("user_id", cleanUserId)
+    .eq("mode", "cartao")
+    .not("target_credit_card_id", "is", null);
+
+  if (error) throw error;
+  return data ?? [];
+})(),
+(async () => {
+  const { data, error } = await supabase
+    .from("statement_import_batches")
+    .select("target_account_id")
+    .eq("user_id", cleanUserId)
+    .eq("mode", "conta")
+    .not("target_account_id", "is", null);
+
+  if (error) throw error;
+  return data ?? [];
+})(),
+
 ]);
 
     if (requestId !== authLoadRequestIdRef.current) {
@@ -1222,6 +1236,14 @@ setCreditCards(
   new Set(
     (importBatchRows ?? [])
       .map((row: any) => String(row?.target_credit_card_id ?? "").trim())
+      .filter(Boolean)
+  )
+);
+
+setAccountsWithImportHistory(
+  new Set(
+    (accountImportBatchRows ?? [])
+      .map((row: any) => String(row?.target_account_id ?? "").trim())
       .filter(Boolean)
   )
 );
@@ -1366,6 +1388,53 @@ const clearCardImportHistory = async (cardId: string, userId: string) => {
   }
 };
 
+const clearAccountImportHistory = async (accountId: string, userId: string) => {
+  const safeAccountId = String(accountId ?? "").trim();
+  const safeUserId = String(userId ?? "").trim();
+
+  if (!safeAccountId || !safeUserId) return;
+
+  const { data: batchRows, error: batchFetchError } = await supabase
+    .from("statement_import_batches")
+    .select("id")
+    .eq("user_id", safeUserId)
+    .eq("mode", "conta")
+    .eq("target_account_id", safeAccountId);
+
+  if (batchFetchError) throw batchFetchError;
+
+  const batchIds = (batchRows ?? [])
+    .map((row: any) => String(row?.id ?? "").trim())
+    .filter(Boolean);
+
+  if (batchIds.length > 0) {
+    const { error: entriesByBatchError } = await supabase
+      .from("statement_import_entries")
+      .delete()
+      .in("batch_id", batchIds);
+
+    if (entriesByBatchError) throw entriesByBatchError;
+  }
+
+  const { error: entriesByAccountError } = await supabase
+    .from("statement_import_entries")
+    .delete()
+    .eq("user_id", safeUserId)
+    .eq("mode", "conta")
+    .eq("target_account_id", safeAccountId);
+
+  if (entriesByAccountError) throw entriesByAccountError;
+
+  if (batchIds.length > 0) {
+    const { error: batchDeleteError } = await supabase
+      .from("statement_import_batches")
+      .delete()
+      .in("id", batchIds);
+
+    if (batchDeleteError) throw batchDeleteError;
+  }
+};
+
 useEffect(() => {
   let isAlive = true;
 
@@ -1385,6 +1454,7 @@ setCcTags([]);
 setAccountsLoaded(false);
 setCreditCardsLoaded(false);
 setCardsWithImportHistory(new Set());
+setAccountsWithImportHistory(new Set());
 };
 
   const aplicarSessao = async (sess: Session | null) => {
@@ -2856,7 +2926,7 @@ const handleDeleteAccount = async (idOrName: string) => {
     temParcelamentosRelacionados
   ) {
     toastCompact(
-      "Esta conta possui vínculos financeiros e não pode ser excluída. Edite, desative ou remova primeiro os vínculos relacionados.",
+      "Esta conta possui vínculos financeiros e não pode ser excluída. Remova os vínculos relacionados primeiro.",
       "error"
     );
     return;
@@ -2872,11 +2942,53 @@ try {
   }
 
   await deleteAccountById(contaId, userId);
-} catch (err) {
-    console.error("ERRO AO EXCLUIR CONTA NO SUPABASE:", err);
+} catch (err: any) {
+  console.error("ERRO AO EXCLUIR CONTA NO SUPABASE:", err);
+
+  const errorText = String(
+    err?.message ?? err?.details ?? err?.hint ?? ""
+  ).toLowerCase();
+
+  const isImportHistoryFk =
+    err?.code === "23503" &&
+    (
+      errorText.includes("statement_import_batches") ||
+      errorText.includes("statement_import_entries") ||
+      errorText.includes("target_account_id")
+    );
+
+  if (isImportHistoryFk) {
+    try {
+      const userId = String(session?.user?.id ?? "").trim();
+      if (!userId) {
+        toastCompact("Sessão inválida para excluir conta.", "error");
+        return;
+      }
+
+      await clearAccountImportHistory(contaId, userId);
+      await deleteAccountById(contaId, userId);
+    } catch (cleanupErr) {
+      console.error(
+        "ERRO AO LIMPAR HISTÓRICO DE IMPORTAÇÃO DA CONTA:",
+        cleanupErr
+      );
+      toastCompact(
+        "Não foi possível limpar o histórico de importação desta conta para concluir a exclusão.",
+        "error"
+      );
+      return;
+    }
+  } else {
     toastCompact("Erro ao excluir conta no banco.", "error");
     return;
   }
+}
+
+setAccountsWithImportHistory((prev) => {
+  const next = new Set(prev);
+  next.delete(contaId);
+  return next;
+});
 
   setProfiles((prev) => {
     const next = prev.filter((p) => String(p?.id ?? "").trim() !== contaId);
@@ -4017,6 +4129,7 @@ const [newCardVencimentoDia, setNewCardVencimentoDia] = useState<string>("");
 const [newCardLimite, setNewCardLimite] = useState("");
 const [newCardContaVinculadaId, setNewCardContaVinculadaId] = useState<string>("");
 const [cardsWithImportHistory, setCardsWithImportHistory] = useState<Set<string>>(new Set());
+const [accountsWithImportHistory, setAccountsWithImportHistory] = useState<Set<string>>(new Set());
 
 
 const getCardLinkStats = useCallback(

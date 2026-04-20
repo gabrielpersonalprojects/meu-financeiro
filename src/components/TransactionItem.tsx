@@ -11,6 +11,7 @@ type ContaParts = {
 
 type Props = {
   t: any;
+  allTransactions?: any[];
   profiles: any[];
   hojeStr: string;
   togglePago: (t: any) => void;
@@ -24,6 +25,7 @@ type Props = {
 
 export default function TransactionItem({
   t,
+  allTransactions,
   profiles,
   hojeStr,
   togglePago,
@@ -107,6 +109,89 @@ const descricaoSemParcela = isParceladoVisual
   ? descricaoRaw.replace(/\s*\(\d+\s*\/\s*\d+\)\s*$/g, "").trim()
   : descricaoRaw;
 
+const recorrenciaId = String(
+  (t as any)?.recorrenciaId ?? (t as any)?.payload?.recorrenciaId ?? ""
+).trim();
+
+const recurrenceKind = String(
+  (t as any)?.recurrenceKind ??
+    (t as any)?.payload?.recurrenceKind ??
+    ""
+).trim();
+
+const recurrenceWindowMonths = Number(
+  (t as any)?.recurrenceWindowMonths ??
+    (t as any)?.payload?.recurrenceWindowMonths ??
+    0
+);
+
+const isMensalVisual =
+  !isParceladoVisual &&
+  !!recorrenciaId &&
+  (
+    (t as any)?.isRecorrente === true ||
+    recurrenceKind === "sem_prazo" ||
+    String((t as any)?.tipoGasto ?? "").trim().toLowerCase() === "fixo"
+  );
+
+const recorrenciasRelacionadas = isMensalVisual
+  ? [...(allTransactions ?? [])]
+      .filter((item: any) => {
+        const itemRecorrenciaId = String(
+          item?.recorrenciaId ?? item?.payload?.recorrenciaId ?? ""
+        ).trim();
+
+        return itemRecorrenciaId === recorrenciaId;
+      })
+      .sort((a: any, b: any) => {
+        const dataA = String(a?.data ?? "");
+        const dataB = String(b?.data ?? "");
+        const diffData = dataA.localeCompare(dataB);
+        if (diffData !== 0) return diffData;
+
+        const createdA = Number(a?.criadoEm ?? a?.createdAt ?? 0);
+        const createdB = Number(b?.criadoEm ?? b?.createdAt ?? 0);
+        if (createdA !== createdB) return createdA - createdB;
+
+        return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
+      })
+  : [];
+
+const mensalAtualNum = isMensalVisual
+  ? Math.max(
+      1,
+      recorrenciasRelacionadas.findIndex(
+        (item: any) => String(item?.id ?? "") === String((t as any)?.id ?? "")
+      ) + 1
+    )
+  : 0;
+
+const mensalTotalNum = isMensalVisual
+  ? Math.max(
+      recurrenceKind === "sem_prazo" && recurrenceWindowMonths > 0
+        ? recurrenceWindowMonths
+        : 0,
+      recorrenciasRelacionadas.length
+    )
+  : 0;
+
+const topBadge = isParceladoVisual
+  ? {
+      label: `Parcelado ${parcelaAtualNum} de ${totalParcelasNum}`,
+      title: `Parcelado ${parcelaAtualNum} de ${totalParcelasNum}`,
+      className:
+        "bg-gradient-to-r from-[#4c0195] to-[#6d28d9] text-white shadow-[0_10px_24px_rgba(76,1,149,0.35)] dark:from-[#6d28d9] dark:to-[#8b5cf6] dark:text-white dark:shadow-[0_10px_24px_rgba(139,92,246,0.28)]",
+    }
+  : isMensalVisual && mensalAtualNum > 0 && mensalTotalNum > 0
+? {
+    label: `Mensal ${mensalAtualNum} de ${mensalTotalNum}`,
+    title: `Mensal ${mensalAtualNum} de ${mensalTotalNum}`,
+    className: isReceita
+      ? "bg-gradient-to-r from-[#059669] to-[#10b981] text-white shadow-[0_10px_24px_rgba(16,185,129,0.28)] dark:from-[#10b981] dark:to-[#34d399] dark:text-white dark:shadow-[0_10px_24px_rgba(52,211,153,0.22)]"
+      : "bg-gradient-to-r from-[#c2185b] to-[#ec4899] text-white shadow-[0_10px_24px_rgba(236,72,153,0.28)] dark:from-[#db2777] dark:to-[#f472b6] dark:text-white dark:shadow-[0_10px_24px_rgba(244,114,182,0.24)]",
+  }
+  : null;
+
   const [showFaturaToggleWarning, setShowFaturaToggleWarning] = useState(false);
 
 const handleTogglePagoClick = () => {
@@ -150,11 +235,24 @@ useEffect(() => {
 <div
   key={t.id}
   ref={warningContainerRef}
-  className={`group rounded-2xl border transition-all ${baseBg} ${
+  className={`group relative overflow-hidden rounded-2xl border transition-all ${baseBg} ${
     paid ? "opacity-80" : ""
   } ${glowAtraso}`}
 >
-   <div className="flex flex-col gap-4 p-4 sm:gap-5 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
+  {topBadge && (
+    <div
+      className={[
+        "absolute left-0 top-0 z-10 inline-flex h-7 items-center rounded-br-xl px-3",
+        "text-[10px] font-black uppercase tracking-[0.14em]",
+        topBadge.className,
+      ].join(" ")}
+      title={topBadge.title}
+    >
+      {topBadge.label}
+    </div>
+  )}
+
+   <div className={`flex flex-col gap-4 p-4 sm:gap-5 sm:p-5 sm:flex-row sm:items-center sm:justify-between ${topBadge ? "pt-9 sm:pt-10" : ""}`}>
       {/* ESQUERDA */}
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-3">
@@ -196,23 +294,6 @@ title={
 >
   {descricaoSemParcela || descricaoRaw}
 </p>
-
-      {isParceladoVisual && (
-        <span
-          className="
-            inline-flex items-center rounded-full
-            border border-indigo-200/80 dark:border-indigo-400/20
-            bg-indigo-50 dark:bg-indigo-500/10
-            px-2.5 py-1
-            text-[10px] font-black uppercase tracking-[0.12em]
-            text-indigo-700 dark:text-indigo-300
-            shadow-sm
-          "
-          title={`Parcela ${parcelaAtualNum} de ${totalParcelasNum}`}
-        >
-          {parcelaAtualNum} de {totalParcelasNum}
-        </span>
-      )}
     </div>
   </div>
 </div>

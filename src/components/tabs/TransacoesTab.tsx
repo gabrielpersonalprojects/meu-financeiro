@@ -865,6 +865,7 @@ onSelect={(val) => {
                           <TransactionItem
                             key={String((t as any)?.id ?? "")}
                             t={t}
+                            allTransactions={transactions}
                             profiles={profiles}
                             hojeStr={hojeStr}
                             togglePago={togglePago}
@@ -1048,6 +1049,7 @@ className={[
                       <TransactionItem
                         key={String((t as any)?.id ?? "")}
                         t={t}
+                        allTransactions={transactions}
                         profiles={profiles}
                         hojeStr={hojeStr}
                         togglePago={togglePago}

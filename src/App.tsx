@@ -902,6 +902,11 @@ const [transacoesResetPageSignal, setTransacoesResetPageSignal] = useState(0);
 const handleHomeTransacoesClick = () => {
   const favoriteId = String(favoriteAccountId ?? "").trim();
 
+  setFiltroMesTransacoes(getHojeLocal().substring(0, 7));
+  setFiltroLancamento("todos");
+  setFiltroCategoria("");
+  setFiltroTipoGasto("");
+
   if (favoriteId) {
     const favoritaExiste = (profiles ?? []).some(
       (p: any) => String(p?.id ?? "").trim() === favoriteId

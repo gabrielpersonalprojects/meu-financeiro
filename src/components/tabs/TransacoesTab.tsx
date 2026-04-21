@@ -54,7 +54,10 @@ type Props = {
   profiles: any[];
   renderContaOptionLabel: (p: any) => ReactNode;
   favoriteAccountId: string | null;
-handleToggleFavoriteAccount: (accountId: string) => void;
+  handleToggleFavoriteAccount: (accountId: string) => void;
+  shouldShowAccountEyes: boolean;
+  hiddenAccountIds: string[];
+  handleToggleHiddenAccount: (accountId: string) => void;
 
   mostrarReceitasResumo: boolean;
   mostrarDespesasResumo: boolean;
@@ -110,7 +113,10 @@ export default function TransacoesTab({
   profiles,
   renderContaOptionLabel,
   favoriteAccountId,
-handleToggleFavoriteAccount,
+  handleToggleFavoriteAccount,
+  shouldShowAccountEyes,
+  hiddenAccountIds,
+  handleToggleHiddenAccount,
 
   mostrarReceitasResumo,
   mostrarDespesasResumo,
@@ -145,6 +151,27 @@ const [organizacaoLista, setOrganizacaoLista] = useState<
   | "valor_crescente"
   | "valor_decrescente"
 >("status");
+
+const hiddenAccountIdsSet = useMemo(
+  () =>
+    new Set(
+      (hiddenAccountIds ?? [])
+        .map((id) => String(id ?? "").trim())
+        .filter(Boolean)
+    ),
+  [hiddenAccountIds]
+);
+
+const canFavoriteAccounts = (profiles ?? []).length >= 2;
+const canManageAccountVisibility = (profiles ?? []).length >= 3;
+
+const shouldShowFavoriteStars =
+  canFavoriteAccounts && hiddenAccountIdsSet.size === 0;
+
+const shouldRenderEyeActions =
+  canManageAccountVisibility && shouldShowAccountEyes;
+
+  const hasHiddenAccounts = hiddenAccountIdsSet.size > 0;
 
   const getFilteredTransactions = useMemo(() => {
     return (itemsFiltrados || []).filter((t: any) => {
@@ -460,47 +487,82 @@ className={[
       placeholder="Conta"
       value={filtroConta}
       options={[
-        {
-          label: (
-            <span className="inline-flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600/25 text-indigo-300 border border-indigo-500/20">
-                TODAS
-              </span>
-              <span className="text-slate-100">as contas</span>
-            </span>
-          ),
-          value: "todas",
-        },
+       {
+  label: (
+    <span className="inline-flex items-center gap-2">
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600/25 text-indigo-300 border border-indigo-500/20">
+        {hasHiddenAccounts ? "CONTAS" : "TODAS"}
+      </span>
+      <span className="text-slate-100">
+        {hasHiddenAccounts ? "selecionadas" : "as contas"}
+      </span>
+    </span>
+  ),
+  value: "todas",
+},
 ...profiles.map((p) => {
-  const isFavorite =
-    String(favoriteAccountId ?? "").trim() === String(p.id ?? "").trim();
+const accountId = String(p.id ?? "").trim();
+const isFavorite =
+  String(favoriteAccountId ?? "").trim() === accountId;
+const isHidden = hiddenAccountIdsSet.has(accountId);
 
-  return {
+return {
 label: (
   <div className="flex items-center gap-2 w-full min-w-0">
-    <button
-      type="button"
-      onMouseDown={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        handleToggleFavoriteAccount(String(p.id));
-      }}
-      className="shrink-0 p-0.5 transition"
-      title={isFavorite ? "Desfavoritar conta" : "Favoritar conta"}
-    >
-      <Star
+{shouldRenderEyeActions && (
+  <button
+    type="button"
+    onMouseDown={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }}
+    onClick={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleToggleHiddenAccount(accountId);
+    }}
+    className="shrink-0 p-0.5 transition"
+    title={isHidden ? "Mostrar conta" : "Ocultar conta"}
+  >
+    {isHidden ? (
+      <EyeOff
         size={14}
-        className={
-          isFavorite
-            ? "fill-violet-600 stroke-violet-600 text-violet-600 dark:fill-violet-400 dark:stroke-violet-400 dark:text-violet-400"
-            : "fill-transparent stroke-violet-600 text-violet-600 dark:stroke-violet-400 dark:text-violet-400"
-        }
+        className="text-slate-500 dark:text-slate-400"
       />
-    </button>
+    ) : (
+      <Eye
+        size={14}
+        className="text-slate-500 dark:text-slate-400"
+      />
+    )}
+  </button>
+)}
+
+{shouldShowFavoriteStars && (
+  <button
+    type="button"
+    onMouseDown={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }}
+    onClick={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleToggleFavoriteAccount(accountId);
+    }}
+    className="shrink-0 p-0.5 transition"
+    title={isFavorite ? "Desfavoritar conta" : "Favoritar conta"}
+  >
+    <Star
+      size={14}
+      className={
+        isFavorite
+          ? "fill-violet-600 stroke-violet-600 text-violet-600 dark:fill-violet-400 dark:stroke-violet-400 dark:text-violet-400"
+          : "fill-transparent stroke-violet-600 text-violet-600 dark:stroke-violet-400 dark:text-violet-400"
+      }
+    />
+  </button>
+)}
 
     <span className="shrink-0">
       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600/25 text-indigo-300 border border-indigo-500/20">

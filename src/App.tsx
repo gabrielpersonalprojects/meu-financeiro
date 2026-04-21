@@ -158,8 +158,11 @@ import SidebarShell, { type SidebarPanelKey } from "./components/layout/SidebarS
 
 import {
   getUserFavoriteAccount,
+  getUserHiddenAccounts,
   setUserFavoriteAccount,
+  setUserHiddenAccounts,
 } from "./services/userAccess";
+
 import {
   getNotificationsWithReadStatus,
   markNotificationAsRead,
@@ -1168,9 +1171,10 @@ const [
   invoiceManualStatusRows,
   categoryRows,
   tagRows,
-favoriteId,
-importBatchRows,
-accountImportBatchRows,
+  favoriteId,
+  hiddenIds,
+  importBatchRows,
+  accountImportBatchRows,
 ] = await Promise.all([
   fetchCreditCards(cleanUserId),
   fetchAccounts(cleanUserId),
@@ -1181,6 +1185,7 @@ accountImportBatchRows,
   fetchUserCategories(cleanUserId),
   fetchUserTags(cleanUserId),
   getUserFavoriteAccount(cleanUserId),
+  getUserHiddenAccounts(cleanUserId),
 
 (async () => {
   const { data, error } = await supabase
@@ -1256,6 +1261,11 @@ setAccountsWithImportHistory(
 const profilesFromDb = rows.map(mapAccountRowToProfile);
 setProfiles((profilesFromDb ?? []) as any);
 setFavoriteAccountId(favoriteId ? String(favoriteId) : null);
+setHiddenAccountIds(
+  Array.isArray(hiddenIds)
+    ? hiddenIds.map((id: any) => String(id ?? "").trim()).filter(Boolean)
+    : []
+);
 setAccountsLoaded(true);
 
     const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
@@ -1449,6 +1459,7 @@ const limparEstadoUsuario = () => {
 
 setProfiles([]);
 setFavoriteAccountId(null);
+setHiddenAccountIds([]);
 setTransacoes([]);
 setCreditCards([]);
 setPagamentosFatura([]);
@@ -2533,6 +2544,8 @@ if (cartaoIdFinal) {
 const [profiles, setProfiles] = useState<Profile[]>([]);
 const [favoriteAccountId, setFavoriteAccountId] = useState<string | null>(null);
 
+const [hiddenAccountIds, setHiddenAccountIds] = useState<string[]>([]);
+
 
 const LABEL_TODAS_CONTAS = "Todas as Contas";
 
@@ -3208,6 +3221,42 @@ useEffect(() => {
     setFiltroConta("todas");
   }
 }, [favoriteAccountId, profiles, accountsLoaded, filtroConta]);
+
+const handleToggleHiddenAccount = async (accountId: string) => {
+  const userId = String(session?.user?.id ?? "").trim();
+  const id = String(accountId ?? "").trim();
+
+  if (!userId || !id) return;
+
+  const favoriteId = String(favoriteAccountId ?? "").trim();
+  if (favoriteId) return;
+
+  const nextHiddenIds = hiddenAccountIds.includes(id)
+    ? hiddenAccountIds.filter((item) => String(item ?? "").trim() !== id)
+    : [...hiddenAccountIds, id];
+
+  try {
+    await setUserHiddenAccounts(userId, nextHiddenIds);
+    setHiddenAccountIds(nextHiddenIds);
+  } catch (err) {
+    console.error("ERRO AO ATUALIZAR CONTAS OCULTAS:", err);
+    toastCompact("Não foi possível atualizar as contas ocultas.", "error");
+  }
+};
+
+const shouldShowAccountEyes =
+  normalizeFiltroContaValue(filtroConta) === "todas" &&
+  !String(favoriteAccountId ?? "").trim();
+
+const hiddenAccountIdsSet = useMemo(
+  () =>
+    new Set(
+      (hiddenAccountIds ?? [])
+        .map((id) => String(id ?? "").trim())
+        .filter(Boolean)
+    ),
+  [hiddenAccountIds]
+);
 
 const [transacoesCardsPerfilView, setTransacoesCardsPerfilView] = useState<"geral" | "PF" | "PJ">("geral");
 const [resumoPerfilView, setResumoPerfilView] = useState<"geral" | "PF" | "PJ">("geral");
@@ -4708,17 +4757,59 @@ const passaFiltroConta = useCallback((t: any) => {
   return ids.includes(alvo);
 }, [filtroConta]);
 
+const passaFiltroContasVisiveisEmTodas = useCallback(
+  (t: any) => {
+    if (!shouldShowAccountEyes) return true;
+    if (!hiddenAccountIdsSet.size) return true;
 
+    const idsRelacionados = [
+      t?.contaId,
+      t?.profileId,
+      t?.qualConta,
+      t?.conta?.id,
+      t?.profile?.id,
+      t?.contaOrigemId,
+      t?.contaDestinoId,
+      t?.transferFromId,
+      t?.transferToId,
+    ]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean);
 
+    if (!idsRelacionados.length) return true;
+
+    return idsRelacionados.some((id) => !hiddenAccountIdsSet.has(id));
+  },
+  [shouldShowAccountEyes, hiddenAccountIdsSet]
+);
+
+const transacoesComContasVisiveis = useMemo(() => {
+  if (!shouldShowAccountEyes) return transacoes;
+  if (!hiddenAccountIdsSet.size) return transacoes;
+
+  return (transacoes ?? []).filter(passaFiltroContasVisiveisEmTodas);
+}, [
+  transacoes,
+  shouldShowAccountEyes,
+  hiddenAccountIdsSet,
+  passaFiltroContasVisiveisEmTodas,
+]);
+
+const profilesComContasVisiveis = useMemo(() => {
+  if (!shouldShowAccountEyes) return profiles;
+  if (!hiddenAccountIdsSet.size) return profiles;
+
+  return (profiles ?? []).filter(
+    (p: any) => !hiddenAccountIdsSet.has(String(p?.id ?? "").trim())
+  );
+}, [profiles, shouldShowAccountEyes, hiddenAccountIdsSet]);
 
 // 1) Base pros CARDS (respeita mês + filtro de conta)
 const txCards = useMemo(() => {
-  // a) filtra pelo mês selecionado NA ABA TRANSAÇÕES
-  const byMonth = transactions.filter(
+  const byMonth = transacoesComContasVisiveis.filter(
     (t) => (t.data || "").slice(0, 7) === filtroMesTransacoes
   );
 
-  // b) se "todas", NÃO contar transferências como entrada/saída geral (só movimentação interna)
   if (filtroConta === "todas") {
     return byMonth.filter(
       (t: any) =>
@@ -4727,15 +4818,14 @@ const txCards = useMemo(() => {
     );
   }
 
-  // c) se uma conta específica, conta TUDO daquela conta (inclusive transferência)
   return byMonth.filter(passaFiltroConta);
-}, [transactions, filtroMesTransacoes, filtroConta, passaFiltroConta]);
+}, [transacoesComContasVisiveis, filtroMesTransacoes, filtroConta, passaFiltroConta]);
 
 
 // --- Filtros (memo limpo, SEM duplicações) ---
 const { getFilteredTransactions, getFilteredTransactionsAno, anoRef } =
   useFilteredTransactions({
-    transacoes,
+    transacoes: transacoesComContasVisiveis,
     filtroMes: filtroMesTransacoes,
     filtroLancamento,
     filtroCategoria,
@@ -4835,7 +4925,7 @@ const handleLimparFiltros = () => {
 
 // Lista/UI da aba Transações (mês da aba Transações)
 const transacoesFiltradasUI = useTransacoesFiltradasMes({
-  transactions,
+  transactions: transacoesComContasVisiveis,
   filtroMes: filtroMesTransacoes,
   filtroLancamento,
   passaFiltroConta,
@@ -4844,10 +4934,10 @@ const transacoesFiltradasUI = useTransacoesFiltradasMes({
 
 // --- Stats (não contar transferência/cartão de crédito por enquanto) ---
 const stats = useStatsMes({
-  transactions,
+  transactions: transacoesComContasVisiveis,
   filtroMes: filtroMesTransacoes,
   filtroConta,
-  profiles,
+  profiles: profilesComContasVisiveis,
   passaFiltroConta,
   perfilView: transacoesCardsPerfilView,
 });
@@ -10228,11 +10318,14 @@ if (isUuid(String(id))) {
     filtroTipoGasto={filtroTipoGasto}
     setFiltroTipoGasto={setFiltroTipoGasto}
     handleLimparFiltros={handleLimparFiltros}
-    profiles={profiles}
-    renderContaOptionLabel={renderContaOptionLabel}
-    favoriteAccountId={favoriteAccountId}
-    handleToggleFavoriteAccount={handleToggleFavoriteAccount}
-    mostrarReceitasResumo={mostrarReceitasResumo}
+profiles={profiles}
+renderContaOptionLabel={renderContaOptionLabel}
+favoriteAccountId={favoriteAccountId}
+handleToggleFavoriteAccount={handleToggleFavoriteAccount}
+shouldShowAccountEyes={shouldShowAccountEyes}
+hiddenAccountIds={hiddenAccountIds}
+handleToggleHiddenAccount={handleToggleHiddenAccount}
+mostrarReceitasResumo={mostrarReceitasResumo}
     mostrarDespesasResumo={mostrarDespesasResumo}
     totalFiltradoReceitas={totalFiltradoReceitas}
     totalFiltradoDespesas={totalFiltradoDespesas}

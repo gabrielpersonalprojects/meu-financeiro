@@ -1898,15 +1898,13 @@ const descricaoLimpa = String(t.descricao ?? "")
       {descricaoLimpa || "—"}
     </div>
 
-<div className="mt-1.5 space-y-1.5 sm:mt-1 sm:space-y-1">
-  <div className="text-slate-500 text-xs dark:text-white/60">
-    {formatBRDate(t.data)}
-  </div>
+<div className="mt-1.5 sm:mt-1">
+  <div className="flex items-center gap-x-2 gap-y-1.5 overflow-x-auto whitespace-nowrap text-slate-500 text-xs dark:text-white/60">
+    <span className="shrink-0">{formatBRDate(t.data)}</span>
 
-  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-2">
     {catLabel ? (
       <span
-        className="inline-flex items-center rounded-full bg-black px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white
+        className="inline-flex shrink-0 items-center rounded-full bg-black px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white
         dark:bg-white dark:text-black"
       >
         {catLabel}
@@ -1915,7 +1913,7 @@ const descricaoLimpa = String(t.descricao ?? "")
 
     {t.tag ? (
       <span
-        className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-600 to-purple-500 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white"
+        className="inline-flex shrink-0 items-center rounded-full bg-gradient-to-r from-violet-600 to-purple-500 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white"
       >
         {t.tag}
       </span>
@@ -1923,7 +1921,7 @@ const descricaoLimpa = String(t.descricao ?? "")
 
     {isParcelado ? (
       <span
-        className="inline-flex items-center text-purple-700 text-[9px] sm:text-xs px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200
+        className="inline-flex shrink-0 items-center text-purple-700 text-[9px] sm:text-xs px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200
         dark:text-white/80 dark:bg-purple-500/10 dark:border-purple-400/20"
       >
         Parcelado {parcelaAtual}/{parcelasTotal}

@@ -3628,7 +3628,10 @@ useEffect(() => {
   }
 }, [modoCentro]);
 
-const normalizePaymentCycleKeyToYm = (raw: any): string => {
+const normalizePaymentCycleKeyToYm = (
+  raw: any,
+  referenceDate?: any
+): string => {
   const value = String(raw ?? "").trim();
   if (!value) return "";
 
@@ -3636,25 +3639,53 @@ const normalizePaymentCycleKeyToYm = (raw: any): string => {
 
   if (value.includes("__")) {
     const parts = value.split("__");
-    const cartaoId = String(parts[0] ?? "").trim();
     const endIso = String(parts[2] ?? "").trim();
 
     if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
       const endDate = new Date(`${endIso}T12:00:00`);
-      if (!Number.isNaN(endDate.getTime())) {
-        const cartao = (creditCards ?? []).find(
-          (c: any) => String(c?.id ?? "").trim() === cartaoId
-        );
+      if (Number.isNaN(endDate.getTime())) return value;
 
-        const diaFechamento = Number(cartao?.diaFechamento ?? 1);
-        const diaVencimento = Number(cartao?.diaVencimento ?? 1);
+      let refIso = "";
 
-        const invoiceStartOffset = diaVencimento > diaFechamento ? 0 : 1;
+      if (typeof referenceDate === "string") {
+        const s = String(referenceDate).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+          refIso = s;
+        } else if (/^\d{4}-\d{2}$/.test(s)) {
+          refIso = `${s}-01`;
+        }
+      } else if (
+        typeof referenceDate === "number" &&
+        Number.isFinite(referenceDate)
+      ) {
+        const d = new Date(referenceDate);
+        if (!Number.isNaN(d.getTime())) {
+          refIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }
+      } else if (
+        referenceDate instanceof Date &&
+        !Number.isNaN(referenceDate.getTime())
+      ) {
+        refIso = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, "0")}-${String(referenceDate.getDate()).padStart(2, "0")}`;
+      }
 
-        endDate.setMonth(endDate.getMonth() + invoiceStartOffset);
-
+      if (!refIso) {
         return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
       }
+
+      const refDate = new Date(`${refIso}T12:00:00`);
+      if (Number.isNaN(refDate.getTime())) {
+        return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
+      }
+
+      const endMonthIndex = endDate.getFullYear() * 12 + endDate.getMonth();
+      const refMonthIndex = refDate.getFullYear() * 12 + refDate.getMonth();
+
+      if (refMonthIndex > endMonthIndex) {
+        endDate.setMonth(endDate.getMonth() + 1);
+      }
+
+      return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
     }
   }
 
@@ -3705,19 +3736,16 @@ const orderedCreditCards = useMemo(() => {
       return pertenceAoCartaoDiretamente || pertenceAoCartaoViaParcelamento;
     });
 
-    const inferirCicloDaTransacaoLocal = (t: any) => {
-      const ciclo = String((t as any)?.faturaMes ?? "").trim();
-      if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
+const inferirCicloDaTransacaoLocal = (t: any) => {
+  const dataRaw = String((t as any)?.data ?? "").trim();
+  if (!dataRaw) return "";
 
-      const dataRaw = String((t as any)?.data ?? "").trim();
-      if (!dataRaw) return "";
-
-      return getCardCycleMonthFromDate(
-        dataRaw,
-        Number(c?.diaFechamento ?? 1),
-        Number(c?.diaVencimento ?? 1)
-      );
-    };
+  return getCardCycleMonthFromDate(
+    dataRaw,
+    Number(c?.diaFechamento ?? 1),
+    Number(c?.diaVencimento ?? 1)
+  );
+};
 
     const statusManualPorCiclo = new Map<string, string>();
 
@@ -3744,16 +3772,19 @@ const orderedCreditCards = useMemo(() => {
       totaisPorCiclo.set(ciclo, atual);
     });
 
-    (pagamentosFatura ?? []).forEach((p: any) => {
-      if (String(p?.cartaoId ?? "").trim() !== String(c?.id ?? "").trim()) return;
+(pagamentosFatura ?? []).forEach((p: any) => {
+  if (String(p?.cartaoId ?? "").trim() !== String(c?.id ?? "").trim()) return;
 
-      const ciclo = normalizePaymentCycleKeyToYm(p?.cicloKey);
-      if (!ciclo) return;
+  const ciclo = normalizePaymentCycleKeyToYm(
+    p?.cicloKey,
+    p?.dataPagamento ?? p?.criadoEm ?? p?.createdAt ?? ""
+  );
+  if (!ciclo) return;
 
-      const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
-      atual.pago += Math.abs(Number(p?.valor || 0));
-      totaisPorCiclo.set(ciclo, atual);
-    });
+  const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
+  atual.pago += Math.abs(Number(p?.valor || 0));
+  totaisPorCiclo.set(ciclo, atual);
+});
 
     const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
       .map(([ciclo, info]) => {
@@ -7483,37 +7514,60 @@ const resumoAtrasadosValor = despesasEmAberto.reduce((acc: number, t: any) => {
 
   return dataObj < hojeResumoDate ? acc + Math.abs(Number(t?.valor || 0)) : acc;
 }, 0);
-const normalizeCycleResumo = (raw: any): string => {
+const normalizeCycleResumo = (
+  raw: any,
+  referenceDate?: any
+): string => {
   const value = String(raw ?? "").trim();
   if (!value) return "";
 
   if (/^\d{4}-\d{2}$/.test(value)) return value;
 
-  if (value.includes("__")) {
-    const parts = value.split("__");
-    const cartaoId = String(parts[0] ?? "").trim();
-    const endIso = String(parts[2] ?? "").trim();
+  if (!value.includes("__")) return value;
 
-    if (/^\d{4}-\d{2}-\d{2}$/.test(endIso)) {
-      const endDate = new Date(`${endIso}T12:00:00`);
-      if (!Number.isNaN(endDate.getTime())) {
-        const cartao = (creditCards ?? []).find(
-          (c: any) => String(c?.id ?? "").trim() === cartaoId
-        );
+  const parts = value.split("__");
+  const endIso = String(parts[2] ?? "").trim();
 
-        const diaFechamento = Number(cartao?.diaFechamento ?? 1);
-        const diaVencimento = Number(cartao?.diaVencimento ?? 1);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(endIso)) return value;
 
-        const invoiceStartOffset = diaVencimento > diaFechamento ? 0 : 1;
+  const endDate = new Date(`${endIso}T12:00:00`);
+  if (Number.isNaN(endDate.getTime())) return value;
 
-        endDate.setMonth(endDate.getMonth() + invoiceStartOffset);
+  let refIso = "";
 
-        return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
-      }
+  if (typeof referenceDate === "string") {
+    const s = String(referenceDate).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      refIso = s;
+    } else if (/^\d{4}-\d{2}$/.test(s)) {
+      refIso = `${s}-01`;
     }
+  } else if (typeof referenceDate === "number" && Number.isFinite(referenceDate)) {
+    const d = new Date(referenceDate);
+    if (!Number.isNaN(d.getTime())) {
+      refIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+  } else if (referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())) {
+    refIso = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, "0")}-${String(referenceDate.getDate()).padStart(2, "0")}`;
   }
 
-  return value;
+  if (!refIso) {
+    return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  const refDate = new Date(`${refIso}T12:00:00`);
+  if (Number.isNaN(refDate.getTime())) {
+    return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  const endMonthIndex = endDate.getFullYear() * 12 + endDate.getMonth();
+  const refMonthIndex = refDate.getFullYear() * 12 + refDate.getMonth();
+
+  if (refMonthIndex > endMonthIndex) {
+    endDate.setMonth(endDate.getMonth() + 1);
+  }
+
+  return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
 };
 
 const calcCycleResumoYm = (
@@ -7533,9 +7587,6 @@ const inferirCicloResumo = (
   diaFechamento: number,
   diaVencimento?: number
 ): string => {
-  const ciclo = String((t as any)?.faturaMes ?? "").trim();
-  if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
-
   const dataRaw = String((t as any)?.data ?? "").trim();
   if (!dataRaw) return "";
 
@@ -7550,7 +7601,10 @@ const statusManualResumoPorCartaoECiclo = new Map<string, string>();
 
 (faturasStatusManual ?? []).forEach((item: any) => {
   const cartaoId = String(item?.cartaoId ?? "").trim();
-  const ciclo = normalizeCycleResumo(item?.cicloKey);
+  const ciclo = normalizeCycleResumo(
+  item?.cicloKey,
+  item?.criadoEm ?? item?.createdAt ?? ""
+);
   const status = String(item?.statusManual ?? "").trim().toLowerCase();
 
   if (!cartaoId || !ciclo || !status) return;
@@ -7654,7 +7708,11 @@ const getPagoNoCicloResumo = (cartaoId: string, cicloYm: string) => {
   return (pagamentosFatura ?? [])
     .filter((p: any) => String(p?.cartaoId ?? "").trim() === cartaoId)
     .filter((p: any) => {
-      const cicloNormalizado = normalizeCycleResumo(p?.cicloKey);
+      const cicloNormalizado = normalizeCycleResumo(
+        p?.cicloKey,
+        p?.dataPagamento ?? p?.criadoEm ?? p?.createdAt ?? ""
+      );
+
       return cicloNormalizado === cicloYm;
     })
     .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0);
@@ -9384,24 +9442,25 @@ if (activeTab === "cartoes" && tab !== "cartoes") {
 {activeTab === "cartoes" && (
   <div className="space-y-4">
 <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-3">
-{!isCardsResumoOpen ? (
-  (activeCreditCards ?? []).length >= 2 ? (
-    <div className="w-[320px] flex justify-center">
-<button
-  type="button"
-  onClick={() => {
-    setCardsResumoMes(getHojeLocal().slice(0, 7));
-    setCardsResumoCategoria("todas");
-    setCardsResumoTag("todas");
-    setIsCardsResumoOpen(true);
-  }}
-className="inline-flex h-11 items-center justify-center rounded-2xl border border-violet-300/70 dark:border-violet-400/20 bg-violet-100/85 dark:bg-violet-500/15 px-5 text-sm font-semibold text-violet-700 dark:text-violet-200 shadow-sm transition hover:bg-violet-200 dark:hover:bg-violet-500/20">
-  Abrir resumo dos cartões
-</button>
-</div>
-  ) : null
-) : (
-    <>
+{!isCcExpanded && !isCardsResumoOpen && (activeCreditCards ?? []).length >= 2 && (
+  <div className="w-[320px] flex justify-center">
+    <button
+      type="button"
+      onClick={() => {
+        setCardsResumoMes(getHojeLocal().slice(0, 7));
+        setCardsResumoCategoria("todas");
+        setCardsResumoTag("todas");
+        setIsCardsResumoOpen(true);
+      }}
+      className="inline-flex h-11 items-center justify-center rounded-2xl border border-violet-300/70 dark:border-violet-400/20 bg-violet-100/85 dark:bg-violet-500/15 px-5 text-sm font-semibold text-violet-700 dark:text-violet-200 shadow-sm transition hover:bg-violet-200 dark:hover:bg-violet-500/20"
+    >
+      Abrir resumo dos cartões
+    </button>
+  </div>
+)}
+
+{!isCcExpanded && isCardsResumoOpen && (
+  <>
       <div className="flex w-full flex-wrap items-end justify-start gap-3">
 <div className="w-full sm:w-[180px]">
   <CustomDateInput
@@ -9522,15 +9581,21 @@ className="grid grid-cols-[minmax(0,1fr)_170px] items-center gap-3 rounded-xl bg
       {String(item?.descricao ?? "Sem descrição")}
     </div>
 
-    <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400">
-      <span>{formatarData(String(item?.data ?? ""))}</span>
-      {categoriaResumoCartoesLabel(item?.categoria) ? (
-        <span>• {categoriaResumoCartoesLabel(item?.categoria)}</span>
-      ) : null}
-      {String(item?.tag ?? "").trim() ? (
-        <span>• {String(item?.tag ?? "").trim()}</span>
-      ) : null}
-    </div>
+<div className="mt-1 flex items-center gap-2 flex-nowrap overflow-hidden text-[11px] text-slate-500 dark:text-slate-400">
+  <span className="shrink-0">{formatarData(String(item?.data ?? ""))}</span>
+
+  {categoriaResumoCartoesLabel(item?.categoria) ? (
+    <span className="shrink-0 truncate">
+      • {categoriaResumoCartoesLabel(item?.categoria)}
+    </span>
+  ) : null}
+
+  {String(item?.tag ?? "").trim() ? (
+    <span className="min-w-0 truncate">
+      • {String(item?.tag ?? "").trim()}
+    </span>
+  ) : null}
+</div>
   </div>
 
 <div className="w-[170px] text-[13px] font-bold text-slate-900 dark:text-slate-100 tabular-nums text-right">

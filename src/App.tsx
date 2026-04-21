@@ -106,6 +106,7 @@ import { useStatsMes } from "./app/transactions/useStatsMes";
 import { useProjection12Months } from "./app/transactions/useProjection12Months";
 import { togglePagoById, applyEditToTransactions } from "./app/transactions/useTransactionActions";
 import CustomDropdown from "./components/CustomDropdown";
+import CustomDateInput from "./components/CustomDateInput";
 import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
@@ -3497,6 +3498,130 @@ const [selectedCreditCardId, setSelectedCreditCardId] = useState<string>("");
 const [saldoRestanteAtual, setSaldoRestanteAtual] = useState<number>(0);
 const [isCcExpanded, setIsCcExpanded] = useState(false);
 const [creditJumpMonth, setCreditJumpMonth] = useState<string>(getHojeLocal().slice(0, 7));
+
+const [isCardsResumoOpen, setIsCardsResumoOpen] = useState(false);
+const [cardsResumoMes, setCardsResumoMes] = useState<string>(getHojeLocal().slice(0, 7));
+const [cardsResumoCategoria, setCardsResumoCategoria] = useState<string>("todas");
+const [cardsResumoTag, setCardsResumoTag] = useState<string>("todas");
+
+const categoriaResumoCartoesLabel = (cat: any) => {
+  if (!cat) return "";
+  if (typeof cat === "string") return String(cat).trim();
+  return String(cat?.nome ?? cat?.label ?? cat?.value ?? "").trim();
+};
+
+const allCreditCardTransactions = useMemo(() => {
+  return (transacoes ?? []).filter((t: any) => {
+    const tipo = String(t?.tipo ?? "").trim().toLowerCase();
+    if (tipo !== "cartao_credito") return false;
+
+    const cartaoId = String(t?.cartaoId ?? t?.qualCartao ?? "").trim();
+    if (!cartaoId) return false;
+
+    return (creditCards ?? []).some(
+      (c: any) => String(c?.id ?? "").trim() === cartaoId
+    );
+  });
+}, [transacoes, creditCards]);
+
+const cardsResumoCategorias = useMemo(() => {
+  return Array.from(
+    new Set(
+      allCreditCardTransactions
+        .map((t: any) => categoriaResumoCartoesLabel(t?.categoria))
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+}, [allCreditCardTransactions]);
+
+const cardsResumoTags = useMemo(() => {
+  return Array.from(
+    new Set(
+      allCreditCardTransactions
+        .map((t: any) => String(t?.tag ?? "").trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+}, [allCreditCardTransactions]);
+
+const cardsResumoFiltradas = useMemo(() => {
+  return allCreditCardTransactions.filter((t: any) => {
+    const mes = String(t?.data ?? "").slice(0, 7);
+    const categoria = categoriaResumoCartoesLabel(t?.categoria);
+    const tag = String(t?.tag ?? "").trim();
+
+    const okMes =
+      !String(cardsResumoMes ?? "").trim() || mes === cardsResumoMes;
+
+    const okCategoria =
+      cardsResumoCategoria === "todas" || categoria === cardsResumoCategoria;
+
+    const okTag =
+      cardsResumoTag === "todas" || tag === cardsResumoTag;
+
+    return okMes && okCategoria && okTag;
+  });
+}, [
+  allCreditCardTransactions,
+  cardsResumoMes,
+  cardsResumoCategoria,
+  cardsResumoTag,
+]);
+
+const cardsResumoAgrupado = useMemo(() => {
+  const mapa = new Map<
+    string,
+    {
+      cartaoId: string;
+      cartaoNome: string;
+      cartaoCategoria: string;
+      perfil: "pf" | "pj";
+      total: number;
+      itens: any[];
+    }
+  >();
+
+  for (const tx of cardsResumoFiltradas) {
+    const cartaoId = String(tx?.cartaoId ?? tx?.qualCartao ?? "").trim();
+    if (!cartaoId) continue;
+
+    const card = (creditCards ?? []).find(
+      (c: any) => String(c?.id ?? "").trim() === cartaoId
+    );
+
+    const cartaoNome = String(
+      card?.emissor ?? card?.name ?? "Cartão"
+    ).trim();
+
+    const cartaoCategoria = String(card?.categoria ?? "").trim();
+    const perfil =
+      String(card?.perfil ?? "").trim().toLowerCase() === "pj" ? "pj" : "pf";
+
+    const atual = mapa.get(cartaoId) ?? {
+      cartaoId,
+      cartaoNome,
+      cartaoCategoria,
+      perfil,
+      total: 0,
+      itens: [],
+    };
+
+    atual.total += Math.abs(Number(tx?.valor ?? 0));
+    atual.itens.push(tx);
+
+    mapa.set(cartaoId, atual);
+  }
+
+  return Array.from(mapa.values()).sort((a, b) => b.total - a.total);
+}, [cardsResumoFiltradas, creditCards]);
+
+const cardsResumoTotalGeral = useMemo(() => {
+  return cardsResumoFiltradas.reduce(
+    (acc: number, tx: any) => acc + Math.abs(Number(tx?.valor ?? 0)),
+    0
+  );
+}, [cardsResumoFiltradas]);
+
 useEffect(() => {
   if (modoCentro !== "credito") {
     setIsCcExpanded(false);
@@ -9258,6 +9383,176 @@ if (activeTab === "cartoes" && tab !== "cartoes") {
 
 {activeTab === "cartoes" && (
   <div className="space-y-4">
+<div className="mx-auto flex w-full max-w-[1040px] flex-col gap-3">
+{!isCardsResumoOpen ? (
+  (activeCreditCards ?? []).length >= 2 ? (
+    <div className="w-[320px] flex justify-center">
+<button
+  type="button"
+  onClick={() => {
+    setCardsResumoMes(getHojeLocal().slice(0, 7));
+    setCardsResumoCategoria("todas");
+    setCardsResumoTag("todas");
+    setIsCardsResumoOpen(true);
+  }}
+className="inline-flex h-11 items-center justify-center rounded-2xl border border-violet-300/70 dark:border-violet-400/20 bg-violet-100/85 dark:bg-violet-500/15 px-5 text-sm font-semibold text-violet-700 dark:text-violet-200 shadow-sm transition hover:bg-violet-200 dark:hover:bg-violet-500/20">
+  Abrir resumo dos cartões
+</button>
+</div>
+  ) : null
+) : (
+    <>
+      <div className="flex w-full flex-wrap items-end justify-start gap-3">
+<div className="w-full sm:w-[180px]">
+  <CustomDateInput
+    type="month"
+    value={cardsResumoMes}
+    onChange={setCardsResumoMes}
+    className="w-full"
+  />
+</div>
+
+        <div className="w-full sm:w-[220px]">
+          <CustomDropdown
+            placeholder="Categoria"
+            value={cardsResumoCategoria}
+            options={["todas", ...cardsResumoCategorias]}
+            onSelect={(val) => setCardsResumoCategoria(String(val))}
+            className="w-full"
+            renderValue={(value) => (
+              <span className="font-semibold text-slate-700 dark:text-slate-100">
+                {String(value ?? "todas") === "todas"
+                  ? "Todas as categorias"
+                  : String(value)}
+              </span>
+            )}
+          />
+        </div>
+
+        <div className="w-full sm:w-[220px]">
+          <CustomDropdown
+            placeholder="Tag"
+            value={cardsResumoTag}
+            options={["todas", ...cardsResumoTags]}
+            onSelect={(val) => setCardsResumoTag(String(val))}
+            className="w-full"
+            renderValue={(value) => (
+              <span className="font-semibold text-slate-700 dark:text-slate-100">
+                {String(value ?? "todas") === "todas"
+                  ? "Todas as tags"
+                  : String(value)}
+              </span>
+            )}
+          />
+        </div>
+
+<button
+  type="button"
+  onClick={() => {
+    setIsCardsResumoOpen(false);
+    setCardsResumoMes(getHojeLocal().slice(0, 7));
+    setCardsResumoCategoria("todas");
+    setCardsResumoTag("todas");
+  }}
+className="inline-flex h-11 items-center justify-center rounded-2xl border border-violet-300/70 dark:border-violet-400/20 bg-violet-100/85 dark:bg-violet-500/15 px-5 text-sm font-semibold text-violet-700 dark:text-violet-200 shadow-sm transition hover:bg-violet-200 dark:hover:bg-violet-500/20">
+  Fechar resumo
+</button>
+      </div>
+<div className="px-1 text-[12px] leading-5 text-slate-500 dark:text-slate-400">
+  Os filtros deste resumo usam a data da transação no cartão, e não a data de fechamento ou vencimento da fatura.
+</div>
+      <div className="w-full rounded-[1.5rem] border border-slate-200/70 dark:border-white/10 bg-white/85 dark:bg-slate-900/70 p-4 shadow-sm">
+<div className="mb-4 grid grid-cols-[minmax(0,1fr)_140px] items-start gap-3 px-4">
+  <div>
+    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+      Resumo filtrado
+    </div>
+    <div className="mt-1 text-[22px] font-black text-slate-900 dark:text-white">
+      {formatarMoeda(cardsResumoTotalGeral)}
+    </div>
+  </div>
+
+<div className="w-[170px] pt-[2px] text-left text-[11px] font-semibold uppercase tracking-[0.1em] whitespace-nowrap text-slate-500 dark:text-slate-400">
+  {cardsResumoFiltradas.length} itens filtrados
+</div>
+</div>
+
+       <div
+  className="space-y-4 max-h-[420px] overflow-y-auto pr-1"
+  style={{
+    scrollbarWidth: "thin",
+    scrollbarColor: "rgba(148,163,184,0.45) transparent",
+  }}
+>
+          {cardsResumoAgrupado.length > 0 ? (
+            cardsResumoAgrupado.map((grupo) => (
+              <div
+                key={grupo.cartaoId}
+                className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-slate-50/80 dark:bg-white/5 p-4"
+              >
+               <div className="mb-3 grid grid-cols-[minmax(0,1fr)_170px] items-center gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[16px] font-bold text-slate-900 dark:text-white">
+                        {grupo.cartaoNome}
+                      </span>
+<span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-violet-100 text-violet-700 border border-violet-200 dark:bg-indigo-600/25 dark:text-indigo-300 dark:border-indigo-500/20">
+  {grupo.perfil.toUpperCase()}
+</span>
+                      {grupo.cartaoCategoria ? (
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {grupo.cartaoCategoria}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+<div className="w-[170px] text-[15px] font-black text-violet-700 dark:text-violet-300 text-right">
+  {formatarMoeda(grupo.total)}
+</div>
+                </div>
+
+                <div className="space-y-2">
+                  {grupo.itens.map((item: any) => (
+<div
+  key={String(item?.id ?? "")}
+className="grid grid-cols-[minmax(0,1fr)_170px] items-center gap-3 rounded-xl bg-white dark:bg-slate-900 px-3 py-2 border border-slate-200/70 dark:border-white/10 shadow-[0_1px_0_rgba(15,23,42,0.02)] dark:shadow-none">
+  <div className="min-w-0">
+    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+      {String(item?.descricao ?? "Sem descrição")}
+    </div>
+
+    <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400">
+      <span>{formatarData(String(item?.data ?? ""))}</span>
+      {categoriaResumoCartoesLabel(item?.categoria) ? (
+        <span>• {categoriaResumoCartoesLabel(item?.categoria)}</span>
+      ) : null}
+      {String(item?.tag ?? "").trim() ? (
+        <span>• {String(item?.tag ?? "").trim()}</span>
+      ) : null}
+    </div>
+  </div>
+
+<div className="w-[170px] text-[13px] font-bold text-slate-900 dark:text-slate-100 tabular-nums text-right">
+  {formatarMoeda(Math.abs(Number(item?.valor ?? 0)))}
+</div>
+</div>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+              Nenhum lançamento encontrado para esses filtros.
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )}
+
+</div>
+
     {!isCcExpanded ? (
      <div
   className={[
@@ -9963,6 +10258,7 @@ if (selectedCreditCardId === c.id) {
         )}
       </div>
     ) : (
+      
       <div className="space-y-4">
         {selectedCcCard ? (
           <div className={isCcExpanded ? "" : "hidden"}>

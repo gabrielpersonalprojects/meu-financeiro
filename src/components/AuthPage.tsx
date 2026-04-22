@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 
-type Mode = "login" | "signup" | "forgot";
+type Mode = "login" | "signup" | "forgot" | "reset";
 
 // sua logo em /public/logo.svg
 const LOGO_SRC = "/logo.svg";
@@ -76,8 +76,16 @@ function EyeIcon({ open }: { open: boolean }) {
   );
 }
 
-export default function AuthPage() {
-  const [mode, setMode] = useState<Mode>("login");
+type AuthPageProps = {
+  initialMode?: Mode;
+  onPasswordResetSuccess?: () => void;
+};
+
+export default function AuthPage({
+  initialMode = "login",
+  onPasswordResetSuccess,
+}: AuthPageProps) {
+  const [mode, setMode] = useState<Mode>(initialMode);
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -93,6 +101,19 @@ export default function AuthPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const [lastEmail, setLastEmail] = useState<string>("");
+
+  useEffect(() => {
+  setMode(initialMode);
+  setErro(null);
+  setMsg(null);
+
+  if (initialMode === "reset") {
+    setSenha("");
+    setConfirmar("");
+    setShowPass1(false);
+    setShowPass2(false);
+  }
+}, [initialMode]);
 
   const limparCampos = () => {
     setEmail("");
@@ -244,6 +265,50 @@ async function onEntrar(e: FormEvent) {
     }
   }
 
+  async function onRedefinirSenha(e: FormEvent) {
+  e.preventDefault();
+  setErro(null);
+  setMsg(null);
+
+  if (senha.length < 6) {
+    setErro("A senha precisa ter pelo menos 6 caracteres.");
+    return;
+  }
+
+  if (senha !== confirmar) {
+    setErro("As senhas não conferem.");
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: senha,
+    });
+
+    if (error) throw error;
+
+    setMsg("Senha redefinida com sucesso. Entre com sua nova senha.");
+
+    const cleanUrl = `${window.location.origin}/`;
+    window.history.replaceState({}, document.title, cleanUrl);
+
+    await supabase.auth.signOut();
+
+    setSenha("");
+    setConfirmar("");
+    setShowPass1(false);
+    setShowPass2(false);
+    setMode("login");
+
+    onPasswordResetSuccess?.();
+  } catch (err: any) {
+    setErro(traduzirErroSupabase(err?.message));
+  } finally {
+    setLoading(false);
+  }
+}
+
   async function reenviarConfirmacao() {
     setErro(null);
     setMsg(null);
@@ -317,14 +382,22 @@ async function onEntrar(e: FormEvent) {
 
           <div className="mt-5 text-center">
             <h1 className="text-white text-xl font-semibold tracking-wide">
-              {mode === "login" ? "Acesso" : mode === "signup" ? "Criar conta" : "Recuperar senha"}
+                {mode === "login"
+    ? "Acesso"
+    : mode === "signup"
+    ? "Criar conta"
+    : mode === "forgot"
+    ? "Recuperar senha"
+    : "Redefinir senha"}
             </h1>
             <p className="mt-1 text-white/70 text-sm">
-              {mode === "login"
-                ? "Entre com seu e-mail e senha."
-                : mode === "signup"
-                ? "Cadastre seu e-mail e defina sua senha."
-                : "Informe seu e-mail para receber o link."}
+  {mode === "login"
+    ? "Entre com seu e-mail e senha."
+    : mode === "signup"
+    ? "Cadastre seu e-mail e defina sua senha."
+    : mode === "forgot"
+    ? "Informe seu e-mail para receber o link."
+    : "Digite sua nova senha para concluir a recuperação."}
             </p>
           </div>
 
@@ -624,6 +697,90 @@ className="group relative overflow-hidden mt-4 h-10 max-w-[280px] w-full mx-auto
                 className="w-full text-center text-white/70 text-sm hover:text-white hover:underline transition"
               >
                 Voltar para entrar
+              </button>
+            </form>
+          )}
+
+                    {mode === "reset" && (
+            <form onSubmit={onRedefinirSenha} className="space-y-3">
+              <div className="flex items-center rounded-xl border border-white/20 bg-white/10 pr-2">
+                <input
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  type={showPass1 ? "text" : "password"}
+                  className="flex-1 h-10 min-w-0 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+                  placeholder="Nova senha"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass1((v) => !v)}
+                  className="shrink-0 w-10 h-10 grid place-items-center text-white/70 hover:text-white transition"
+                  aria-label={showPass1 ? "Ocultar senha" : "Mostrar senha"}
+                  title={showPass1 ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  <EyeIcon open={showPass1} />
+                </button>
+              </div>
+
+              <div className="flex items-center rounded-xl border border-white/20 bg-white/10 pr-2">
+                <input
+                  value={confirmar}
+                  onChange={(e) => setConfirmar(e.target.value)}
+                  type={showPass2 ? "text" : "password"}
+                  className="flex-1 h-10 min-w-0 px-4 bg-transparent text-sm text-white placeholder:text-sm placeholder:text-white/50 outline-none"
+                  placeholder="Confirmar nova senha"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass2((v) => !v)}
+                  className="shrink-0 w-10 h-10 grid place-items-center text-white/70 hover:text-white transition"
+                  aria-label={showPass2 ? "Ocultar senha" : "Mostrar senha"}
+                  title={showPass2 ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  <EyeIcon open={showPass2} />
+                </button>
+              </div>
+
+              <button
+                disabled={loading}
+                className="group relative overflow-hidden mt-4 h-10 max-w-[280px] w-full mx-auto block rounded-xl
+                           text-sm text-white font-semibold tracking-wide
+                           transition hover:brightness-110
+                           hover:shadow-[0_12px_30px_rgba(70,0,172,0.20)]
+                           disabled:opacity-60"
+                style={{
+                  background: `linear-gradient(135deg,
+                    ${BRAND.from} 0%,
+                    ${BRAND.to} 82%,
+                    rgba(255,255,255,0.06) 100%)`,
+                  boxShadow: "0 10px 28px rgba(34,0,85,0.28)",
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 group-hover:brightness-110"
+                  style={{
+                    background: `linear-gradient(135deg,
+                      ${BRAND.from} 0%,
+                      ${BRAND.to} 70%,
+                      rgba(139,92,246,0.22) 100%)`,
+                  }}
+                />
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  style={{
+                    background: `radial-gradient(120% 140% at 85% 85%,
+                      rgba(139,92,246,0.22) 0%,
+                      rgba(139,92,246,0.08) 45%,
+                      rgba(139,92,246,0.00) 70%)`,
+                  }}
+                />
+                <span className="relative z-10">
+                  {loading ? "Salvando..." : "SALVAR NOVA SENHA"}
+                </span>
               </button>
             </form>
           )}

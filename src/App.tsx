@@ -194,6 +194,7 @@ type SemPrazoPayloadMeta = {
 };
 
 const SEM_PRAZO_ALERTA_DIAS = 60;
+type AuthScreenMode = "login" | "signup" | "forgot" | "reset";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
@@ -1015,6 +1016,8 @@ const [pagamentosFatura, setPagamentosFatura] = useState<PagamentoFaturaApp[]>([
   const [session, setSession] = useState<Session | null>(null);
 const [sessionLoading, setSessionLoading] = useState(true);
 
+const [authScreenMode, setAuthScreenMode] = useState<AuthScreenMode>("login");
+
 type AppNotification = {
   id: string;
   type: "info" | "update" | "feature" | "warning";
@@ -1451,6 +1454,17 @@ const clearAccountImportHistory = async (accountId: string, userId: string) => {
   }
 };
 
+const isRecoveryUrl = () => {
+  const pathname = String(window.location.pathname || "").trim().toLowerCase();
+  const hash = String(window.location.hash || "").toLowerCase();
+
+  return pathname === "/reset-senha" || hash.includes("type=recovery");
+};
+
+const limparUrlAuth = () => {
+  window.history.replaceState({}, document.title, "/");
+};
+
 useEffect(() => {
   let isAlive = true;
 
@@ -1474,11 +1488,25 @@ setCardsWithImportHistory(new Set());
 setAccountsWithImportHistory(new Set());
 };
 
-  const aplicarSessao = async (sess: Session | null) => {
+const aplicarSessao = async (
+  sess: Session | null,
+  options?: { recovery?: boolean }
+) => {
     if (!isAlive) return;
 
     setSession(sess);
     setSessionLoading(false);
+
+const isRecovery = options?.recovery === true;
+
+if (isRecovery) {
+  setAuthScreenMode("reset");
+  setAccessLoading(false);
+  accessBootstrapDoneRef.current = true;
+  return;
+}
+
+setAuthScreenMode("login");
 
     const userId = String(sess?.user?.id ?? "").trim();
     if (!userId) {
@@ -1493,12 +1521,15 @@ setAccountsWithImportHistory(new Set());
     await carregarDadosUsuario(userId);
   };
 
-  void supabase.auth
-    .getSession()
-    .then(({ data }) => aplicarSessao(data.session));
+void supabase.auth.getSession().then(({ data }) => {
+  const recovery = isRecoveryUrl();
+  return aplicarSessao(data.session, { recovery });
+});
 
-  const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
-    void aplicarSessao(sess).catch((err) => {
+const { data } = supabase.auth.onAuthStateChange((event, sess) => {
+  const recovery = event === "PASSWORD_RECOVERY" || isRecoveryUrl();
+
+  void aplicarSessao(sess, { recovery }).catch((err) => {
       console.error("Erro ao aplicar sessão:", err);
       authLoadInFlightRef.current = "";
       setSessionLoading(false);
@@ -7098,10 +7129,17 @@ if (sessionLoading || (!accessBootstrapDoneRef.current && accessLoading)) {
   );
 }
 
-if (!session) {
+if (!session || authScreenMode === "reset") {
   return (
     <>
-      <AuthPage />
+      <AuthPage
+        initialMode={authScreenMode}
+        onPasswordResetSuccess={() => {
+          setAuthScreenMode("login");
+          setSession(null);
+          limparUrlAuth();
+        }}
+      />
     </>
   );
 }

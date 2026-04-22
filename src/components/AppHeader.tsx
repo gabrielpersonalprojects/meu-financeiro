@@ -12,7 +12,7 @@ export function AppHeader({
       {/* MOBILE */}
       <div className="relative flex h-full w-full items-center justify-center px-4 md:hidden">
         <a
-          href="https://fluxmoneyapp.com.br"
+          href="https://app.fluxmoneyapp.com.br"
           title="Ir para a home"
           aria-label="Ir para a home"
           className="inline-flex items-center justify-center"
@@ -47,7 +47,7 @@ export function AppHeader({
       {/* DESKTOP */}
       <div className="relative hidden h-full w-full items-center justify-center md:flex">
         <a
-          href="https://fluxmoneyapp.com.br"
+          href="https://app.fluxmoneyapp.com.br"
           title="Ir para a home"
           aria-label="Ir para a home"
           className="inline-flex items-center justify-center"

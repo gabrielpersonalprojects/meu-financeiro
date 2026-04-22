@@ -255,7 +255,7 @@ export default function SidebarShell({
 >
 <div className="flex items-center gap-2">
 <a
-  href="https://fluxmoneyapp.com.br"
+  href="https://app.fluxmoneyapp.com.br"
   title="Ir para o site do FluxMoney"
   aria-label="Ir para o site do FluxMoney"
   className="flex h-8 w-8 shrink-0 items-center justify-center"

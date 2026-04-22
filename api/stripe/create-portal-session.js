@@ -90,7 +90,7 @@ module.exports = async function handler(req, res) {
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
-      return_url: `${appUrl}/?billing=returned`,
+      return_url: `https://app.fluxmoneyapp.com.br/?billing=returned`,
       locale: "pt-BR",
     });
 

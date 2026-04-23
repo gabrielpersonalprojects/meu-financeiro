@@ -7234,88 +7234,48 @@ if (accessRole !== "admin" && subscriptionStatus !== "active") {
   return (
     <>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 grid place-items-center px-6">
-        <div className="w-full max-w-md rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-xl p-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 dark:bg-violet-950/60">
-            <span className="text-xl font-bold text-violet-700 dark:text-violet-300">F</span>
+        <div className="w-full max-w-md rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/90 shadow-xl p-8 text-center">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-50 dark:bg-violet-950/40 shadow-sm">
+<img
+  src="/favicon.png"
+  alt="FluxMoney"
+  className="h-9 w-9 object-contain"
+/>
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight">
-            Sua assinatura não está ativa
+          <h1 className="text-[30px] font-bold tracking-tight leading-tight text-slate-900 dark:text-white">
+            Bem-vindo ao FluxMoney
           </h1>
 
-          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-            Para acessar o FluxMoney, você precisa ter uma assinatura ativa.
+          <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
+Seu acesso está quase pronto. Ative sua assinatura para começar a
+organizar sua rotina financeira com mais clareza, praticidade e
+tranquilidade.
           </p>
+<div className="mt-6 rounded-2xl bg-slate-100 dark:bg-slate-800/70 px-4 py-3">
+  <div className="flex items-center justify-between gap-3">
+    <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+      Plano mensal
+    </span>
+    <span className="text-base font-semibold text-slate-900 dark:text-white">
+      R$ 16,99/mês
+    </span>
+  </div>
+</div>
 
-          <div className="mt-6 rounded-2xl bg-slate-100 dark:bg-slate-800/70 px-4 py-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Plano mensal</span>
-              <span className="font-semibold">R$ 16,99/mês</span>
-            </div>
-          </div>
-
+  <p className="mt-1 text-center text-[10px] text-slate-500 dark:text-slate-400">
+    Sem fidelidade. Cancele quando quiser.
+  </p>
           <div className="mt-6 space-y-3">
             <button
               type="button"
-              className="w-full rounded-2xl px-4 py-3 font-semibold text-white shadow-lg transition hover:opacity-95"
-              style={{
-                background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
-              }}
-onClick={handleCheckoutAssinatura}
-            >
-              Assinar agora
-            </button>
-
-            <button
-              type="button"
-              className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-3 font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-              onClick={async () => {
-                await supabase.auth.signOut();
-              }}
-            >
-              Sair
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-if (accessRole !== "admin" && subscriptionStatus !== "active") {
-  return (
-    <>
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 grid place-items-center px-6">
-        <div className="w-full max-w-md rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-xl p-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 dark:bg-violet-950/60">
-            <span className="text-xl font-bold text-violet-700 dark:text-violet-300">F</span>
-          </div>
-
-          <h1 className="text-2xl font-bold tracking-tight">
-            Sua assinatura não está ativa
-          </h1>
-
-          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-            Para acessar o FluxMoney, você precisa ter uma assinatura ativa.
-          </p>
-
-          <div className="mt-6 rounded-2xl bg-slate-100 dark:bg-slate-800/70 px-4 py-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Plano mensal</span>
-              <span className="font-semibold">R$ 16,99/mês</span>
-            </div>
-          </div>
-
-          <div className="mt-6 space-y-3">
-            <button
-              type="button"
-              className="w-full rounded-2xl px-4 py-3 font-semibold text-white shadow-lg transition hover:opacity-95"
+              className="w-full rounded-2xl px-4 py-3.5 font-semibold text-white shadow-lg transition hover:opacity-95"
               style={{
                 background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
               }}
               onClick={handleCheckoutAssinatura}
             >
-              Assinar agora
+              Ativar minha assinatura
             </button>
 
             <button
@@ -7325,7 +7285,7 @@ if (accessRole !== "admin" && subscriptionStatus !== "active") {
                 await supabase.auth.signOut();
               }}
             >
-              Sair
+              Sair da conta
             </button>
           </div>
         </div>

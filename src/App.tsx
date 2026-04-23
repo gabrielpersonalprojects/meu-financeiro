@@ -7035,12 +7035,19 @@ setAccessLoading(false);
 }, [session]);
 
 useEffect(() => {
-  if (!session?.user?.id) return;
-  if (checkoutHandledRef.current) return;
-
   const params = new URLSearchParams(window.location.search);
   const checkout = params.get("checkout");
 
+  if (checkout === "cancel") {
+    localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
+
+    const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+    return;
+  }
+
+  if (!session?.user?.id) return;
+  if (checkoutHandledRef.current) return;
   if (checkout !== "success") return;
 
   checkoutHandledRef.current = true;
@@ -7123,18 +7130,6 @@ useEffect(() => {
 
   void syncCheckoutSuccess();
 }, [session]);
-
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const checkout = params.get("checkout");
-
-  if (checkout !== "cancel") return;
-
-  localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
-
-  const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
-  window.history.replaceState({}, document.title, cleanUrl);
-}, []);
 
 useEffect(() => {
   if (billingHandledRef.current) return;

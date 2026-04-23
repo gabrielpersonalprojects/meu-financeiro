@@ -1157,6 +1157,7 @@ const [billingReturnVisible, setBillingReturnVisible] = useState(false);
 const billingHandledRef = useRef(false);
 
 const CHECKOUT_GUARD_STORAGE_KEY = "fluxmoney_expected_checkout_user_id";
+const POST_CHECKOUT_LOGIN_MESSAGE_KEY = "fluxmoney_post_checkout_login_message";
 
 const carregarDadosUsuario = async (userId: string) => {
   const cleanUserId = String(userId ?? "").trim();
@@ -7062,32 +7063,44 @@ useEffect(() => {
         CHECKOUT_GUARD_STORAGE_KEY
       );
 
-      if (!expectedCheckoutUserId) {
-        console.error("Checkout retornou sem guard de usuário no navegador.", {
-          currentUserId,
-        });
+if (!expectedCheckoutUserId) {
+  console.error("Checkout retornou sem guard de usuário no navegador.", {
+    currentUserId,
+  });
 
-        toast.error(
-          "Não foi possível validar o retorno do checkout. Faça login novamente e tente de novo."
-        );
-        return;
-      }
+  sessionStorage.setItem(
+    POST_CHECKOUT_LOGIN_MESSAGE_KEY,
+    JSON.stringify({
+      kind: "info",
+      title: "Confirme seu acesso",
+      text: "Para sua segurança, entre novamente com a conta que concluiu a assinatura.",
+    })
+  );
 
-      if (String(expectedCheckoutUserId) !== currentUserId) {
-        console.error("DIVERGÊNCIA ENTRE CHECKOUT E SESSÃO ATUAL", {
-          expectedCheckoutUserId,
-          currentUserId,
-        });
+  localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
+  await supabase.auth.signOut();
+  return;
+}
 
-        localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
+if (String(expectedCheckoutUserId) !== currentUserId) {
+  console.error("DIVERGÊNCIA ENTRE CHECKOUT E SESSÃO ATUAL", {
+    expectedCheckoutUserId,
+    currentUserId,
+  });
 
-        toast.error(
-          "Detectamos divergência entre a conta do checkout e a sessão atual. Entre com a conta correta e tente novamente."
-        );
+  sessionStorage.setItem(
+    POST_CHECKOUT_LOGIN_MESSAGE_KEY,
+    JSON.stringify({
+      kind: "info",
+      title: "Confirme seu acesso",
+      text: "Para sua segurança, entre novamente com a conta que concluiu a assinatura.",
+    })
+  );
 
-        await supabase.auth.signOut();
-        return;
-      }
+  localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
+  await supabase.auth.signOut();
+  return;
+}
 
       let nextStatus: string | null = null;
 
@@ -7111,13 +7124,22 @@ useEffect(() => {
         await new Promise((resolve) => setTimeout(resolve, 1200));
       }
 
-      if (nextStatus === "active") {
-        setSubscriptionStatus("active");
-        setCheckoutSuccessVisible(true);
-        toast.success("Assinatura ativada com sucesso!");
-      } else {
-        toast("Pagamento recebido. Estamos sincronizando sua assinatura...");
-      }
+if (nextStatus === "active") {
+  sessionStorage.setItem(
+    POST_CHECKOUT_LOGIN_MESSAGE_KEY,
+    JSON.stringify({
+      kind: "success",
+      title: "Seu acesso está liberado",
+      text: "Assinatura confirmada com sucesso. Faça login para iniciar seu acesso.",
+    })
+  );
+
+  localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
+  await supabase.auth.signOut();
+  return;
+} else {
+  toast("Pagamento recebido. Estamos sincronizando sua assinatura...");
+}
     } catch (error) {
       console.error("Erro ao sincronizar retorno do checkout:", error);
       toast.error("Não foi possível validar sua assinatura agora.");

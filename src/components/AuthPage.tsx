@@ -15,6 +15,7 @@ const BRAND = {
 
 const REMEMBER_EMAIL_KEY = "fluxmoney-remember-email";
 const REMEMBER_EMAIL_ENABLED_KEY = "fluxmoney-remember-email-enabled";
+const POST_CHECKOUT_LOGIN_MESSAGE_KEY = "fluxmoney_post_checkout_login_message";
 
 function traduzirErroSupabase(message?: string) {
   const m = (message || "").toLowerCase();
@@ -162,6 +163,32 @@ export default function AuthPage({
     setRememberMe(false);
   }
 }, []);
+
+useEffect(() => {
+  if (mode !== "login") return;
+
+  const raw = sessionStorage.getItem(POST_CHECKOUT_LOGIN_MESSAGE_KEY);
+  if (!raw) return;
+
+  sessionStorage.removeItem(POST_CHECKOUT_LOGIN_MESSAGE_KEY);
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      title?: string;
+      text?: string;
+      kind?: "success" | "error" | "info";
+    };
+
+    const title = String(parsed?.title ?? "").trim();
+    const text = String(parsed?.text ?? "").trim();
+
+    setErro(null);
+    setMsg([title, text].filter(Boolean).join(" — "));
+  } catch {
+    setErro(null);
+    setMsg("Assinatura confirmada com sucesso. Faça login para iniciar seu acesso.");
+  }
+}, [mode]);
 
 async function onEntrar(e: FormEvent) {
   e.preventDefault();
@@ -407,11 +434,11 @@ async function onEntrar(e: FormEvent) {
             </div>
           )}
 
-          {msg && (
-            <div className="mt-5 rounded-xl border border-white/15 bg-black/20 text-white/90 p-3 text-sm">
-              {msg}
-            </div>
-          )}
+{msg && (
+  <div className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-500/10 text-emerald-50 p-3 text-sm">
+    {msg}
+  </div>
+)}
         </div>
 
         {/* Corpo */}

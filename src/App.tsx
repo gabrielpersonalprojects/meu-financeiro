@@ -1156,6 +1156,8 @@ const checkoutHandledRef = useRef(false);
 const [billingReturnVisible, setBillingReturnVisible] = useState(false);
 const billingHandledRef = useRef(false);
 
+const CHECKOUT_GUARD_STORAGE_KEY = "fluxmoney_expected_checkout_user_id";
+
 const carregarDadosUsuario = async (userId: string) => {
   const cleanUserId = String(userId ?? "").trim();
   if (!cleanUserId) return;
@@ -7209,7 +7211,7 @@ if (checkoutSyncing) {
   );
 }
 
-const CHECKOUT_GUARD_STORAGE_KEY = "fluxmoney_expected_checkout_user_id";
+
 
 const handleCheckoutAssinatura = async () => {
   try {

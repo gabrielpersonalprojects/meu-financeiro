@@ -31,6 +31,17 @@ async function findSubscriptionRow({
 }) {
   let result = null;
 
+  if (userId) {
+    result = await supabase
+      .from("subscriptions")
+      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (result.error) throw result.error;
+    if (result.data) return result.data;
+  }
+
   if (stripeSubscriptionId) {
     result = await supabase
       .from("subscriptions")
@@ -47,17 +58,6 @@ async function findSubscriptionRow({
       .from("subscriptions")
       .select("id, user_id, stripe_customer_id, stripe_subscription_id")
       .eq("stripe_customer_id", stripeCustomerId)
-      .maybeSingle();
-
-    if (result.error) throw result.error;
-    if (result.data) return result.data;
-  }
-
-  if (userId) {
-    result = await supabase
-      .from("subscriptions")
-      .select("id, user_id, stripe_customer_id, stripe_subscription_id")
-      .eq("user_id", userId)
       .maybeSingle();
 
     if (result.error) throw result.error;
@@ -131,10 +131,23 @@ module.exports = async function handler(req, res) {
         });
 
         if (!targetRow?.id) {
-          throw new Error(
-            "checkout.session.completed recebido, mas nenhuma subscription foi encontrada no Supabase"
-          );
-        }
+  throw new Error(
+    "checkout.session.completed recebido, mas nenhuma subscription foi encontrada no Supabase"
+  );
+}
+
+if (String(targetRow.user_id) !== String(userId)) {
+  console.error("DIVERGÊNCIA DE USUÁRIO NO checkout.session.completed", {
+    metadataUserId: userId,
+    targetRowUserId: targetRow.user_id,
+    stripeCustomerId,
+    stripeSubscriptionId,
+  });
+
+  throw new Error(
+    "Webhook bloqueado: a assinatura encontrada não pertence ao userId do metadata"
+  );
+}
 
         const payloadToUpdate = {
           stripe_customer_id: stripeCustomerId,
@@ -217,20 +230,37 @@ console.log("[subscription webhook] evento recebido + estado atual da Stripe", {
   });
 
   if (!targetRow?.id) {
-    console.error("Nenhuma assinatura encontrada para atualizar", {
-      eventType: event.type,
-      userIdFromMetadata,
-      stripeCustomerId,
-      stripeSubscriptionId,
-      status,
-      cancelAtPeriodEnd,
-      currentPeriodEnd,
-    });
+  console.error("Nenhuma assinatura encontrada para atualizar", {
+    eventType: event.type,
+    userIdFromMetadata,
+    stripeCustomerId,
+    stripeSubscriptionId,
+    status,
+    cancelAtPeriodEnd,
+    currentPeriodEnd,
+  });
 
-    throw new Error(
-      `Webhook recebeu ${event.type}, mas não encontrou subscription no Supabase`
-    );
-  }
+  throw new Error(
+    `Webhook recebeu ${event.type}, mas não encontrou subscription no Supabase`
+  );
+}
+
+if (
+  userIdFromMetadata &&
+  String(targetRow.user_id) !== String(userIdFromMetadata)
+) {
+  console.error("DIVERGÊNCIA DE USUÁRIO NO customer.subscription.*", {
+    eventType: event.type,
+    metadataUserId: userIdFromMetadata,
+    targetRowUserId: targetRow.user_id,
+    stripeCustomerId,
+    stripeSubscriptionId,
+  });
+
+  throw new Error(
+    "Webhook bloqueado: a assinatura encontrada não pertence ao userId do metadata"
+  );
+}
 
   console.log("[subscription webhook] linha encontrada", {
     id: targetRow.id,

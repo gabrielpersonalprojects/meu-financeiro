@@ -7048,14 +7048,45 @@ useEffect(() => {
 
   const syncCheckoutSuccess = async () => {
     try {
-      const userId = session.user.id;
+      const currentUserId = String(session.user.id);
+      const expectedCheckoutUserId = localStorage.getItem(
+        CHECKOUT_GUARD_STORAGE_KEY
+      );
+
+      if (!expectedCheckoutUserId) {
+        console.error("Checkout retornou sem guard de usuário no navegador.", {
+          currentUserId,
+        });
+
+        toast.error(
+          "Não foi possível validar o retorno do checkout. Faça login novamente e tente de novo."
+        );
+        return;
+      }
+
+      if (String(expectedCheckoutUserId) !== currentUserId) {
+        console.error("DIVERGÊNCIA ENTRE CHECKOUT E SESSÃO ATUAL", {
+          expectedCheckoutUserId,
+          currentUserId,
+        });
+
+        localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
+
+        toast.error(
+          "Detectamos divergência entre a conta do checkout e a sessão atual. Entre com a conta correta e tente novamente."
+        );
+
+        await supabase.auth.signOut();
+        return;
+      }
+
       let nextStatus: string | null = null;
 
       for (let attempt = 0; attempt < 6; attempt++) {
         const { data, error } = await supabase
           .from("subscriptions")
           .select("status")
-          .eq("user_id", userId)
+          .eq("user_id", currentUserId)
           .maybeSingle();
 
         if (error) {
@@ -7082,6 +7113,7 @@ useEffect(() => {
       console.error("Erro ao sincronizar retorno do checkout:", error);
       toast.error("Não foi possível validar sua assinatura agora.");
     } finally {
+      localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
       setCheckoutSyncing(false);
 
       const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
@@ -7091,6 +7123,18 @@ useEffect(() => {
 
   void syncCheckoutSuccess();
 }, [session]);
+
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  const checkout = params.get("checkout");
+
+  if (checkout !== "cancel") return;
+
+  localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
+
+  const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
+  window.history.replaceState({}, document.title, cleanUrl);
+}, []);
 
 useEffect(() => {
   if (billingHandledRef.current) return;
@@ -7170,31 +7214,51 @@ if (checkoutSyncing) {
   );
 }
 
+const CHECKOUT_GUARD_STORAGE_KEY = "fluxmoney_expected_checkout_user_id";
+
 const handleCheckoutAssinatura = async () => {
   try {
-if (!session?.user?.email || !session?.user?.id || !session?.access_token) {
-  alert("Sessão inválida. Faça login novamente.");
-  return;
-}
+    if (!session?.user?.email || !session?.user?.id || !session?.access_token) {
+      alert("Sessão inválida. Faça login novamente.");
+      return;
+    }
 
-const response = await fetch("/api/stripe/create-checkout-session", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${session.access_token}`,
-  },
-});
+    localStorage.setItem(CHECKOUT_GUARD_STORAGE_KEY, String(session.user.id));
 
-    const data = await response.json();
+    const response = await fetch("/api/stripe/create-checkout-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        email: session.user.email,
+        userId: session.user.id,
+      }),
+    });
+
+    let data: any = null;
+
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
 
     if (!response.ok || !data?.url) {
-      console.error("Erro ao iniciar checkout:", data);
+      localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
+      console.error("Erro ao iniciar checkout:", {
+        status: response.status,
+        statusText: response.statusText,
+        data,
+      });
       alert("Não foi possível iniciar o checkout.");
       return;
     }
 
     window.location.href = data.url;
   } catch (error) {
+    localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
     console.error("Erro ao iniciar checkout:", error);
     alert("Erro ao iniciar checkout.");
   }
@@ -7258,7 +7322,7 @@ tranquilidade.
       Plano mensal
     </span>
     <span className="text-base font-semibold text-slate-900 dark:text-white">
-      R$ 16,99/mês
+      R$ 16,90/mês
     </span>
   </div>
 </div>
@@ -7281,9 +7345,10 @@ tranquilidade.
             <button
               type="button"
               className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-3 font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-              onClick={async () => {
-                await supabase.auth.signOut();
-              }}
+onClick={async () => {
+  localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
+  await supabase.auth.signOut();
+}}
             >
               Sair da conta
             </button>

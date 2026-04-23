@@ -72,6 +72,7 @@ module.exports = async function handler(req, res) {
       locale: "pt-BR",
       payment_method_types: ["card"],
       customer_email: user.email,
+      client_reference_id: String(user.id),
       line_items: [
         {
           price: stripePriceId,

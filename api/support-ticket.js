@@ -145,7 +145,7 @@ module.exports = async function handler(req, res) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "FluxMoney Suporte <contato@fluxmoneyapp.com.br>",
+        from: "FluxMoney Suporte <contato@suporte.fluxmoneyapp.com.br>",
         to: ["contato@fluxmoneyapp.com.br"],
         reply_to: email,
         subject,

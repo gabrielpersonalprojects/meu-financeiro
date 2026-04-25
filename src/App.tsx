@@ -9457,8 +9457,7 @@ return (
    
        {helpModalMode && (
       <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
-        <div className="relative w-full max-w-[720px] overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-slate-900">
-          <button
+<div className="relative w-full max-w-[680px] overflow-hidden rounded-[18px] border border-slate-200/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.20)] dark:border-white/10 dark:bg-slate-900">          <button
             type="button"
             onClick={() => setHelpModalMode(null)}
             className="absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200/80 bg-white/85 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
@@ -9469,7 +9468,9 @@ return (
           </button>
 
           {helpModalMode === "tutorial" && (
-            <div className="max-h-[82vh] overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+            <div
+className="flux-help-modal-scroll max-h-[84vh] overflow-y-auto px-5 py-4 md:px-7 md:py-5"
+>
               <div className="inline-flex items-center gap-2 rounded-full bg-[#40009c]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#40009c] dark:bg-violet-500/15 dark:text-violet-200">
                 <BookOpen className="h-3.5 w-3.5" />
                 Tutorial
@@ -9525,72 +9526,87 @@ return (
                 Fale com o suporte
               </h2>
 
-              <p className="mt-3 max-w-[590px] text-[14px] leading-7 text-slate-600 dark:text-slate-300">
-                Descreva sua dúvida ou problema com o máximo de detalhes. Nosso prazo de resposta é de até 48h.
-              </p>
+<p className="mt-3 max-w-[590px] text-[14px] leading-6 text-slate-600 dark:text-slate-300">
+  Descreva sua dúvida ou problema com o máximo de detalhes.
+  <br />
+  <strong className="font-semibold text-slate-800 dark:text-slate-100">
+    Nosso prazo de resposta é de até 48h.
+  </strong>
+</p>
 
              <form
-  className="mt-6 grid gap-4"
+className="mt-5 grid gap-3"
   onSubmit={(e) => {
     e.preventDefault();
     void handleSubmitSupportTicket();
   }}
 >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-1.5 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
-                    Nome
-                    <input
-                      type="text"
-                      value={supportForm.nome}
-                      onChange={(e) =>
-                        setSupportForm((prev) => ({ ...prev, nome: e.target.value }))
-                      }
-                      className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-[14px] font-semibold normal-case tracking-normal text-slate-800 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-violet-500/10"
-                      placeholder="Seu nome"
-                    />
-                  </label>
+<div className="mt-5 grid gap-3 md:grid-cols-[1fr_220px]">
+  <div>
+    <label className="block text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
+      Nome
+    </label>
 
-                  <label className="grid gap-1.5 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
-                    Email
-                    <input
-                      type="email"
-                      value={supportForm.email}
-                      onChange={(e) =>
-                        setSupportForm((prev) => ({ ...prev, email: e.target.value }))
-                      }
-                      className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-[14px] font-semibold normal-case tracking-normal text-slate-800 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-violet-500/10"
-                      placeholder="seu@email.com"
-                    />
-                  </label>
-                </div>
+    <input
+      type="text"
+      value={supportForm.nome}
+      onChange={(e) =>
+        setSupportForm((prev) => ({
+          ...prev,
+          nome: e.target.value,
+        }))
+      }
+      placeholder="Seu nome"
+      className="mt-2 h-11 w-full rounded-[14px] border border-slate-200 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#40009c] focus:ring-4 focus:ring-[#40009c]/10 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
+    />
+  </div>
 
-                <label className="grid gap-1.5 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
-                  WhatsApp
-                  <input
-                    type="text"
-                    value={supportForm.whatsapp}
-                    onChange={(e) =>
-                      setSupportForm((prev) => ({ ...prev, whatsapp: e.target.value }))
-                    }
-                    className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-[14px] font-semibold normal-case tracking-normal text-slate-800 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-violet-500/10"
-                    placeholder="(00) 00000-0000"
-                  />
-                </label>
+  <div>
+    <label className="block text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
+      WhatsApp
+    </label>
 
-                <label className="grid gap-1.5 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+    <input
+      type="text"
+      value={supportForm.whatsapp}
+      onChange={(e) =>
+        setSupportForm((prev) => ({
+          ...prev,
+          whatsapp: e.target.value,
+        }))
+      }
+      placeholder="(00) 00000-0000"
+      className="mt-2 h-11 w-full rounded-[14px] border border-slate-200 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#40009c] focus:ring-4 focus:ring-[#40009c]/10 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
+    />
+  </div>
+</div>
+
+<label className="grid gap-1.5 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+  Email de acesso
+  <input
+    type="email"
+    value={supportForm.email}
+    readOnly
+    tabIndex={-1}
+    title="Este é o email de acesso da sua conta FluxMoney."
+    className="h-11 cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-50 px-3 text-[14px] font-semibold normal-case tracking-normal text-slate-500 outline-none opacity-80 dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-400"
+    placeholder="seu@email.com"
+  />
+</label>
+
+                <label className="grid gap-1 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
                   Descrição
                   <textarea
                     value={supportForm.mensagem}
                     onChange={(e) =>
                       setSupportForm((prev) => ({ ...prev, mensagem: e.target.value }))
                     }
-                    rows={5}
-                    className="resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-[14px] font-medium normal-case leading-6 tracking-normal text-slate-800 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-violet-500/10"
-                    placeholder="Descreva sua dúvida ou problema..."
+                    rows={3}
+className="mt-2 min-h-[92px] w-full resize-none rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-[14px] font-medium normal-case leading-6 tracking-normal text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#40009c] focus:ring-4 focus:ring-[#40009c]/10 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"                    placeholder="Descreva sua dúvida ou problema..."
                   />
                 </label>
 
-                <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-3 text-[13px] font-semibold text-slate-600 transition hover:border-[#40009c]/50 hover:bg-violet-50 dark:border-white/15 dark:bg-slate-950/40 dark:text-slate-300 dark:hover:bg-white/5">
+                <label className="mt-3 flex h-11 cursor-pointer items-center justify-between gap-4 rounded-[14px] border border-dashed border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-500 transition hover:border-[#40009c]/40 hover:bg-violet-50/50 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-white/5">
                   <span className="inline-flex items-center gap-2">
                     <Paperclip className="h-4 w-4" />
                     {supportForm.arquivo ? supportForm.arquivo.name : "Anexar print ou arquivo"}
@@ -9614,8 +9630,7 @@ return (
 <button
   type="submit"
   disabled={supportSending}
-                  className="mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#40009c] px-5 text-[14px] font-bold text-white shadow-[0_14px_34px_rgba(64,0,156,0.25)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                >
+className="mt-3 flex h-12 w-full items-center justify-center rounded-[14px] bg-[#40009c] px-5 text-[13px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(64,0,156,0.22)] transition hover:-translate-y-0.5 hover:bg-[#360086] disabled:cursor-not-allowed disabled:opacity-60">
                   <Send className="h-4 w-4" />
                   {supportSending ? "Enviando..." : "Enviar solicitação"}
                 </button>

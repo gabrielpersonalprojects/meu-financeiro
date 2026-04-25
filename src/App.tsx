@@ -111,7 +111,7 @@ import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
-import { Archive, Home, LogOut, Moon, Sun, Pencil, PencilLine, Star, Trash2, X } from "lucide-react";
+import { Archive, BookOpen, Headphones, HelpCircle, Home, LogOut, Moon, Paperclip, Send, Sun, Pencil, PencilLine, Star, Trash2, X } from "lucide-react";
 import {
   STORAGE_KEYS,
   PROFILE_KEYS,
@@ -1030,6 +1030,122 @@ type AppNotification = {
 
 const [notifications, setNotifications] = useState<AppNotification[]>([]);
 const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
+
+type HelpModalMode = "tutorial" | "support" | null;
+
+const [helpMenuOpen, setHelpMenuOpen] = useState(false);
+const [helpModalMode, setHelpModalMode] = useState<HelpModalMode>(null);
+
+const [supportForm, setSupportForm] = useState({
+  nome: "",
+  email: "",
+  whatsapp: "",
+  mensagem: "",
+  arquivo: null as File | null,
+});
+
+const [supportSending, setSupportSending] = useState(false);
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      resolve(result);
+    };
+
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+const handleSubmitSupportTicket = async () => {
+  if (supportSending) return;
+
+  const nome = supportForm.nome.trim();
+  const email = supportForm.email.trim();
+  const whatsapp = supportForm.whatsapp.trim();
+  const mensagem = supportForm.mensagem.trim();
+  const arquivo = supportForm.arquivo;
+
+  if (!nome) {
+    toastCompact("Informe seu nome para enviar o suporte.", "error");
+    return;
+  }
+
+  if (!email) {
+    toastCompact("Informe seu email para enviar o suporte.", "error");
+    return;
+  }
+
+  if (!mensagem || mensagem.length < 10) {
+    toastCompact("Descreva sua dúvida ou problema com mais detalhes.", "error");
+    return;
+  }
+
+if (arquivo && arquivo.size > 3 * 1024 * 1024) {
+  toastCompact("O anexo deve ter no máximo 3MB.", "error");
+  return;
+}
+
+  setSupportSending(true);
+
+  try {
+    const attachment = arquivo
+      ? {
+          name: arquivo.name,
+          type: arquivo.type,
+          size: arquivo.size,
+          content: await fileToBase64(arquivo),
+        }
+      : null;
+
+    const response = await fetch("/api/support-ticket", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        nome,
+        email,
+        whatsapp,
+        mensagem,
+        attachment,
+        userId: session?.user?.id ?? null,
+        userEmail: session?.user?.email ?? null,
+        pageUrl: window.location.href,
+        userAgent: navigator.userAgent,
+        createdAt: new Date().toISOString(),
+      }),
+    });
+
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(data?.error || "Erro ao enviar solicitação.");
+    }
+
+    toastCompact(
+      "Solicitação enviada. Nosso prazo de resposta é de até 48h.",
+      "success"
+    );
+
+    setSupportForm({
+      nome: "",
+      email: String(session?.user?.email ?? "").trim(),
+      whatsapp: "",
+      mensagem: "",
+      arquivo: null,
+    });
+
+    setHelpModalMode(null);
+  } catch (err) {
+    console.error("ERRO AO ENVIAR SUPORTE:", err);
+    toastCompact("Não foi possível enviar sua solicitação agora.", "error");
+  } finally {
+    setSupportSending(false);
+  }
+};
 
 const loadNotifications = useCallback(async () => {
   const userId = String(session?.user?.id ?? "").trim();
@@ -9339,6 +9455,176 @@ return (
     {cancelScheduledBanner}
     {billingReturnBanner}
    
+       {helpModalMode && (
+      <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
+        <div className="relative w-full max-w-[720px] overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-slate-900">
+          <button
+            type="button"
+            onClick={() => setHelpModalMode(null)}
+            className="absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200/80 bg-white/85 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+            title="Fechar"
+            aria-label="Fechar ajuda"
+          >
+            <X className="h-4 w-4" />
+          </button>
+
+          {helpModalMode === "tutorial" && (
+            <div className="max-h-[82vh] overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#40009c]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#40009c] dark:bg-violet-500/15 dark:text-violet-200">
+                <BookOpen className="h-3.5 w-3.5" />
+                Tutorial
+              </div>
+
+              <h2 className="mt-4 pr-10 text-[28px] font-bold tracking-[-0.04em] text-slate-950 dark:text-white md:text-[34px]">
+                Central de ajuda FluxMoney
+              </h2>
+
+              <p className="mt-3 max-w-[590px] text-[14px] leading-7 text-slate-600 dark:text-slate-300">
+                Consulte orientações rápidas para usar melhor o FluxMoney. Esta biblioteca será expandida com novos guias conforme o app evoluir.
+              </p>
+
+              <div className="mt-6 grid gap-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-slate-950/40">
+                  <h3 className="text-[15px] font-bold text-slate-900 dark:text-white">
+                    1. Como cadastrar uma transação
+                  </h3>
+                  <p className="mt-2 text-[13px] leading-6 text-slate-600 dark:text-slate-300">
+                    Acesse a área de transações, escolha entre despesa, receita ou transferência, informe valor, data, categoria e conta. Depois, confirme o lançamento.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-slate-950/40">
+                  <h3 className="text-[15px] font-bold text-slate-900 dark:text-white">
+                    2. Como acompanhar cartões de crédito
+                  </h3>
+                  <p className="mt-2 text-[13px] leading-6 text-slate-600 dark:text-slate-300">
+                    Na aba Cartões, você pode visualizar faturas abertas, fechadas, vencidas e registrar pagamentos com segurança.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-slate-950/40">
+                  <h3 className="text-[15px] font-bold text-slate-900 dark:text-white">
+                    3. Como usar análise e projeção
+                  </h3>
+                  <p className="mt-2 text-[13px] leading-6 text-slate-600 dark:text-slate-300">
+                    Use Análise para entender seus gastos por categoria e Projeção para visualizar o comportamento financeiro dos próximos meses.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {helpModalMode === "support" && (
+            <div className="max-h-[82vh] overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#40009c]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#40009c] dark:bg-violet-500/15 dark:text-violet-200">
+                <Headphones className="h-3.5 w-3.5" />
+                Suporte
+              </div>
+
+              <h2 className="mt-4 pr-10 text-[28px] font-bold tracking-[-0.04em] text-slate-950 dark:text-white md:text-[34px]">
+                Fale com o suporte
+              </h2>
+
+              <p className="mt-3 max-w-[590px] text-[14px] leading-7 text-slate-600 dark:text-slate-300">
+                Descreva sua dúvida ou problema com o máximo de detalhes. Nosso prazo de resposta é de até 48h.
+              </p>
+
+             <form
+  className="mt-6 grid gap-4"
+  onSubmit={(e) => {
+    e.preventDefault();
+    void handleSubmitSupportTicket();
+  }}
+>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-1.5 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                    Nome
+                    <input
+                      type="text"
+                      value={supportForm.nome}
+                      onChange={(e) =>
+                        setSupportForm((prev) => ({ ...prev, nome: e.target.value }))
+                      }
+                      className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-[14px] font-semibold normal-case tracking-normal text-slate-800 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-violet-500/10"
+                      placeholder="Seu nome"
+                    />
+                  </label>
+
+                  <label className="grid gap-1.5 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                    Email
+                    <input
+                      type="email"
+                      value={supportForm.email}
+                      onChange={(e) =>
+                        setSupportForm((prev) => ({ ...prev, email: e.target.value }))
+                      }
+                      className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-[14px] font-semibold normal-case tracking-normal text-slate-800 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-violet-500/10"
+                      placeholder="seu@email.com"
+                    />
+                  </label>
+                </div>
+
+                <label className="grid gap-1.5 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                  WhatsApp
+                  <input
+                    type="text"
+                    value={supportForm.whatsapp}
+                    onChange={(e) =>
+                      setSupportForm((prev) => ({ ...prev, whatsapp: e.target.value }))
+                    }
+                    className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-[14px] font-semibold normal-case tracking-normal text-slate-800 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-violet-500/10"
+                    placeholder="(00) 00000-0000"
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-[12px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                  Descrição
+                  <textarea
+                    value={supportForm.mensagem}
+                    onChange={(e) =>
+                      setSupportForm((prev) => ({ ...prev, mensagem: e.target.value }))
+                    }
+                    rows={5}
+                    className="resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-[14px] font-medium normal-case leading-6 tracking-normal text-slate-800 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:ring-violet-500/10"
+                    placeholder="Descreva sua dúvida ou problema..."
+                  />
+                </label>
+
+                <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-3 text-[13px] font-semibold text-slate-600 transition hover:border-[#40009c]/50 hover:bg-violet-50 dark:border-white/15 dark:bg-slate-950/40 dark:text-slate-300 dark:hover:bg-white/5">
+                  <span className="inline-flex items-center gap-2">
+                    <Paperclip className="h-4 w-4" />
+                    {supportForm.arquivo ? supportForm.arquivo.name : "Anexar print ou arquivo"}
+                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#40009c] dark:text-violet-300">
+                    Escolher
+                  </span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/png,image/jpeg,image/webp,application/pdf"
+                    onChange={(e) =>
+                      setSupportForm((prev) => ({
+                        ...prev,
+                        arquivo: e.target.files?.[0] ?? null,
+                      }))
+                    }
+                  />
+                </label>
+
+<button
+  type="submit"
+  disabled={supportSending}
+                  className="mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#40009c] px-5 text-[14px] font-bold text-white shadow-[0_14px_34px_rgba(64,0,156,0.25)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Send className="h-4 w-4" />
+                  {supportSending ? "Enviando..." : "Enviar solicitação"}
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
 
 <Toaster
   position="bottom-center"
@@ -9378,16 +9664,63 @@ containerStyle={{
 >
   <AppHeader settingsIcon={null} />
 
-  <button
-    type="button"
-    onClick={handleLogout}
-    className="absolute right-3 hidden md:inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/80 px-3 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-slate-900/55 dark:text-slate-200 dark:hover:bg-slate-900/80 dark:hover:text-white lg:right-4"
-    title="Sair da conta"
-    aria-label="Sair da conta"
-  >
-    <LogOut className="h-4 w-4" />
-    <span>Sair</span>
-  </button>
+  <div className="absolute right-3 hidden items-center gap-2 md:flex lg:right-4">
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setHelpMenuOpen((prev) => !prev)}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200/70 bg-white/80 text-slate-700 shadow-sm transition hover:bg-white hover:text-[#40009c] dark:border-white/10 dark:bg-slate-900/55 dark:text-slate-200 dark:hover:bg-slate-900/80 dark:hover:text-white"
+        title="Ajuda"
+        aria-label="Abrir ajuda"
+        aria-expanded={helpMenuOpen}
+      >
+        <HelpCircle className="h-4.5 w-4.5" />
+      </button>
+
+      {helpMenuOpen && (
+        <div className="absolute right-0 top-12 z-[80] w-52 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95">
+          <button
+            type="button"
+            onClick={() => {
+              setHelpMenuOpen(false);
+              setHelpModalMode("tutorial");
+            }}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
+          >
+            <BookOpen className="h-4 w-4" />
+            <span>Tutorial</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setHelpMenuOpen(false);
+              setSupportForm((prev) => ({
+                ...prev,
+                email: String(session?.user?.email ?? prev.email ?? "").trim(),
+              }));
+              setHelpModalMode("support");
+            }}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
+          >
+            <Headphones className="h-4 w-4" />
+            <span>Suporte</span>
+          </button>
+        </div>
+      )}
+    </div>
+
+    <button
+      type="button"
+      onClick={handleLogout}
+      className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/80 px-3 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-slate-900/55 dark:text-slate-200 dark:hover:bg-slate-900/80 dark:hover:text-white"
+      title="Sair da conta"
+      aria-label="Sair da conta"
+    >
+      <LogOut className="h-4 w-4" />
+      <span>Sair</span>
+    </button>
+  </div>
 </div>
 </div>
 

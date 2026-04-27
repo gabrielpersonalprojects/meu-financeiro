@@ -1035,6 +1035,29 @@ type HelpModalMode = "tutorial" | "support" | null;
 
 const [helpMenuOpen, setHelpMenuOpen] = useState(false);
 const [helpModalMode, setHelpModalMode] = useState<HelpModalMode>(null);
+const helpMenuRef = useRef<HTMLDivElement | null>(null);
+
+useEffect(() => {
+  if (!helpMenuOpen) return;
+
+  const handleClickOutsideHelpMenu = (event: MouseEvent) => {
+    const target = event.target as Node | null;
+
+    if (!target) return;
+
+    if (helpMenuRef.current?.contains(target)) {
+      return;
+    }
+
+    setHelpMenuOpen(false);
+  };
+
+  document.addEventListener("mousedown", handleClickOutsideHelpMenu);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutsideHelpMenu);
+  };
+}, [helpMenuOpen]);
 
 const [supportForm, setSupportForm] = useState({
   nome: "",
@@ -9516,7 +9539,7 @@ className="flux-help-modal-scroll max-h-[84vh] overflow-y-auto px-5 py-4 md:px-7
           )}
 
           {helpModalMode === "support" && (
-            <div className="max-h-[82vh] overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+            <div className="flux-help-modal-scroll max-h-[84vh] overflow-y-auto px-5 py-4 md:px-7 md:py-5">
               <div className="inline-flex items-center gap-2 rounded-full bg-[#40009c]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#40009c] dark:bg-violet-500/15 dark:text-violet-200">
                 <Headphones className="h-3.5 w-3.5" />
                 Suporte
@@ -9680,50 +9703,50 @@ containerStyle={{
   <AppHeader settingsIcon={null} />
 
   <div className="absolute right-3 hidden items-center gap-2 md:flex lg:right-4">
-    <div className="relative">
+<div ref={helpMenuRef} className="relative">
+  <button
+    type="button"
+    onClick={() => setHelpMenuOpen((prev) => !prev)}
+    className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200/70 bg-white/80 text-slate-700 shadow-sm transition hover:bg-white hover:text-[#40009c] dark:border-white/10 dark:bg-slate-900/55 dark:text-slate-200 dark:hover:bg-slate-900/80 dark:hover:text-white"
+    title="Ajuda"
+    aria-label="Abrir ajuda"
+    aria-expanded={helpMenuOpen}
+  >
+    <HelpCircle className="h-4.5 w-4.5" />
+  </button>
+
+  {helpMenuOpen && (
+    <div className="absolute right-0 top-12 z-[80] w-52 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95">
       <button
         type="button"
-        onClick={() => setHelpMenuOpen((prev) => !prev)}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200/70 bg-white/80 text-slate-700 shadow-sm transition hover:bg-white hover:text-[#40009c] dark:border-white/10 dark:bg-slate-900/55 dark:text-slate-200 dark:hover:bg-slate-900/80 dark:hover:text-white"
-        title="Ajuda"
-        aria-label="Abrir ajuda"
-        aria-expanded={helpMenuOpen}
+        onClick={() => {
+          setHelpMenuOpen(false);
+          setHelpModalMode("tutorial");
+        }}
+        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
       >
-        <HelpCircle className="h-4.5 w-4.5" />
+        <BookOpen className="h-4 w-4" />
+        <span>Tutorial</span>
       </button>
 
-      {helpMenuOpen && (
-        <div className="absolute right-0 top-12 z-[80] w-52 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95">
-          <button
-            type="button"
-            onClick={() => {
-              setHelpMenuOpen(false);
-              setHelpModalMode("tutorial");
-            }}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
-          >
-            <BookOpen className="h-4 w-4" />
-            <span>Tutorial</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setHelpMenuOpen(false);
-              setSupportForm((prev) => ({
-                ...prev,
-                email: String(session?.user?.email ?? prev.email ?? "").trim(),
-              }));
-              setHelpModalMode("support");
-            }}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
-          >
-            <Headphones className="h-4 w-4" />
-            <span>Suporte</span>
-          </button>
-        </div>
-      )}
+      <button
+        type="button"
+        onClick={() => {
+          setHelpMenuOpen(false);
+          setSupportForm((prev) => ({
+            ...prev,
+            email: String(session?.user?.email ?? prev.email ?? "").trim(),
+          }));
+          setHelpModalMode("support");
+        }}
+        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
+      >
+        <Headphones className="h-4 w-4" />
+        <span>Suporte</span>
+      </button>
     </div>
+  )}
+</div>
 
     <button
       type="button"

@@ -9552,13 +9552,20 @@ return (
                 Fale com o suporte
               </h2>
 
-<p className="mt-3 max-w-[590px] text-[14px] leading-6 text-slate-600 dark:text-slate-300">
-  Descreva sua dúvida ou problema com o máximo de detalhes.
-  <br />
-  <strong className="font-semibold text-slate-800 dark:text-slate-100">
-    Nosso prazo de resposta é de até 48h.
-  </strong>
-</p>
+<div className="mt-3 max-w-[640px] space-y-2">
+  <p className="text-[14px] leading-6 text-slate-600 dark:text-slate-300">
+    Descreva sua dúvida ou problema com o máximo de detalhes.
+    <br />
+    <strong className="font-semibold text-slate-800 dark:text-slate-100">
+      Nosso prazo de resposta é de até 48h.
+    </strong>
+  </p>
+
+  <div className="rounded-2xl border border-violet-200/80 bg-violet-50/70 px-3 py-2 text-[12.5px] font-medium leading-5 text-violet-900 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-100">
+    Caso não encontre nossa resposta após esse período, verifique também sua
+    caixa de spam ou lixo eletrônico.
+  </div>
+</div>
 
              <form
 className="mt-5 grid gap-3"

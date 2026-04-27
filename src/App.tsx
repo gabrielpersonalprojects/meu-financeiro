@@ -1295,6 +1295,8 @@ const [checkoutSyncing, setCheckoutSyncing] = useState(false);
 const checkoutHandledRef = useRef(false);
 const [billingReturnVisible, setBillingReturnVisible] = useState(false);
 const billingHandledRef = useRef(false);
+const [acceptedSubscriptionTerms, setAcceptedSubscriptionTerms] =
+  useState(false);
 
 const CHECKOUT_GUARD_STORAGE_KEY = "fluxmoney_expected_checkout_user_id";
 const POST_CHECKOUT_LOGIN_MESSAGE_KEY = "fluxmoney_post_checkout_login_message";
@@ -7377,6 +7379,14 @@ if (checkoutSyncing) {
 
 const handleCheckoutAssinatura = async () => {
   try {
+    if (!acceptedSubscriptionTerms) {
+      toastCompact(
+        "Para continuar, aceite os Termos de Uso e a Política de Privacidade.",
+        "error"
+      );
+      return;
+    }
+
     if (!session?.user?.email || !session?.user?.id || !session?.access_token) {
       alert("Sessão inválida. Faça login novamente.");
       return;
@@ -7489,29 +7499,67 @@ tranquilidade.
   <p className="mt-1 text-center text-[10px] text-slate-500 dark:text-slate-400">
     Sem fidelidade. Cancele quando quiser.
   </p>
-          <div className="mt-6 space-y-3">
-            <button
-              type="button"
-              className="w-full rounded-2xl px-4 py-3.5 font-semibold text-white shadow-lg transition hover:opacity-95"
-              style={{
-                background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
-              }}
-              onClick={handleCheckoutAssinatura}
-            >
-              Ativar minha assinatura
-            </button>
+<div className="mt-6 space-y-3">
+  <label className="flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-3 text-left text-[12.5px] leading-5 text-slate-600 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-slate-300">
+    <input
+      type="checkbox"
+      checked={acceptedSubscriptionTerms}
+      onChange={(event) =>
+        setAcceptedSubscriptionTerms(event.target.checked)
+      }
+      className="mt-0.5 h-4 w-4 rounded border-violet-300 text-[#40009c] accent-[#40009c]"
+    />
 
-            <button
-              type="button"
-              className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-3 font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-onClick={async () => {
-  localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
-  await supabase.auth.signOut();
-}}
-            >
-              Sair da conta
-            </button>
-          </div>
+    <span>
+      Li e aceito os{" "}
+      <a
+        href="https://fluxmoneyapp.com.br/termos-de-uso/"
+        target="_blank"
+        rel="noreferrer"
+        className="font-semibold text-[#40009c] underline-offset-4 hover:underline dark:text-violet-200"
+      >
+        Termos de Uso
+      </a>{" "}
+      e a{" "}
+      <a
+        href="https://fluxmoneyapp.com.br/politicasdeprivacidade/"
+        target="_blank"
+        rel="noreferrer"
+        className="font-semibold text-[#40009c] underline-offset-4 hover:underline dark:text-violet-200"
+      >
+        Política de Privacidade
+      </a>
+      .
+    </span>
+  </label>
+
+  <button
+    type="button"
+    disabled={!acceptedSubscriptionTerms}
+    className={`w-full rounded-2xl px-4 py-3.5 font-semibold text-white shadow-lg transition ${
+      acceptedSubscriptionTerms
+        ? "hover:opacity-95"
+        : "cursor-not-allowed opacity-45 grayscale"
+    }`}
+    style={{
+      background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
+    }}
+    onClick={handleCheckoutAssinatura}
+  >
+    Ativar minha assinatura
+  </button>
+
+  <button
+    type="button"
+    className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+    onClick={async () => {
+      localStorage.removeItem(CHECKOUT_GUARD_STORAGE_KEY);
+      await supabase.auth.signOut();
+    }}
+  >
+    Sair da conta
+  </button>
+</div>
         </div>
       </div>
     </>
@@ -9657,63 +9705,61 @@ containerStyle={{
 >
   <AppHeader settingsIcon={null} />
 
-  <div className="absolute right-3 hidden items-center gap-2 md:flex lg:right-4">
-<div ref={helpMenuRef} className="relative">
-  <button
-    type="button"
-    onClick={() => setHelpMenuOpen((prev) => !prev)}
-    className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200/70 bg-white/80 text-slate-700 shadow-sm transition hover:bg-white hover:text-[#40009c] dark:border-white/10 dark:bg-slate-900/55 dark:text-slate-200 dark:hover:bg-slate-900/80 dark:hover:text-white"
-    title="Ajuda"
-    aria-label="Abrir ajuda"
-    aria-expanded={helpMenuOpen}
-  >
-    <HelpCircle className="h-4.5 w-4.5" />
-  </button>
-
-  {helpMenuOpen && (
-    <div className="absolute right-0 top-12 z-[80] w-52 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95">
-      <button
-        type="button"
-        onClick={() => {
-          setHelpMenuOpen(false);
-          setHelpModalMode("tutorial");
-        }}
-        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
-      >
-        <BookOpen className="h-4 w-4" />
-        <span>Tutorial</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => {
-          setHelpMenuOpen(false);
-          setSupportForm((prev) => ({
-            ...prev,
-            email: String(session?.user?.email ?? prev.email ?? "").trim(),
-          }));
-          setHelpModalMode("support");
-        }}
-        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
-      >
-        <Headphones className="h-4 w-4" />
-        <span>Suporte</span>
-      </button>
-    </div>
-  )}
-</div>
-
+<div className="absolute right-3 hidden items-center gap-2 md:flex lg:right-4">
+  <div ref={helpMenuRef} className="relative">
     <button
       type="button"
-      onClick={handleLogout}
-      className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/80 px-3 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-slate-900/55 dark:text-slate-200 dark:hover:bg-slate-900/80 dark:hover:text-white"
-      title="Sair da conta"
-      aria-label="Sair da conta"
+      onClick={() => setHelpMenuOpen((prev) => !prev)}
+      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 text-[#40009c] shadow-[0_10px_26px_rgba(64,0,156,0.08)] transition hover:border-violet-300 hover:bg-violet-100/80 hover:text-[#360086] dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-100 dark:hover:bg-violet-500/15"
+      title="Ajuda"
+      aria-label="Abrir ajuda"
+      aria-expanded={helpMenuOpen}
     >
-      <LogOut className="h-4 w-4" />
-      <span>Sair</span>
+      <HelpCircle className="h-4.5 w-4.5" />
     </button>
+
+    {helpMenuOpen && (
+      <div className="absolute right-0 top-12 z-[80] w-52 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95">
+        <button
+          type="button"
+          onClick={() => {
+            setHelpMenuOpen(false);
+            setHelpModalMode("tutorial");
+          }}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
+        >
+          <BookOpen className="h-4 w-4" />
+          <span>Tutorial</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setHelpMenuOpen(false);
+            setSupportForm((prev) => ({
+              ...prev,
+              email: String(session?.user?.email ?? prev.email ?? "").trim(),
+            }));
+            setHelpModalMode("support");
+          }}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
+        >
+          <Headphones className="h-4 w-4" />
+          <span>Suporte</span>
+        </button>
+      </div>
+    )}
   </div>
+
+  <button
+    type="button"
+    onClick={handleLogout}
+    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-4 text-[13px] font-semibold text-[#40009c] shadow-[0_10px_26px_rgba(64,0,156,0.08)] transition hover:border-violet-300 hover:bg-violet-100/80 hover:text-[#360086] dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-100 dark:hover:bg-violet-500/15"
+  >
+    <LogOut className="h-4 w-4" />
+    <span>Sair</span>
+  </button>
+</div>
 </div>
 </div>
 

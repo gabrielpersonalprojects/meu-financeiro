@@ -473,14 +473,22 @@ className={[
   <div className="flex flex-col gap-4 pb-6 border-b border-slate-50 dark:border-slate-800">
     <div className="pt-4">
 <div className="w-full overflow-visible flex flex-wrap lg:flex-nowrap items-end gap-3">
-  <div className="w-full sm:w-[190px] lg:w-[180px] shrink-0">
-    <CustomDateInput
-      type="month"
-      value={filtroMes}
-      onChange={setFiltroMes}
-      className="w-full"
-    />
-  </div>
+<div className="relative w-full sm:w-[190px] lg:w-[180px] shrink-0">
+  <CustomDateInput
+    type="month"
+    value={filtroMes}
+    onChange={setFiltroMes}
+    className="w-full"
+  />
+
+  {filtroMes === new Date().toISOString().slice(0, 7) && (
+    <div className="pointer-events-none absolute left-[1px] right-10 top-[1px] bottom-[1px] z-10 flex items-center rounded-l-xl bg-white pl-3 dark:bg-slate-900">
+<span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#cecdf6] text-[#220055] border border-[#cecdf6] dark:bg-indigo-600/25 dark:text-white dark:border-indigo-500/20">
+  Este mês
+</span>
+    </div>
+  )}
+</div>
 
   <div className="w-full sm:w-[250px] lg:w-[230px] shrink-0">
     <CustomDropdown
@@ -716,21 +724,21 @@ label: (
       <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
 
       <div className="flex h-full flex-col justify-center">
-        <p className="flex items-center gap-2 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.16em] mb-4">
-          <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" strokeWidth={2.2} />
-          <span>Entradas (mês)</span>
-        </p>
+<p className="flex items-center gap-2 text-[12px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-[0.12em] mb-4">
+  <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" strokeWidth={2.2} />
+  <span>Receitas</span>
+</p>
 
         <p className="text-[30px] md:text-[34px] font-black text-slate-900 dark:text-white tracking-tight leading-none">
           {valorOuOculto(stats.receitasMes)}
         </p>
 
-        <p className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-400 dark:text-slate-500 mt-4">
-          Pendente:{" "}
-          <span className="text-emerald-600 dark:text-emerald-400">
-            {valorOuOculto(stats.pendenteReceita)}
-          </span>
-        </p>
+<p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mt-4">
+  Pendente:{" "}
+  <span className="text-emerald-600 dark:text-emerald-400">
+    {valorOuOculto(stats.pendenteReceita)}
+  </span>
+</p>
       </div>
     </div>
 
@@ -747,21 +755,21 @@ label: (
       </button>
 
       <div className="flex h-full flex-col justify-center">
-        <p className="flex items-center gap-2 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.16em] mb-4">
-          <ArrowDownRight className="h-3.5 w-3.5 text-rose-500" strokeWidth={2.2} />
-          <span>Saídas (mês)</span>
-        </p>
+<p className="flex items-center gap-2 text-[12px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-[0.12em] mb-4">
+  <ArrowDownRight className="h-3.5 w-3.5 text-rose-500" strokeWidth={2.2} />
+  <span>Despesas</span>
+</p>
 
         <p className="text-[30px] md:text-[34px] font-black text-slate-900 dark:text-white tracking-tight leading-none">
           {valorOuOculto(stats.despesasMes)}
         </p>
 
-        <p className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-400 dark:text-slate-500 mt-4">
-          Pendente:{" "}
-          <span className="text-rose-600 dark:text-rose-400">
-            {valorOuOculto(stats.pendenteDespesa)}
-          </span>
-        </p>
+<p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 mt-4">
+  Pendente:{" "}
+  <span className="text-rose-600 dark:text-rose-400">
+    {valorOuOculto(stats.pendenteDespesa)}
+  </span>
+</p>
       </div>
     </div>
   </div>

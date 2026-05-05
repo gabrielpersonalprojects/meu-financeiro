@@ -6776,10 +6776,10 @@ else if (ehFixo) {
         if (prazoMode === "sem_prazo") {
           mesesParaGerar = SEM_PRAZO_MESES;
         } else {
-          const dataFim = new Date(`${formDataTerminoFixa}T12:00:00`);
-          const diffAnos = dataFim.getFullYear() - baseDate.getFullYear();
-          const diffMeses = dataFim.getMonth() - baseDate.getMonth();
-          mesesParaGerar = Math.max(1, diffAnos * 12 + diffMeses + 1);
+const dataFim = new Date(`${formDataTerminoFixa}T12:00:00`);
+const diffAnos = dataFim.getFullYear() - baseDate.getFullYear();
+const diffMeses = dataFim.getMonth() - baseDate.getMonth();
+mesesParaGerar = Math.max(1, diffAnos * 12 + diffMeses);
         }
 
         const recorrenciaId = `cc_fixo_${selectedCreditCardId}_${Date.now()}`;
@@ -6990,10 +6990,10 @@ else if (
       if (prazoMode === "sem_prazo") {
         mesesParaGerar = SEM_PRAZO_MESES;
       } else {
-        const dataFim = new Date(formDataTerminoFixa + "T12:00:00");
-        const diffAnos = dataFim.getFullYear() - dataInicio.getFullYear();
-        const diffMeses = dataFim.getMonth() - dataInicio.getMonth();
-        mesesParaGerar = Math.max(1, diffAnos * 12 + diffMeses + 1);
+const dataFim = new Date(formDataTerminoFixa + "T12:00:00");
+const diffAnos = dataFim.getFullYear() - dataInicio.getFullYear();
+const diffMeses = dataFim.getMonth() - dataInicio.getMonth();
+mesesParaGerar = Math.max(1, diffAnos * 12 + diffMeses);
       }
 
       const isSemPrazo = prazoMode === "sem_prazo";

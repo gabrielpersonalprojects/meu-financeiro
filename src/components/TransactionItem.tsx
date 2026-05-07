@@ -177,8 +177,8 @@ const mensalTotalNum = isMensalVisual
 
 const topBadge = isParceladoVisual
   ? {
-      label: `Parcelado ${parcelaAtualNum} de ${totalParcelasNum}`,
-      title: `Parcelado ${parcelaAtualNum} de ${totalParcelasNum}`,
+      label: `Parcela ${parcelaAtualNum} de ${totalParcelasNum}`,
+      title: `Parcela ${parcelaAtualNum} de ${totalParcelasNum}`,
       className:
         "bg-gradient-to-r from-[#4c0195] to-[#6d28d9] text-white shadow-[0_10px_24px_rgba(76,1,149,0.35)] dark:from-[#6d28d9] dark:to-[#8b5cf6] dark:text-white dark:shadow-[0_10px_24px_rgba(139,92,246,0.28)]",
     }

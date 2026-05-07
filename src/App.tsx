@@ -4010,12 +4010,23 @@ const allCreditCardTransactions = useMemo(() => {
     const tipo = String(t?.tipo ?? "").trim().toLowerCase();
     if (tipo !== "cartao_credito") return false;
 
-    const cartaoId = String(t?.cartaoId ?? t?.qualCartao ?? "").trim();
+    const cartaoId = String(
+      t?.cartaoId ??
+        t?.qualCartao ??
+        t?.payload?.cartaoId ??
+        t?.payload?.qualCartao ??
+        t?.payload?.targetId ??
+        ""
+    ).trim();
+
     if (!cartaoId) return false;
 
-    return (creditCards ?? []).some(
-      (c: any) => String(c?.id ?? "").trim() === cartaoId
-    );
+    return (creditCards ?? []).some((c: any) => {
+      const sameCard = String(c?.id ?? "").trim() === cartaoId;
+      const isActive = c?.is_active !== false;
+
+      return sameCard && isActive;
+    });
   });
 }, [transacoes, creditCards]);
 
@@ -4043,17 +4054,32 @@ const cardsResumoFiltradas = useMemo(() => {
   const termo = normalizeResumoSearchText(cardsResumoBusca);
 
   return allCreditCardTransactions.filter((t: any) => {
-    const mes = String(t?.data ?? "").slice(0, 7);
-    const categoria = categoriaResumoCartoesLabel(t?.categoria);
-    const tag = String(t?.tag ?? "").trim();
+  const dataTransacao = String(t?.data ?? "").trim();
 
-    const cartaoId = String(t?.cartaoId ?? t?.qualCartao ?? "").trim();
+const cartaoId = String(
+  t?.cartaoId ??
+    t?.qualCartao ??
+    t?.payload?.cartaoId ??
+    t?.payload?.qualCartao ??
+    t?.payload?.targetId ??
+    ""
+).trim();
 
-    const card = (creditCards ?? []).find(
-      (c: any) => String(c?.id ?? "").trim() === cartaoId
-    );
+const card = (creditCards ?? []).find(
+  (c: any) => String(c?.id ?? "").trim() === cartaoId
+);
 
 const cardAny = card as any;
+
+const mesVencimentoFatura = cardAny
+  ? getCardCycleMonthFromDate(
+      dataTransacao,
+      Number(cardAny?.diaFechamento ?? cardAny?.fechamento ?? 1),
+      Number(cardAny?.diaVencimento ?? cardAny?.vencimento ?? 1)
+    )
+  : dataTransacao.slice(0, 7);
+    const categoria = categoriaResumoCartoesLabel(t?.categoria);
+    const tag = String(t?.tag ?? "").trim();
 
 const cartaoNome = String(
   cardAny?.emissor ??
@@ -4066,8 +4092,9 @@ const cartaoNome = String(
 const cartaoCategoria = String(cardAny?.categoria ?? "").trim();
 const cartaoPerfil = String(cardAny?.perfil ?? cardAny?.brand ?? "").trim();
 
-    const okMes =
-      !String(cardsResumoMes ?? "").trim() || mes === cardsResumoMes;
+const okMes =
+  !String(cardsResumoMes ?? "").trim() ||
+  mesVencimentoFatura === cardsResumoMes;
 
     const okCategoria =
       cardsResumoCategoria === "todas" || categoria === cardsResumoCategoria;
@@ -4459,60 +4486,8 @@ useEffect(() => {
 }, [totalCreditCardsPages]);
 
 const getCardCycleMonthOnOpen = (card: any) => {
-  const cardId = String(card?.id ?? "").trim();
-
-  const cicloAtual = getCardCycleMonthFromDate(
-    getHojeLocal(),
-    Number(card?.diaFechamento ?? 1),
-    Number(card?.diaVencimento ?? 1)
-  );
-
-  if (!cardId) return cicloAtual;
-
-  const getTxCardRefLocal = (tx: any) =>
-    String(
-      tx?.cartaoId ??
-        tx?.cartao_id ??
-        tx?.qualCartao ??
-        tx?.qual_cartao ??
-        tx?.qualConta ??
-        tx?.qual_conta ??
-        tx?.payload?.cartaoId ??
-        tx?.payload?.cartao_id ??
-        tx?.payload?.qualCartao ??
-        tx?.payload?.qual_cartao ??
-        tx?.payload?.qualConta ??
-        tx?.payload?.qual_conta ??
-        tx?.payload?.targetId ??
-        tx?.payload?.target_id ??
-        ""
-    ).trim();
-
-  const transacoesDoCartao = (transacoes ?? [])
-    .filter((tx: any) => String(tx?.tipo ?? "").trim().toLowerCase() === "cartao_credito")
-    .filter((tx: any) => getTxCardRefLocal(tx) === cardId)
-    .filter((tx: any) => /^\d{4}-\d{2}-\d{2}$/.test(String(tx?.data ?? "").trim()));
-
-  if (!transacoesDoCartao.length) return cicloAtual;
-
-  const temTransacaoNoCicloAtual = transacoesDoCartao.some((tx: any) => {
-    const cicloTx = getCardCycleMonthFromDate(
-      String(tx?.data ?? "").trim(),
-      Number(card?.diaFechamento ?? 1),
-      Number(card?.diaVencimento ?? 1)
-    );
-
-    return cicloTx === cicloAtual;
-  });
-
-  if (temTransacaoNoCicloAtual) return cicloAtual;
-
-  const ultimaTransacaoDoCartao = [...transacoesDoCartao].sort((a: any, b: any) =>
-    String(b?.data ?? "").localeCompare(String(a?.data ?? ""))
-  )[0];
-
   return getCardCycleMonthFromDate(
-    String(ultimaTransacaoDoCartao?.data ?? "").trim(),
+    getHojeLocal(),
     Number(card?.diaFechamento ?? 1),
     Number(card?.diaVencimento ?? 1)
   );
@@ -10490,7 +10465,7 @@ className="inline-flex h-11 items-center justify-center rounded-2xl border borde
 </button>
       </div>
 <div className="px-1 text-[12px] leading-5 text-slate-500 dark:text-slate-400">
-  Os filtros deste resumo usam a data da transação no cartão, e não a data de fechamento ou vencimento da fatura.
+  Veja seus gastos de cartão por mês de vencimento da fatura. O resumo considera o fechamento de cada cartão e mostra apenas cartões ativos.
 </div>
       <div className="w-full rounded-[1.5rem] border border-slate-200/70 dark:border-white/10 bg-white/85 dark:bg-slate-900/70 p-4 shadow-sm">
 <div className="mb-4 grid grid-cols-[minmax(0,1fr)_140px] items-start gap-3 px-4">

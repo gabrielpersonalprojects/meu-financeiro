@@ -778,15 +778,18 @@ const valorPagoFaturaAnterior = roundMoney(
   )
 );
 
+const previousBaseMonthKey = `${previousBaseMonth.getFullYear()}-${pad2(
+  previousBaseMonth.getMonth() + 1
+)}`;
+
 const txFaturaAnterior = txDoCartao.filter((t) => {
-  const dt = parseISODateLocal(t.data);
-  if (Number.isNaN(dt.getTime())) return false;
+  const dataTx = String(t?.data ?? "").trim();
 
-  const dt0 = startOfDay(dt);
-  const cicloInicioAnterior0 = startOfDay(cicloInicioAnterior);
-  const cicloFimAnterior0 = startOfDay(cicloFimAnterior);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataTx)) {
+    return false;
+  }
 
-  return dt0 >= cicloInicioAnterior0 && dt0 <= cicloFimAnterior0;
+  return getInvoiceMonthKeyForTransaction(dataTx) === previousBaseMonthKey;
 });
 
 const valorTotalFaturaAnterior = roundMoney(

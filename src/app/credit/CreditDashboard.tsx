@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import CustomDropdown from "../../components/CustomDropdown";
 import { CreditCardVisual } from "./CreditCardVisual";
 import { createPortal } from "react-dom";
-import { Archive } from "lucide-react";
+import { Archive, Search } from "lucide-react";
 
 type CartaoUI = {
   id: string;
@@ -490,6 +490,7 @@ const txDoCartao = useMemo(() => {
 const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
 const [filtroTagCC, setFiltroTagCC] = useState<string>("todas");
 const [filtroTipoGastoCC, setFiltroTipoGastoCC] = useState<string>("todas");
+const [buscaTransacaoCC, setBuscaTransacaoCC] = useState<string>("");
 
   const categoriasCC = useMemo(() => {
     return Array.from(
@@ -523,6 +524,13 @@ const [filtroTipoGastoCC, setFiltroTipoGastoCC] = useState<string>("todas");
   { label: "Parcelado", value: "parcelado" },
 ];
 
+const normalizeCCSearchText = (value: any) =>
+  String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
 const resolveTipoGastoCC = (t: any): "normal" | "fixo" | "parcelado" => {
   const payloadTipo = String(t?.payload?.tipoGasto ?? "").trim().toLowerCase();
   const raizTipo = String(t?.tipoGasto ?? "").trim().toLowerCase();
@@ -553,6 +561,8 @@ const resolveTipoGastoCC = (t: any): "normal" | "fixo" | "parcelado" => {
 };
 
 const txMesFiltradas = useMemo(() => {
+  const termo = normalizeCCSearchText(buscaTransacaoCC);
+
   return txMes.filter((t) => {
     const c: any = (t as any).categoria;
     const cLabel =
@@ -570,13 +580,53 @@ const txMesFiltradas = useMemo(() => {
     const okTipo =
       filtroTipoGastoCC === "todas" || tipoGasto === filtroTipoGastoCC;
 
-    return okCat && okTag && okTipo;
+    const tipoLabel =
+      tipoGasto === "parcelado"
+        ? "parcelado"
+        : tipoGasto === "fixo"
+        ? "fixo mensal"
+        : "variavel";
+
+    const okBusca =
+      !termo ||
+      normalizeCCSearchText(
+        [
+          (t as any)?.descricao,
+          cLabel,
+          tag,
+          tipoLabel,
+          (t as any)?.data,
+          formatBRDate((t as any)?.data),
+          moedaBR(Math.abs(Number((t as any)?.valor ?? 0))),
+          cartao?.nome,
+          cartao?.categoria,
+          cartao?.bankText,
+          cartao?.perfil,
+          cartao?.brand,
+        ].join(" ")
+      ).includes(termo);
+
+    return okCat && okTag && okTipo && okBusca;
   });
-}, [txMes, filtroCategoriaCC, filtroTagCC, filtroTipoGastoCC]);
+}, [
+  txMes,
+  filtroCategoriaCC,
+  filtroTagCC,
+  filtroTipoGastoCC,
+  buscaTransacaoCC,
+  cartao,
+]);
 
 useEffect(() => {
   setPaginaAtual(1);
-}, [baseMonthKey, filtroCategoriaCC, filtroTagCC, filtroTipoGastoCC, cartao.id]);
+}, [
+  baseMonthKey,
+  filtroCategoriaCC,
+  filtroTagCC,
+  filtroTipoGastoCC,
+  buscaTransacaoCC,
+  cartao.id,
+]);
 
   const totalPaginas = Math.max(1, Math.ceil(txMesFiltradas.length / ITENS_POR_PAGINA));
 
@@ -1819,10 +1869,39 @@ statusMiniCard={miniCardExpandidoStatus}
   />
 </div>
 
+<div className="flex flex-col w-full md:w-[260px]">
+  <span className="text-slate-700 text-xs mb-1 dark:text-white/70">
+    Buscar
+  </span>
 
-                {filtroCategoriaCC !== "todas" ||
+  <div className="relative w-full">
+    <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+
+    <input
+      type="text"
+      value={buscaTransacaoCC}
+      onChange={(e) => setBuscaTransacaoCC(e.target.value)}
+      placeholder="Buscar lançamento..."
+      className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-9 text-sm font-semibold text-slate-800 outline-none shadow-sm transition placeholder:text-slate-400 hover:bg-slate-50 focus:border-[#4600ac]/35 focus:ring-4 focus:ring-violet-100/70 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:bg-slate-800 dark:focus:ring-violet-900/30"
+    />
+
+    {buscaTransacaoCC.trim() ? (
+      <button
+        type="button"
+        onClick={() => setBuscaTransacaoCC("")}
+        className="absolute right-2.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-[#4600ac] dark:hover:bg-slate-800 dark:hover:text-violet-300"
+        title="Limpar busca"
+      >
+        ×
+      </button>
+    ) : null}
+  </div>
+</div>
+
+{filtroCategoriaCC !== "todas" ||
 filtroTagCC !== "todas" ||
-filtroTipoGastoCC !== "todas" ? (
+filtroTipoGastoCC !== "todas" ||
+buscaTransacaoCC.trim() ? (
                   <div className="md:ml-auto">
                     <button
                       type="button"
@@ -1830,9 +1909,10 @@ onClick={() => {
   setFiltroCategoriaCC("todas");
   setFiltroTagCC("todas");
   setFiltroTipoGastoCC("todas");
+  setBuscaTransacaoCC("");
+  setPaginaAtual(1);
 }}
-                      className="h-9 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 px-3 text-xs text-slate-700
-                        dark:bg-white/10 dark:hover:bg-white/15 dark:border-white/10 dark:text-white/80"
+className="inline-flex h-10 shrink-0 items-center gap-2 rounded-2xl border border-[#4600ac]/15 bg-[#4600ac]/[0.07] px-3 text-[13px] font-semibold text-[#4600ac] transition hover:bg-[#4600ac]/[0.11] dark:border-white/10 dark:bg-white/5 dark:text-violet-200 dark:hover:bg-white/10"
                     >
                       Limpar filtros
                     </button>

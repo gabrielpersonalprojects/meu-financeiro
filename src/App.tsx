@@ -5524,23 +5524,93 @@ const passaFiltroContasVisiveisEmTodas = useCallback(
     if (!shouldShowAccountEyes) return true;
     if (!hiddenAccountIdsSet.size) return true;
 
-    const idsRelacionados = [
-      t?.contaId,
-      t?.profileId,
-      t?.qualConta,
-      t?.conta?.id,
-      t?.profile?.id,
-      t?.contaOrigemId,
-      t?.contaDestinoId,
-      t?.transferFromId,
-      t?.transferToId,
-    ]
-      .map((v) => String(v ?? "").trim())
-      .filter(Boolean);
+    const payload =
+      t?.payload && typeof t.payload === "object" ? t.payload : {};
 
-    if (!idsRelacionados.length) return true;
+    const tipo = String(t?.tipo ?? "").trim().toLowerCase();
 
-    return idsRelacionados.some((id) => !hiddenAccountIdsSet.has(id));
+    const categoriaNorm = String(t?.categoria ?? "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    const isTransferencia =
+      tipo === "transferencia" ||
+      categoriaNorm === "transferencia" ||
+      Boolean(t?.transferId) ||
+      Boolean(t?.transfer_id) ||
+      Boolean(payload?.transferId) ||
+      Boolean(payload?.transfer_id);
+
+    const idsDaLinha = isTransferencia
+      ? tipo === "receita"
+        ? [
+            t?.contaDestinoId,
+            t?.conta_destino_id,
+            t?.transferToId,
+            t?.transfer_to_id,
+            t?.contaId,
+            t?.conta_id,
+            t?.profileId,
+            t?.profile_id,
+            t?.qualConta,
+            t?.qual_conta,
+            payload?.contaDestinoId,
+            payload?.conta_destino_id,
+            payload?.transferToId,
+            payload?.transfer_to_id,
+            payload?.contaId,
+            payload?.conta_id,
+            payload?.profileId,
+            payload?.profile_id,
+            payload?.qualConta,
+            payload?.qual_conta,
+          ]
+        : [
+            t?.contaOrigemId,
+            t?.conta_origem_id,
+            t?.transferFromId,
+            t?.transfer_from_id,
+            t?.contaId,
+            t?.conta_id,
+            t?.profileId,
+            t?.profile_id,
+            t?.qualConta,
+            t?.qual_conta,
+            payload?.contaOrigemId,
+            payload?.conta_origem_id,
+            payload?.transferFromId,
+            payload?.transfer_from_id,
+            payload?.contaId,
+            payload?.conta_id,
+            payload?.profileId,
+            payload?.profile_id,
+            payload?.qualConta,
+            payload?.qual_conta,
+          ]
+      : [
+          t?.contaId,
+          t?.conta_id,
+          t?.profileId,
+          t?.profile_id,
+          t?.qualConta,
+          t?.qual_conta,
+          t?.conta?.id,
+          t?.profile?.id,
+          payload?.contaId,
+          payload?.conta_id,
+          payload?.profileId,
+          payload?.profile_id,
+          payload?.qualConta,
+          payload?.qual_conta,
+        ];
+
+    const idsNormalizados = idsDaLinha.map(asId).filter(Boolean);
+
+    if (!idsNormalizados.length) return true;
+
+    return idsNormalizados.some((id) => !hiddenAccountIdsSet.has(id));
   },
   [shouldShowAccountEyes, hiddenAccountIdsSet]
 );
@@ -5605,17 +5675,45 @@ const { getFilteredTransactions, getFilteredTransactionsAno, anoRef } =
     const perfilDesejado = String(transacoesCardsPerfilView).trim().toUpperCase();
 
     return (lista ?? []).filter((t: any) => {
-      const idsRelacionados = [
-        t?.profileId,
-        t?.contaId,
-        t?.qualCartao,
-        t?.contaOrigemId,
-        t?.contaDestinoId,
-        t?.transferFromId,
-        t?.transferToId,
-      ]
-        .map((v) => String(v ?? "").trim())
-        .filter(Boolean);
+const payload =
+  t?.payload && typeof t.payload === "object" ? t.payload : {};
+
+const idsRelacionados = [
+  t?.profileId,
+  t?.profile_id,
+  t?.contaId,
+  t?.conta_id,
+  t?.qualConta,
+  t?.qual_conta,
+  t?.qualCartao,
+  t?.qual_cartao,
+
+  t?.contaOrigemId,
+  t?.conta_origem_id,
+  t?.contaDestinoId,
+  t?.conta_destino_id,
+  t?.transferFromId,
+  t?.transfer_from_id,
+  t?.transferToId,
+  t?.transfer_to_id,
+
+  payload?.profileId,
+  payload?.profile_id,
+  payload?.contaId,
+  payload?.conta_id,
+  payload?.qualConta,
+  payload?.qual_conta,
+  payload?.contaOrigemId,
+  payload?.conta_origem_id,
+  payload?.contaDestinoId,
+  payload?.conta_destino_id,
+  payload?.transferFromId,
+  payload?.transfer_from_id,
+  payload?.transferToId,
+  payload?.transfer_to_id,
+]
+  .map(asId)
+  .filter(Boolean);
 
       if (idsRelacionados.length === 0) return false;
 
@@ -11687,7 +11785,7 @@ mostrarReceitasResumo={mostrarReceitasResumo}
     isTogglePagoLocked={isTogglePagoLocked}
     handleEditClick={handleEditClick}
     confirmDelete={confirmDelete}
-    stats={stats}
+stats={stats}
     resetPaginationSignal={transacoesResetPageSignal}
   />
 </div>

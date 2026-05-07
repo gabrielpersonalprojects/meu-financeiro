@@ -945,8 +945,9 @@ onSelect={(val) => {
   onClick={() => {
     setOrganizacaoLista("status");
     setBuscaTransacoes("");
+    setPaginaAtual(1);
   }}
-  title="Limpar organização e busca"
+  title="Limpar organização, busca e paginação"
   className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
 >
   <RotateCcw className="h-5 w-5" strokeWidth={2.2} />

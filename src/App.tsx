@@ -6593,6 +6593,27 @@ if (!profileIdResolved) {
   return;
 }
 
+const confirmou = await new Promise<boolean>((resolve) => {
+  abrirConfirmacao({
+    title: "Remover categoria",
+    message: `Tem certeza que deseja excluir a categoria "${nomeAlvo}"? Essa ação não apaga lançamentos já criados, mas remove a categoria da sua lista.`,
+    confirmText: "Remover",
+    cancelText: "Cancelar",
+    onConfirm: () => {
+      resolve(true);
+      fecharConfirmacao();
+    },
+    onCancel: () => {
+      resolve(false);
+      fecharConfirmacao();
+    },
+  });
+});
+
+if (!confirmou) {
+  return;
+}
+
   try {
 await deleteUserCategory({
   userId,
@@ -12507,7 +12528,7 @@ mostrarReceitasResumo={mostrarReceitasResumo}
 
       {/* MODAL NOVA CATEGORIA */}
       {showModalCategoria && (
-       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+       <div className="fixed inset-0 z-[10090] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
             <h3 className="text-2xl font-black mb-6 text-slate-800 dark:text-white">Nova Categoria</h3>
             <p className="text-xs font-bold text-slate-400 uppercase mb-4">
@@ -12948,7 +12969,7 @@ className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac] 
 
 {confirmState && (
   <div
-    className="fixed inset-0 z-[9999] bg-slate-900/30 backdrop-blur-[8px] dark:bg-[rgba(2,6,23,0.68)]"
+    className="fixed inset-0 z-[10120] bg-slate-900/30 backdrop-blur-[8px] dark:bg-[rgba(2,6,23,0.68)]"
     onClick={() => {
       confirmState.onCancel?.();
       fecharConfirmacao();
@@ -13199,6 +13220,8 @@ setIsCreditCardStatementImportOpen(false);
   onToggleRowSelection={handleToggleStatementImportRowSelection}
   onEditRowDescription={handleUpdateStatementImportRowDescription}
   onChangeRowCategory={handleUpdateStatementImportRowCategory}
+  removerCategoria={removerCategoria}
+  onOpenCategoriaModal={() => setShowModalCategoria(true)}
   onChangeRowTag={handleUpdateStatementImportRowTag}
   onRemoveTag={removeCCTag}
   onChangeRowPlanningType={handleUpdateStatementImportRowPlanningType}

@@ -9,6 +9,7 @@ import type {
 } from "../../app/types";
 
 import CustomDropdown from "../CustomDropdown";
+import { CATEGORIAS_PADRAO } from "../../app/constants";
 
 type Props = {
   preview: StatementImportPreviewState | null;
@@ -19,6 +20,8 @@ type Props = {
   onToggleRowSelection: (rowHash: string) => void;
   onEditRowDescription: (rowHash: string, value: string) => void;
   onChangeRowCategory: (rowHash: string, value: string) => void;
+  removerCategoria?: (tipo: "despesa" | "receita", idx: string | number) => void;
+  onOpenCategoriaModal?: () => void;
   onChangeRowTag: (rowHash: string, value: string) => void;
   onRemoveTag?: (tag: string) => void;
   onChangeRowPlanningType: (
@@ -134,6 +137,8 @@ export default function StatementImportPreviewModal({
   onToggleRowSelection,
   onEditRowDescription,
   onChangeRowCategory,
+  removerCategoria,
+  onOpenCategoriaModal,
   onChangeRowTag,
   onRemoveTag,
   onChangeRowPlanningType,
@@ -240,14 +245,36 @@ useEffect(() => {
     setPlanningModalError("");
   };
 
-const getCategoryOptionsForRow = (row: any) => {
-  if (preview.mode === "credit_card") {
-    return categorias?.despesa ?? [];
-  }
+const DESPESA_PADRAO = new Set(
+  (CATEGORIAS_PADRAO?.despesa ?? []).map((item: string) => String(item))
+);
 
-  return row.direction === "entrada"
+const RECEITA_PADRAO = new Set(
+  (CATEGORIAS_PADRAO?.receita ?? []).map((item: string) => String(item))
+);
+
+const getCategoryTipoForRow = (row: any): "despesa" | "receita" => {
+  if (preview.mode === "credit_card") return "despesa";
+  return row.direction === "entrada" ? "receita" : "despesa";
+};
+
+const getCategoryOptionsForRow = (row: any) => {
+  const tipo = getCategoryTipoForRow(row);
+
+  return tipo === "receita"
     ? categorias?.receita ?? []
     : categorias?.despesa ?? [];
+};
+
+const getCategoryDropdownOptionsForRow = (row: any) => {
+  const tipo = getCategoryTipoForRow(row);
+  const fixedSet = tipo === "receita" ? RECEITA_PADRAO : DESPESA_PADRAO;
+
+  return getCategoryOptionsForRow(row).map((cat) => ({
+    label: cat,
+    value: cat,
+    isFixed: fixedSet.has(String(cat)),
+  }));
 };
 
 const handlePlanningTypeSelect = (
@@ -466,14 +493,17 @@ className={`grid grid-cols-[95px_minmax(170px,1fr)_44px_165px_150px_150px_100px_
     value={row.selectedCategory ?? ""}
     options={[
       { label: "Selecione", value: "" },
-      ...getCategoryOptionsForRow(row).map((cat) => ({
-        label: cat,
-        value: cat,
-      })),
-    ]}
+      ...getCategoryDropdownOptionsForRow(row),
+    ] as any}
     onSelect={(value) =>
       onChangeRowCategory(row.rowHash, String(value))
     }
+    onDelete={
+      removerCategoria
+        ? (value) => removerCategoria(getCategoryTipoForRow(row), value)
+        : undefined
+    }
+    onAddNew={onOpenCategoriaModal}
     menuMaxHeightPx={220}
     menuMinHeightPx={120}
     renderMenuInPortal

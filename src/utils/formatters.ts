@@ -1,9 +1,14 @@
 
-export const formatarMoeda = (valor: number): string => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(valor);
+export const formatarMoeda = (valor: number) => {
+  const numero = Number(valor || 0);
+
+  const valorSeguro =
+    Math.abs(numero) < 0.005 || Object.is(numero, -0) ? 0 : numero;
+
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(valorSeguro);
 };
 
 export const formatarData = (data: string): string => {

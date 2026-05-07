@@ -7735,11 +7735,17 @@ const greetingText =
     ? "Boa tarde"
     : "Boa noite";
 
-const formatResumoBRL = (valor: number) =>
-  `R$ ${Number(valor || 0).toLocaleString("pt-BR", {
+const formatResumoBRL = (valor: number) => {
+  const numero = Number(valor || 0);
+
+  const valorSeguro =
+    Math.abs(numero) < 0.005 || Object.is(numero, -0) ? 0 : numero;
+
+  return `R$ ${valorSeguro.toLocaleString("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+};
 
 const hojeResumoStr = getHojeLocal();
 const hojeResumoDate = new Date(`${hojeResumoStr}T00:00:00`);

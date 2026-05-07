@@ -144,8 +144,8 @@ const [paginaAtual, setPaginaAtual] = useState(1);
 const [mostrarValoresResumo, setMostrarValoresResumo] = useState(true);
 const [organizacaoLista, setOrganizacaoLista] = useState<
   | "status"
-  | "proximas"
-  | "distantes"
+  | "pagos_primeiro"
+  | "pendentes_primeiro"
   | "receitas_primeiro"
   | "despesas_primeiro"
   | "valor_crescente"
@@ -280,12 +280,18 @@ const compareDistantes = (a: any, b: any) => {
   };
 
   return [...getFilteredTransactions].sort((a: any, b: any) => {
-if (organizacaoLista === "proximas") {
+if (organizacaoLista === "pagos_primeiro") {
+  const aPriority = isPaid(a?.pago) ? 0 : 1;
+  const bPriority = isPaid(b?.pago) ? 0 : 1;
+  if (aPriority !== bPriority) return aPriority - bPriority;
   return compareProximas(a, b);
 }
 
-if (organizacaoLista === "distantes") {
-  return compareDistantes(a, b);
+if (organizacaoLista === "pendentes_primeiro") {
+  const aPriority = isPaid(a?.pago) ? 1 : 0;
+  const bPriority = isPaid(b?.pago) ? 1 : 0;
+  if (aPriority !== bPriority) return aPriority - bPriority;
+  return compareProximas(a, b);
 }
 
 if (organizacaoLista === "receitas_primeiro") {
@@ -827,10 +833,10 @@ value={
     ? "Valor crescente"
     : organizacaoLista === "valor_decrescente"
     ? "Valor decrescente"
-    : organizacaoLista === "proximas"
-    ? "Mais próximas"
-    : organizacaoLista === "distantes"
-    ? "Mais distantes"
+    : organizacaoLista === "pagos_primeiro"
+    ? "Pagos primeiro"
+    : organizacaoLista === "pendentes_primeiro"
+    ? "Pendentes primeiro"
     : "Organizar"
 }
 options={[
@@ -838,16 +844,16 @@ options={[
   "Despesas primeiro",
   "Valor crescente",
   "Valor decrescente",
-  "Mais próximas",
-  "Mais distantes",
+  "Pagos primeiro",
+  "Pendentes primeiro",
 ]}
 onSelect={(val) => {
   if (val === "Receitas primeiro") setOrganizacaoLista("receitas_primeiro");
   else if (val === "Despesas primeiro") setOrganizacaoLista("despesas_primeiro");
   else if (val === "Valor crescente") setOrganizacaoLista("valor_crescente");
   else if (val === "Valor decrescente") setOrganizacaoLista("valor_decrescente");
-  else if (val === "Mais próximas") setOrganizacaoLista("proximas");
-  else if (val === "Mais distantes") setOrganizacaoLista("distantes");
+  else if (val === "Pagos primeiro") setOrganizacaoLista("pagos_primeiro");
+  else if (val === "Pendentes primeiro") setOrganizacaoLista("pendentes_primeiro");
 }}
   className="w-full"
   triggerClassName="h-11 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"

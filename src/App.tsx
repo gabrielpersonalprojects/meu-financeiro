@@ -322,6 +322,8 @@ const invoicePaymentRemovalInFlightRef = useRef(false);
 const togglePagoInFlightRef = useRef<Set<string>>(new Set());
     const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
 const [ccTags, setCcTags] = useState<string[]>([]);
+const [showModalTag, setShowModalTag] = useState(false);
+const [novaTag, setNovaTag] = useState("");
 const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 const [isAccountStatementImportOpen, setIsAccountStatementImportOpen] = useState(false);
 const [isCreditCardStatementImportOpen, setIsCreditCardStatementImportOpen] = useState(false);
@@ -1067,12 +1069,33 @@ const scrollPorAbaRef = useRef<Record<string, number>>({
 });
 
 const removeCCTag = async (tag: string) => {
-  const target = (tag || "").trim();
+  const target = String(tag ?? "").trim();
   if (!target) return;
 
-  const userId = session?.user?.id;
+  const userId = String(session?.user?.id ?? "").trim();
   if (!userId) {
     toastCompact("Sessão inválida para remover tag.", "error");
+    return;
+  }
+
+  const confirmou = await new Promise<boolean>((resolve) => {
+    abrirConfirmacao({
+      title: "Remover tag",
+      message: `Tem certeza que deseja excluir a tag "${target}"? Essa ação não apaga lançamentos já criados, mas remove a tag da sua lista.`,
+      confirmText: "Remover",
+      cancelText: "Cancelar",
+      onConfirm: () => {
+        resolve(true);
+        fecharConfirmacao();
+      },
+      onCancel: () => {
+        resolve(false);
+        fecharConfirmacao();
+      },
+    });
+  });
+
+  if (!confirmou) {
     return;
   }
 
@@ -1082,18 +1105,95 @@ const removeCCTag = async (tag: string) => {
       nome: target,
     });
 
-setCcTags((prev) =>
-  prev.filter((t) => t.trim().toLowerCase() !== target.toLowerCase())
-);
+    setCcTags((prev) =>
+      prev.filter((t) => t.trim().toLowerCase() !== target.toLowerCase())
+    );
 
     if ((formTagCC || "").trim().toLowerCase() === target.toLowerCase()) {
       setFormTagCC("");
     }
 
+    setStatementImportPreview((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        rows: prev.rows.map((row) =>
+          String(row.selectedTag ?? "").trim().toLowerCase() ===
+          target.toLowerCase()
+            ? { ...row, selectedTag: "" }
+            : row
+        ),
+      };
+    });
+
     toastCompact("Tag removida.", "success");
   } catch (err) {
     console.error("ERRO AO REMOVER TAG:", err);
     toastCompact("Erro ao remover tag do banco.", "error");
+  }
+};
+
+const adicionarTag = async () => {
+  const nome = String(novaTag ?? "").trim();
+
+  if (!nome) {
+    toastCompact("Digite o nome da tag.", "error");
+    return;
+  }
+
+  const userId = String(session?.user?.id ?? "").trim();
+
+  if (!userId) {
+    toastCompact("Sessão inválida para criar tag.", "error");
+    return;
+  }
+
+  const jaExiste = (ccTags ?? []).some(
+    (tag) => String(tag ?? "").trim().toLowerCase() === nome.toLowerCase()
+  );
+
+  if (jaExiste) {
+    toastCompact("Essa tag já existe.", "info");
+    setNovaTag("");
+    setShowModalTag(false);
+    return;
+  }
+
+  try {
+    await insertUserTag({
+      userId,
+      nome,
+    });
+
+    setCcTags((prev) =>
+      Array.from(new Set([...(prev ?? []), nome])).sort((a, b) =>
+        a.localeCompare(b, "pt-BR")
+      )
+    );
+
+    setFormTagCC(nome);
+
+    setStatementImportPreview((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        rows: prev.rows.map((row) =>
+          String(row.selectedTag ?? "").trim()
+            ? row
+            : { ...row, selectedTag: nome }
+        ),
+      };
+    });
+
+    setNovaTag("");
+    setShowModalTag(false);
+
+    toastCompact("Tag criada.", "success");
+  } catch (err) {
+    console.error("ERRO AO CRIAR TAG:", err);
+    toastCompact("Erro ao criar tag.", "error");
   }
 };
 
@@ -3689,24 +3789,26 @@ const statementImportAccountOptions = useMemo(
 
 const statementImportCreditCardOptions = useMemo(
   () =>
-    (creditCards ?? []).map((card: any) => {
-      const nomeCartao = String(
-        card?.emissor ??
-          card?.bankText ??
-          card?.categoria ??
-          card?.brand ??
-          "Cartão"
-      ).trim();
+    (creditCards ?? [])
+      .filter((card: any) => card?.is_active !== false)
+      .map((card: any) => {
+        const nomeCartao = String(
+          card?.emissor ??
+            card?.bankText ??
+            card?.categoria ??
+            card?.brand ??
+            "Cartão"
+        ).trim();
 
-      const perfilCartao = getImportProfileBadge(
-        card?.perfil ?? card?.brand ?? card?.profileType ?? "pf"
-      );
+        const perfilCartao = getImportProfileBadge(
+          card?.perfil ?? card?.brand ?? card?.profileType ?? "pf"
+        );
 
-      return {
-        value: String(card?.id ?? "").trim(),
-        label: `${nomeCartao} • ${perfilCartao}`,
-      };
-    }),
+        return {
+          value: String(card?.id ?? "").trim(),
+          label: `${nomeCartao} • ${perfilCartao}`,
+        };
+      }),
   [creditCards]
 );
 
@@ -8847,6 +8949,7 @@ const expensePanelContent = (
     setFormTagCC={setFormTagCC}
     ccTags={ccTags}
     onRemoveCCTag={removeCCTag}
+    onOpenTagModal={() => setShowModalTag(true)}
   />
 );
 
@@ -8920,6 +9023,7 @@ const incomePanelContent = (
     setFormTagCC={setFormTagCC}
     ccTags={ccTags}
     onRemoveCCTag={removeCCTag}
+    onOpenTagModal={() => setShowModalTag(true)}
   />
 );
 
@@ -8993,6 +9097,7 @@ const transferPanelContent = (
     setFormTagCC={setFormTagCC}
     ccTags={ccTags}
     onRemoveCCTag={removeCCTag}
+    onOpenTagModal={() => setShowModalTag(true)}
   />
 );
 
@@ -9067,6 +9172,7 @@ const cardsPanelContent = (
     setFormTagCC={setFormTagCC}
     ccTags={ccTags}
     onRemoveCCTag={removeCCTag}
+    onOpenTagModal={() => setShowModalTag(true)}
   />
 );
 
@@ -12567,6 +12673,55 @@ mostrarReceitasResumo={mostrarReceitasResumo}
         </div>
       )}
 
+      {/* MODAL NOVA TAG */}
+{showModalTag && (
+  <div className="fixed inset-0 z-[10090] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
+      <h3 className="text-2xl font-black mb-6 text-slate-800 dark:text-white">
+        Nova Tag
+      </h3>
+
+      <p className="text-xs font-bold text-slate-400 uppercase mb-4">
+        Adicionando para:{" "}
+        <span className="text-violet-600 dark:text-violet-400">
+          Cartões
+        </span>
+      </p>
+
+      <input
+        type="text"
+        autoFocus
+        value={novaTag}
+        onChange={(e) => setNovaTag(e.target.value)}
+        className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl mb-8 outline-none focus:ring-4 focus:ring-indigo-50 dark:focus:ring-indigo-900 font-bold text-slate-800 dark:text-slate-100 transition-all"
+        placeholder="Digite o nome da tag."
+        onKeyDown={(e) => e.key === "Enter" && adicionarTag()}
+      />
+
+      <div className="flex gap-4">
+        <button
+          type="button"
+          onClick={() => {
+            setShowModalTag(false);
+            setNovaTag("");
+          }}
+          className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-black text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          onClick={adicionarTag}
+          className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg shadow-indigo-100 dark:shadow-none hover:scale-[1.02] active:scale-95 transition-all"
+        >
+          Salvar Tag
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
         {accountPickerOpen && (
   <>
     <button
@@ -13224,6 +13379,7 @@ setIsCreditCardStatementImportOpen(false);
   onOpenCategoriaModal={() => setShowModalCategoria(true)}
   onChangeRowTag={handleUpdateStatementImportRowTag}
   onRemoveTag={removeCCTag}
+  onOpenTagModal={() => setShowModalTag(true)}
   onChangeRowPlanningType={handleUpdateStatementImportRowPlanningType}
   onSetRowPlanningEndDate={handleUpdateStatementImportRowPlanningEndDate}
   onSetRowInstallmentConfig={handleUpdateStatementImportRowInstallmentConfig}

@@ -60,6 +60,7 @@ type Props = {
   ccTags: string[];
 
   onRemoveCCTag: (tag: string) => void;
+  onOpenTagModal: () => void;
 
   // mantive no props por compatibilidade (não uso aqui)
   handleFormatCurrencyInput: (value: string, setter: (v: string) => void) => void;
@@ -211,9 +212,10 @@ export default function NewTransactionCard({
   formTagCC,
   setFormTagCC,
 
-  ccTags,
+   ccTags,
 
   onRemoveCCTag,
+  onOpenTagModal,
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   handleFormatCurrencyInput,
@@ -537,79 +539,21 @@ const ccCategoryOptions = despesaCategoryOptions;
     </div>
 
     <div className="min-w-0 w-full">
-<label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-  Tag (opcional)
-</label>
-
-      <div className="relative w-full">
-        <input
-          type="text"
-          value={formTagCC}
-          onChange={(e) => setFormTagCC(e.target.value)}
-          onFocus={() => setIsTagOpen(true)}
-          onBlur={() => {
-            window.setTimeout(() => setIsTagOpen(false), 120);
-          }}
-          placeholder="Casa, pai, carro..."
-          className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-sm font-semibold outline-none focus:ring-2 focus:ring-violet-100 dark:focus:ring-violet-900"
-        />
-
-        {isTagOpen && (ccTags?.length ?? 0) > 0 && (
-          <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-lg">
-          <div className="p-1">
-<div className="max-h-[232px] overflow-y-auto px-1 [scrollbar-width:thin] [scrollbar-color:rgba(64,0,156,0.55)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#40009c]/55 hover:[&::-webkit-scrollbar-thumb]:bg-[#40009c]/80">
-  {(ccTags || [])
-    .filter((t) => {
-      const q = (formTagCC || "").trim().toLowerCase();
-      if (!q) return true;
-      return t.toLowerCase().includes(q);
-    })
-    .slice(0, 30)
-    .map((t) => (
-      <div
-        key={t}
-        className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition"
-      >
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            setFormTagCC(t);
-            setIsTagOpen(false);
-          }}
-          className="flex-1 text-left text-sm font-semibold text-slate-800 dark:text-slate-100"
-          title="Selecionar tag"
-        >
-          {t}
-        </button>
-
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onRemoveCCTag(t)}
-          className="h-8 w-8 rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 hover:bg-white/80 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-200"
-          title="Remover tag"
-          aria-label={`Remover tag ${t}`}
-        >
-          ✕
-        </button>
-      </div>
-    ))}
-
-  {(ccTags || []).filter((t) => {
-    const q = (formTagCC || "").trim().toLowerCase();
-    if (!q) return true;
-    return t.toLowerCase().includes(q);
-  }).length === 0 && (
-    <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
-      Nenhuma tag encontrada.
-    </div>
-  )}
-</div>
-            </div>
-          </div>
-        )}
-      </div>
+      <CustomDropdown
+        label="Tag (opcional)"
+        value={formTagCC}
+        options={[
+          { label: "Selecione", value: "" },
+          ...(ccTags || []).map((tag) => ({
+            label: tag,
+            value: tag,
+            isFixed: false,
+          })),
+        ] as any}
+        onSelect={(val) => setFormTagCC(String(val))}
+        onDelete={(value) => onRemoveCCTag(String(value))}
+        onAddNew={onOpenTagModal}
+      />
     </div>
   </div>
 )}

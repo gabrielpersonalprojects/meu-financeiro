@@ -24,6 +24,7 @@ type Props = {
   onOpenCategoriaModal?: () => void;
   onChangeRowTag: (rowHash: string, value: string) => void;
   onRemoveTag?: (tag: string) => void;
+  onOpenTagModal?: () => void;
   onChangeRowPlanningType: (
     rowHash: string,
     planningType: StatementImportPlanningType
@@ -141,6 +142,7 @@ export default function StatementImportPreviewModal({
   onOpenCategoriaModal,
   onChangeRowTag,
   onRemoveTag,
+  onOpenTagModal,
   onChangeRowPlanningType,
   onSetRowPlanningEndDate,
   onSetRowInstallmentConfig,
@@ -156,38 +158,6 @@ const ignoredCount = preview.rows.filter((row) => row.selected !== true).length;
 
 const hasSelectedRows = selectedCount > 0;
 const [editingRowHash, setEditingRowHash] = useState<string | null>(null);
-
-const [tagOpenRowHash, setTagOpenRowHash] = useState<string | null>(null);
-
-const [tagMenuPosition, setTagMenuPosition] = useState<{
-  top: number;
-  left: number;
-  width: number;
-}>({
-  top: 0,
-  left: 0,
-  width: 0,
-});
-
-const filteredTagsByRow = useMemo(() => {
-  const map = new Map<string, string[]>();
-
-  for (const row of visibleRows) {
-    const q = String(row.selectedTag ?? "").trim().toLowerCase();
-
-    const filtered = (ccTags ?? [])
-      .filter(Boolean)
-      .filter((tag) => {
-        if (!q) return true;
-        return String(tag).toLowerCase().includes(q);
-      })
-      .slice(0, 30);
-
-    map.set(row.rowHash, filtered);
-  }
-
-  return map;
-}, [visibleRows, ccTags]);
 
 useEffect(() => {
   const previousHtmlOverflow = document.documentElement.style.overflow;
@@ -510,90 +480,29 @@ className={`grid grid-cols-[95px_minmax(170px,1fr)_44px_165px_150px_150px_100px_
   />
 </div>
 
-<div className="px-3 py-3 min-w-0">
-  <div className="relative w-full">
-    <input
-      type="text"
-      value={row.selectedTag ?? ""}
-      onChange={(e) => onChangeRowTag(row.rowHash, e.target.value)}
-      onFocus={(e) => {
-  const rect = e.currentTarget.getBoundingClientRect();
-
-  setTagMenuPosition({
-    top: rect.bottom + 8,
-    left: rect.left,
-    width: rect.width,
-  });
-
-  setTagOpenRowHash(row.rowHash);
-}}
-      onBlur={() => {
-        window.setTimeout(() => {
-          setTagOpenRowHash((current) =>
-            current === row.rowHash ? null : current
-          );
-        }, 120);
-      }}
-      placeholder="Selecione"
-      className="appearance-none h-10 w-full rounded-xl border border-slate-200 bg-white pl-3.5 pr-9 text-[13px] text-left text-slate-900 outline-none hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800/60"
-    />
-
-    <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-slate-500 dark:text-slate-400">
-      ›
-    </span>
-
-{tagOpenRowHash === row.rowHash &&
-  (filteredTagsByRow.get(row.rowHash)?.length ?? 0) > 0 &&
-  createPortal(
-    <div
-      className="z-[10060] min-w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-      style={{
-        position: "fixed",
-        top: tagMenuPosition.top,
-        left: tagMenuPosition.left,
-        width: tagMenuPosition.width,
-      }}
-    >
-      <div className="p-1">
-        <div className="max-h-[232px] overflow-y-auto px-1 [scrollbar-width:thin] [scrollbar-color:rgba(64,0,156,0.55)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#40009c]/55 hover:[&::-webkit-scrollbar-thumb]:bg-[#40009c]/80">
-          {(filteredTagsByRow.get(row.rowHash) ?? []).map((tag) => (
-            <div
-              key={tag}
-              className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-100/70 dark:hover:bg-slate-800/60"
-            >
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onChangeRowTag(row.rowHash, tag);
-                  setTagOpenRowHash(null);
-                }}
-                className="flex-1 text-left text-sm font-semibold text-slate-800 dark:text-slate-100"
-                title="Selecionar tag"
-              >
-                {tag}
-              </button>
-
-              {onRemoveTag ? (
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onRemoveTag(tag)}
-                  className="h-8 w-8 rounded-lg border border-slate-200/70 bg-white/60 text-slate-600 hover:bg-white/80 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                  title="Remover tag"
-                  aria-label={`Remover tag ${tag}`}
-                >
-                  ✕
-                </button>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>,
-    document.body
-  )}
-  </div>
+<div className="px-3 py-3">
+  <CustomDropdown
+    label=""
+    value={row.selectedTag ?? ""}
+    options={[
+      { label: "Selecione", value: "" },
+      ...(ccTags || []).map((tag) => ({
+        label: tag,
+        value: tag,
+        isFixed: false,
+      })),
+    ] as any}
+    onSelect={(value) => onChangeRowTag(row.rowHash, String(value))}
+    onDelete={
+      onRemoveTag
+        ? (value) => onRemoveTag(String(value))
+        : undefined
+    }
+    onAddNew={onOpenTagModal}
+    menuMaxHeightPx={220}
+    menuMinHeightPx={120}
+    renderMenuInPortal
+  />
 </div>
 
             <div className="px-4 py-3">{moedaBR(row.amount)}</div>

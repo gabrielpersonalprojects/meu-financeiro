@@ -1827,8 +1827,7 @@ onClick={() => {
             <>
               <ul className="space-y-2">
                 {txMesPaginadas.map((t) => {
-                  const valor = Number(t.valor) || 0;
-                  const isNeg = valor < 0;
+                  const valor = Math.abs(Number(t.valor) || 0);
 
                   const parcelasTotal = (t as any).parcelasTotal ?? (t as any).totalParcelas ?? null;
 const parcelaAtual = (t as any).parcelaAtual ?? (t as any).parcelaN ?? null;
@@ -1932,12 +1931,11 @@ const descricaoLimpa = String(t.descricao ?? "")
                         </div>
 
                     <div className="text-right shrink-0 flex items-center gap-2">
-                          <div
-                            className={`text-sm font-semibold ${
-                              isNeg ? "text-rose-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"
-                            }`}
-                          >
-                            {valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                          <div className="text-sm font-semibold text-rose-700 dark:text-red-300">
+                            -{valor.toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })}
                           </div>
 
 {(() => {

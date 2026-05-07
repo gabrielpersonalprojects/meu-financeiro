@@ -923,6 +923,11 @@ const handleHomeTransacoesClick = () => {
     setFiltroConta("todas");
   }
 
+  setIsCcExpanded(false);
+  setSelectedCreditCardId("");
+  setCreditCardsPage(1);
+  setIsCardsResumoOpen(false);
+
   setTransacoesCardsPerfilView("geral");
   setActiveTab("transacoes");
   setTransacoesResetPageSignal((prev) => prev + 1);
@@ -3962,6 +3967,14 @@ const inferirCicloDaTransacaoLocal = (t: any) => {
   totaisPorCiclo.set(ciclo, atual);
 });
 
+    const hojeDate = new Date(`${hoje}T12:00:00`);
+    hojeDate.setHours(0, 0, 0, 0);
+
+    const diaVencimentoNum = Math.max(
+      1,
+      Math.min(31, Number(c?.diaVencimento ?? 10))
+    );
+
     const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
       .map(([ciclo, info]) => {
         if (!/^\d{4}-\d{2}$/.test(String(ciclo))) return null;
@@ -3985,15 +3998,52 @@ const inferirCicloDaTransacaoLocal = (t: any) => {
         if (saldo <= 0) return null;
         if (String(ciclo) >= String(cicloBase)) return null;
 
+        const [anoStr, mesStr] = String(ciclo).split("-");
+        const ano = Number(anoStr);
+        const mes = Number(mesStr);
+
+        if (!ano || !mes) return null;
+
+        const vencimento = new Date(
+          ano,
+          mes - 1,
+          diaVencimentoNum,
+          12,
+          0,
+          0,
+          0
+        );
+        vencimento.setHours(0, 0, 0, 0);
+
         return {
           ciclo: String(ciclo),
           saldo,
+          vencimento,
         };
       })
-      .filter(Boolean) as Array<{ ciclo: string; saldo: number }>;
+      .filter(Boolean) as Array<{
+        ciclo: string;
+        saldo: number;
+        vencimento: Date;
+      }>;
 
-    const existeFaturaAtrasada = ciclosFechadosPendentes.length > 1;
-    const existeFaturaFechadaPendente = ciclosFechadosPendentes.length === 1;
+    const existeFaturaAtrasada = ciclosFechadosPendentes.some((item) => {
+      const vencimentoTime =
+        item?.vencimento instanceof Date
+          ? item.vencimento.getTime()
+          : Number.NaN;
+
+      return Number.isFinite(vencimentoTime) && vencimentoTime < hojeDate.getTime();
+    });
+
+    const existeFaturaFechadaPendente = ciclosFechadosPendentes.some((item) => {
+      const vencimentoTime =
+        item?.vencimento instanceof Date
+          ? item.vencimento.getTime()
+          : Number.NaN;
+
+      return Number.isFinite(vencimentoTime) && vencimentoTime >= hojeDate.getTime();
+    });
 
     if (existeFaturaAtrasada) return 0;
     if (existeFaturaFechadaPendente) return 1;
@@ -4006,6 +4056,11 @@ return [...(creditCards ?? [])].sort((a: any, b: any) => {
 
   if (aInactive !== bInactive) return aInactive - bInactive;
 
+  const rankA = getCardRank(a);
+  const rankB = getCardRank(b);
+
+  if (rankA !== rankB) return rankA - rankB;
+
   const aTime = Math.max(
     new Date(String(a?.updatedAt ?? a?.updated_at ?? "")).getTime() || 0,
     new Date(String(a?.createdAt ?? a?.created_at ?? "")).getTime() || 0
@@ -4017,11 +4072,6 @@ return [...(creditCards ?? [])].sort((a: any, b: any) => {
   );
 
   if (aTime !== bTime) return bTime - aTime;
-
-  const rankA = getCardRank(a);
-  const rankB = getCardRank(b);
-
-  if (rankA !== rankB) return rankA - rankB;
 
   return String(a?.name ?? a?.nome ?? "").localeCompare(
     String(b?.name ?? b?.nome ?? ""),
@@ -10327,9 +10377,17 @@ const isPagaNoCicloAtual = statusManualCicloAtual === "paga";
           });
 
           (pagamentosFatura ?? []).forEach((p: any) => {
-            if (String(p?.cartaoId ?? "") !== String(c.id)) return;
+            const idsPagamento = [p?.cartaoId, p?.cardId]
+              .map((value) => String(value ?? "").trim())
+              .filter(Boolean);
 
-            const ciclo = normalizePaymentCycleKeyToYm(p?.cicloKey);
+            if (!idsPagamento.includes(String(c.id).trim())) return;
+
+            const ciclo = normalizePaymentCycleKeyToYm(
+              p?.cicloKey,
+              p?.dataPagamento ?? p?.criadoEm ?? p?.createdAt ?? ""
+            );
+
             if (!ciclo) return;
 
             const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
@@ -10521,22 +10579,42 @@ const statusResumoFaturaAtual: "paga" | "parcelada" | "atrasada" | "fechada" | "
            <div key={c.id} className="relative group w-full max-w-[300px]">
 <button
   type="button"
-  onClick={() => {
-    if (isCardInactive) {
-      return;
-    }
+onClick={() => {
+  if (isCardInactive) {
+    return;
+  }
 
-    const cicloCorreto = getCardCycleMonthOnOpen(c);
-    setCreditJumpMonth(cicloCorreto);
+  const cardIdToTouch = String(c.id ?? "").trim();
 
-    if (c.id === selectedCreditCardId) {
-      toggleCcExpanded();
-      return;
-    }
+  if (cardIdToTouch) {
+    const agoraIso = new Date().toISOString();
 
-    setSelectedCreditCardId(c.id);
-    setIsCcExpanded(true);
-  }}
+    setCreditCards((prev) =>
+      (prev ?? []).map((card: any) =>
+        String(card?.id ?? "").trim() === cardIdToTouch
+          ? {
+              ...card,
+              updatedAt: agoraIso,
+              updated_at: agoraIso,
+            }
+          : card
+      )
+    );
+
+    void touchCardAndRefreshInState(cardIdToTouch);
+  }
+
+  const cicloCorreto = getCardCycleMonthOnOpen(c);
+  setCreditJumpMonth(cicloCorreto);
+
+  if (c.id === selectedCreditCardId) {
+    toggleCcExpanded();
+    return;
+  }
+
+  setSelectedCreditCardId(c.id);
+  setIsCcExpanded(true);
+}}
   className={[
     "w-full block text-left rounded-2xl transition-all overflow-hidden",
     isCardInactive ? "cursor-default opacity-45 saturate-50" : "cursor-pointer",

@@ -111,8 +111,7 @@ import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
-import { Archive, BookOpen, Headphones, HelpCircle, Home, LogOut, Moon, Paperclip, Send, Sun, Pencil, PencilLine, Star, Trash2, X } from "lucide-react";
-import {
+import { Archive, BookOpen, Headphones, HelpCircle, Home, LogOut, Moon, Paperclip, Send, Sun, Pencil, PencilLine, Star, Trash2, X, Search } from "lucide-react";import {
   STORAGE_KEYS,
   PROFILE_KEYS,
   buildProfilePrefix,
@@ -3991,12 +3990,20 @@ const [isCardsResumoOpen, setIsCardsResumoOpen] = useState(false);
 const [cardsResumoMes, setCardsResumoMes] = useState<string>(getHojeLocal().slice(0, 7));
 const [cardsResumoCategoria, setCardsResumoCategoria] = useState<string>("todas");
 const [cardsResumoTag, setCardsResumoTag] = useState<string>("todas");
+const [cardsResumoBusca, setCardsResumoBusca] = useState<string>("");
 
 const categoriaResumoCartoesLabel = (cat: any) => {
   if (!cat) return "";
   if (typeof cat === "string") return String(cat).trim();
   return String(cat?.nome ?? cat?.label ?? cat?.value ?? "").trim();
 };
+
+const normalizeResumoSearchText = (value: any) =>
+  String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
 
 const allCreditCardTransactions = useMemo(() => {
   return (transacoes ?? []).filter((t: any) => {
@@ -4033,10 +4040,31 @@ const cardsResumoTags = useMemo(() => {
 }, [allCreditCardTransactions]);
 
 const cardsResumoFiltradas = useMemo(() => {
+  const termo = normalizeResumoSearchText(cardsResumoBusca);
+
   return allCreditCardTransactions.filter((t: any) => {
     const mes = String(t?.data ?? "").slice(0, 7);
     const categoria = categoriaResumoCartoesLabel(t?.categoria);
     const tag = String(t?.tag ?? "").trim();
+
+    const cartaoId = String(t?.cartaoId ?? t?.qualCartao ?? "").trim();
+
+    const card = (creditCards ?? []).find(
+      (c: any) => String(c?.id ?? "").trim() === cartaoId
+    );
+
+const cardAny = card as any;
+
+const cartaoNome = String(
+  cardAny?.emissor ??
+    cardAny?.name ??
+    cardAny?.bankText ??
+    cardAny?.categoria ??
+    "Cartão"
+).trim();
+
+const cartaoCategoria = String(cardAny?.categoria ?? "").trim();
+const cartaoPerfil = String(cardAny?.perfil ?? cardAny?.brand ?? "").trim();
 
     const okMes =
       !String(cardsResumoMes ?? "").trim() || mes === cardsResumoMes;
@@ -4047,13 +4075,31 @@ const cardsResumoFiltradas = useMemo(() => {
     const okTag =
       cardsResumoTag === "todas" || tag === cardsResumoTag;
 
-    return okMes && okCategoria && okTag;
+    const okBusca =
+      !termo ||
+      normalizeResumoSearchText(
+        [
+          t?.descricao,
+          categoria,
+          tag,
+          t?.data,
+          formatarData(t?.data),
+          formatarMoeda(Math.abs(Number(t?.valor ?? 0))),
+          cartaoNome,
+          cartaoCategoria,
+          cartaoPerfil,
+        ].join(" ")
+      ).includes(termo);
+
+    return okMes && okCategoria && okTag && okBusca;
   });
 }, [
   allCreditCardTransactions,
   cardsResumoMes,
   cardsResumoCategoria,
   cardsResumoTag,
+  cardsResumoBusca,
+  creditCards,
 ]);
 
 const cardsResumoAgrupado = useMemo(() => {
@@ -10347,12 +10393,13 @@ if (activeTab === "cartoes" && tab !== "cartoes") {
   <div className="w-[320px] flex justify-center">
     <button
       type="button"
-      onClick={() => {
-        setCardsResumoMes(getHojeLocal().slice(0, 7));
-        setCardsResumoCategoria("todas");
-        setCardsResumoTag("todas");
-        setIsCardsResumoOpen(true);
-      }}
+onClick={() => {
+  setCardsResumoMes(getHojeLocal().slice(0, 7));
+  setCardsResumoCategoria("todas");
+  setCardsResumoTag("todas");
+  setCardsResumoBusca("");
+  setIsCardsResumoOpen(true);
+}}
       className="inline-flex h-11 items-center justify-center rounded-2xl border border-violet-300/70 dark:border-violet-400/20 bg-violet-100/85 dark:bg-violet-500/15 px-5 text-sm font-semibold text-violet-700 dark:text-violet-200 shadow-sm transition hover:bg-violet-200 dark:hover:bg-violet-500/20"
     >
       Abrir resumo dos cartões
@@ -10406,14 +10453,38 @@ if (activeTab === "cartoes" && tab !== "cartoes") {
           />
         </div>
 
+                <div className="relative w-full sm:w-[260px]">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+
+          <input
+            type="text"
+            value={cardsResumoBusca}
+            onChange={(e) => setCardsResumoBusca(e.target.value)}
+            placeholder="Buscar lançamento..."
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-9 text-sm font-semibold text-slate-800 outline-none shadow-sm transition placeholder:text-slate-400 hover:bg-slate-50 focus:border-[#4600ac]/35 focus:ring-4 focus:ring-violet-100/70 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:bg-slate-800 dark:focus:ring-violet-900/30"
+          />
+
+          {cardsResumoBusca.trim() ? (
+            <button
+              type="button"
+              onClick={() => setCardsResumoBusca("")}
+              className="absolute right-2.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-[#4600ac] dark:hover:bg-slate-800 dark:hover:text-violet-300"
+              title="Limpar busca"
+            >
+              ×
+            </button>
+          ) : null}
+        </div>
+
 <button
   type="button"
-  onClick={() => {
-    setIsCardsResumoOpen(false);
-    setCardsResumoMes(getHojeLocal().slice(0, 7));
-    setCardsResumoCategoria("todas");
-    setCardsResumoTag("todas");
-  }}
+onClick={() => {
+  setIsCardsResumoOpen(false);
+  setCardsResumoMes(getHojeLocal().slice(0, 7));
+  setCardsResumoCategoria("todas");
+  setCardsResumoTag("todas");
+  setCardsResumoBusca("");
+}}
 className="inline-flex h-11 items-center justify-center rounded-2xl border border-violet-300/70 dark:border-violet-400/20 bg-violet-100/85 dark:bg-violet-500/15 px-5 text-sm font-semibold text-violet-700 dark:text-violet-200 shadow-sm transition hover:bg-violet-200 dark:hover:bg-violet-500/20">
   Fechar resumo
 </button>

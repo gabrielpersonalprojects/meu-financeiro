@@ -1174,19 +1174,6 @@ const adicionarTag = async () => {
 
     setFormTagCC(nome);
 
-    setStatementImportPreview((prev) => {
-      if (!prev) return prev;
-
-      return {
-        ...prev,
-        rows: prev.rows.map((row) =>
-          String(row.selectedTag ?? "").trim()
-            ? row
-            : { ...row, selectedTag: nome }
-        ),
-      };
-    });
-
     setNovaTag("");
     setShowModalTag(false);
 

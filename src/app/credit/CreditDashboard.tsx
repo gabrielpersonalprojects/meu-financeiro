@@ -361,49 +361,88 @@ const dataMinimaPermitidaNaFaturaAtual = formatDateOnlyISO(cicloInicio);
     cicloFim
   )}`;
 
-  const getInvoiceMonthKeyForTransaction = (iso: string) => {
-    const dt = parseISODateLocal(iso);
-    if (Number.isNaN(dt.getTime())) return "";
+const getInvoiceMonthKeyForTransaction = (iso: string) => {
+  const dt = parseISODateLocal(iso);
+  if (Number.isNaN(dt.getTime())) return "";
 
-    const fechamentoAtualDaData = makeDate(dt.getFullYear(), dt.getMonth(), diaFechamento);
+  const fechamento = Math.max(1, Math.min(31, Number(diaFechamento ?? 1)));
+  const vencimento = Math.max(1, Math.min(31, Number(diaVencimento ?? 1)));
+  const invoiceOffset = vencimento > fechamento ? 0 : 1;
 
-    const mesFechamento =
-      dt.getTime() > fechamentoAtualDaData.getTime()
-        ? addMonths(new Date(dt.getFullYear(), dt.getMonth(), 1), 1)
-        : new Date(dt.getFullYear(), dt.getMonth(), 1);
+  const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
 
-    const mesVencimento = addMonths(mesFechamento, 1);
+  // Dia do fechamento já pertence à próxima fatura.
+  if (dt.getDate() >= fechamento) {
+    base.setMonth(base.getMonth() + 1);
+  }
 
-    return `${mesVencimento.getFullYear()}-${pad2(mesVencimento.getMonth() + 1)}`;
-  };
+  base.setMonth(base.getMonth() + invoiceOffset);
+
+  return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}`;
+};
+
+const getTxCardRef = (t: any) =>
+  String(
+    t?.cartaoId ??
+      t?.cartao_id ??
+      t?.qualCartao ??
+      t?.qual_cartao ??
+      t?.qualConta ??
+      t?.qual_conta ??
+      t?.payload?.cartaoId ??
+      t?.payload?.cartao_id ??
+      t?.payload?.qualCartao ??
+      t?.payload?.qual_cartao ??
+      t?.payload?.qualConta ??
+      t?.payload?.qual_conta ??
+      t?.payload?.targetId ??
+      t?.payload?.target_id ??
+      ""
+  ).trim();
 
 const txMes = (transacoes || []).filter((t: any) => {
   if (String(t?.tipo ?? "").toLowerCase() !== "cartao_credito") return false;
 
-  const refCartaoId = String(t?.cartaoId ?? "").trim();
-  const refQualCartao = String(t?.qualCartao ?? "").trim();
   const cartaoAtualId = String(cartao.id ?? "").trim();
 
-  if (refCartaoId !== cartaoAtualId && refQualCartao !== cartaoAtualId) return false;
+  if (getTxCardRef(t) !== cartaoAtualId) return false;
 
-  const dt = parseISODateLocal(t.data);
-  if (Number.isNaN(dt.getTime())) return false;
+  const dataTx = String(t?.data ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataTx)) return false;
 
-  const dt0 = startOfDay(dt);
-  const cicloInicio0 = startOfDay(cicloInicio);
-  const cicloFim0 = startOfDay(cicloFim);
-
-  return dt0 >= cicloInicio0 && dt0 <= cicloFim0;
+  return getInvoiceMonthKeyForTransaction(dataTx) === baseMonthKey;
 });
 
-  const txDoCartao = useMemo(() => {
-    return (transacoes || []).filter((t) => {
-      if (t.tipo !== "cartao_credito") return false;
-      const refCartaoId = String((t as any).cartaoId ?? "").trim();
-      const refQualCartao = String((t as any).qualCartao ?? "").trim();
-      return refCartaoId === String(cartao.id) || refQualCartao === String(cartao.id);
-    });
-  }, [transacoes, cartao.id]);
+console.log("DEBUG_CARTAO_EXPANDIDO", {
+  cartaoId: cartao.id,
+  cartaoNome: cartao.nome,
+  totalTransacoesRecebidasNoDashboard: transacoes?.length ?? 0,
+  totalTxDoCartaoNoMes: txMes.length,
+  baseMonthKey,
+  labelAtual,
+  cicloInicio: formatDateOnlyISO(cicloInicio),
+  cicloFim: formatDateOnlyISO(cicloFim),
+  primeirasTransacoesRecebidas: (transacoes ?? []).slice(0, 10).map((t: any) => ({
+    id: t?.id,
+    tipo: t?.tipo,
+    data: t?.data,
+    descricao: t?.descricao,
+    cartaoId: t?.cartaoId,
+    qualCartao: t?.qualCartao,
+    payloadCartaoId: t?.payload?.cartaoId,
+    payloadTargetId: t?.payload?.targetId,
+    refResolvida: getTxCardRef(t),
+  })),
+});
+
+const txDoCartao = useMemo(() => {
+  const cartaoAtualId = String(cartao.id ?? "").trim();
+
+  return (transacoes || []).filter((t: any) => {
+    if (String(t?.tipo ?? "").toLowerCase() !== "cartao_credito") return false;
+    return getTxCardRef(t) === cartaoAtualId;
+  });
+}, [transacoes, cartao.id]);
 
   useEffect(() => {
     if (!transacoes?.length) return;

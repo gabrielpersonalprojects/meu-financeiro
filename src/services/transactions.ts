@@ -27,14 +27,31 @@ export type TransactionRow = {
 };
 
 export async function fetchTransactions(userId: string) {
-  const { data, error } = await supabase
-    .from("transactions")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: true });
+  const pageSize = 1000;
+  let from = 0;
+  let allRows: TransactionRow[] = [];
 
-  if (error) throw error;
-  return data ?? [];
+  while (true) {
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+
+    const rows = (data ?? []) as TransactionRow[];
+    allRows = [...allRows, ...rows];
+
+    if (rows.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return allRows;
 }
 
 export type InsertTransactionInput = {

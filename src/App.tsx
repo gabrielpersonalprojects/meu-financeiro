@@ -588,22 +588,91 @@ const handlePrepareStatementImport = async () => {
   }
 }
 
-    const existingSourceHashes = await findExistingStatementImportSourceHashes({
-      userId: session.user.id,
-      mode: statementImportPreview.mode === "account" ? "conta" : "cartao",
-      targetAccountId:
-        statementImportPreview.mode === "account"
-          ? statementImportPreview.targetId
-          : null,
-      targetCreditCardId:
-        statementImportPreview.mode === "credit_card"
-          ? statementImportPreview.targetId
-          : null,
-      sourceHashes: draft.map((item) => item.sourceHash),
-    });
+    const modeSafeInicial =
+      statementImportPreview.mode === "account" ? "conta" : "cartao";
+
+    const targetAccountIdInicial =
+      modeSafeInicial === "conta" ? statementImportPreview.targetId : null;
+
+    const targetCreditCardIdInicial =
+      modeSafeInicial === "cartao" ? statementImportPreview.targetId : null;
+
+    const sourceHashesDraft = draft
+      .map((item) => String(item.sourceHash ?? "").trim())
+      .filter(Boolean);
+
+    const [existingEntriesDaImportacao, txRowsAtuaisBanco] = await Promise.all([
+      findStatementImportEntriesBySourceHashes({
+        userId: session.user.id,
+        mode: modeSafeInicial,
+        targetAccountId: targetAccountIdInicial,
+        targetCreditCardId: targetCreditCardIdInicial,
+        sourceHashes: sourceHashesDraft,
+      }),
+      fetchTransactions(session.user.id),
+    ]);
+
+    const transacoesAtuaisBanco = (txRowsAtuaisBanco ?? []).map(
+      mapTransactionRowToApp
+    );
+
+    const transactionIdsValidosDoDestino = new Set(
+      (transacoesAtuaisBanco ?? [])
+        .filter((tx: any) => {
+          const txId = String(tx?.id ?? "").trim();
+          if (!txId) return false;
+
+          if (modeSafeInicial === "cartao") {
+            const destinoCartao = String(targetCreditCardIdInicial ?? "").trim();
+
+            const txCartaoId = String(
+              tx?.cartaoId ??
+                tx?.payload?.cartaoId ??
+                tx?.qualCartao ??
+                tx?.payload?.qualCartao ??
+                ""
+            ).trim();
+
+            return !!destinoCartao && txCartaoId === destinoCartao;
+          }
+
+          const destinoConta = String(targetAccountIdInicial ?? "").trim();
+
+          const txContaId = String(
+            tx?.contaId ??
+              tx?.profileId ??
+              tx?.qualConta ??
+              tx?.payload?.contaId ??
+              ""
+          ).trim();
+
+          return !!destinoConta && txContaId === destinoConta;
+        })
+        .map((tx: any) => String(tx?.id ?? "").trim())
+        .filter(Boolean)
+    );
+
+    const sourceHashesRealmenteDuplicados = new Set(
+      (existingEntriesDaImportacao ?? [])
+        .filter((entry: any) => {
+          const linkedTransactionId = String(
+            entry?.transaction_id ?? entry?.transactionId ?? ""
+          ).trim();
+
+          return (
+            !!linkedTransactionId &&
+            transactionIdsValidosDoDestino.has(linkedTransactionId)
+          );
+        })
+        .map((entry: any) => String(entry?.source_hash ?? "").trim())
+        .filter(Boolean)
+    );
 
     const draftSemDuplicadas = draft.filter(
-      (item) => !existingSourceHashes.has(item.sourceHash)
+      (item) =>
+        !sourceHashesRealmenteDuplicados.has(
+          String(item.sourceHash ?? "").trim()
+        )
     );
 
     const totalDuplicadas = draft.length - draftSemDuplicadas.length;
@@ -675,10 +744,35 @@ normalizedPayload: {
           ).trim()
         : "";
 
-    const transactionsToImport = buildTransactionsFromStatementImportDraft({
+    const transactionsToImportBase = buildTransactionsFromStatementImportDraft({
       draftItems: draftSemDuplicadas,
       selectedCardLabel,
     });
+
+    const targetCreditCardIdForImport =
+      statementImportPreview.mode === "credit_card"
+        ? String(statementImportPreview.targetId ?? "").trim()
+        : "";
+
+    const transactionsToImport =
+      statementImportPreview.mode === "credit_card"
+        ? transactionsToImportBase.map((tx: any) => ({
+            ...tx,
+            tipo: "cartao_credito",
+            cartaoId: targetCreditCardIdForImport,
+            qualCartao: targetCreditCardIdForImport,
+            valor: Math.abs(Number(tx?.valor || 0)),
+            pago: false,
+            payload: {
+              ...(tx?.payload && typeof tx.payload === "object" ? tx.payload : {}),
+              cartaoId: targetCreditCardIdForImport,
+              qualCartao: targetCreditCardIdForImport,
+              targetId: targetCreditCardIdForImport,
+              mode: "credit_card",
+              importSource: "statement_import",
+            },
+          }))
+        : transactionsToImportBase;
 
     console.log("STATEMENT_IMPORT_DRAFT", {
       mode: statementImportPreview.mode,
@@ -825,10 +919,41 @@ const preparedImportedEntries = draftSemDuplicadas.map((item) => {
       });
     }
 
-setTransacoes((prev) => [
-  ...(createdTransactions as any[]),
-  ...(Array.isArray(prev) ? prev : []),
-]);
+const txRowsDepoisDaImportacao = await fetchTransactions(session.user.id);
+
+const transacoesDepoisDaImportacao = (txRowsDepoisDaImportacao ?? []).map(
+  (row: any) => normalizeTransactionCardRefs(mapTransactionRowToApp(row))
+);
+
+const createdIdsPersistidos = new Set(
+  (transacoesDepoisDaImportacao ?? [])
+    .map((tx: any) => String(tx?.id ?? "").trim())
+    .filter(Boolean)
+);
+
+const createdIdsEsperados = (createdTransactions as any[])
+  .map((tx: any) => String(tx?.id ?? "").trim())
+  .filter(Boolean);
+
+const todasCriadasVoltaramDoBanco = createdIdsEsperados.every((id: string) =>
+  createdIdsPersistidos.has(id)
+);
+
+if (!todasCriadasVoltaramDoBanco) {
+  console.error("IMPORTACAO_NAO_VOLTOU_DO_BANCO", {
+    createdIdsEsperados,
+    idsPersistidos: Array.from(createdIdsPersistidos),
+    createdTransactions,
+    txRowsDepoisDaImportacao,
+  });
+
+  toastCompact(
+    "A importação foi criada localmente, mas não voltou do banco. Verifique a persistência antes de continuar.",
+    "error"
+  );
+}
+
+setTransacoes(transacoesDepoisDaImportacao as any);
 
 if (statementImportPreview.mode === "credit_card") {
   const cartaoImportadoId = String(statementImportPreview.targetId ?? "").trim();
@@ -1307,6 +1432,52 @@ const [acceptedSubscriptionTerms, setAcceptedSubscriptionTerms] =
 const CHECKOUT_GUARD_STORAGE_KEY = "fluxmoney_expected_checkout_user_id";
 const POST_CHECKOUT_LOGIN_MESSAGE_KEY = "fluxmoney_post_checkout_login_message";
 
+const normalizeTransactionCardRefs = (tx: any) => {
+  if (String(tx?.tipo ?? "").trim().toLowerCase() !== "cartao_credito") {
+    return tx;
+  }
+
+  const payload =
+    tx?.payload && typeof tx.payload === "object" ? tx.payload : {};
+
+  const cardRef = String(
+    tx?.cartaoId ??
+      tx?.cartao_id ??
+      tx?.qualCartao ??
+      tx?.qual_cartao ??
+      tx?.qualConta ??
+      tx?.qual_conta ??
+      payload?.cartaoId ??
+      payload?.cartao_id ??
+      payload?.qualCartao ??
+      payload?.qual_cartao ??
+      payload?.qualConta ??
+      payload?.qual_conta ??
+      payload?.targetId ??
+      payload?.target_id ??
+      ""
+  ).trim();
+
+  if (!cardRef) {
+    return {
+      ...tx,
+      payload,
+    };
+  }
+
+  return {
+    ...tx,
+    cartaoId: cardRef,
+    qualCartao: cardRef,
+    payload: {
+      ...payload,
+      cartaoId: cardRef,
+      qualCartao: cardRef,
+      targetId: String(payload?.targetId ?? payload?.target_id ?? cardRef).trim(),
+    },
+  };
+};
+
 const carregarDadosUsuario = async (userId: string) => {
   const cleanUserId = String(userId ?? "").trim();
   if (!cleanUserId) return;
@@ -1423,8 +1594,11 @@ setHiddenAccountIds(
 );
 setAccountsLoaded(true);
 
-    const appTransactionsFromDb = txRows.map(mapTransactionRowToApp);
-    setTransacoes((appTransactionsFromDb ?? []) as any);
+const appTransactionsFromDb = txRows.map((row: any) =>
+  normalizeTransactionCardRefs(mapTransactionRowToApp(row))
+);
+
+setTransacoes(appTransactionsFromDb as any);
 
     setPagamentosFatura(
       (invoicePaymentRows ?? []).map(mapInvoicePaymentRowToApp) as any
@@ -3593,31 +3767,51 @@ const buildInsertTransactionPayload = (userId: string, tx: any) => ({
   criado_em: Number(tx.criadoEm ?? tx.createdAt ?? Date.now()),
 
 payload: {
-  metodoPagamento: tx.metodoPagamento ?? "",
-  tipoGasto: tx.tipoGasto ?? "",
-  recorrenciaId: tx.recorrenciaId ?? "",
-  isRecorrente: !!tx.isRecorrente,
+  ...(tx?.payload && typeof tx.payload === "object" ? tx.payload : {}),
 
-  recurrenceKind: tx.recurrenceKind ?? "",
-  recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
-  recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
-  recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
-  recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
-  recurrenceStatus: tx.recurrenceStatus ?? "",
-  recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
-  recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
-  recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
-  recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
+  metodoPagamento: tx.metodoPagamento ?? tx?.payload?.metodoPagamento ?? "",
+  tipoGasto: tx.tipoGasto ?? tx?.payload?.tipoGasto ?? "",
+  recorrenciaId: tx.recorrenciaId ?? tx?.payload?.recorrenciaId ?? "",
+  isRecorrente: !!(tx.isRecorrente ?? tx?.payload?.isRecorrente),
 
-  contraParte: tx.contraParte ?? "",
-  transferId: tx.transferId ?? "",
-  observacoes: tx.observacoes ?? "",
-  parcelaAtual: tx.parcelaAtual ?? null,
-  totalParcelas: tx.totalParcelas ?? null,
-  qualCartao: String(tx.qualCartao ?? ""),
-  origemLancamento: tx.origemLancamento ?? "",
-  parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
-  faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
+  recurrenceKind: tx.recurrenceKind ?? tx?.payload?.recurrenceKind ?? "",
+  recurrenceWindowMonths:
+    tx.recurrenceWindowMonths ?? tx?.payload?.recurrenceWindowMonths ?? null,
+  recurrenceOriginDate:
+    tx.recurrenceOriginDate ?? tx?.payload?.recurrenceOriginDate ?? "",
+  recurrenceWindowStart:
+    tx.recurrenceWindowStart ?? tx?.payload?.recurrenceWindowStart ?? "",
+  recurrenceWindowEnd:
+    tx.recurrenceWindowEnd ?? tx?.payload?.recurrenceWindowEnd ?? "",
+  recurrenceStatus:
+    tx.recurrenceStatus ?? tx?.payload?.recurrenceStatus ?? "",
+  recurrenceRenewalDecision:
+    tx.recurrenceRenewalDecision ??
+    tx?.payload?.recurrenceRenewalDecision ??
+    "",
+  recurrenceDismissedAt:
+    tx.recurrenceDismissedAt ?? tx?.payload?.recurrenceDismissedAt ?? "",
+  recurrenceCanceledAt:
+    tx.recurrenceCanceledAt ?? tx?.payload?.recurrenceCanceledAt ?? "",
+  recurrenceLastActionAt:
+    tx.recurrenceLastActionAt ?? tx?.payload?.recurrenceLastActionAt ?? "",
+
+  contraParte: tx.contraParte ?? tx?.payload?.contraParte ?? "",
+  transferId: tx.transferId ?? tx?.payload?.transferId ?? "",
+  observacoes: tx.observacoes ?? tx?.payload?.observacoes ?? "",
+  parcelaAtual: tx.parcelaAtual ?? tx?.payload?.parcelaAtual ?? null,
+  totalParcelas: tx.totalParcelas ?? tx?.payload?.totalParcelas ?? null,
+
+  cartaoId: String(tx.cartaoId ?? tx?.payload?.cartaoId ?? "").trim(),
+  qualCartao: String(tx.qualCartao ?? tx?.payload?.qualCartao ?? "").trim(),
+  targetId: String(tx?.payload?.targetId ?? tx.cartaoId ?? tx.qualCartao ?? "").trim(),
+
+  origemLancamento:
+    tx.origemLancamento ?? tx?.payload?.origemLancamento ?? "",
+  parcelamentoFaturaId:
+    tx.parcelamentoFaturaId ?? tx?.payload?.parcelamentoFaturaId ?? "",
+  faturaOrigemCicloKey:
+    tx.faturaOrigemCicloKey ?? tx?.payload?.faturaOrigemCicloKey ?? "",
 
   externalRowHash: String(tx?.payload?.externalRowHash ?? "").trim(),
   planningType: tx?.payload?.planningType ?? "",
@@ -3625,6 +3819,7 @@ payload: {
   installmentCurrent: tx?.payload?.installmentCurrent ?? null,
   installmentTotal: tx?.payload?.installmentTotal ?? null,
   importSource: tx?.payload?.importSource ?? "",
+  mode: tx?.payload?.mode ?? "",
 },
 });
 
@@ -3650,7 +3845,9 @@ if (!safeItems.length) {
       createdRows.push(row);
     }
 
-  const mappedRows = createdRows.map(mapTransactionRowToApp);
+const mappedRows = createdRows.map((row: any) =>
+  normalizeTransactionCardRefs(mapTransactionRowToApp(row))
+);
 
 const cardIdsToTouch = Array.from(
   new Set(
@@ -4127,8 +4324,60 @@ useEffect(() => {
 }, [totalCreditCardsPages]);
 
 const getCardCycleMonthOnOpen = (card: any) => {
-  return getCardCycleMonthFromDate(
+  const cardId = String(card?.id ?? "").trim();
+
+  const cicloAtual = getCardCycleMonthFromDate(
     getHojeLocal(),
+    Number(card?.diaFechamento ?? 1),
+    Number(card?.diaVencimento ?? 1)
+  );
+
+  if (!cardId) return cicloAtual;
+
+  const getTxCardRefLocal = (tx: any) =>
+    String(
+      tx?.cartaoId ??
+        tx?.cartao_id ??
+        tx?.qualCartao ??
+        tx?.qual_cartao ??
+        tx?.qualConta ??
+        tx?.qual_conta ??
+        tx?.payload?.cartaoId ??
+        tx?.payload?.cartao_id ??
+        tx?.payload?.qualCartao ??
+        tx?.payload?.qual_cartao ??
+        tx?.payload?.qualConta ??
+        tx?.payload?.qual_conta ??
+        tx?.payload?.targetId ??
+        tx?.payload?.target_id ??
+        ""
+    ).trim();
+
+  const transacoesDoCartao = (transacoes ?? [])
+    .filter((tx: any) => String(tx?.tipo ?? "").trim().toLowerCase() === "cartao_credito")
+    .filter((tx: any) => getTxCardRefLocal(tx) === cardId)
+    .filter((tx: any) => /^\d{4}-\d{2}-\d{2}$/.test(String(tx?.data ?? "").trim()));
+
+  if (!transacoesDoCartao.length) return cicloAtual;
+
+  const temTransacaoNoCicloAtual = transacoesDoCartao.some((tx: any) => {
+    const cicloTx = getCardCycleMonthFromDate(
+      String(tx?.data ?? "").trim(),
+      Number(card?.diaFechamento ?? 1),
+      Number(card?.diaVencimento ?? 1)
+    );
+
+    return cicloTx === cicloAtual;
+  });
+
+  if (temTransacaoNoCicloAtual) return cicloAtual;
+
+  const ultimaTransacaoDoCartao = [...transacoesDoCartao].sort((a: any, b: any) =>
+    String(b?.data ?? "").localeCompare(String(a?.data ?? ""))
+  )[0];
+
+  return getCardCycleMonthFromDate(
+    String(ultimaTransacaoDoCartao?.data ?? "").trim(),
     Number(card?.diaFechamento ?? 1),
     Number(card?.diaVencimento ?? 1)
   );
@@ -6470,9 +6719,9 @@ const invoiceStartOffset = vencimento > fechamento ? 0 : 1;
   const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
 
   // Regra correta:
-  // - até o dia de fechamento: permanece na fatura do mês atual
-  // - após o fechamento: vai para a fatura do mês seguinte
-  if (dia > fechamento) {
+  // - antes do dia de fechamento: permanece na fatura atual
+  // - no dia do fechamento ou depois: vai para a próxima fatura
+  if (dia >= fechamento) {
     base.setMonth(base.getMonth() + 1);
   }
 base.setMonth(base.getMonth() + invoiceStartOffset);
@@ -7163,24 +7412,26 @@ toastCompact("Lançamento realizado com sucesso!", "success");
     addTxLockRef.current = false;
   }
 };
-
+const getTransactionCardRefId = (tx: any) =>
+  String(
+    tx?.cartaoId ??
+      tx?.qualCartao ??
+      tx?.qualConta ??
+      tx?.payload?.cartaoId ??
+      tx?.payload?.qualCartao ??
+      tx?.payload?.targetId ??
+      ""
+  ).trim();
 const creditItSelecionado = useMemo<Transaction[]>(() => {
   const cardId = String(selectedCreditCardId ?? "").trim();
   if (!cardId) return [];
 
   return transacoes
-    .filter((t) => {
-      if (t.tipo !== "cartao_credito") return false;
+    .filter((t: any) => {
+      const tipo = String(t?.tipo ?? "").trim().toLowerCase();
+      if (tipo !== "cartao_credito") return false;
 
-      const refCartaoId = String((t as any).cartaoId ?? "").trim();
-      const refQualCartao = String((t as any).qualCartao ?? "").trim();
-      const refQualConta = String((t as any).qualConta ?? "").trim();
-
-      return (
-        refCartaoId === cardId ||
-        refQualCartao === cardId ||
-        refQualConta === cardId
-      );
+      return getTransactionCardRefId(t) === cardId;
     })
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
 }, [transacoes, selectedCreditCardId]);
@@ -10222,7 +10473,7 @@ const cardLinks = getCardLinkStats(c.id);
           const mesRef = hojeRef.getMonth();
 
           const cicloFimReal =
-            hojeRef.getDate() > diaFechamentoAtual
+            hojeRef.getDate() >= diaFechamentoAtual
               ? makeDateSafe(anoRef, mesRef + 1, diaFechamentoAtual)
               : makeDateSafe(anoRef, mesRef, diaFechamentoAtual);
 
@@ -10924,10 +11175,11 @@ if (selectedCreditCardId === c.id) {
                             const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
                             if (!dataTx || Number.isNaN(dataTx.getTime())) return "";
 
-                            return getCardCycleMonthFromDate(
-                              dataRaw,
-                              Number(selectedCcCard.diaFechamento ?? 1)
-                            );
+return getCardCycleMonthFromDate(
+  dataRaw,
+  Number(selectedCcCard.diaFechamento ?? 1),
+  Number(selectedCcCard.diaVencimento ?? 1)
+);
                           })();
 
                       const statusDoCiclo = String(
@@ -10967,7 +11219,7 @@ if (selectedCreditCardId === c.id) {
                         .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0)
                   )
               )}
-              transacoes={creditItSelecionado.map((t: Transaction) => ({ ...t, id: String(t.id) }))}
+              transacoes={(transacoes as Transaction[]).map((t: Transaction) => ({ ...t, id: String(t.id) }))}
               contaPagamentoOptions={(profiles ?? []).map((p) => {
                 const banco = String(p.banco ?? "").trim();
                 const nome = String(p.name ?? "").trim();

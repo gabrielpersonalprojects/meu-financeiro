@@ -20,6 +20,7 @@ import {
   Star,
   SlidersHorizontal,
   RotateCcw,
+  Search,
 } from "lucide-react";
 
 const isPaid = (v: any) => {
@@ -142,6 +143,7 @@ confirmDelete,
 }: Props) {
 const [paginaAtual, setPaginaAtual] = useState(1);
 const [mostrarValoresResumo, setMostrarValoresResumo] = useState(true);
+const [buscaTransacoes, setBuscaTransacoes] = useState("");
 const [organizacaoLista, setOrganizacaoLista] = useState<
   | "status"
   | "pagos_primeiro"
@@ -198,6 +200,52 @@ const shouldRenderEyeActions =
       return true;
     });
   }, [itemsFiltrados, filtroLancamento]);
+
+  const normalizeSearchText = (value: any) =>
+  String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+const searchedTransactions = useMemo(() => {
+  const termo = normalizeSearchText(buscaTransacoes);
+
+  if (!termo) return getFilteredTransactions;
+
+  return (getFilteredTransactions ?? []).filter((t: any) => {
+    const contaId = String(
+      t?.contaId ??
+        t?.profileId ??
+        t?.qualConta ??
+        t?.payload?.contaId ??
+        ""
+    ).trim();
+
+    const conta = (profiles ?? []).find(
+      (p: any) => String(p?.id ?? "").trim() === contaId
+    );
+
+    const camposBusca = [
+      t?.descricao,
+      t?.categoria,
+      t?.tipo,
+      t?.tipoGasto,
+      t?.metodoPagamento,
+      t?.tag,
+      t?.tagCC,
+      t?.payload?.tag,
+      t?.payload?.selectedTag,
+      t?.data,
+      formatarData(t?.data),
+      formatarMoeda(Math.abs(Number(t?.valor ?? 0))),
+      conta ? getContaLabel(conta) : "",
+      conta ? getContaBadge(conta) : "",
+    ];
+
+    return normalizeSearchText(camposBusca.join(" ")).includes(termo);
+  });
+}, [buscaTransacoes, getFilteredTransactions, profiles]);
 
 const sortedTransactions = useMemo(() => {
   const toDateNumber = (value: any) => {
@@ -279,7 +327,7 @@ const compareDistantes = (a: any, b: any) => {
     return compareStable(a, b);
   };
 
-  return [...getFilteredTransactions].sort((a: any, b: any) => {
+  return [...searchedTransactions].sort((a: any, b: any) => {
 if (organizacaoLista === "pagos_primeiro") {
   const aPriority = isPaid(a?.pago) ? 0 : 1;
   const bPriority = isPaid(b?.pago) ? 0 : 1;
@@ -326,7 +374,7 @@ if (organizacaoLista === "valor_decrescente") {
 
     return compareStatusAtual(a, b);
   });
-}, [getFilteredTransactions, hojeStr, organizacaoLista]);
+}, [searchedTransactions, hojeStr, organizacaoLista]);
 
 useEffect(() => {
   setPaginaAtual(1);
@@ -338,6 +386,7 @@ useEffect(() => {
   filtroTipoGasto,
   itemsFiltrados,
   organizacaoLista,
+  buscaTransacoes,
 ]);
 
 useEffect(() => {
@@ -820,7 +869,29 @@ label: (
     {sortedTransactions.length} Lançamentos Encontrados
   </div>
 
-  <div className="flex w-full sm:w-auto items-center justify-end gap-2">
+  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+    <div className="relative w-full sm:w-[260px]">
+      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+
+      <input
+        type="text"
+        value={buscaTransacoes}
+        onChange={(e) => setBuscaTransacoes(e.target.value)}
+        placeholder="Buscar lançamento..."
+        className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-9 text-sm font-semibold text-slate-800 outline-none shadow-sm transition placeholder:text-slate-400 hover:bg-slate-50 focus:border-[#4600ac]/35 focus:ring-4 focus:ring-violet-100/70 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:bg-slate-800 dark:focus:ring-violet-900/30"
+      />
+
+      {buscaTransacoes.trim() ? (
+        <button
+          type="button"
+          onClick={() => setBuscaTransacoes("")}
+          className="absolute right-2.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-[#4600ac] dark:hover:bg-slate-800 dark:hover:text-violet-300"
+          title="Limpar busca"
+        >
+          ×
+        </button>
+      ) : null}
+    </div>
     <div className="w-full sm:w-[220px]">
 <CustomDropdown
   placeholder="Organizar"
@@ -871,8 +942,11 @@ onSelect={(val) => {
 
 <button
   type="button"
-  onClick={() => setOrganizacaoLista("status")}
-  title="Voltar ao padrão"
+  onClick={() => {
+    setOrganizacaoLista("status");
+    setBuscaTransacoes("");
+  }}
+  title="Limpar organização e busca"
   className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
 >
   <RotateCcw className="h-5 w-5" strokeWidth={2.2} />

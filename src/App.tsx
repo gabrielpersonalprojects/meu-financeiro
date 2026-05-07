@@ -5682,10 +5682,10 @@ const handleEditClick = (t: Transaction) => {
       : String((t as any).categoria?.nome ?? "")
   );
   setEditTagInput(
-  String((t as any)?.tipo ?? "").toLowerCase() === "cartao_credito"
-    ? ""
-    : String((t as any).tag ?? "")
-);
+    String((t as any)?.tipo ?? "").toLowerCase() === "cartao_credito"
+      ? String((t as any).tag ?? "")
+      : ""
+  );
   setApplyToAllRelated(false);
 };
 const inputModalClass =
@@ -5713,7 +5713,7 @@ const salvarEdicao = async () => {
     const novoValorAbs = extrairValorMoeda(editValueInput);
     const novaDesc = editDescInput.trim() || editingTransaction.descricao;
     const novaTag = String(editTagInput ?? "").trim();
-const preservarTagCartao =
+const isEditandoCartao =
   String((editingTransaction as any)?.tipo ?? "").toLowerCase() === "cartao_credito";
 
     const listaEditadaBase = applyEditToTransactions(
@@ -5747,9 +5747,7 @@ const preservarTagCartao =
 
 return {
   ...tx,
-  tag: preservarTagCartao
-    ? String((tx as any)?.tag ?? "")
-    : novaTag || "",
+  tag: isEditandoCartao ? novaTag || "" : "",
 };
     });
 
@@ -11902,24 +11900,6 @@ mostrarReceitasResumo={mostrarReceitasResumo}
   menuMinHeightPx={180}
 />
         </div>
-
-        <div>
-          <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-            Tag
-          </label>
-
-          <input
-            type="text"
-            value={editTagInput}
-            onChange={(e) => setEditTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") salvarEdicao();
-              if (e.key === "Escape") setEditingTransaction(null);
-            }}
-            placeholder="Opcional"
-            className={inputModalClass}
-          />
-        </div>
       </>
     )}
 
@@ -11941,6 +11921,24 @@ mostrarReceitasResumo={mostrarReceitasResumo}
   menuMaxHeightPx={220}
   menuMinHeightPx={180}
 />
+        </div>
+
+        <div className="text-xs">
+          <CustomDropdown
+            label="Tag"
+            value={editTagInput || ""}
+            options={[
+              { label: "Sem tag", value: "" },
+              ...(ccTags ?? []).map((tag) => ({
+                label: tag,
+                value: tag,
+              })),
+            ]}
+            onSelect={(v: any) => setEditTagInput(String(v))}
+            renderMenuInPortal={true}
+            menuMaxHeightPx={220}
+            menuMinHeightPx={140}
+          />
         </div>
       </>
     )}

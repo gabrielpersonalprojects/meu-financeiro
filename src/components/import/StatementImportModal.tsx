@@ -16,6 +16,7 @@ type Props = {
   mode: StatementImportModalMode;
   options: Option[];
   selectedTargetId: string;
+  isTargetLocked?: boolean;
   onChangeTargetId: (value: string) => void;
   onClose: () => void;
   onContinue?: (payload: {
@@ -31,6 +32,7 @@ export default function StatementImportModal({
   mode,
   options,
   selectedTargetId,
+  isTargetLocked = false,
   onChangeTargetId,
   onClose,
   onContinue,
@@ -118,18 +120,37 @@ export default function StatementImportModal({
 
         <div className="mt-6 space-y-4">
 <div>
-<CustomDropdown
-  label={`${targetLabel} *`}
-  value={selectedTargetId}
-  options={options.map((option) => ({
-    label: option.label,
-    value: option.value,
-  }))}
-  onSelect={(value) => onChangeTargetId(String(value))}
-  menuMaxHeightPx={220}
-  menuMinHeightPx={120}
-  renderMenuInPortal
-/>
+  {isTargetLocked ? (
+    <>
+      <label className="mb-1.5 block text-xs font-bold uppercase text-slate-400 dark:text-slate-500">
+        {targetLabel} *
+      </label>
+
+      <div className="flex h-12 w-full cursor-not-allowed select-none items-center justify-between rounded-2xl border border-slate-200 bg-slate-100/80 px-4 text-[15px] font-medium text-slate-500 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+        <span>
+          {options.find((option) => String(option.value) === String(selectedTargetId))
+            ?.label ?? "Selecione"}
+        </span>
+
+        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500 dark:bg-white/10 dark:text-slate-300">
+          Fixado
+        </span>
+      </div>
+    </>
+  ) : (
+    <CustomDropdown
+      label={`${targetLabel} *`}
+      value={selectedTargetId}
+      options={options.map((option) => ({
+        label: option.label,
+        value: option.value,
+      }))}
+      onSelect={(value) => onChangeTargetId(String(value))}
+      menuMaxHeightPx={220}
+      menuMinHeightPx={120}
+      renderMenuInPortal
+    />
+  )}
 </div>
 
           <div>

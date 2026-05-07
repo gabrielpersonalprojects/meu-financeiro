@@ -327,6 +327,7 @@ const [isAccountStatementImportOpen, setIsAccountStatementImportOpen] = useState
 const [isCreditCardStatementImportOpen, setIsCreditCardStatementImportOpen] = useState(false);
 const [statementImportAccountId, setStatementImportAccountId] = useState("");
 const [statementImportCreditCardId, setStatementImportCreditCardId] = useState("");
+const [statementImportCreditCardLocked, setStatementImportCreditCardLocked] = useState(false);
 const [statementImportPreview, setStatementImportPreview] =
   useState<StatementImportPreviewState | null>(null);
 
@@ -3491,27 +3492,47 @@ useEffect(() => {
 
 const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
 
+const getImportProfileBadge = (value: any) => {
+  const perfil = String(value ?? "").trim().toLowerCase();
+  return perfil === "pj" ? "PJ" : "PF";
+};
+
 const statementImportAccountOptions = useMemo(
   () =>
-    (profiles ?? []).map((profile: any) => ({
-      value: String(profile?.id ?? "").trim(),
-      label: String(profile?.name ?? profile?.banco ?? "Conta").trim(),
-    })),
+    (profiles ?? []).map((profile: any) => {
+      const nomeConta = String(profile?.name ?? profile?.banco ?? "Conta").trim();
+      const perfilConta = getImportProfileBadge(
+        profile?.perfilConta ?? profile?.perfil ?? profile?.profileType ?? profile?.tipo ?? "pf"
+      );
+
+      return {
+        value: String(profile?.id ?? "").trim(),
+        label: `${nomeConta} • ${perfilConta}`,
+      };
+    }),
   [profiles]
 );
 
 const statementImportCreditCardOptions = useMemo(
   () =>
-    (creditCards ?? []).map((card: any) => ({
-      value: String(card?.id ?? "").trim(),
-      label: String(
+    (creditCards ?? []).map((card: any) => {
+      const nomeCartao = String(
         card?.emissor ??
           card?.bankText ??
           card?.categoria ??
           card?.brand ??
           "Cartão"
-      ).trim(),
-    })),
+      ).trim();
+
+      const perfilCartao = getImportProfileBadge(
+        card?.perfil ?? card?.brand ?? card?.profileType ?? "pf"
+      );
+
+      return {
+        value: String(card?.id ?? "").trim(),
+        label: `${nomeCartao} • ${perfilCartao}`,
+      };
+    }),
   [creditCards]
 );
 
@@ -10972,7 +10993,18 @@ if (selectedCreditCardId === c.id) {
               onPickOtherCard={toggleCcExpanded}
               onSaldoRestanteChange={setSaldoRestanteAtual}
               onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
-              onOpenStatementImport={() => setIsCreditCardStatementImportOpen(true)}
+              onOpenStatementImport={() => {
+  const cardIdAtual = String(selectedCreditCardId ?? "").trim();
+
+  if (isCcExpanded && cardIdAtual) {
+    setStatementImportCreditCardId(cardIdAtual);
+    setStatementImportCreditCardLocked(true);
+  } else {
+    setStatementImportCreditCardLocked(false);
+  }
+
+  setIsCreditCardStatementImportOpen(true);
+}}
               isInvoiceModalOpen={isInvoiceModalOpen}
               onCloseInvoiceModal={() => setIsInvoiceModalOpen(false)}
               pagamentosFatura={pagamentosFatura}
@@ -12845,10 +12877,23 @@ setIsAccountStatementImportOpen(false);
 <StatementImportModal
   open={isCreditCardStatementImportOpen}
   mode="credit_card"
-  options={statementImportCreditCardOptions}
-  selectedTargetId={statementImportCreditCardId}
-  onChangeTargetId={setStatementImportCreditCardId}
-  onClose={() => setIsCreditCardStatementImportOpen(false)}
+options={
+  statementImportCreditCardLocked
+    ? statementImportCreditCardOptions.filter(
+        (item) => String(item.value) === String(statementImportCreditCardId)
+      )
+    : statementImportCreditCardOptions
+}
+selectedTargetId={statementImportCreditCardId}
+isTargetLocked={statementImportCreditCardLocked}
+onChangeTargetId={(value) => {
+  if (statementImportCreditCardLocked) return;
+  setStatementImportCreditCardId(value);
+}}
+onClose={() => {
+  setIsCreditCardStatementImportOpen(false);
+  setStatementImportCreditCardLocked(false);
+}}
 onContinue={async ({ mode, format, file, targetId }) => {
   try {
     validateStatementImportFile(file, format);

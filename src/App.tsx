@@ -10750,19 +10750,16 @@ const cardLinks = getCardLinkStats(c.id);
 
           cicloFimReal.setHours(23, 59, 59, 999);
 
-          const inferirCicloDaTransacao = (t: any): string => {
-            const ciclo = String((t as any).faturaMes ?? "").trim();
-            if (/^\d{4}-\d{2}$/.test(ciclo)) return ciclo;
+const inferirCicloDaTransacao = (t: any): string => {
+  const dataRaw = String((t as any).data ?? "").trim();
+  if (!dataRaw) return "";
 
-            const dataRaw = String((t as any).data ?? "").trim();
-            if (!dataRaw) return "";
-
-            return getCardCycleMonthFromDate(
-              dataRaw,
-              Number(c.diaFechamento ?? 1),
-              Number(c.diaVencimento ?? 1)
-            );
-          };
+  return getCardCycleMonthFromDate(
+    dataRaw,
+    Number(c.diaFechamento ?? 1),
+    Number(c.diaVencimento ?? 1)
+  );
+};
 
           const transacoesDoCartao = transacoes.filter((t: any) => {
             const cartaoTxId = String(
@@ -10795,16 +10792,18 @@ const cardLinks = getCardLinkStats(c.id);
             return dataTx.getTime() <= hojeFiltro.getTime();
           });
 
-          const transacoesDaFaturaAtual = transacoesDoCartao.filter((t: any) => {
-            const dataRaw = String((t as any).data ?? "").trim();
-            const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
-            if (!dataTx || Number.isNaN(dataTx.getTime())) return false;
+const transacoesDaFaturaAtual = transacoesDoCartao.filter((t: any) => {
+  const dataRaw = String((t as any)?.data ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataRaw)) return false;
 
-            return (
-              dataTx.getTime() >= cicloInicioReal.getTime() &&
-              dataTx.getTime() <= cicloFimReal.getTime()
-            );
-          });
+  return (
+    getCardCycleMonthFromDate(
+      dataRaw,
+      Number(c?.diaFechamento ?? 1),
+      Number(c?.diaVencimento ?? 1)
+    ) === cicloBase
+  );
+});
 
           const pagamentosDaFaturaAtual = (pagamentosFatura ?? []).filter((p: any) => {
             if (String(p?.cartaoId ?? "") !== String(c.id)) return false;

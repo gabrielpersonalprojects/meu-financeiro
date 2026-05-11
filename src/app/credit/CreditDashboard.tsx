@@ -371,7 +371,8 @@ const getInvoiceMonthKeyForTransaction = (iso: string) => {
 
   const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
 
-  // Dia do fechamento já pertence à próxima fatura.
+  // O dia do fechamento ainda pertence à fatura atual.
+  // A próxima fatura começa no dia seguinte ao fechamento.
   if (dt.getDate() >= fechamento) {
     base.setMonth(base.getMonth() + 1);
   }

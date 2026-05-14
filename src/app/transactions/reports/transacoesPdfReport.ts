@@ -158,13 +158,13 @@ export const printTransacoesPdfReport = ({
       const tipoGasto = String(tx?.tipoGasto ?? "").trim();
       const tag = String(tx?.tag ?? tx?.tagCC ?? tx?.payload?.tag ?? "").trim();
 
-      const meta = [
-        formatarData(tx?.data),
-        conta,
-        categoria,
-        tipoGasto,
-        tag,
-      ]
+const meta = [
+  formatarData(tx?.data),
+  tx?._reportMeta || conta,
+  categoria,
+  tipoGasto,
+  tag,
+]
         .map((item) => String(item ?? "").trim())
         .filter(Boolean)
         .join(" • ");

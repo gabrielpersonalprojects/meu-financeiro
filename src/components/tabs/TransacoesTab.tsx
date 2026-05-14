@@ -513,36 +513,92 @@ const badgeLabel = isGeral && hasHiddenAccounts
   return conta ? getContaLabel(conta) : "Conta não identificada";
 };
 
+const getTransferIdFromTransaction = (transaction: any) =>
+  String(
+    transaction?.transferId ??
+      transaction?.transferenciaId ??
+      transaction?.transfer_id ??
+      transaction?.transferencia_id ??
+      ""
+  ).trim();
+
 const transacoesRelatorio = useMemo(() => {
   const seenTransferIds = new Set<string>();
 
-  return (sortedTransactions ?? []).filter((transaction: any) => {
-    const tipo = String(transaction?.tipo ?? "").toLowerCase();
+  return (sortedTransactions ?? [])
+    .filter((transaction: any) => {
+      const tipo = String(transaction?.tipo ?? "").toLowerCase();
+      return tipo !== "cartao_credito";
+    })
+    .map((transaction: any) => {
+      const transferId = getTransferIdFromTransaction(transaction);
 
-    if (tipo === "cartao_credito") {
-      return false;
-    }
+      if (!transferId) {
+        return transaction;
+      }
 
-    const transferId = String(
-      transaction?.transferId ??
-        transaction?.transferenciaId ??
-        transaction?.transfer_id ??
-        transaction?.transferencia_id ??
-        ""
-    ).trim();
+      if (seenTransferIds.has(transferId)) {
+        return null;
+      }
 
-    if (!transferId) {
-      return true;
-    }
+      seenTransferIds.add(transferId);
 
-    if (seenTransferIds.has(transferId)) {
-      return false;
-    }
+      const legs = (transactions ?? []).filter(
+        (item: any) => getTransferIdFromTransaction(item) === transferId
+      );
 
-    seenTransferIds.add(transferId);
-    return true;
-  });
-}, [sortedTransactions]);
+      const saida =
+        legs.find((item: any) => String(item?.tipo ?? "").toLowerCase() === "despesa") ??
+        legs.find((item: any) => Number(item?.valor ?? 0) < 0) ??
+        transaction;
+
+      const entrada =
+        legs.find((item: any) => String(item?.tipo ?? "").toLowerCase() === "receita") ??
+        legs.find(
+          (item: any) =>
+            Number(item?.valor ?? 0) > 0 &&
+            String(item?.id ?? "") !== String(saida?.id ?? "")
+        ) ??
+        legs.find((item: any) => String(item?.id ?? "") !== String(saida?.id ?? "")) ??
+        transaction;
+
+      const fromId = asId(
+        saida?.contaOrigemId ??
+          saida?.transferFromId ??
+          saida?.profileId ??
+          saida?.contaId ??
+          ""
+      );
+
+      const toId = asId(
+        saida?.contaDestinoId ??
+          saida?.transferToId ??
+          entrada?.profileId ??
+          entrada?.contaId ??
+          ""
+      );
+
+      const contaOrigem = profiles.find((profile: any) => asId(profile?.id) === fromId);
+      const contaDestino = profiles.find((profile: any) => asId(profile?.id) === toId);
+
+      const origemLabel = contaOrigem ? getContaLabel(contaOrigem) : "Origem";
+      const destinoLabel = contaDestino ? getContaLabel(contaDestino) : "Destino";
+
+      return {
+        ...saida,
+        id: `transfer-report-${transferId}`,
+        tipo: "transferencia",
+        descricao: saida?.descricao || transaction?.descricao || "Transferência",
+        valor: Math.abs(Number(saida?.valor ?? transaction?.valor ?? 0)),
+        categoria: "Transferência",
+        tag: "",
+        tipoGasto: "",
+        data: saida?.data ?? entrada?.data ?? transaction?.data,
+        _reportMeta: `${origemLabel} → ${destinoLabel}`,
+      };
+    })
+    .filter(Boolean);
+}, [sortedTransactions, transactions, profiles]);
 
 const getLancamentoLabel = () => {
   if (filtroLancamento === "receita") return "Somente Entradas";
@@ -809,15 +865,15 @@ label: (
  
 
 <div className="w-full sm:w-auto lg:ml-auto shrink-0 flex justify-end gap-2">
-  <button
-    type="button"
-    onClick={handlePrintTransacoes}
-    title="Imprimir relatório"
-    aria-label="Imprimir relatório"
-    className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#4600ac]/20 bg-[#4600ac] text-white shadow-sm shadow-violet-900/15 transition hover:scale-[1.06] hover:bg-[#350080] hover:shadow-md active:scale-[0.97] dark:border-violet-300/20 dark:bg-[#4600ac] dark:hover:bg-[#5b19c9]"
-  >
-    <Printer className="h-5 w-5" strokeWidth={2.2} />
-  </button>
+<button
+  type="button"
+  onClick={handlePrintTransacoes}
+  title="Imprimir relatório"
+  aria-label="Imprimir relatório"
+  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#4600ac]/20 bg-[#4600ac] text-white shadow-sm shadow-violet-900/15 transition hover:scale-[1.06] hover:bg-[#350080] hover:shadow-md active:scale-[0.97] dark:border-violet-300/20 dark:bg-[#4600ac] dark:hover:bg-[#5b19c9]"
+>
+  <Printer className="h-[18px] w-[18px]" strokeWidth={2.2} />
+</button>
 
   <button
     type="button"

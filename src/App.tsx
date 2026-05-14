@@ -3988,6 +3988,7 @@ const [creditJumpMonth, setCreditJumpMonth] = useState<string>(getHojeLocal().sl
 
 const [isCardsResumoOpen, setIsCardsResumoOpen] = useState(false);
 const [cardsResumoMes, setCardsResumoMes] = useState<string>(getHojeLocal().slice(0, 7));
+const [cardsResumoCartao, setCardsResumoCartao] = useState<string>("todos");
 const [cardsResumoCategoria, setCardsResumoCategoria] = useState<string>("todas");
 const [cardsResumoTag, setCardsResumoTag] = useState<string>("todas");
 const [cardsResumoBusca, setCardsResumoBusca] = useState<string>("");
@@ -4029,6 +4030,28 @@ const allCreditCardTransactions = useMemo(() => {
     });
   });
 }, [transacoes, creditCards]);
+
+const cardsResumoCartoesOptions = useMemo(() => {
+  return [
+    { value: "todos", label: "Todos os cartões" },
+    ...(activeCreditCards ?? []).map((card: any) => {
+      const nome = String(
+        card?.emissor ??
+          card?.name ??
+          card?.bankText ??
+          card?.categoria ??
+          "Cartão"
+      ).trim();
+
+      const categoria = String(card?.categoria ?? "").trim();
+
+      return {
+        value: String(card?.id ?? "").trim(),
+        label: categoria ? `${nome} ${categoria}` : nome,
+      };
+    }),
+  ];
+}, [activeCreditCards]);
 
 const cardsResumoCategorias = useMemo(() => {
   return Array.from(
@@ -4096,6 +4119,9 @@ const okMes =
   !String(cardsResumoMes ?? "").trim() ||
   mesVencimentoFatura === cardsResumoMes;
 
+const okCartao =
+  cardsResumoCartao === "todos" || cartaoId === cardsResumoCartao;
+
     const okCategoria =
       cardsResumoCategoria === "todas" || categoria === cardsResumoCategoria;
 
@@ -4118,11 +4144,12 @@ const okMes =
         ].join(" ")
       ).includes(termo);
 
-    return okMes && okCategoria && okTag && okBusca;
+    return okMes && okCartao && okCategoria && okTag && okBusca;
   });
 }, [
   allCreditCardTransactions,
   cardsResumoMes,
+  cardsResumoCartao,
   cardsResumoCategoria,
   cardsResumoTag,
   cardsResumoBusca,
@@ -10462,12 +10489,13 @@ if (activeTab === "cartoes" && tab !== "cartoes") {
 {activeTab === "cartoes" && (
   <div className="space-y-4">
 <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-3">
-{!isCcExpanded && !isCardsResumoOpen && (activeCreditCards ?? []).length >= 2 && (
+{!isCcExpanded && !isCardsResumoOpen && (activeCreditCards ?? []).length > 0 && (
   <div className="w-[320px] flex justify-center">
     <button
       type="button"
 onClick={() => {
   setCardsResumoMes(getHojeLocal().slice(0, 7));
+  setCardsResumoCartao("todos");
   setCardsResumoCategoria("todas");
   setCardsResumoTag("todas");
   setCardsResumoBusca("");
@@ -10489,6 +10517,35 @@ onClick={() => {
     value={cardsResumoMes}
     onChange={setCardsResumoMes}
     className="w-full"
+  />
+</div>
+
+<div className="w-full sm:w-[240px]">
+  <CustomDropdown
+    placeholder="Cartão"
+    value={
+      cardsResumoCartoesOptions.find(
+        (option) =>
+          String(option.value ?? "").trim() ===
+          String(cardsResumoCartao ?? "todos").trim()
+      )?.label ?? "Todos os cartões"
+    }
+    options={cardsResumoCartoesOptions.map((option) => option.label)}
+    onSelect={(val) => {
+      const selectedLabel = String(val ?? "").trim();
+
+      const selectedOption = cardsResumoCartoesOptions.find(
+        (option) => String(option.label ?? "").trim() === selectedLabel
+      );
+
+      setCardsResumoCartao(String(selectedOption?.value ?? "todos"));
+    }}
+    className="w-full"
+    renderValue={(value) => (
+      <span className="font-semibold text-slate-700 dark:text-slate-100">
+        {String(value ?? "Todos os cartões")}
+      </span>
+    )}
   />
 </div>
 
@@ -10554,6 +10611,7 @@ onClick={() => {
 onClick={() => {
   setIsCardsResumoOpen(false);
   setCardsResumoMes(getHojeLocal().slice(0, 7));
+  setCardsResumoCartao("todos");
   setCardsResumoCategoria("todas");
   setCardsResumoTag("todas");
   setCardsResumoBusca("");

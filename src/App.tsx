@@ -111,7 +111,8 @@ import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
-import { Archive, BookOpen, Headphones, HelpCircle, Home, LogOut, Moon, Paperclip, Send, Sun, Pencil, PencilLine, Star, Trash2, X, Search } from "lucide-react";import {
+import { printCardsResumoPdfReport } from "./app/credit/reports/cardsResumoPdfReport";
+import { Archive, BookOpen, Headphones, HelpCircle, Home, LogOut, Moon, Paperclip, Send, Sun, Pencil, PencilLine, Star, Trash2, X, Search, Printer } from "lucide-react";import {
   STORAGE_KEYS,
   PROFILE_KEYS,
   buildProfilePrefix,
@@ -4209,6 +4210,24 @@ const cardsResumoTotalGeral = useMemo(() => {
     0
   );
 }, [cardsResumoFiltradas]);
+
+const handlePrintCardsResumo = () => {
+  printCardsResumoPdfReport({
+    cardsResumoAgrupado,
+    cardsResumoFiltradas,
+    cardsResumoTotalGeral,
+    cardsResumoMes,
+    cardsResumoCartao,
+    cardsResumoCategoria,
+    cardsResumoTag,
+    cardsResumoBusca,
+    cardsResumoCartoesOptions,
+    formatarMoeda,
+    formatarData,
+    categoriaResumoCartoesLabel,
+    toastCompact,
+  });
+};
 
 useEffect(() => {
   if (modoCentro !== "credito") {
@@ -10606,19 +10625,32 @@ onClick={() => {
           ) : null}
         </div>
 
+<div className="flex items-center gap-2">
 <button
   type="button"
-onClick={() => {
-  setIsCardsResumoOpen(false);
-  setCardsResumoMes(getHojeLocal().slice(0, 7));
-  setCardsResumoCartao("todos");
-  setCardsResumoCategoria("todas");
-  setCardsResumoTag("todas");
-  setCardsResumoBusca("");
-}}
-className="inline-flex h-11 items-center justify-center rounded-2xl border border-violet-300/70 dark:border-violet-400/20 bg-violet-100/85 dark:bg-violet-500/15 px-5 text-sm font-semibold text-violet-700 dark:text-violet-200 shadow-sm transition hover:bg-violet-200 dark:hover:bg-violet-500/20">
-  Fechar resumo
+  onClick={handlePrintCardsResumo}
+  title="Imprimir relatório"
+  aria-label="Imprimir relatório"
+  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#4600ac]/20 bg-[#4600ac] text-white shadow-sm shadow-violet-900/15 transition hover:bg-[#350080] hover:shadow-md dark:border-violet-300/20 dark:bg-[#4600ac] dark:hover:bg-[#5b19c9]"
+>
+  <Printer size={18} strokeWidth={2.2} />
 </button>
+
+  <button
+    type="button"
+    onClick={() => {
+      setIsCardsResumoOpen(false);
+      setCardsResumoMes(getHojeLocal().slice(0, 7));
+      setCardsResumoCartao("todos");
+      setCardsResumoCategoria("todas");
+      setCardsResumoTag("todas");
+      setCardsResumoBusca("");
+    }}
+    className="inline-flex h-11 items-center justify-center rounded-2xl border border-violet-300/70 dark:border-violet-400/20 bg-violet-100/85 dark:bg-violet-500/15 px-5 text-sm font-semibold text-violet-700 dark:text-violet-200 shadow-sm transition hover:bg-violet-200 dark:hover:bg-violet-500/20"
+  >
+    Fechar resumo
+  </button>
+</div>
       </div>
 <div className="px-1 text-[12px] leading-5 text-slate-500 dark:text-slate-400">
   Veja seus gastos de cartão por mês de vencimento da fatura. O resumo considera o fechamento de cada cartão e mostra apenas cartões ativos.

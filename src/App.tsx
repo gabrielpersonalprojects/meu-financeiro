@@ -9644,9 +9644,26 @@ const resumoPanelContent = (
                     </div>
                   </div>
 
-                  <div className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-300">
-                    {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
-                  </div>
+<div className="flex shrink-0 items-center gap-2">
+  <div className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-300">
+    {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+  </div>
+
+  <button
+    type="button"
+    onClick={() => togglePago(t)}
+    disabled={isTogglePagoLocked(t)}
+    className={[
+      "rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white transition",
+      isTogglePagoLocked(t)
+        ? "cursor-not-allowed opacity-60"
+        : "hover:brightness-110",
+    ].join(" ")}
+    style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+  >
+    {isTogglePagoLocked(t) ? "Marcando..." : "Recebido"}
+  </button>
+</div>
                 </div>
               ))}
             </div>
@@ -9686,9 +9703,26 @@ const resumoPanelContent = (
                     </div>
                   </div>
 
-                  <div className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-300">
-                    {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
-                  </div>
+<div className="flex shrink-0 items-center gap-2">
+  <div className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-300">
+    {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+  </div>
+
+  <button
+    type="button"
+    onClick={() => togglePago(t)}
+    disabled={isTogglePagoLocked(t)}
+    className={[
+      "rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white transition",
+      isTogglePagoLocked(t)
+        ? "cursor-not-allowed opacity-60"
+        : "hover:brightness-110",
+    ].join(" ")}
+    style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+  >
+    {isTogglePagoLocked(t) ? "Marcando..." : "Recebido"}
+  </button>
+</div>
                 </div>
               ))}
             </div>

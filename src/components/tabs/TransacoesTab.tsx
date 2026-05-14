@@ -21,7 +21,10 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Search,
+  Printer,
 } from "lucide-react";
+
+import { printTransacoesPdfReport } from "../../app/transactions/reports/transacoesPdfReport";
 
 const isPaid = (v: any) => {
   const s = String(v ?? "").toLowerCase();
@@ -446,12 +449,15 @@ useEffect(() => {
   }
 }, [filtroLancamento, setFiltroCategoria, setFiltroTipoGasto]);
 
-  const isGeral = !filtroConta || String(filtroConta).toLowerCase() === "todas";
-  const contaSelecionada = isGeral
-    ? "Geral"
-    : profiles.find((p: any) => String(p?.id) === String(filtroConta))?.name ?? "Conta";
+const isGeral = !filtroConta || String(filtroConta).toLowerCase() === "todas";
 
-  const badgeLabel = contaSelecionada;
+const contaSelecionada = isGeral
+  ? "Geral"
+  : profiles.find((p: any) => String(p?.id) === String(filtroConta))?.name ?? "Conta";
+
+const badgeLabel = isGeral && hasHiddenAccounts
+  ? "Contas selecionadas"
+  : contaSelecionada;
 
   const perfilCardsHabilitado = isGeral;
   const perfilCardsAtivo = perfilCardsHabilitado ? transacoesCardsPerfilView : "geral";
@@ -490,6 +496,105 @@ useEffect(() => {
   const valorOuOculto = (valor: number) => {
     return mostrarValoresResumo ? formatarMoeda(valor) : "••••••";
   };
+
+  const getContaLabelByTransaction = (transaction: any) => {
+  const contaId = String(
+    transaction?.contaId ??
+      transaction?.profileId ??
+      transaction?.qualConta ??
+      transaction?.payload?.contaId ??
+      ""
+  ).trim();
+
+  const conta = (profiles ?? []).find(
+    (profile: any) => String(profile?.id ?? "").trim() === contaId
+  );
+
+  return conta ? getContaLabel(conta) : "Conta não identificada";
+};
+
+const transacoesRelatorio = useMemo(() => {
+  const seenTransferIds = new Set<string>();
+
+  return (sortedTransactions ?? []).filter((transaction: any) => {
+    const tipo = String(transaction?.tipo ?? "").toLowerCase();
+
+    if (tipo === "cartao_credito") {
+      return false;
+    }
+
+    const transferId = String(
+      transaction?.transferId ??
+        transaction?.transferenciaId ??
+        transaction?.transfer_id ??
+        transaction?.transferencia_id ??
+        ""
+    ).trim();
+
+    if (!transferId) {
+      return true;
+    }
+
+    if (seenTransferIds.has(transferId)) {
+      return false;
+    }
+
+    seenTransferIds.add(transferId);
+    return true;
+  });
+}, [sortedTransactions]);
+
+const getLancamentoLabel = () => {
+  if (filtroLancamento === "receita") return "Somente Entradas";
+  if (filtroLancamento === "despesa") return "Somente Saídas";
+  if (filtroLancamento === "transferencia") return "Transferências";
+  return "Entradas + Saídas";
+};
+
+const getOrganizacaoLabel = () => {
+  if (organizacaoLista === "receitas_primeiro") return "Receitas primeiro";
+  if (organizacaoLista === "despesas_primeiro") return "Despesas primeiro";
+  if (organizacaoLista === "valor_crescente") return "Valor crescente";
+  if (organizacaoLista === "valor_decrescente") return "Valor decrescente";
+  if (organizacaoLista === "pagos_primeiro") return "Pagos primeiro";
+  if (organizacaoLista === "pendentes_primeiro") return "Pendentes primeiro";
+  return "Status padrão";
+};
+
+const handlePrintTransacoes = () => {
+  const totalReceitasRelatorio = transacoesRelatorio.reduce(
+    (acc: number, transaction: any) =>
+      String(transaction?.tipo ?? "").toLowerCase() === "receita"
+        ? acc + Math.abs(Number(transaction?.valor ?? 0))
+        : acc,
+    0
+  );
+
+  const totalDespesasRelatorio = transacoesRelatorio.reduce(
+    (acc: number, transaction: any) =>
+      String(transaction?.tipo ?? "").toLowerCase() === "despesa"
+        ? acc + Math.abs(Number(transaction?.valor ?? 0))
+        : acc,
+    0
+  );
+
+  printTransacoesPdfReport({
+    transacoes: transacoesRelatorio,
+    filtroMes,
+    contaLabel: badgeLabel,
+    lancamentoLabel: getLancamentoLabel(),
+    categoriaLabel: filtroCategoria || "Todas as categorias",
+    tipoGastoLabel: filtroTipoGasto || "Todos",
+    buscaLabel: buscaTransacoes.trim() || "Sem busca aplicada",
+    organizacaoLabel: getOrganizacaoLabel(),
+    totalReceitas: totalReceitasRelatorio,
+    totalDespesas: totalDespesasRelatorio,
+    saldoTotal: Number(stats?.saldoTotal ?? 0),
+    formatarMoeda,
+    formatarData,
+    getContaLabelByTransaction,
+  });
+};
 
 const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
   const ativo = perfilCardsAtivo === perfil;
@@ -703,15 +808,25 @@ label: (
 </>
  
 
-<div className="w-full sm:w-auto lg:ml-auto shrink-0 flex justify-end">
-<button
-  type="button"
-  onClick={handleLimparFiltros}
-  title="Limpar filtros"
-  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
->
-  <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
-</button>
+<div className="w-full sm:w-auto lg:ml-auto shrink-0 flex justify-end gap-2">
+  <button
+    type="button"
+    onClick={handlePrintTransacoes}
+    title="Imprimir relatório"
+    aria-label="Imprimir relatório"
+    className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#4600ac]/20 bg-[#4600ac] text-white shadow-sm shadow-violet-900/15 transition hover:scale-[1.06] hover:bg-[#350080] hover:shadow-md active:scale-[0.97] dark:border-violet-300/20 dark:bg-[#4600ac] dark:hover:bg-[#5b19c9]"
+  >
+    <Printer className="h-5 w-5" strokeWidth={2.2} />
+  </button>
+
+  <button
+    type="button"
+    onClick={handleLimparFiltros}
+    title="Limpar filtros"
+    className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
+  >
+    <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
+  </button>
 </div>
 </div>
 </div>

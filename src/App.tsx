@@ -6237,8 +6237,35 @@ const salvarEdicao = async () => {
     const novoValorAbs = extrairValorMoeda(editValueInput);
     const novaDesc = editDescInput.trim() || editingTransaction.descricao;
     const novaTag = String(editTagInput ?? "").trim();
-const isEditandoCartao =
-  String((editingTransaction as any)?.tipo ?? "").toLowerCase() === "cartao_credito";
+
+const tipoEditando = String((editingTransaction as any)?.tipo ?? "")
+  .trim()
+  .toLowerCase();
+
+const categoriaOriginalNorm = String((editingTransaction as any)?.categoria ?? "")
+  .trim()
+  .toLowerCase()
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "");
+
+const isEditandoTransferencia =
+  !!String((editingTransaction as any)?.transferId ?? "").trim() ||
+  categoriaOriginalNorm === "transferencia" ||
+  categoriaOriginalNorm.includes("transfer");
+
+const isEditandoCartao = tipoEditando === "cartao_credito";
+
+const isEditandoReceitaOuDespesaComum =
+  (tipoEditando === "receita" || tipoEditando === "despesa") &&
+  !isEditandoTransferencia;
+
+const novaDataSegura = String(editDataInput ?? "").trim();
+const novaCategoriaSegura = String(editCategoriaInput ?? "").trim();
+
+if (isEditandoReceitaOuDespesaComum && !isIsoDate(novaDataSegura)) {
+  toastCompact("Informe uma data válida para o lançamento.", "error");
+  return;
+}
 
     const listaEditadaBase = applyEditToTransactions(
       transacoes,
@@ -6263,16 +6290,43 @@ const isEditandoCartao =
         (tx as any)?.recorrenciaId ?? (tx as any)?.payload?.recorrenciaId ?? ""
       ).trim();
 
-      const ehMesma =
-        currentId === editingId ||
-        (applyToAllRelated && !!editingRid && currentRid === editingRid);
+      const currentData = String((tx as any)?.data ?? "").trim();
+      const editingData = String((editingTransaction as any)?.data ?? "").trim();
+
+      const ehTransacaoPrincipal = currentId === editingId;
+
+      const ehMensalidadeFuturaDaMesmaSerie =
+        applyToAllRelated &&
+        !!editingRid &&
+        currentRid === editingRid &&
+        currentData >= editingData;
+
+      const ehMesma = ehTransacaoPrincipal || ehMensalidadeFuturaDaMesmaSerie;
 
       if (!ehMesma) return tx;
 
-return {
-  ...tx,
-  tag: isEditandoCartao ? novaTag || "" : "",
-};
+      const dataOriginalDaOcorrencia = String((tx as any)?.data ?? "").trim();
+
+      return {
+        ...tx,
+
+        ...(isEditandoReceitaOuDespesaComum
+          ? {
+              data:
+                applyToAllRelated && !ehTransacaoPrincipal
+                  ? dataOriginalDaOcorrencia
+                  : novaDataSegura,
+            }
+          : {}),
+
+        ...(isEditandoReceitaOuDespesaComum || isEditandoCartao
+          ? {
+              categoria: novaCategoriaSegura,
+            }
+          : {}),
+
+        tag: isEditandoCartao ? novaTag || "" : String((tx as any)?.tag ?? ""),
+      };
     });
 
     const idsParaAtualizar = applyToAllRelated && editingTransaction.recorrenciaId
@@ -7372,7 +7426,12 @@ else if (ehFixo) {
 const dataFim = new Date(`${formDataTerminoFixa}T12:00:00`);
 const diffAnos = dataFim.getFullYear() - baseDate.getFullYear();
 const diffMeses = dataFim.getMonth() - baseDate.getMonth();
-mesesParaGerar = Math.max(1, diffAnos * 12 + diffMeses);
+
+const mesesEntreDatas = diffAnos * 12 + diffMeses;
+
+// Com prazo deve incluir o mês inicial e o mês final.
+// Ex.: 25/05 até 25/07 = maio, junho e julho = 3 lançamentos.
+mesesParaGerar = Math.max(1, mesesEntreDatas + 1);
         }
 
         const recorrenciaId = `cc_fixo_${selectedCreditCardId}_${Date.now()}`;
@@ -7586,7 +7645,12 @@ else if (
 const dataFim = new Date(formDataTerminoFixa + "T12:00:00");
 const diffAnos = dataFim.getFullYear() - dataInicio.getFullYear();
 const diffMeses = dataFim.getMonth() - dataInicio.getMonth();
-mesesParaGerar = Math.max(1, diffAnos * 12 + diffMeses);
+
+const mesesEntreDatas = diffAnos * 12 + diffMeses;
+
+// Com prazo deve incluir o mês inicial e o mês final.
+// Ex.: 25/05 até 25/07 = maio, junho e julho = 3 lançamentos.
+mesesParaGerar = Math.max(1, mesesEntreDatas + 1);
       }
 
       const isSemPrazo = prazoMode === "sem_prazo";
@@ -12534,87 +12598,114 @@ stats={stats}
           />
         </div>
 
-{(editingTransaction.tipo === "despesa" ||
-  editingTransaction.tipo === "receita" ||
-  editingTransaction.tipo === "cartao_credito") && (
-  <div className="space-y-3">
+{(() => {
+  const tipoEditando = String((editingTransaction as any)?.tipo ?? "")
+    .trim()
+    .toLowerCase();
 
-    {editingTransaction.tipo === "despesa" && (
-      <>
-        <div>
-          <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-            Data
-          </label>
+  const categoriaOriginalNorm = String((editingTransaction as any)?.categoria ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
-          <input
-            type="date"
-            value={editDataInput}
-            onChange={(e) => setEditDataInput(e.target.value)}
-            className={inputModalClass}
-          />
-        </div>
+  const isTransferencia =
+    !!String((editingTransaction as any)?.transferId ?? "").trim() ||
+    categoriaOriginalNorm === "transferencia" ||
+    categoriaOriginalNorm.includes("transfer");
 
-        <div className="text-xs">
-<CustomDropdown
-  label="Categoria"
-  value={editCategoriaInput || ""}
-  options={[
-    { label: "Sem categoria", value: "" },
-    ...categoriasFiltradasTransacoes.map((c) => ({
-      label: c,
-      value: c,
-    })),
-  ]}
-  onSelect={(v: any) => setEditCategoriaInput(String(v))}
-  renderMenuInPortal={true}
-  menuMaxHeightPx={220}
-  menuMinHeightPx={180}
-/>
-        </div>
-      </>
-    )}
+  const isReceitaOuDespesaComum =
+    (tipoEditando === "receita" || tipoEditando === "despesa") &&
+    !isTransferencia;
 
-    {editingTransaction.tipo === "cartao_credito" && (
-      <>
-        <div className="text-xs">
-<CustomDropdown
-  label="Categoria"
-  value={editCategoriaInput || ""}
-  options={[
-    { label: "Sem categoria", value: "" },
-    ...categorias.despesa.map((c) => ({
-      label: c,
-      value: c,
-    })),
-  ]}
-  onSelect={(v: any) => setEditCategoriaInput(String(v))}
-  renderMenuInPortal={true}
-  menuMaxHeightPx={220}
-  menuMinHeightPx={180}
-/>
-        </div>
+  const isCartaoCredito = tipoEditando === "cartao_credito";
 
-        <div className="text-xs">
-          <CustomDropdown
-            label="Tag"
-            value={editTagInput || ""}
-            options={[
-              { label: "Sem tag", value: "" },
-              ...(ccTags ?? []).map((tag) => ({
-                label: tag,
-                value: tag,
-              })),
-            ]}
-            onSelect={(v: any) => setEditTagInput(String(v))}
-            renderMenuInPortal={true}
-            menuMaxHeightPx={220}
-            menuMinHeightPx={140}
-          />
-        </div>
-      </>
-    )}
-  </div>
-)}
+  if (!isReceitaOuDespesaComum && !isCartaoCredito) {
+    return null;
+  }
+
+  const categoriasDoTipo =
+    tipoEditando === "receita" ? categorias.receita : categorias.despesa;
+
+  return (
+    <div className="space-y-3">
+      {isReceitaOuDespesaComum && (
+        <>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+              Data
+            </label>
+
+            <input
+              type="date"
+              value={editDataInput}
+              onChange={(e) => setEditDataInput(e.target.value)}
+              className={inputModalClass}
+            />
+          </div>
+
+          <div className="text-xs">
+            <CustomDropdown
+              label="Categoria"
+              value={editCategoriaInput || ""}
+              options={[
+                { label: "Sem categoria", value: "" },
+                ...(categoriasDoTipo ?? []).map((c) => ({
+                  label: c,
+                  value: c,
+                })),
+              ]}
+              onSelect={(v: any) => setEditCategoriaInput(String(v))}
+              renderMenuInPortal={true}
+              menuMaxHeightPx={220}
+              menuMinHeightPx={180}
+            />
+          </div>
+        </>
+      )}
+
+      {isCartaoCredito && (
+        <>
+          <div className="text-xs">
+            <CustomDropdown
+              label="Categoria"
+              value={editCategoriaInput || ""}
+              options={[
+                { label: "Sem categoria", value: "" },
+                ...(categorias.despesa ?? []).map((c) => ({
+                  label: c,
+                  value: c,
+                })),
+              ]}
+              onSelect={(v: any) => setEditCategoriaInput(String(v))}
+              renderMenuInPortal={true}
+              menuMaxHeightPx={220}
+              menuMinHeightPx={180}
+            />
+          </div>
+
+          <div className="text-xs">
+            <CustomDropdown
+              label="Tag"
+              value={editTagInput || ""}
+              options={[
+                { label: "Sem tag", value: "" },
+                ...(ccTags ?? []).map((tag) => ({
+                  label: tag,
+                  value: tag,
+                })),
+              ]}
+              onSelect={(v: any) => setEditTagInput(String(v))}
+              renderMenuInPortal={true}
+              menuMaxHeightPx={220}
+              menuMinHeightPx={140}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+})()}
 
         {editingTransaction.recorrenciaId && (
           <label className="flex items-center gap-3 p-3 rounded-2xl border border-indigo-100 bg-indigo-50 dark:border-indigo-900/40 dark:bg-indigo-900/20 cursor-pointer hover:bg-indigo-100/60 dark:hover:bg-indigo-900/30 transition-colors">

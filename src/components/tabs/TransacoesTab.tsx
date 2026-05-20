@@ -617,6 +617,46 @@ const getOrganizacaoLabel = () => {
   return "Status padrão";
 };
 
+const organizacaoOptions = useMemo(() => {
+  const opcoesBase = [
+    "Valor crescente",
+    "Valor decrescente",
+    "Pagos primeiro",
+    "Pendentes primeiro",
+  ];
+
+  if (filtroLancamento === "todos") {
+    return [
+      "Receitas primeiro",
+      "Despesas primeiro",
+      ...opcoesBase,
+    ];
+  }
+
+  return opcoesBase;
+}, [filtroLancamento]);
+
+const getOrganizacaoDisplayValue = () => {
+  if (organizacaoLista === "receitas_primeiro") return "Receitas primeiro";
+  if (organizacaoLista === "despesas_primeiro") return "Despesas primeiro";
+  if (organizacaoLista === "valor_crescente") return "Valor crescente";
+  if (organizacaoLista === "valor_decrescente") return "Valor decrescente";
+  if (organizacaoLista === "pagos_primeiro") return "Pagos primeiro";
+  if (organizacaoLista === "pendentes_primeiro") return "Pendentes primeiro";
+  return "Organizar";
+};
+
+useEffect(() => {
+  const organizacaoAtual = getOrganizacaoDisplayValue();
+
+  if (
+    organizacaoLista !== "status" &&
+    !organizacaoOptions.includes(organizacaoAtual)
+  ) {
+    setOrganizacaoLista("status");
+  }
+}, [filtroLancamento, organizacaoLista, organizacaoOptions]);
+
 const handlePrintTransacoes = () => {
   const totalReceitasRelatorio = transacoesRelatorio.reduce(
     (acc: number, transaction: any) =>
@@ -643,8 +683,8 @@ const handlePrintTransacoes = () => {
     tipoGastoLabel: filtroTipoGasto || "Todos",
     buscaLabel: buscaTransacoes.trim() || "Sem busca aplicada",
     organizacaoLabel: getOrganizacaoLabel(),
-    totalReceitas: totalReceitasRelatorio,
-    totalDespesas: totalDespesasRelatorio,
+    totalReceitas: Number(stats?.receitasMes ?? totalReceitasRelatorio),
+    totalDespesas: Number(stats?.despesasMes ?? totalDespesasRelatorio),
     saldoTotal: Number(stats?.saldoTotal ?? 0),
     formatarMoeda,
     formatarData,
@@ -706,7 +746,7 @@ className={[
   )}
 </div>
 
-  <div className="w-full sm:w-[250px] lg:w-[230px] shrink-0">
+  <div className="w-full sm:w-auto sm:min-w-[230px] sm:max-w-[360px] shrink-0">
     <CustomDropdown
       placeholder="Conta"
       value={filtroConta}
@@ -804,84 +844,39 @@ label: (
 })
       ]}
       onSelect={(val) => setFiltroConta(String(val))}
-      className="w-full"
+      className="w-full sm:w-auto"
+      triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
     />
   </div>
 
-
-<>
-  <div className="w-full sm:w-[250px] lg:w-[230px] shrink-0">
-    <CustomDropdown
-      placeholder="Lançamento"
-      value={
-        filtroLancamento === "todos"
-          ? "Entradas + Saídas"
-          : filtroLancamento === "receita"
-          ? "Somente Entradas"
-          : filtroLancamento === "despesa"
-          ? "Somente Saídas"
-          : "Transferências"
-      }
-      options={[
-        "Entradas + Saídas",
-        "Somente Entradas",
-        "Somente Saídas",
-        "Transferências",
-      ]}
-      onSelect={(val) => {
-        if (val === "Somente Entradas") setFiltroLancamento("receita");
-        else if (val === "Somente Saídas") setFiltroLancamento("despesa");
-        else if (val === "Transferências") setFiltroLancamento("transferencia");
-        else setFiltroLancamento("todos");
-      }}
-      className="w-full"
-    />
-  </div>
-
-  {!isFiltroTransferencias && filtroLancamento !== "todos" && (
-    <div className="w-full sm:w-[190px] lg:w-[180px] shrink-0">
-      <CustomDropdown
-        placeholder="Categorias"
-        value={filtroCategoria}
-        options={["Todas", ...categoriasFiltradasTransacoes]}
-        onSelect={(val) => setFiltroCategoria(val === "Todas" ? "" : val)}
-        className="w-full"
-      />
-    </div>
-  )}
-
-  {!isFiltroTransferencias && filtroLancamento === "despesa" && (
-    <div className="w-full sm:w-[170px] lg:w-[160px] shrink-0">
-      <CustomDropdown
-        placeholder="Tipo Gasto"
-        value={filtroTipoGasto}
-        options={["Todos", "Fixo", "Variável"]}
-        onSelect={(val) => setFiltroTipoGasto(val === "Todos" ? "" : val)}
-        className="w-full"
-      />
-    </div>
-  )}
-</>
- 
-
-<div className="w-full sm:w-auto lg:ml-auto shrink-0 flex justify-end gap-2">
-<button
-  type="button"
-  onClick={handlePrintTransacoes}
-  title="Imprimir relatório"
-  aria-label="Imprimir relatório"
-  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#4600ac]/20 bg-[#4600ac] text-white shadow-sm shadow-violet-900/15 transition hover:scale-[1.06] hover:bg-[#350080] hover:shadow-md active:scale-[0.97] dark:border-violet-300/20 dark:bg-[#4600ac] dark:hover:bg-[#5b19c9]"
->
-  <Printer className="h-[18px] w-[18px]" strokeWidth={2.2} />
-</button>
-
+  <div className="shrink-0">
   <button
     type="button"
-    onClick={handleLimparFiltros}
-    title="Limpar filtros"
+    onClick={() => {
+      setFiltroMes(new Date().toISOString().slice(0, 7));
+      setFiltroConta(favoriteAccountId ? String(favoriteAccountId) : "todas");
+      setPaginaAtual(1);
+    }}
+    title="Limpar mês e conta"
     className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
   >
     <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
+  </button>
+</div>
+
+
+<></>
+ 
+
+<div className="w-full sm:w-auto lg:ml-auto shrink-0 flex justify-end">
+  <button
+    type="button"
+    onClick={handlePrintTransacoes}
+    title="Imprimir relatório"
+    aria-label="Imprimir relatório"
+    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#4600ac]/20 bg-[#4600ac] text-white shadow-sm shadow-violet-900/15 transition hover:scale-[1.06] hover:bg-[#350080] hover:shadow-md active:scale-[0.97] dark:border-violet-300/20 dark:bg-[#4600ac] dark:hover:bg-[#5b19c9]"
+  >
+    <Printer className="h-[18px] w-[18px]" strokeWidth={2.2} />
   </button>
 </div>
 </div>
@@ -1001,128 +996,169 @@ label: (
   </div>
 )}
 
-        <div className="flex flex-col gap-2 mt-4">
-          <div className="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-wider">
-            <span className="text-slate-400/80 dark:text-slate-500/80">Mensal</span>
-
-            {mostrarReceitasResumo && (
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                +{formatarMoeda(totalFiltradoReceitas)}
-              </span>
-            )}
-
-            {mostrarDespesasResumo && (
-              <span className="font-semibold text-rose-600 dark:text-rose-400">
-                -{formatarMoeda(totalFiltradoDespesas)}
-              </span>
-            )}
-
-            <span className="mx-1 text-slate-400/50 dark:text-slate-600/50">•</span>
-
-            <span className="text-slate-400/80 dark:text-slate-500/80">Anual ({anoRef})</span>
-
-            {mostrarReceitasResumo && (
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                +{formatarMoeda(totalAnualReceitas)}
-              </span>
-            )}
-
-            {mostrarDespesasResumo && (
-              <span className="font-semibold text-rose-600 dark:text-rose-400">
-                -{formatarMoeda(totalAnualDespesas)}
-              </span>
-            )}
-          </div>
+<div className="flex flex-col gap-4">
+  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="w-full sm:w-[230px]">
+          <CustomDropdown
+            placeholder="Lançamento"
+            value={
+              filtroLancamento === "todos"
+                ? "Entradas + Saídas"
+                : filtroLancamento === "receita"
+                ? "Somente Entradas"
+                : filtroLancamento === "despesa"
+                ? "Somente Saídas"
+                : "Transferências"
+            }
+            options={[
+              "Entradas + Saídas",
+              "Somente Entradas",
+              "Somente Saídas",
+              "Transferências",
+            ]}
+            onSelect={(val) => {
+              if (val === "Somente Entradas") setFiltroLancamento("receita");
+              else if (val === "Somente Saídas") setFiltroLancamento("despesa");
+              else if (val === "Transferências") setFiltroLancamento("transferencia");
+              else setFiltroLancamento("todos");
+            }}
+            className="w-full"
+          />
         </div>
 
-<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-  <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
-    {sortedTransactions.length} Lançamentos Encontrados
+        {!isFiltroTransferencias && filtroLancamento !== "todos" && (
+          <div className="w-full sm:w-[190px]">
+            <CustomDropdown
+              placeholder="Categorias"
+              value={filtroCategoria}
+              options={["Todas", ...categoriasFiltradasTransacoes]}
+              onSelect={(val) => setFiltroCategoria(val === "Todas" ? "" : val)}
+              className="w-full"
+            />
+          </div>
+        )}
+
+        {!isFiltroTransferencias && filtroLancamento === "despesa" && (
+          <div className="w-full sm:w-[160px]">
+            <CustomDropdown
+              placeholder="Tipo Gasto"
+              value={filtroTipoGasto}
+              options={["Todos", "Fixo", "Variável"]}
+              onSelect={(val) => setFiltroTipoGasto(val === "Todos" ? "" : val)}
+              className="w-full"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+
+    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+      <div className="relative w-full sm:w-[260px]">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+
+        <input
+          type="text"
+          value={buscaTransacoes}
+          onChange={(e) => setBuscaTransacoes(e.target.value)}
+          placeholder="Buscar lançamento..."
+          className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-9 text-sm font-semibold text-slate-800 outline-none shadow-sm transition placeholder:text-slate-400 hover:bg-slate-50 focus:border-[#4600ac]/35 focus:ring-4 focus:ring-violet-100/70 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:bg-slate-800 dark:focus:ring-violet-900/30"
+        />
+
+        {buscaTransacoes.trim() ? (
+          <button
+            type="button"
+            onClick={() => setBuscaTransacoes("")}
+            className="absolute right-2.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-[#4600ac] dark:hover:bg-slate-800 dark:hover:text-violet-300"
+            title="Limpar busca"
+          >
+            ×
+          </button>
+        ) : null}
+      </div>
+
+      <div className="w-full sm:w-[220px]">
+        <CustomDropdown
+          placeholder="Organizar"
+          value={getOrganizacaoDisplayValue()}
+          options={organizacaoOptions}
+          onSelect={(val) => {
+            if (val === "Receitas primeiro") setOrganizacaoLista("receitas_primeiro");
+            else if (val === "Despesas primeiro") setOrganizacaoLista("despesas_primeiro");
+            else if (val === "Valor crescente") setOrganizacaoLista("valor_crescente");
+            else if (val === "Valor decrescente") setOrganizacaoLista("valor_decrescente");
+            else if (val === "Pagos primeiro") setOrganizacaoLista("pagos_primeiro");
+            else if (val === "Pendentes primeiro") setOrganizacaoLista("pendentes_primeiro");
+          }}
+          className="w-full"
+          triggerClassName="h-11 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+          arrowClassName="text-indigo-600 dark:text-slate-300"
+          renderValue={(displayValue) => (
+            <span className="inline-flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-indigo-600 dark:text-slate-300" />
+              <span className="font-semibold text-[#220055] dark:text-white">
+                {organizacaoLista === "status" ? "Organizar" : displayValue}
+              </span>
+            </span>
+          )}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          setFiltroLancamento("todos");
+          setFiltroCategoria("");
+          setFiltroTipoGasto("");
+          setOrganizacaoLista("status");
+          setBuscaTransacoes("");
+          setPaginaAtual(1);
+        }}
+        title="Limpar filtros da lista, organização, busca e paginação"
+        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
+      >
+        <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
+      </button>
+    </div>
   </div>
 
-  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-    <div className="relative w-full sm:w-[260px]">
-      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+  <div className="grid grid-cols-1 gap-2 text-[10px] uppercase tracking-wider lg:grid-cols-[1fr_auto] lg:items-center">
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-slate-400/80 dark:text-slate-500/80">Mensal</span>
 
-      <input
-        type="text"
-        value={buscaTransacoes}
-        onChange={(e) => setBuscaTransacoes(e.target.value)}
-        placeholder="Buscar lançamento..."
-        className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-9 text-sm font-semibold text-slate-800 outline-none shadow-sm transition placeholder:text-slate-400 hover:bg-slate-50 focus:border-[#4600ac]/35 focus:ring-4 focus:ring-violet-100/70 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:bg-slate-800 dark:focus:ring-violet-900/30"
-      />
+      {mostrarReceitasResumo && (
+        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+          +{formatarMoeda(totalFiltradoReceitas)}
+        </span>
+      )}
 
-      {buscaTransacoes.trim() ? (
-        <button
-          type="button"
-          onClick={() => setBuscaTransacoes("")}
-          className="absolute right-2.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-[#4600ac] dark:hover:bg-slate-800 dark:hover:text-violet-300"
-          title="Limpar busca"
-        >
-          ×
-        </button>
-      ) : null}
-    </div>
-    <div className="w-full sm:w-[220px]">
-<CustomDropdown
-  placeholder="Organizar"
-value={
-  organizacaoLista === "receitas_primeiro"
-    ? "Receitas primeiro"
-    : organizacaoLista === "despesas_primeiro"
-    ? "Despesas primeiro"
-    : organizacaoLista === "valor_crescente"
-    ? "Valor crescente"
-    : organizacaoLista === "valor_decrescente"
-    ? "Valor decrescente"
-    : organizacaoLista === "pagos_primeiro"
-    ? "Pagos primeiro"
-    : organizacaoLista === "pendentes_primeiro"
-    ? "Pendentes primeiro"
-    : "Organizar"
-}
-options={[
-  "Receitas primeiro",
-  "Despesas primeiro",
-  "Valor crescente",
-  "Valor decrescente",
-  "Pagos primeiro",
-  "Pendentes primeiro",
-]}
-onSelect={(val) => {
-  if (val === "Receitas primeiro") setOrganizacaoLista("receitas_primeiro");
-  else if (val === "Despesas primeiro") setOrganizacaoLista("despesas_primeiro");
-  else if (val === "Valor crescente") setOrganizacaoLista("valor_crescente");
-  else if (val === "Valor decrescente") setOrganizacaoLista("valor_decrescente");
-  else if (val === "Pagos primeiro") setOrganizacaoLista("pagos_primeiro");
-  else if (val === "Pendentes primeiro") setOrganizacaoLista("pendentes_primeiro");
-}}
-  className="w-full"
-  triggerClassName="h-11 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
-  arrowClassName="text-indigo-600 dark:text-slate-300"
-  renderValue={(displayValue) => (
-    <span className="inline-flex items-center gap-2">
-      <SlidersHorizontal className="h-4 w-4 text-indigo-600 dark:text-slate-300" />
-      <span className="font-semibold text-[#220055] dark:text-white">
-        {organizacaoLista === "status" ? "Organizar" : displayValue}
-      </span>
-    </span>
-  )}
-/>
+      {mostrarDespesasResumo && (
+        <span className="font-semibold text-rose-600 dark:text-rose-400">
+          -{formatarMoeda(totalFiltradoDespesas)}
+        </span>
+      )}
+
+      <span className="mx-1 text-slate-400/50 dark:text-slate-600/50">•</span>
+
+      <span className="text-slate-400/80 dark:text-slate-500/80">Anual ({anoRef})</span>
+
+      {mostrarReceitasResumo && (
+        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+          +{formatarMoeda(totalAnualReceitas)}
+        </span>
+      )}
+
+      {mostrarDespesasResumo && (
+        <span className="font-semibold text-rose-600 dark:text-rose-400">
+          -{formatarMoeda(totalAnualDespesas)}
+        </span>
+      )}
     </div>
 
-<button
-  type="button"
-  onClick={() => {
-    setOrganizacaoLista("status");
-    setBuscaTransacoes("");
-    setPaginaAtual(1);
-  }}
-  title="Limpar organização, busca e paginação"
-  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
->
-  <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
-</button>
+    <div className="font-bold text-slate-400 dark:text-slate-500 lg:min-w-[510px] lg:text-right">
+      {sortedTransactions.length} Lançamentos Encontrados
+    </div>
   </div>
 </div>
       </div>

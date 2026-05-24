@@ -564,51 +564,65 @@ const resolveTipoGastoCC = (t: any): "normal" | "fixo" | "parcelado" => {
 const txMesFiltradas = useMemo(() => {
   const termo = normalizeCCSearchText(buscaTransacaoCC);
 
-  return txMes.filter((t) => {
-    const c: any = (t as any).categoria;
-    const cLabel =
-      !c
-        ? ""
-        : typeof c === "string"
-        ? c.trim()
-        : String(c.nome ?? c.label ?? c.value ?? "").trim();
+  return txMes
+    .filter((t) => {
+      const c: any = (t as any).categoria;
+      const cLabel =
+        !c
+          ? ""
+          : typeof c === "string"
+          ? c.trim()
+          : String(c.nome ?? c.label ?? c.value ?? "").trim();
 
-    const tag = String((t as any).tag ?? "").trim();
-    const tipoGasto = resolveTipoGastoCC(t);
+      const tag = String((t as any).tag ?? "").trim();
+      const tipoGasto = resolveTipoGastoCC(t);
 
-    const okCat = filtroCategoriaCC === "todas" || cLabel === filtroCategoriaCC;
-    const okTag = filtroTagCC === "todas" || tag === filtroTagCC;
-    const okTipo =
-      filtroTipoGastoCC === "todas" || tipoGasto === filtroTipoGastoCC;
+      const okCat = filtroCategoriaCC === "todas" || cLabel === filtroCategoriaCC;
+      const okTag = filtroTagCC === "todas" || tag === filtroTagCC;
+      const okTipo =
+        filtroTipoGastoCC === "todas" || tipoGasto === filtroTipoGastoCC;
 
-    const tipoLabel =
-      tipoGasto === "parcelado"
-        ? "parcelado"
-        : tipoGasto === "fixo"
-        ? "fixo mensal"
-        : "variavel";
+      const tipoLabel =
+        tipoGasto === "parcelado"
+          ? "parcelado"
+          : tipoGasto === "fixo"
+          ? "fixo mensal"
+          : "variavel";
 
-    const okBusca =
-      !termo ||
-      normalizeCCSearchText(
-        [
-          (t as any)?.descricao,
-          cLabel,
-          tag,
-          tipoLabel,
-          (t as any)?.data,
-          formatBRDate((t as any)?.data),
-          moedaBR(Math.abs(Number((t as any)?.valor ?? 0))),
-          cartao?.nome,
-          cartao?.categoria,
-          cartao?.bankText,
-          cartao?.perfil,
-          cartao?.brand,
-        ].join(" ")
-      ).includes(termo);
+      const okBusca =
+        !termo ||
+        normalizeCCSearchText(
+          [
+            (t as any)?.descricao,
+            cLabel,
+            tag,
+            tipoLabel,
+            (t as any)?.data,
+            formatBRDate((t as any)?.data),
+            moedaBR(Math.abs(Number((t as any)?.valor ?? 0))),
+            cartao?.nome,
+            cartao?.categoria,
+            cartao?.bankText,
+            cartao?.perfil,
+            cartao?.brand,
+          ].join(" ")
+        ).includes(termo);
 
-    return okCat && okTag && okTipo && okBusca;
-  });
+      return okCat && okTag && okTipo && okBusca;
+    })
+    .sort((a: any, b: any) => {
+      const dataA = String(a?.data ?? "");
+      const dataB = String(b?.data ?? "");
+
+      if (dataA !== dataB) {
+        return dataB.localeCompare(dataA);
+      }
+
+      const criadoA = Number(a?.criadoEm ?? 0);
+      const criadoB = Number(b?.criadoEm ?? 0);
+
+      return criadoB - criadoA;
+    });
 }, [
   txMes,
   filtroCategoriaCC,

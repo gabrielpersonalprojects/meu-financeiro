@@ -8143,24 +8143,32 @@ if (accessRole !== "admin" && !hasSubscriptionAccess) {
           </h1>
 
           <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-Seu acesso está quase pronto. Ative sua assinatura para começar a
-organizar sua rotina financeira com mais clareza, praticidade e
-tranquilidade.
+Seu acesso está quase pronto. Comece com 7 dias grátis para organizar sua
+rotina financeira com mais clareza, praticidade e tranquilidade.
           </p>
 <div className="mt-6 rounded-2xl bg-slate-100 dark:bg-slate-800/70 px-4 py-3">
   <div className="flex items-center justify-between gap-3">
     <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
-      Plano mensal
+      Teste grátis
     </span>
     <span className="text-base font-semibold text-slate-900 dark:text-white">
+      7 dias grátis
+    </span>
+  </div>
+
+  <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-200 pt-2 dark:border-slate-700">
+    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+      Depois do teste
+    </span>
+    <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
       R$ 16,90/mês
     </span>
   </div>
 </div>
 
-  <p className="mt-1 text-center text-[10px] text-slate-500 dark:text-slate-400">
-    Sem fidelidade. Cancele quando quiser.
-  </p>
+<p className="mt-1 text-center text-[10px] text-slate-500 dark:text-slate-400">
+  Cancele quando quiser antes da primeira cobrança. Sem fidelidade.
+</p>
 <div className="mt-6 space-y-3">
   <label className="flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-3 text-left text-[12.5px] leading-5 text-slate-600 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-slate-300">
     <input
@@ -8208,7 +8216,7 @@ tranquilidade.
     }}
     onClick={handleCheckoutAssinatura}
   >
-    Ativar minha assinatura
+    Começar 7 dias grátis
   </button>
 
   <button

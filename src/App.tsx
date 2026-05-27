@@ -7918,14 +7918,14 @@ if (String(expectedCheckoutUserId) !== currentUserId) {
 
         nextStatus = data?.status ?? null;
 
-        if (nextStatus === "active") {
-          break;
-        }
+if (nextStatus === "active" || nextStatus === "trialing") {
+  break;
+}
 
         await new Promise((resolve) => setTimeout(resolve, 1200));
       }
 
-if (nextStatus === "active") {
+if (nextStatus === "active" || nextStatus === "trialing") {
   sessionStorage.setItem(
     POST_CHECKOUT_LOGIN_MESSAGE_KEY,
     JSON.stringify({
@@ -8122,7 +8122,10 @@ const response = await fetch("/api/stripe/create-portal-session", {
   }
 };
 
-if (accessRole !== "admin" && subscriptionStatus !== "active") {
+const hasSubscriptionAccess =
+  subscriptionStatus === "active" || subscriptionStatus === "trialing";
+
+if (accessRole !== "admin" && !hasSubscriptionAccess) {
   return (
     <>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 grid place-items-center px-6">

@@ -67,29 +67,31 @@ module.exports = async function handler(req, res) {
       return res.status(401).json({ error: "Invalid session" });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      locale: "pt-BR",
-      payment_method_types: ["card"],
-      customer_email: user.email,
-      client_reference_id: String(user.id),
-      line_items: [
-        {
-          price: stripePriceId,
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        userId: String(user.id),
-      },
-      subscription_data: {
-        metadata: {
-          userId: String(user.id),
-        },
-      },
-      success_url: `${appUrl}?checkout=success`,
-      cancel_url: `${appUrl}?checkout=cancel`,
-    });
+const session = await stripe.checkout.sessions.create({
+  mode: "subscription",
+  locale: "pt-BR",
+  payment_method_types: ["card"],
+  payment_method_collection: "always",
+  customer_email: user.email,
+  client_reference_id: String(user.id),
+  line_items: [
+    {
+      price: stripePriceId,
+      quantity: 1,
+    },
+  ],
+  metadata: {
+    userId: String(user.id),
+  },
+  subscription_data: {
+    trial_period_days: 7,
+    metadata: {
+      userId: String(user.id),
+    },
+  },
+  success_url: `${appUrl}?checkout=success`,
+  cancel_url: `${appUrl}?checkout=cancel`,
+});
 
     return res.status(200).json({ url: session.url });
   } catch (error) {

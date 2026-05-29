@@ -425,29 +425,27 @@ useEffect(() => {
   }, [paginaAtual, totalPaginas]);
 
   const isFiltroTransferencias = filtroLancamento === "transferencia";
+
+  const deveMostrarFiltroCategoria =
+    filtroLancamento === "todos" ||
+    filtroLancamento === "receita" ||
+    filtroLancamento === "despesa";
+
+  const deveMostrarFiltroTipoGasto =
+    filtroLancamento === "todos" ||
+    filtroLancamento === "despesa";
+
   useEffect(() => {
-  if (filtroLancamento === "todos") {
-    setFiltroCategoria("");
-    setFiltroTipoGasto("");
-    return;
-  }
+    if (filtroLancamento === "transferencia") {
+      setFiltroCategoria("");
+      setFiltroTipoGasto("");
+      return;
+    }
 
-  if (filtroLancamento === "receita") {
-    setFiltroCategoria("");
-    setFiltroTipoGasto("");
-    return;
-  }
-
-  if (filtroLancamento === "transferencia") {
-    setFiltroCategoria("");
-    setFiltroTipoGasto("");
-    return;
-  }
-
-  if (filtroLancamento !== "despesa") {
-    setFiltroTipoGasto("");
-  }
-}, [filtroLancamento, setFiltroCategoria, setFiltroTipoGasto]);
+    if (filtroLancamento === "receita") {
+      setFiltroTipoGasto("");
+    }
+  }, [filtroLancamento, setFiltroCategoria, setFiltroTipoGasto]);
 
 const isGeral = !filtroConta || String(filtroConta).toLowerCase() === "todas";
 
@@ -1000,7 +998,7 @@ label: (
   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="w-full sm:w-[230px]">
+        <div className="w-full sm:w-[250px]">
           <CustomDropdown
             placeholder="Lançamento"
             value={
@@ -1025,10 +1023,29 @@ label: (
               else setFiltroLancamento("todos");
             }}
             className="w-full"
+            triggerClassName="h-11 rounded-2xl border border-[#4600ac]/20 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+            arrowClassName="text-indigo-600 dark:text-slate-300"
+            renderValue={(displayValue) => (
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <span className="shrink-0 rounded-full bg-[#cecdf6] px-2 py-0.5 text-[10px] font-bold uppercase text-[#220055] border border-[#cecdf6] dark:bg-indigo-600/25 dark:text-white dark:border-indigo-500/20">
+                  {filtroLancamento === "todos"
+                    ? "Todas"
+                    : filtroLancamento === "receita"
+                    ? "Entrada"
+                    : filtroLancamento === "despesa"
+                    ? "Saída"
+                    : "Transf."}
+                </span>
+
+                <span className="min-w-0 truncate font-semibold text-[#220055] dark:text-white">
+                  {displayValue}
+                </span>
+              </span>
+            )}
           />
         </div>
 
-        {!isFiltroTransferencias && filtroLancamento !== "todos" && (
+        {deveMostrarFiltroCategoria && (
           <div className="w-full sm:w-[190px]">
             <CustomDropdown
               placeholder="Categorias"
@@ -1040,7 +1057,7 @@ label: (
           </div>
         )}
 
-        {!isFiltroTransferencias && filtroLancamento === "despesa" && (
+        {deveMostrarFiltroTipoGasto && (
           <div className="w-full sm:w-[160px]">
             <CustomDropdown
               placeholder="Tipo Gasto"

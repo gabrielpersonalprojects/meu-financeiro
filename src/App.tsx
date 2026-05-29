@@ -7577,16 +7577,21 @@ if (!formQualCartao) {
 }
 const formTipoGastoNorm = String(formTipoGasto ?? "").trim().toLowerCase(); 
 
-if (formTipo === "despesa") {
+if (formTipo === "despesa" || formTipo === "receita") {
   if (isParceladoMode === null) {
-    toastCompact("Por favor, selecione se o pagamento é À vista ou Parcelado.", "error");
+    toastCompact(
+      formTipo === "receita"
+        ? "Por favor, selecione se o recebimento é À vista ou Parcelado."
+        : "Por favor, selecione se o pagamento é À vista ou Parcelado.",
+      "error"
+    );
     return;
   }
+}
 
-if (!isParceladoMode && !formTipoGasto) {
+if (formTipo === "despesa" && !isParceladoMode && !formTipoGasto) {
   toastCompact("Por favor, selecione o tipo de gasto (Fixo ou Variável).", "error");
   return;
-}
 }
 
 const precisaEscolherPrazo =
@@ -7604,9 +7609,14 @@ const precisaEscolherPrazo =
 
     const descFinal = formDesc.trim() || (formTipo === "receita" ? formCat : "Despesa");
 
-    // despesa parcelada
-    if (formTipo === "despesa" && isParceladoMode === true && formParcelas > 1) {
+    // receita/despesa parcelada
+    if (
+      (formTipo === "despesa" || formTipo === "receita") &&
+      isParceladoMode === true &&
+      formParcelas > 1
+    ) {
       const valorParcela = valorNum / formParcelas;
+      const isReceitaParcelada = formTipo === "receita";
 
       for (let i = 0; i < formParcelas; i++) {
         const d = new Date(formData + "T12:00:00");
@@ -7614,13 +7624,16 @@ const precisaEscolherPrazo =
 
 newTrans.push({
   id: Date.now() + i,
-  tipo: "despesa",
+  tipo: formTipo,
   descricao: `${descFinal} (${i + 1}/${formParcelas})`,
-  valor: -valorParcela,
+  valor: isReceitaParcelada ? Math.abs(valorParcela) : -Math.abs(valorParcela),
   data: d.toISOString().split("T")[0],
   categoria: formCat,
-  tipoGasto: "fixo",
-  metodoPagamento: formMetodo ? (formMetodo as PaymentMethod) : undefined,
+  tipoGasto: isReceitaParcelada ? "" : "fixo",
+  metodoPagamento:
+    formTipo === "despesa" && formMetodo
+      ? (formMetodo as PaymentMethod)
+      : undefined,
   qualCartao: formQualCartao,
   qualConta: formQualCartao,
   contaId: formQualCartao,
@@ -9833,9 +9846,12 @@ const resumoPanelContent = (
                     {item.label}
                   </span>
 
-                  <span className="text-[11px] font-semibold text-violet-700 dark:text-violet-300">
-                    Acessar fatura
-                  </span>
+<span
+  className="rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(70,0,172,0.18)] transition hover:brightness-110"
+  style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+>
+  Acessar fatura
+</span>
                 </button>
               ))}
             </div>
@@ -9871,9 +9887,12 @@ const resumoPanelContent = (
                     {item.label}
                   </span>
 
-                  <span className="text-[11px] font-semibold text-violet-700 dark:text-violet-300">
-                    Pagar
-                  </span>
+<span
+  className="rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(70,0,172,0.18)] transition hover:brightness-110"
+  style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+>
+  Pagar
+</span>
                 </button>
               ))}
             </div>
@@ -9909,9 +9928,12 @@ const resumoPanelContent = (
                     {item.label} — {String(item.ciclo).slice(5, 7)}/{String(item.ciclo).slice(0, 4)}
                   </span>
 
-                  <span className="text-[11px] font-semibold text-violet-700 dark:text-violet-300">
-                    Acessar fatura
-                  </span>
+<span
+  className="rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(70,0,172,0.18)] transition hover:brightness-110"
+  style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+>
+  Acessar fatura
+</span>
                 </button>
               ))}
             </div>

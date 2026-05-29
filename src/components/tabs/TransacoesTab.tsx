@@ -602,7 +602,7 @@ const getLancamentoLabel = () => {
   if (filtroLancamento === "receita") return "Somente Entradas";
   if (filtroLancamento === "despesa") return "Somente Saídas";
   if (filtroLancamento === "transferencia") return "Transferências";
-  return "Entradas + Saídas";
+  return "Todos os lançamentos";
 };
 
 const getOrganizacaoLabel = () => {
@@ -1001,45 +1001,45 @@ label: (
         <div className="w-full sm:w-[250px]">
           <CustomDropdown
             placeholder="Lançamento"
-            value={
-              filtroLancamento === "todos"
-                ? "Entradas + Saídas"
-                : filtroLancamento === "receita"
-                ? "Somente Entradas"
-                : filtroLancamento === "despesa"
-                ? "Somente Saídas"
-                : "Transferências"
-            }
-            options={[
-              "Entradas + Saídas",
-              "Somente Entradas",
-              "Somente Saídas",
-              "Transferências",
-            ]}
-            onSelect={(val) => {
-              if (val === "Somente Entradas") setFiltroLancamento("receita");
-              else if (val === "Somente Saídas") setFiltroLancamento("despesa");
-              else if (val === "Transferências") setFiltroLancamento("transferencia");
-              else setFiltroLancamento("todos");
-            }}
+value={
+  filtroLancamento === "todos"
+    ? "Todos os lançamentos"
+    : filtroLancamento === "receita"
+    ? "Somente Entradas"
+    : filtroLancamento === "despesa"
+    ? "Somente Saídas"
+    : "Transferências"
+}
+options={[
+  "Todos os lançamentos",
+  "Somente Entradas",
+  "Somente Saídas",
+  "Transferências",
+]}
+onSelect={(val) => {
+  if (val === "Todos os lançamentos") setFiltroLancamento("todos");
+  else if (val === "Somente Entradas") setFiltroLancamento("receita");
+  else if (val === "Somente Saídas") setFiltroLancamento("despesa");
+  else if (val === "Transferências") setFiltroLancamento("transferencia");
+}}
             className="w-full"
             triggerClassName="h-11 rounded-2xl border border-[#4600ac]/20 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
             arrowClassName="text-indigo-600 dark:text-slate-300"
             renderValue={(displayValue) => (
               <span className="inline-flex min-w-0 items-center gap-2">
-                <span className="shrink-0 rounded-full bg-[#cecdf6] px-2 py-0.5 text-[10px] font-bold uppercase text-[#220055] border border-[#cecdf6] dark:bg-indigo-600/25 dark:text-white dark:border-indigo-500/20">
-                  {filtroLancamento === "todos"
-                    ? "Todas"
-                    : filtroLancamento === "receita"
-                    ? "Entrada"
-                    : filtroLancamento === "despesa"
-                    ? "Saída"
-                    : "Transf."}
-                </span>
+<span className="shrink-0 rounded-full bg-[#cecdf6] px-2 py-0.5 text-[10px] font-bold uppercase text-[#220055] border border-[#cecdf6] dark:bg-indigo-600/25 dark:text-white dark:border-indigo-500/20">
+  {filtroLancamento === "todos"
+    ? "Todos"
+    : filtroLancamento === "receita"
+    ? "Entrada"
+    : filtroLancamento === "despesa"
+    ? "Saída"
+    : "Transf."}
+</span>
 
-                <span className="min-w-0 truncate font-semibold text-[#220055] dark:text-white">
-                  {displayValue}
-                </span>
+<span className="min-w-0 truncate font-semibold text-[#220055] dark:text-white">
+  {filtroLancamento === "todos" ? "os lançamentos" : displayValue}
+</span>
               </span>
             )}
           />

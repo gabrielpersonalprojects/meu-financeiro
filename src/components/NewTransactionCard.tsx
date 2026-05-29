@@ -847,6 +847,74 @@ onClick={() => {
   </div>
 )}
 
+        {/* Receita: À vista / Parcelado */}
+        {formTipo === "receita" && (
+          <div className="mt-2 space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                Modelo de recebimento
+              </label>
+
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsParceladoMode(false);
+                    setFormParcelas(1);
+                    setPrazoMode(null);
+                    setFormDataTerminoFixa("");
+                  }}
+                  className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
+                    ${
+                      isParceladoMode === false
+                        ? "bg-emerald-600/90 border-emerald-500/40 text-white"
+                        : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
+                    }`}
+                >
+                  À vista
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsParceladoMode(true);
+                    if (!formParcelas || formParcelas < 2) setFormParcelas(2);
+                    setPrazoMode(null);
+                    setFormDataTerminoFixa("");
+                  }}
+                  className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
+                    ${
+                      isParceladoMode === true
+                        ? "bg-emerald-600/90 border-emerald-500/40 text-white"
+                        : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
+                    }`}
+                >
+                  Parcelado
+                </button>
+              </div>
+            </div>
+
+            {isParceladoMode === true && (
+              <div>
+                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+                  Número de parcelas
+                </label>
+
+                <input
+                  type="number"
+                  min={2}
+                  value={formParcelas}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value || "2", 10);
+                    setFormParcelas(Number.isFinite(n) ? Math.max(2, n) : 2);
+                  }}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none focus:ring-2 focus:ring-emerald-100 dark:focus:ring-emerald-900"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Despesa: Parcelado + Tipo de Gasto + Conta */}
         {formTipo === "despesa" && (
           <div className="mt-2 space-y-3">
@@ -992,11 +1060,11 @@ onClick={() => {
           </div>
         )}
 
- {/* Fixas/recorrentes (despesa e receita à vista + fixo) */}
+ {/* Fixas/recorrentes (despesa fixa e receita à vista) */}
 {((formTipo === "despesa" &&
   isParceladoMode === false &&
   String(formTipoGasto) === "Fixo") ||
-  formTipo === "receita") && (
+  (formTipo === "receita" && isParceladoMode === false)) && (
           <div className="mt-2 space-y-2">
             <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
               Lançamento fixo

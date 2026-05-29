@@ -179,16 +179,17 @@ const topBadge = isParceladoVisual
   ? {
       label: `Parcela ${parcelaAtualNum} de ${totalParcelasNum}`,
       title: `Parcela ${parcelaAtualNum} de ${totalParcelasNum}`,
-      className:
-        "bg-gradient-to-r from-[#4c0195] to-[#6d28d9] text-white shadow-[0_10px_24px_rgba(76,1,149,0.35)] dark:from-[#6d28d9] dark:to-[#8b5cf6] dark:text-white dark:shadow-[0_10px_24px_rgba(139,92,246,0.28)]",
+      className: isReceita
+        ? "bg-gradient-to-r from-[#059669] to-[#10b981] text-white shadow-[0_10px_24px_rgba(16,185,129,0.28)] dark:from-[#10b981] dark:to-[#34d399] dark:text-white dark:shadow-[0_10px_24px_rgba(52,211,153,0.22)]"
+        : "bg-gradient-to-r from-[#be123c] to-[#f43f5e] text-white shadow-[0_10px_24px_rgba(244,63,94,0.28)] dark:from-[#e11d48] dark:to-[#fb7185] dark:text-white dark:shadow-[0_10px_24px_rgba(251,113,133,0.24)]",
     }
   : isMensalVisual && mensalAtualNum > 0 && mensalTotalNum > 0
 ? {
-    label: `Mensal ${mensalAtualNum} de ${mensalTotalNum}`,
-    title: `Mensal ${mensalAtualNum} de ${mensalTotalNum}`,
+label: `Mês ${mensalAtualNum} de ${mensalTotalNum}`,
+title: `Mês ${mensalAtualNum} de ${mensalTotalNum}`,
     className: isReceita
       ? "bg-gradient-to-r from-[#059669] to-[#10b981] text-white shadow-[0_10px_24px_rgba(16,185,129,0.28)] dark:from-[#10b981] dark:to-[#34d399] dark:text-white dark:shadow-[0_10px_24px_rgba(52,211,153,0.22)]"
-      : "bg-gradient-to-r from-[#c2185b] to-[#ec4899] text-white shadow-[0_10px_24px_rgba(236,72,153,0.28)] dark:from-[#db2777] dark:to-[#f472b6] dark:text-white dark:shadow-[0_10px_24px_rgba(244,114,182,0.24)]",
+     : "bg-gradient-to-r from-[#be123c] to-[#f43f5e] text-white shadow-[0_10px_24px_rgba(244,63,94,0.28)] dark:from-[#e11d48] dark:to-[#fb7185] dark:text-white dark:shadow-[0_10px_24px_rgba(251,113,133,0.24)]",
   }
   : null;
 

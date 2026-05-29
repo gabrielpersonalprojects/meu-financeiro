@@ -10263,12 +10263,12 @@ return (
               </div>
 
               <h2 className="mt-4 pr-10 text-[28px] font-bold tracking-[-0.04em] text-slate-950 dark:text-white md:text-[34px]">
-                Fale com o suporte
+                Fale com nosso SAC
               </h2>
 
 <div className="mt-3 max-w-[640px] space-y-2">
   <p className="text-[14px] leading-6 text-slate-600 dark:text-slate-300">
-    Descreva sua dúvida ou problema com o máximo de detalhes.
+    Descreva sua dúvida, problema ou sugestão com o máximo de detalhes.
     <br />
     <strong className="font-semibold text-slate-800 dark:text-slate-100">
       Nosso prazo de resposta é de até 48h.

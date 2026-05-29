@@ -272,15 +272,15 @@ onClick={() => {
 
 {perfilView !== "geral" && (
   <>
-    <div className="mt-3 w-full min-w-[800px] rounded-[2rem] border border-violet-100/80 bg-white p-4 shadow-[0_10px_28px_rgba(34,0,85,0.04)] dark:border-violet-400/10 dark:bg-[#0f0a1f]/80">
-      <div className="grid gap-4 md:grid-cols-2">
+<div className="mt-3 w-full rounded-[2rem] border border-violet-100/80 bg-white p-4 shadow-[0_10px_28px_rgba(34,0,85,0.04)] dark:border-violet-400/10 dark:bg-[#0f0a1f]/80">
+  <div className="grid gap-4 md:grid-cols-2">
         <div className="min-w-0">
           <p className="mb-2 text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
             Contas
           </p>
-
-          <div className="flex flex-wrap gap-2">
-            {contasDoPerfil.map((conta: any) => {
+<div className="-mx-4 overflow-x-auto px-4 pb-1 no-scrollbar md:mx-0 md:overflow-visible md:px-0 md:pb-0">
+  <div className="flex w-max min-w-full flex-nowrap gap-2 md:w-full md:flex-wrap">
+    {contasDoPerfil.map((conta: any) => {
               const id = String((conta as any)?.id ?? "");
               const ativo = selectedProfileIds.includes(id);
               const nome = String(
@@ -292,7 +292,7 @@ onClick={() => {
                   key={id}
                   type="button"
                   onClick={() => toggleConta(id)}
-                  className={`rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                  className={`shrink-0 rounded-2xl px-3 py-2 text-sm font-semibold transition ${
                     ativo
                       ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
                       : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
@@ -302,7 +302,8 @@ onClick={() => {
                 </button>
               );
             })}
-          </div>
+  </div>
+</div>
         </div>
 
        <div className="min-w-0 md:pl-6">
@@ -310,8 +311,9 @@ onClick={() => {
             Cartões
           </p>
 
-         <div className="flex flex-wrap items-start content-start gap-2">
-            {cartoesDoPerfil.map((cartao: any) => {
+<div className="-mx-4 overflow-x-auto px-4 pb-1 no-scrollbar md:mx-0 md:overflow-visible md:px-0 md:pb-0">
+  <div className="flex w-max min-w-full flex-nowrap items-start gap-2 md:w-full md:flex-wrap">
+    {cartoesDoPerfil.map((cartao: any) => {
               const id = String((cartao as any)?.id ?? "");
               const ativo = selectedCreditCardIds.includes(id);
 const nome = String(
@@ -327,7 +329,7 @@ const nome = String(
                   key={id}
                   type="button"
                   onClick={() => toggleCartao(id)}
-                  className={`inline-flex min-w-[88px] justify-center rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                  className={`inline-flex min-w-[88px] shrink-0 justify-center rounded-2xl px-3 py-2 text-sm font-semibold transition ${
                     ativo
                       ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
                       : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
@@ -337,20 +339,21 @@ const nome = String(
                 </button>
               );
             })}
-          </div>
+  </div>
+</div>
         </div>
       </div>
     </div>
 
- <div className="mt-0.5 flex w-full min-w-[800px] items-center justify-between gap-3">
-     <p className="-mt-2 ml-[14px] text-[12px] md:text-[13px] font-semibold text-slate-500 dark:text-slate-300">
+<div className="mt-2 flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <p className="text-[12px] font-semibold text-slate-500 dark:text-slate-300 md:text-[13px]">
         Escolha quais contas e cartões entram na projeção.
       </p>
 
       <button
         type="button"
         onClick={handleToggleAll}
-        className="inline-flex rounded-2xl border border-[#4600ac]/20 bg-gradient-to-r from-[#220055] to-[#4600ac] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_10px_rgba(70,0,172,0.12)] transition hover:brightness-110 active:scale-[0.98]"
+       className="inline-flex w-fit rounded-2xl border border-[#4600ac]/20 bg-gradient-to-r from-[#220055] to-[#4600ac] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_10px_rgba(70,0,172,0.12)] transition hover:brightness-110 active:scale-[0.98]"
       >
         {todosPerfisMarcados ? "Desmarcar tudo" : "Marcar tudo"}
       </button>

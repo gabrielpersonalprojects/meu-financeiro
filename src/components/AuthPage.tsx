@@ -395,19 +395,19 @@ async function onEntrar(e: FormEvent) {
         }}
       />
 
-     <div className="w-full max-w-[380px] rounded-[24px] overflow-hidden shadow-2xl border border-white/15 bg-white/5 backdrop-blur-xl">
+     <div className="w-full max-w-[360px] rounded-[24px] overflow-hidden shadow-2xl border border-white/15 bg-white/5 backdrop-blur-xl">
         {/* Header */}
         <div className="px-7 pt-6 pb-3">
           <div className="flex flex-col items-center">
 <img
   src={LOGO_SRC}
   alt="Logo"
-  className="mt-4 translate-x-[2px] w-[214px] h-[214px] object-contain drop-shadow md:w-[224px] md:h-[224px]"
+  className="mt-2 translate-x-[2px] w-[190px] h-[190px] object-contain drop-shadow md:w-[204px] md:h-[204px]"
 />
            <div className="mt-1 w-full h-px bg-white/20" />
           </div>
 
-          <div className="mt-5 text-center">
+          <div className="mt-4 text-center">
             <h1 className="text-white text-xl font-semibold tracking-wide">
                 {mode === "login"
     ? "Acesso"
@@ -442,7 +442,7 @@ async function onEntrar(e: FormEvent) {
         </div>
 
         {/* Corpo */}
-        <div className="px-8 pb-8">
+        <div className="px-8 pb-5">
           {mode === "login" && (
             <form onSubmit={onEntrar} className="space-y-2">
 <div className="rounded-xl overflow-hidden border border-white/20 bg-white/10">
@@ -535,6 +535,47 @@ className="group relative overflow-hidden mt-0 h-10 max-w-[280px] w-full mx-auto
                 />
 <span className="relative z-10">{loading ? "Entrando..." : "ENTRAR"}</span>
               </button>
+
+              <button
+                type="button"
+                onClick={irParaCadastro}
+                className="group relative mt-3 h-10 max-w-[280px] w-full mx-auto block overflow-hidden rounded-xl
+                           text-sm text-white font-semibold tracking-wide
+                           transition hover:brightness-110
+                           hover:shadow-[0_12px_30px_rgba(236,72,153,0.22)]
+                           active:scale-[0.98]"
+                style={{
+                  background: `linear-gradient(135deg,
+                    #ec4899 0%,
+                    #a855f7 72%,
+                    rgba(255,255,255,0.08) 100%)`,
+                  boxShadow: "0 10px 26px rgba(236,72,153,0.20)",
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                  style={{
+                    background: `linear-gradient(135deg,
+                      #f472b6 0%,
+                      #a855f7 70%,
+                      rgba(139,92,246,0.24) 100%)`,
+                  }}
+                />
+
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                  style={{
+                    background: `radial-gradient(120% 140% at 85% 85%,
+                      rgba(255,255,255,0.20) 0%,
+                      rgba(255,255,255,0.06) 42%,
+                      rgba(255,255,255,0.00) 72%)`,
+                  }}
+                />
+
+                <span className="relative z-10">CRIAR CONTA</span>
+              </button>
 </div>
 
               {mostrarReenviar && (
@@ -547,14 +588,6 @@ className="group relative overflow-hidden mt-0 h-10 max-w-[280px] w-full mx-auto
                   Reenviar e-mail de confirmação
                 </button>
               )}
-
-              <button
-                type="button"
-                onClick={irParaCadastro}
-                className="w-full text-center text-white/55 text-[11px] hover:text-white/80 hover:underline transition"
-              >
-                Criar conta
-              </button>
             </form>
           )}
 
@@ -814,11 +847,12 @@ className="group relative overflow-hidden mt-4 h-10 max-w-[280px] w-full mx-auto
 
         </div>
       </div>
-<div className="mt-6 text-center text-[11px] text-white/25 tracking-wide select-none">
+
+<div className="mt-5 text-center text-[11px] text-white/25 tracking-wide select-none">
   Desenvolvido por Inpulso Digital LTDA
 </div>
           <div className="pt-4 text-center text-[11px] text-white/25 tracking-wide">
-  v0.2.0
+  v1.0.0
 </div>
     </div>
     

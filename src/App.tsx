@@ -179,6 +179,8 @@ import {
   buildInvoicePaymentTransactionDescription,
 } from "./app/credit/logic/invoicePaymentBuilders";
 
+import { buildInstallmentInvoiceManualStatusRecord } from "./app/credit/logic/invoiceManualStatus";
+
 
 
 const SEM_PRAZO_MESES = 12;
@@ -2163,17 +2165,16 @@ let savedTransactions: any[] = [];
 try {
   savedTransactions = await persistTransactionsBatch(novasParcelasBase as any);
 
-  const statusManualApp = {
-    id:
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `fsm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-    cartaoId: String(cartaoId),
-    cicloKey: String(cicloKey),
-    statusManual: "parcelada",
-    parcelamentoFaturaId: parcelamentoId,
-    criadoEm,
-  };
+const statusManualApp = buildInstallmentInvoiceManualStatusRecord({
+  id:
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `fsm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+  cartaoId: String(cartaoId),
+  cicloKey: String(cicloKey),
+  parcelamentoFaturaId: parcelamentoId,
+  criadoEm,
+});
 
   const savedManualStatusRow = await upsertInvoiceManualStatus(
     mapInvoiceManualStatusAppToInsert(statusManualApp as any, session.user.id)

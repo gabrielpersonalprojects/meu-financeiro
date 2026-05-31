@@ -38,6 +38,12 @@ import {
   sumInvoicePayments,
 } from "./logic/invoicePayments";
 
+import {
+  getCreditCardTransactions,
+  getCreditCardTransactionsByInvoiceMonth,
+  sumCreditTransactionsAbs,
+} from "./logic/creditTransactions";
+
 type Props = {
   cartao: CartaoUI;
   transacoes: TransacaoCCUI[];
@@ -265,21 +271,12 @@ const dataMinimaPermitidaNaFaturaAtual = formatDateOnlyISO(cicloInicio);
     cicloFim
   )}`;
 
-const txMes = (transacoes || []).filter((t: any) => {
-  if (String(t?.tipo ?? "").toLowerCase() !== "cartao_credito") return false;
-
-  const cartaoAtualId = String(cartao.id ?? "").trim();
-
-  if (getCreditTransactionCardRef(t) !== cartaoAtualId) return false;
-
-  const dataTx = String(t?.data ?? "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataTx)) return false;
-
-  return getInvoiceMonthKeyForTransaction({
-  iso: dataTx,
+const txMes = getCreditCardTransactionsByInvoiceMonth({
+  transactions: transacoes,
+  cartaoId: String(cartao.id),
+  monthKey: baseMonthKey,
   diaFechamento,
   diaVencimento,
-}) === baseMonthKey;
 });
 
 console.log("DEBUG_CARTAO_EXPANDIDO", {
@@ -304,14 +301,14 @@ console.log("DEBUG_CARTAO_EXPANDIDO", {
   })),
 });
 
-const txDoCartao = useMemo(() => {
-  const cartaoAtualId = String(cartao.id ?? "").trim();
-
-  return (transacoes || []).filter((t: any) => {
-    if (String(t?.tipo ?? "").toLowerCase() !== "cartao_credito") return false;
-    return getCreditTransactionCardRef(t) === cartaoAtualId;
-  });
-}, [transacoes, cartao.id]);
+const txDoCartao = useMemo(
+  () =>
+    getCreditCardTransactions({
+      transactions: transacoes,
+      cartaoId: String(cartao.id),
+    }),
+  [transacoes, cartao.id]
+);
 
   useEffect(() => {
     if (!transacoes?.length) return;
@@ -365,9 +362,7 @@ const txDoCartao = useMemo(() => {
 ]);
 
   const txFaturaCiclo = txMes;
-  const valorFaturaTotal = roundMoney(
-  txFaturaCiclo.reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-);
+const valorFaturaTotal = sumCreditTransactionsAbs(txFaturaCiclo);
 
 const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
 const [filtroTagCC, setFiltroTagCC] = useState<string>("todas");
@@ -682,12 +677,7 @@ const txFaturaAnterior = txDoCartao.filter((t) => {
 }) === previousBaseMonthKey;
 });
 
-const valorTotalFaturaAnterior = roundMoney(
-  txFaturaAnterior.reduce(
-    (acc, t) => acc + Math.abs(Number(t.valor) || 0),
-    0
-  )
-);
+const valorTotalFaturaAnterior = sumCreditTransactionsAbs(txFaturaAnterior);
 
 const saldoFaturaAnterior = getInvoiceRemainingBalance({
   invoiceTotal: valorTotalFaturaAnterior,

@@ -174,6 +174,11 @@ import HelpTutorialContent from "./components/help/HelpTutorialContent";
 
 import { normalizeCreditTransactionCardRefs } from "./app/credit/logic/cardRefs";
 
+import {
+  buildInvoicePayment,
+  buildInvoicePaymentTransactionDescription,
+} from "./app/credit/logic/invoicePaymentBuilders";
+
 
 
 const SEM_PRAZO_MESES = 12;
@@ -1945,13 +1950,10 @@ const handleRegistrarPagamentoFatura = async (payload: {
   const novaTransacao: Transaction = {
     id: nextTxId,
     tipo: "despesa",
-    descricao: `Fatura: ${(() => {
-      const emissor = String((cartaoRef as any)?.emissor ?? "").trim();
-      const categoria = String((cartaoRef as any)?.categoria ?? "").trim();
-
-      const bancoFinal = emissor || "Cartão";
-      return categoria ? `${bancoFinal} ${categoria}` : bancoFinal;
-    })()}`,
+descricao: buildInvoicePaymentTransactionDescription({
+  emissor: (cartaoRef as any)?.emissor,
+  categoria: (cartaoRef as any)?.categoria,
+}),
     valor: -Math.abs(Number(payload.valor || 0)),
     data: payload.dataPagamento,
     categoria: "Cartão de Crédito",
@@ -1971,18 +1973,17 @@ const txIdSalva = String((txApp as any)?.id ?? "").trim();
 
   try {
     // 2) salva o registro de pagamento da fatura no Supabase
-    const novoPagamento: PagamentoFaturaApp = {
-      id: globalThis.crypto.randomUUID(),
-      cartaoId: payload.cartaoId,
-      cicloKey: payload.cicloKey,
-      dataPagamento: payload.dataPagamento,
-      valor,
-      contaId: payload.contaId,
-      contaLabel: payload.contaLabel,
-      criadoEm: Date.now(),
-      snapshotCreatedAtMs: Date.now(),
-      transacaoId: txIdSalva || String(nextTxId),
-    };
+const novoPagamento: PagamentoFaturaApp = buildInvoicePayment({
+  id: globalThis.crypto.randomUUID(),
+  cartaoId: payload.cartaoId,
+  cicloKey: payload.cicloKey,
+  dataPagamento: payload.dataPagamento,
+  valor,
+  contaId: payload.contaId,
+  contaLabel: payload.contaLabel,
+  transacaoId: txIdSalva || String(nextTxId),
+  snapshotCreatedAtMs: Date.now(),
+}) as PagamentoFaturaApp;
 
     const invoicePayload = mapInvoicePaymentAppToInsert(
       novoPagamento,

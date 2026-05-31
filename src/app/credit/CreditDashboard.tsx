@@ -44,6 +44,14 @@ import {
   sumCreditTransactionsAbs,
 } from "./logic/creditTransactions";
 
+import {
+  getCreditCategoriesFromTransactions,
+  getCreditCategoryLabel,
+  getCreditTagsFromTransactions,
+  normalizeCreditSearchText,
+  resolveCreditSpendingType,
+} from "./logic/creditFilters";
+
 type Props = {
   cartao: CartaoUI;
   transacoes: TransacaoCCUI[];
@@ -369,30 +377,15 @@ const [filtroTagCC, setFiltroTagCC] = useState<string>("todas");
 const [filtroTipoGastoCC, setFiltroTipoGastoCC] = useState<string>("todas");
 const [buscaTransacaoCC, setBuscaTransacaoCC] = useState<string>("");
 
-  const categoriasCC = useMemo(() => {
-    return Array.from(
-      new Set(
-        txMes
-          .map((t) => {
-            const c: any = (t as any).categoria;
-            if (!c) return "";
-            if (typeof c === "string") return c.trim();
-            return String(c.nome ?? c.label ?? c.value ?? "").trim();
-          })
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [txMes]);
+const categoriasCC = useMemo(
+  () => getCreditCategoriesFromTransactions(txMes),
+  [txMes]
+);
 
-  const tagsCC = useMemo(() => {
-    return Array.from(
-      new Set(
-        txMes
-          .map((t) => String((t as any).tag ?? "").trim())
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [txMes]);
+const tagsCC = useMemo(
+  () => getCreditTagsFromTransactions(txMes),
+  [txMes]
+);
 
   const tiposGastoCC = [
   { label: "Todos", value: "todas" },
@@ -401,57 +394,14 @@ const [buscaTransacaoCC, setBuscaTransacaoCC] = useState<string>("");
   { label: "Parcelado", value: "parcelado" },
 ];
 
-const normalizeCCSearchText = (value: any) =>
-  String(value ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-
-const resolveTipoGastoCC = (t: any): "normal" | "fixo" | "parcelado" => {
-  const payloadTipo = String(t?.payload?.tipoGasto ?? "").trim().toLowerCase();
-  const raizTipo = String(t?.tipoGasto ?? "").trim().toLowerCase();
-
-  const parcelaAtual = Number(
-    t?.parcelaAtual ?? t?.payload?.parcelaAtual ?? 0
-  );
-
-  const parcelasTotal = Number(
-    t?.parcelasTotal ??
-      t?.totalParcelas ??
-      t?.payload?.parcelasTotal ??
-      t?.payload?.totalParcelas ??
-      0
-  );
-
-  const isParcelado =
-    parcelasTotal > 1 ||
-    parcelaAtual > 0 ||
-    String(t?.origemLancamento ?? "").trim().toLowerCase() === "compra_parcelada";
-
-  if (isParcelado) return "parcelado";
-
-  if (payloadTipo === "fixo" || raizTipo === "fixo") return "fixo";
-  if (payloadTipo === "parcelado" || raizTipo === "parcelado") return "parcelado";
-
-  return "normal";
-};
-
 const txMesFiltradas = useMemo(() => {
-  const termo = normalizeCCSearchText(buscaTransacaoCC);
+ const termo = normalizeCreditSearchText(buscaTransacaoCC);
 
   return txMes
     .filter((t) => {
-      const c: any = (t as any).categoria;
-      const cLabel =
-        !c
-          ? ""
-          : typeof c === "string"
-          ? c.trim()
-          : String(c.nome ?? c.label ?? c.value ?? "").trim();
-
-      const tag = String((t as any).tag ?? "").trim();
-      const tipoGasto = resolveTipoGastoCC(t);
+const cLabel = getCreditCategoryLabel(t);
+const tag = String((t as any).tag ?? "").trim();
+const tipoGasto = resolveCreditSpendingType(t);
 
       const okCat = filtroCategoriaCC === "todas" || cLabel === filtroCategoriaCC;
       const okTag = filtroTagCC === "todas" || tag === filtroTagCC;
@@ -467,7 +417,7 @@ const txMesFiltradas = useMemo(() => {
 
       const okBusca =
         !termo ||
-        normalizeCCSearchText(
+        normalizeCreditSearchText(
           [
             (t as any)?.descricao,
             cLabel,

@@ -32,6 +32,12 @@ import {
   isInvoiceManualStatusInstallment,
 } from "./logic/invoiceManualStatus";
 
+import {
+  getInvoicePaymentsByCycle,
+  getInvoiceRemainingBalance,
+  sumInvoicePayments,
+} from "./logic/invoicePayments";
+
 type Props = {
   cartao: CartaoUI;
   transacoes: TransacaoCCUI[];
@@ -589,17 +595,18 @@ const [invoiceParcelamentoPrimeiraParcela, setInvoiceParcelamentoPrimeiraParcela
     if (!existe) setContaPagamentoFatura(contaPagamentoOptions[0].value);
   }, [contaPagamentoOptions, contaPagamentoFatura]);
 
-  const pagamentosDoCiclo = pagamentosFatura
-    .filter((p) => p.cartaoId === cartao.id && p.cicloKey === cicloKeyFatura)
-    .sort((a, b) => (b.criadoEm ?? 0) - (a.criadoEm ?? 0))
+const pagamentosDoCiclo = getInvoicePaymentsByCycle({
+  payments: pagamentosFatura,
+  cartaoId: String(cartao.id),
+  cicloKey: String(cicloKeyFatura),
+});
 
-const valorPagoFatura = roundMoney(
-  pagamentosDoCiclo.reduce((acc, p) => acc + Math.abs(Number(p.valor) || 0), 0)
-);
+const valorPagoFatura = sumInvoicePayments(pagamentosDoCiclo);
 
-const saldoRestanteFatura = roundMoney(
-  Math.max(0, valorFaturaTotal - valorPagoFatura)
-);
+const saldoRestanteFatura = getInvoiceRemainingBalance({
+  invoiceTotal: valorFaturaTotal,
+  paidTotal: valorPagoFatura,
+});
 
 const limiteDisponivel = Math.max(
   0,
@@ -649,24 +656,13 @@ const faturaAnteriorParcelada = isInvoiceManualStatusInstallment(
   statusManualAnteriorObj?.statusManual
 );
 
-const pagamentosDaFaturaAnterior = pagamentosFatura
-  .filter(
-    (p) =>
-      String(p.cartaoId) === String(cartao.id) &&
-      String(p.cicloKey) === String(cicloKeyFaturaAnterior)
-  )
-  .sort((a, b) => {
-    const da = new Date(String(a.dataPagamento ?? 0)).getTime();
-    const db = new Date(String(b.dataPagamento ?? 0)).getTime();
-    return db - da;
-  });
+const pagamentosDaFaturaAnterior = getInvoicePaymentsByCycle({
+  payments: pagamentosFatura,
+  cartaoId: String(cartao.id),
+  cicloKey: String(cicloKeyFaturaAnterior),
+});
 
-const valorPagoFaturaAnterior = roundMoney(
-  pagamentosDaFaturaAnterior.reduce(
-    (acc, p) => acc + Math.abs(Number(p.valor) || 0),
-    0
-  )
-);
+const valorPagoFaturaAnterior = sumInvoicePayments(pagamentosDaFaturaAnterior);
 
 const previousBaseMonthKey = `${previousBaseMonth.getFullYear()}-${pad2(
   previousBaseMonth.getMonth() + 1
@@ -693,9 +689,10 @@ const valorTotalFaturaAnterior = roundMoney(
   )
 );
 
-const saldoFaturaAnterior = roundMoney(
-  Math.max(0, valorTotalFaturaAnterior - valorPagoFaturaAnterior)
-);
+const saldoFaturaAnterior = getInvoiceRemainingBalance({
+  invoiceTotal: valorTotalFaturaAnterior,
+  paidTotal: valorPagoFaturaAnterior,
+});
 
 const agoraAnterior0 = startOfDay(new Date()).getTime();
 const cicloFimAnteriorEOD = endOfDay(cicloFimAnterior).getTime();

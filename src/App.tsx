@@ -5673,10 +5673,17 @@ const profilesComContasVisiveis = useMemo(() => {
     (p: any) => !hiddenAccountIdsSet.has(String(p?.id ?? "").trim())
   );
 }, [profiles, shouldShowAccountEyes, hiddenAccountIdsSet]);
+const deveIgnorarContasOcultasPorPerfil =
+  transacoesCardsPerfilView !== "geral";
+// 1) Base pros CARDS
+// - visão geral respeita contas ocultas
+// - visão PF/PJ ignora contas ocultas, porque é um filtro temporário de perfil
+const txCardsBase = deveIgnorarContasOcultasPorPerfil
+  ? transacoes
+  : transacoesComContasVisiveis;
 
-// 1) Base pros CARDS (respeita mês + filtro de conta)
 const txCards = useMemo(() => {
-  const byMonth = transacoesComContasVisiveis.filter(
+  const byMonth = txCardsBase.filter(
     (t) => (t.data || "").slice(0, 7) === filtroMesTransacoes
   );
 
@@ -5689,13 +5696,17 @@ const txCards = useMemo(() => {
   }
 
   return byMonth.filter(passaFiltroConta);
-}, [transacoesComContasVisiveis, filtroMesTransacoes, filtroConta, passaFiltroConta]);
+}, [txCardsBase, filtroMesTransacoes, filtroConta, passaFiltroConta]);
 
 
 // --- Filtros (memo limpo, SEM duplicações) ---
+const transacoesBaseFiltroPerfil = deveIgnorarContasOcultasPorPerfil
+  ? transacoes
+  : transacoesComContasVisiveis;
+
 const { getFilteredTransactions, getFilteredTransactionsAno, anoRef } =
   useFilteredTransactions({
-    transacoes: transacoesComContasVisiveis,
+    transacoes: transacoesBaseFiltroPerfil,
     filtroMes: filtroMesTransacoes,
     filtroLancamento,
     filtroCategoria,
@@ -5831,11 +5842,25 @@ const transacoesFiltradasUI = useTransacoesFiltradasMes({
 
 
 // --- Stats (não contar transferência/cartão de crédito por enquanto) ---
+// Geral respeita contas ocultas.
+// PF/PJ é uma visão temporária e ignora contas ocultas.
+const statsTransactionsBase = deveIgnorarContasOcultasPorPerfil
+  ? transacoes
+  : transacoesComContasVisiveis;
+
+const statsProfilesBase = deveIgnorarContasOcultasPorPerfil
+  ? profiles
+  : profilesComContasVisiveis;
+
+const statsFiltroConta = deveIgnorarContasOcultasPorPerfil
+  ? "todas"
+  : filtroConta;
+
 const stats = useStatsMes({
-  transactions: transacoesComContasVisiveis,
+  transactions: statsTransactionsBase,
   filtroMes: filtroMesTransacoes,
-  filtroConta,
-  profiles: profilesComContasVisiveis,
+  filtroConta: statsFiltroConta,
+  profiles: statsProfilesBase,
   passaFiltroConta,
   perfilView: transacoesCardsPerfilView,
 });

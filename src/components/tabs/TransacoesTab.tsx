@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import CustomDateInput from "../CustomDateInput";
 import CustomDropdown from "../CustomDropdown";
 import { TransactionsList } from "../TransactionsList";
@@ -462,6 +462,7 @@ const badgeLabel = isGeral && hasHiddenAccounts
   const perfilCardsHabilitado = isGeral;
   const perfilCardsAtivo = perfilCardsHabilitado ? transacoesCardsPerfilView : "geral";
   const perfilCardsSelecionado = perfilCardsAtivo !== "geral";
+  const perfilToggleRef = useRef<HTMLDivElement | null>(null);
 
   const togglePerfilCards = (perfil: "PF" | "PJ") => {
     if (!perfilCardsHabilitado) return;
@@ -470,6 +471,30 @@ const badgeLabel = isGeral && hasHiddenAccounts
       transacoesCardsPerfilView === perfil ? "geral" : perfil
     );
   };
+
+  useEffect(() => {
+  if (!perfilCardsSelecionado) return;
+
+  const handleClickOutsidePerfilToggle = (event: MouseEvent | TouchEvent) => {
+    const target = event.target as Node | null;
+
+    if (!target) return;
+
+    if (perfilToggleRef.current?.contains(target)) {
+      return;
+    }
+
+    setTransacoesCardsPerfilView("geral");
+  };
+
+  document.addEventListener("mousedown", handleClickOutsidePerfilToggle);
+  document.addEventListener("touchstart", handleClickOutsidePerfilToggle);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutsidePerfilToggle);
+    document.removeEventListener("touchstart", handleClickOutsidePerfilToggle);
+  };
+}, [perfilCardsSelecionado, setTransacoesCardsPerfilView]);
 
   const ContaBadge = ({ label }: { label: string }) => (
     <span
@@ -898,7 +923,7 @@ label: (
   <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-white/12 blur-3xl" />
 
 {perfilCardsHabilitado && (
-  <div className="absolute top-5 right-5 z-20">
+  <div ref={perfilToggleRef} className="absolute top-5 right-5 z-20">
     <div
       className={[
         "inline-flex items-center gap-1 rounded-full px-1 py-1",

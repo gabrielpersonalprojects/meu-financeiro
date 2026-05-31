@@ -25,7 +25,7 @@ import {
   parseISODateLocal,
 } from "./logic/cardCycles";
 
-import { roundMoney } from "./logic/invoiceStatus";
+import { getCreditInvoiceStatus, roundMoney } from "./logic/invoiceStatus";
 
 type Props = {
   cartao: CartaoUI;
@@ -754,14 +754,15 @@ const faturaAnteriorFechadaAguardandoPagamento =
   const cicloFimEOD = endOfDay(cicloFim);
   const venc0 = startOfDay(vencimentoFaturaAtual);
 
-const getFaturaStatus = (): FaturaStatus => {
-  if (valorFaturaNum <= 0 && saldoPendenteNum <= 0) return "ZERADA";
-  if (valorFaturaNum > 0 && saldoPendenteNum <= 0) return "PAGA";
-  if (now0 < cicloIni0) return "FUTURA";
-  if (now0 <= cicloFimEOD) return "EM_ABERTO";
-  if (now0 <= venc0) return "FECHADA";
-  return "ATRASADA";
-};
+const getFaturaStatus = (): FaturaStatus =>
+  getCreditInvoiceStatus({
+    valorFatura: valorFaturaNum,
+    saldoPendente: saldoPendenteNum,
+    hoje: now0,
+    cicloInicio: cicloIni0,
+    cicloFim: cicloFimEOD,
+    vencimento: venc0,
+  });
 
   const statusManualAtualObj =
     faturasStatusManual.find(

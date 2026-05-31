@@ -52,6 +52,11 @@ import {
   resolveCreditSpendingType,
 } from "./logic/creditFilters";
 
+import {
+  getCreditInvoiceSummaryStatusClass,
+  getCreditInvoiceSummaryStatusLabel,
+} from "./logic/invoiceStatusPresentation";
+
 type Props = {
   cartao: CartaoUI;
   transacoes: TransacaoCCUI[];
@@ -810,50 +815,11 @@ const miniCardExpandidoValor =
       ? Math.max(0, saldoRestanteFatura)
       : Math.max(0, saldoRestanteFatura);
 
-const faturaStatusLabel: Record<FaturaStatus, string> = {
-    PAGA: "Paga",
-    FUTURA: "Futura",
-    EM_ABERTO: "Em aberto",
-    PENDENTE: "Pendente",
-    ATRASADA: "Em atraso",
-    ZERADA: "Zerada",
-    FECHADA: "Fechada",
-  };
-
-  const faturaStatusClass: Record<FaturaStatus, string> = {
-    PAGA:
-      "border-emerald-300/50 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-300",
-    ZERADA:
-      "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/15 dark:bg-white/5 dark:text-slate-200",
-    FECHADA:
-      "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/15 dark:bg-white/5 dark:text-slate-200",
-    FUTURA:
-      "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/15 dark:bg-white/5 dark:text-slate-200",
-    EM_ABERTO:
-      "border-sky-300/60 bg-sky-50 text-sky-800 dark:border-sky-400/20 dark:bg-sky-500/10 dark:text-sky-300",
-    PENDENTE:
-      "border-amber-300/70 bg-amber-50 text-amber-800 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-300",
-    ATRASADA:
-      "border-rose-300/70 bg-rose-50 text-rose-800 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-300",
-  };
-
 const faturaStatusLabelFinal =
-  statusResumoFaturaAtual === "paga"
-    ? "Paga"
-    : statusResumoFaturaAtual === "parcelada"
-    ? "Parcelada"
-    : statusResumoFaturaAtual === "atrasada"
-    ? "Em atraso"
-    : "Fatura";
+  getCreditInvoiceSummaryStatusLabel(statusResumoFaturaAtual);
 
 const faturaStatusClassFinal =
-  statusResumoFaturaAtual === "paga"
-    ? "border-emerald-300/50 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-300"
-    : statusResumoFaturaAtual === "parcelada"
-    ? "border-violet-300/60 bg-violet-50 text-violet-800 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-300"
-    : statusResumoFaturaAtual === "atrasada"
-    ? "border-rose-300/70 bg-rose-50 text-rose-800 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-300"
-    : "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/15 dark:bg-white/5 dark:text-slate-200";
+  getCreditInvoiceSummaryStatusClass(statusResumoFaturaAtual);
 
       const podeParcelarFatura =
   !parcelamentoAtual &&

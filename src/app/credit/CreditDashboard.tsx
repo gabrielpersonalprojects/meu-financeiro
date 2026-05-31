@@ -16,6 +16,14 @@ import { Archive, Search } from "lucide-react";
 
 import { getCreditTransactionCardRef } from "./logic/cardRefs";
 
+import {
+  addMonths,
+  formatDateOnlyISO,
+  makeDate,
+  pad2,
+  parseISODateLocal,
+} from "./logic/cardCycles";
+
 type Props = {
   cartao: CartaoUI;
   transacoes: TransacaoCCUI[];
@@ -99,7 +107,6 @@ export function CreditDashboard({
   initialMonth,
 }: Props) {
   console.log("CREDIT_DASHBOARD onRegistrarPagamentoFatura:", onRegistrarPagamentoFatura);
-  const pad2 = (n: number) => String(n).padStart(2, "0");
 
   const formatBRDate = (iso: string) => {
     const [y, m, d] = String(iso || "").split("-");
@@ -115,40 +122,10 @@ const roundMoney = (value: number) => {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 };
 
-  const addMonths = (base: Date, delta: number) => {
-    const d = new Date(base);
-    d.setDate(1);
-    d.setMonth(d.getMonth() + delta);
-    return d;
-  };
-
   const monthLabelPT = (date: Date) => {
     const fmt = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
     const s = fmt.format(date);
     return s.charAt(0).toUpperCase() + s.slice(1).replace(" de ", " ");
-  };
-
-  const parseISODateLocal = (iso: string) => {
-    const [y, m, d] = String(iso || "").split("-").map(Number);
-    if (!y || !m || !d) return new Date(NaN);
-    return new Date(y, m - 1, d, 12, 0, 0, 0);
-  };
-
-  const clampDay = (year: number, monthIndex0: number, day: number) => {
-    const lastDay = new Date(year, monthIndex0 + 1, 0).getDate();
-    return Math.max(1, Math.min(day, lastDay));
-  };
-
-  const makeDate = (year: number, monthIndex0: number, day: number) => {
-    const dd = clampDay(year, monthIndex0, day);
-    return new Date(year, monthIndex0, dd, 12, 0, 0, 0);
-  };
-
-  const formatDateOnlyISO = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
   };
 
   const todayISO = () => formatDateOnlyISO(new Date());

@@ -179,7 +179,10 @@ import {
   buildInvoicePaymentTransactionDescription,
 } from "./app/credit/logic/invoicePaymentBuilders";
 
-import { buildInstallmentInvoiceManualStatusRecord } from "./app/credit/logic/invoiceManualStatus";
+import {
+  buildInstallmentInvoiceManualStatusRecord,
+  buildPaidInvoiceManualStatusRecord,
+} from "./app/credit/logic/invoiceManualStatus";
 
 
 
@@ -1995,12 +1998,44 @@ const novoPagamento: PagamentoFaturaApp = buildInvoicePayment({
     const savedRow = await insertInvoicePayment(invoicePayload);
     const savedPagamento = mapInvoicePaymentRowToApp(savedRow as any);
 
+    const statusManualPagoApp = buildPaidInvoiceManualStatusRecord({
+  id:
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `fsm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+  cartaoId: String(payload.cartaoId),
+  cicloKey: String(payload.cicloKey),
+  criadoEm: Date.now(),
+});
+
+const savedManualStatusRow = await upsertInvoiceManualStatus(
+  mapInvoiceManualStatusAppToInsert(statusManualPagoApp as any, session.user.id)
+);
+
+const savedManualStatus = mapInvoiceManualStatusRowToApp(
+  savedManualStatusRow as any
+);
+
     setTransacoes((prev) => [txApp as any, ...prev]);
 
     setPagamentosFatura((prev) => {
       const base = Array.isArray(prev) ? prev : [];
       return [...base, savedPagamento as any];
     });
+
+    setFaturasStatusManual((prev) => {
+  const base = Array.isArray(prev) ? prev : [];
+
+  const semAtual = base.filter(
+    (item: any) =>
+      !(
+        String(item?.cartaoId ?? "") === String(payload.cartaoId) &&
+        String(item?.cicloKey ?? "") === String(payload.cicloKey)
+      )
+  );
+
+  return [...semAtual, savedManualStatus as any];
+});
 
     await touchCardAndRefreshInState(payload.cartaoId);
 
@@ -8516,15 +8551,43 @@ const statusManualResumoPorCartaoECiclo = new Map<string, string>();
 
 (faturasStatusManual ?? []).forEach((item: any) => {
   const cartaoId = String(item?.cartaoId ?? "").trim();
-  const ciclo = normalizeCycleResumo(
-  item?.cicloKey,
-  item?.criadoEm ?? item?.createdAt ?? ""
-);
   const status = String(item?.statusManual ?? "").trim().toLowerCase();
+  const cicloRaw = String(item?.cicloKey ?? "").trim();
 
-  if (!cartaoId || !ciclo || !status) return;
+  if (!cartaoId || !status) return;
 
-  statusManualResumoPorCartaoECiclo.set(`${cartaoId}__${ciclo}`, status);
+  const cartaoStatus = (activeCreditCards ?? []).find(
+    (card: any) => String(card?.id ?? "").trim() === cartaoId
+  );
+
+  const setStatusResumo = (ciclo: string) => {
+    const safeCiclo = String(ciclo ?? "").trim();
+    if (!safeCiclo) return;
+
+    statusManualResumoPorCartaoECiclo.set(`${cartaoId}__${safeCiclo}`, status);
+  };
+
+  const cicloNormalizado = normalizeCycleResumo(
+    cicloRaw,
+    item?.criadoEm ?? item?.createdAt ?? ""
+  );
+
+  setStatusResumo(cicloNormalizado);
+
+  if (cicloRaw.includes("__")) {
+    const parts = cicloRaw.split("__");
+    const startIso = String(parts[1] ?? "").trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(startIso)) {
+      const cicloPorDataInicio = calcCycleResumoYm(
+        startIso,
+        Number(cartaoStatus?.diaFechamento ?? 1),
+        Number(cartaoStatus?.diaVencimento ?? 1)
+      );
+
+      setStatusResumo(cicloPorDataInicio);
+    }
+  }
 });
 
 let resumoCartoesEmAbertoValor = 0;
@@ -11031,19 +11094,39 @@ const transacoesDaFaturaAtual = transacoesDoCartao.filter((t: any) => {
 
           const emAberto = roundMoney(Math.max(0, totalFatura - totalPago));
 
-          const statusManualPorCiclo = new Map<string, string>();
+const statusManualPorCiclo = new Map<string, string>();
 
-          (faturasStatusManual ?? []).forEach((item: any) => {
-            if (String(item?.cartaoId ?? "") !== String(c.id)) return;
+(faturasStatusManual ?? []).forEach((item: any) => {
+  if (String(item?.cartaoId ?? "").trim() !== String(c?.id ?? "").trim()) return;
 
-            const cicloNormalizado = normalizePaymentCycleKeyToYm(item?.cicloKey);
-            if (!cicloNormalizado) return;
+  const status = String(item?.statusManual ?? "").trim().toLowerCase();
+  if (!status) return;
 
-            const status = String(item?.statusManual ?? "").trim().toLowerCase();
-            if (!status) return;
+  const cicloRaw = String(item?.cicloKey ?? "").trim();
 
-            statusManualPorCiclo.set(cicloNormalizado, status);
-          });
+  const cicloNormalizado = normalizePaymentCycleKeyToYm(cicloRaw);
+
+  if (cicloNormalizado) {
+    statusManualPorCiclo.set(cicloNormalizado, status);
+  }
+
+  if (cicloRaw.includes("__")) {
+    const parts = cicloRaw.split("__");
+    const startIso = String(parts[1] ?? "").trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(startIso)) {
+      const cicloPorDataInicio = getCardCycleMonthFromDate(
+        startIso,
+        Number(c?.diaFechamento ?? 1),
+        Number(c?.diaVencimento ?? 1)
+      );
+
+      if (cicloPorDataInicio) {
+        statusManualPorCiclo.set(cicloPorDataInicio, status);
+      }
+    }
+  }
+});
 
           const statusManualCicloAtual = String(
   statusManualPorCiclo.get(cicloBase) ?? ""
@@ -11264,26 +11347,35 @@ const statusResumoFaturaAtual: "paga" | "parcelada" | "atrasada" | "fechada" | "
     ? "fechada"
     : "aberta";
 
-          const statusMiniCard: "normal" | "atrasada" | "zerada" =
-            existeFaturaAtrasada
-              ? "atrasada"
-              : existeFaturaFechadaPendente
-              ? "zerada"
-              : "normal";
+const cardFaturaAtualPaga =
+  statusResumoFaturaAtual === "paga" || isPagaNoCicloAtual;
 
-          const miniCardValor =
-            statusMiniCard === "atrasada"
-              ? Math.max(0, valorEmAtraso)
-              : statusMiniCard === "zerada"
-              ? Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0))
-              : Math.max(0, Number(emAberto || 0));
+const statusMiniCard: "normal" | "atrasada" | "zerada" =
+  cardFaturaAtualPaga
+    ? "normal"
+    : existeFaturaAtrasada
+    ? "atrasada"
+    : existeFaturaFechadaPendente
+    ? "zerada"
+    : "normal";
 
-          const miniCardDueLabel =
-            statusMiniCard === "zerada" && faturaFechadaAguardandoPagamento
-              ? `${String(faturaFechadaAguardandoPagamento.vencimento.getDate()).padStart(2, "0")}/${String(
-                  faturaFechadaAguardandoPagamento.vencimento.getMonth() + 1
-                ).padStart(2, "0")}`
-              : undefined;
+const miniCardValor =
+  cardFaturaAtualPaga
+    ? 0
+    : statusMiniCard === "atrasada"
+    ? Math.max(0, valorEmAtraso)
+    : statusMiniCard === "zerada"
+    ? Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0))
+    : Math.max(0, Number(emAberto || 0));
+
+const miniCardDueLabel =
+  cardFaturaAtualPaga
+    ? undefined
+    : statusMiniCard === "zerada" && faturaFechadaAguardandoPagamento
+    ? `${String(faturaFechadaAguardandoPagamento.vencimento.getDate()).padStart(2, "0")}/${String(
+        faturaFechadaAguardandoPagamento.vencimento.getMonth() + 1
+      ).padStart(2, "0")}`
+    : undefined;
 
           return (
            <div key={c.id} className="relative group w-full max-w-[300px]">

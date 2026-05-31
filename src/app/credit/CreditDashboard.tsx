@@ -27,6 +27,8 @@ import {
 
 import { getCreditInvoiceStatus, roundMoney } from "./logic/invoiceStatus";
 
+import { findInvoiceManualStatusByCycle } from "./logic/invoiceManualStatus";
+
 type Props = {
   cartao: CartaoUI;
   transacoes: TransacaoCCUI[];
@@ -634,12 +636,11 @@ const cicloKeyFaturaAnterior = `${cartao.id}__${formatDateOnlyISO(
   cicloInicioAnterior
 )}__${formatDateOnlyISO(cicloFimAnterior)}`;
 
-const statusManualAnteriorObj =
-  faturasStatusManual.find(
-    (item) =>
-      String(item.cartaoId) === String(cartao.id) &&
-      String(item.cicloKey) === String(cicloKeyFaturaAnterior)
-  ) ?? null;
+const statusManualAnteriorObj = findInvoiceManualStatusByCycle({
+  items: faturasStatusManual,
+  cartaoId: String(cartao.id),
+  cicloKey: String(cicloKeyFaturaAnterior),
+});
 
 const faturaAnteriorParcelada =
   statusManualAnteriorObj?.statusManual === "parcelada";
@@ -764,12 +765,11 @@ const getFaturaStatus = (): FaturaStatus =>
     vencimento: venc0,
   });
 
-  const statusManualAtualObj =
-    faturasStatusManual.find(
-      (item) =>
-        String(item.cartaoId) === String(cartao.id) &&
-        String(item.cicloKey) === String(cicloKeyFatura)
-    ) ?? null;
+const statusManualAtualObj = findInvoiceManualStatusByCycle({
+  items: faturasStatusManual,
+  cartaoId: String(cartao.id),
+  cicloKey: String(cicloKeyFatura),
+});
 
   const parcelamentoAtual =
     statusManualAtualObj?.parcelamentoFaturaId

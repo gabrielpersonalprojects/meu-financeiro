@@ -172,7 +172,7 @@ import StatementImportModal from "./components/import/StatementImportModal";
 import StatementImportPreviewModal from "./components/import/StatementImportPreviewModal";
 import HelpTutorialContent from "./components/help/HelpTutorialContent";
 
-
+import { normalizeCreditTransactionCardRefs } from "./app/credit/logic/cardRefs";
 
 
 
@@ -924,7 +924,7 @@ const preparedImportedEntries = draftSemDuplicadas.map((item) => {
 const txRowsDepoisDaImportacao = await fetchTransactions(session.user.id);
 
 const transacoesDepoisDaImportacao = (txRowsDepoisDaImportacao ?? []).map(
-  (row: any) => normalizeTransactionCardRefs(mapTransactionRowToApp(row))
+  (row: any) => normalizeCreditTransactionCardRefs(mapTransactionRowToApp(row))
 );
 
 const createdIdsPersistidos = new Set(
@@ -1519,52 +1519,6 @@ const [acceptedSubscriptionTerms, setAcceptedSubscriptionTerms] =
 const CHECKOUT_GUARD_STORAGE_KEY = "fluxmoney_expected_checkout_user_id";
 const POST_CHECKOUT_LOGIN_MESSAGE_KEY = "fluxmoney_post_checkout_login_message";
 
-const normalizeTransactionCardRefs = (tx: any) => {
-  if (String(tx?.tipo ?? "").trim().toLowerCase() !== "cartao_credito") {
-    return tx;
-  }
-
-  const payload =
-    tx?.payload && typeof tx.payload === "object" ? tx.payload : {};
-
-  const cardRef = String(
-    tx?.cartaoId ??
-      tx?.cartao_id ??
-      tx?.qualCartao ??
-      tx?.qual_cartao ??
-      tx?.qualConta ??
-      tx?.qual_conta ??
-      payload?.cartaoId ??
-      payload?.cartao_id ??
-      payload?.qualCartao ??
-      payload?.qual_cartao ??
-      payload?.qualConta ??
-      payload?.qual_conta ??
-      payload?.targetId ??
-      payload?.target_id ??
-      ""
-  ).trim();
-
-  if (!cardRef) {
-    return {
-      ...tx,
-      payload,
-    };
-  }
-
-  return {
-    ...tx,
-    cartaoId: cardRef,
-    qualCartao: cardRef,
-    payload: {
-      ...payload,
-      cartaoId: cardRef,
-      qualCartao: cardRef,
-      targetId: String(payload?.targetId ?? payload?.target_id ?? cardRef).trim(),
-    },
-  };
-};
-
 const carregarDadosUsuario = async (userId: string) => {
   const cleanUserId = String(userId ?? "").trim();
   if (!cleanUserId) return;
@@ -1682,7 +1636,7 @@ setHiddenAccountIds(
 setAccountsLoaded(true);
 
 const appTransactionsFromDb = txRows.map((row: any) =>
-  normalizeTransactionCardRefs(mapTransactionRowToApp(row))
+  normalizeCreditTransactionCardRefs(mapTransactionRowToApp(row))
 );
 
 setTransacoes(appTransactionsFromDb as any);
@@ -3935,7 +3889,7 @@ if (!safeItems.length) {
     }
 
 const mappedRows = createdRows.map((row: any) =>
-  normalizeTransactionCardRefs(mapTransactionRowToApp(row))
+ normalizeCreditTransactionCardRefs(mapTransactionRowToApp(row))
 );
 
 const cardIdsToTouch = Array.from(

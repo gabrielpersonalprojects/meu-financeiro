@@ -14,6 +14,8 @@ import { CreditCardVisual } from "./CreditCardVisual";
 import { createPortal } from "react-dom";
 import { Archive, Search } from "lucide-react";
 
+import { getCreditTransactionCardRef } from "./logic/cardRefs";
+
 type Props = {
   cartao: CartaoUI;
   transacoes: TransacaoCCUI[];
@@ -298,31 +300,12 @@ const getInvoiceMonthKeyForTransaction = (iso: string) => {
   return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}`;
 };
 
-const getTxCardRef = (t: any) =>
-  String(
-    t?.cartaoId ??
-      t?.cartao_id ??
-      t?.qualCartao ??
-      t?.qual_cartao ??
-      t?.qualConta ??
-      t?.qual_conta ??
-      t?.payload?.cartaoId ??
-      t?.payload?.cartao_id ??
-      t?.payload?.qualCartao ??
-      t?.payload?.qual_cartao ??
-      t?.payload?.qualConta ??
-      t?.payload?.qual_conta ??
-      t?.payload?.targetId ??
-      t?.payload?.target_id ??
-      ""
-  ).trim();
-
 const txMes = (transacoes || []).filter((t: any) => {
   if (String(t?.tipo ?? "").toLowerCase() !== "cartao_credito") return false;
 
   const cartaoAtualId = String(cartao.id ?? "").trim();
 
-  if (getTxCardRef(t) !== cartaoAtualId) return false;
+  if (getCreditTransactionCardRef(t) !== cartaoAtualId) return false;
 
   const dataTx = String(t?.data ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dataTx)) return false;
@@ -348,7 +331,7 @@ console.log("DEBUG_CARTAO_EXPANDIDO", {
     qualCartao: t?.qualCartao,
     payloadCartaoId: t?.payload?.cartaoId,
     payloadTargetId: t?.payload?.targetId,
-    refResolvida: getTxCardRef(t),
+    refResolvida: getCreditTransactionCardRef(t),
   })),
 });
 
@@ -357,7 +340,7 @@ const txDoCartao = useMemo(() => {
 
   return (transacoes || []).filter((t: any) => {
     if (String(t?.tipo ?? "").toLowerCase() !== "cartao_credito") return false;
-    return getTxCardRef(t) === cartaoAtualId;
+    return getCreditTransactionCardRef(t) === cartaoAtualId;
   });
 }, [transacoes, cartao.id]);
 

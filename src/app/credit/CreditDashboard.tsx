@@ -27,7 +27,10 @@ import {
 
 import { getCreditInvoiceStatus, roundMoney } from "./logic/invoiceStatus";
 
-import { findInvoiceManualStatusByCycle } from "./logic/invoiceManualStatus";
+import {
+  findInvoiceManualStatusByCycle,
+  isInvoiceManualStatusInstallment,
+} from "./logic/invoiceManualStatus";
 
 type Props = {
   cartao: CartaoUI;
@@ -642,8 +645,9 @@ const statusManualAnteriorObj = findInvoiceManualStatusByCycle({
   cicloKey: String(cicloKeyFaturaAnterior),
 });
 
-const faturaAnteriorParcelada =
-  statusManualAnteriorObj?.statusManual === "parcelada";
+const faturaAnteriorParcelada = isInvoiceManualStatusInstallment(
+  statusManualAnteriorObj?.statusManual
+);
 
 const pagamentosDaFaturaAnterior = pagamentosFatura
   .filter(
@@ -782,16 +786,17 @@ const faturaAtualFoiPaga =
   valorFaturaNum > 0 &&
   saldoPendenteNum <= 0;
 
-const faturaStatus =
-  statusManualAtualObj?.statusManual === "parcelada"
-    ? "FECHADA"
-    : getFaturaStatus();
+const faturaStatus = isInvoiceManualStatusInstallment(
+  statusManualAtualObj?.statusManual
+)
+  ? "FECHADA"
+  : getFaturaStatus();
 
     const statusResumoFaturaAtual: "paga" | "parcelada" | "atrasada" | "fechada" | "aberta" =
   faturaAtualFoiPaga
     ? "paga"
-    : statusManualAtualObj?.statusManual === "parcelada"
-    ? "parcelada"
+: isInvoiceManualStatusInstallment(statusManualAtualObj?.statusManual)
+? "parcelada"
     : faturaStatus === "ATRASADA"
     ? "atrasada"
     : faturaStatus === "FECHADA"
@@ -915,7 +920,7 @@ const faturaStatusClassFinal =
 
       const podeParcelarFatura =
   !parcelamentoAtual &&
-  statusManualAtualObj?.statusManual !== "parcelada" &&
+!isInvoiceManualStatusInstallment(statusManualAtualObj?.statusManual) &&
   (faturaStatus === "FECHADA" || faturaStatus === "ATRASADA");
 
   useEffect(() => {

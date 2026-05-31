@@ -30,6 +30,7 @@ import { getCreditInvoiceStatus, roundMoney } from "./logic/invoiceStatus";
 import {
   findInvoiceManualStatusByCycle,
   isInvoiceManualStatusInstallment,
+  isInvoiceManualStatusPaid,
 } from "./logic/invoiceManualStatus";
 
 import {
@@ -725,12 +726,14 @@ const statusManualAtualObj = findInvoiceManualStatusByCycle({
       : null;
 
 const faturaAtualFoiPaga =
-  valorFaturaNum > 0 &&
-  saldoPendenteNum <= 0;
+  isInvoiceManualStatusPaid(statusManualAtualObj?.statusManual) ||
+  (valorFaturaNum > 0 && saldoPendenteNum <= 0);
 
-const faturaStatus = isInvoiceManualStatusInstallment(
+const faturaStatus = isInvoiceManualStatusPaid(
   statusManualAtualObj?.statusManual
 )
+  ? "PAGA"
+  : isInvoiceManualStatusInstallment(statusManualAtualObj?.statusManual)
   ? "FECHADA"
   : getFaturaStatus();
 
@@ -809,11 +812,13 @@ const miniCardExpandidoStatus: "normal" | "atrasada" | "zerada" | "futura" | "oc
           : "normal";
 
 const miniCardExpandidoValor =
-  miniCardExpandidoTemAtraso
+  miniCardExpandidoEstaPaga
+    ? 0
+    : miniCardExpandidoTemAtraso
     ? Math.max(0, saldoRestanteFatura)
     : miniCardExpandidoFechadaAguardandoPagamento
-      ? Math.max(0, saldoRestanteFatura)
-      : Math.max(0, saldoRestanteFatura);
+    ? Math.max(0, saldoRestanteFatura)
+    : Math.max(0, saldoRestanteFatura);
 
 const faturaStatusLabelFinal =
   getCreditInvoiceSummaryStatusLabel(statusResumoFaturaAtual);

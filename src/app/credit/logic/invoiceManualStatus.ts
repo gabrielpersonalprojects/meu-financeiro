@@ -70,3 +70,47 @@ export const buildInvoiceManualStatusRecord = ({
     criadoEm,
   };
 };
+
+export const buildPaidInvoiceManualStatusRecord = ({
+  id,
+  cartaoId,
+  cicloKey,
+  criadoEm,
+}: {
+  id: string;
+  cartaoId: string;
+  cicloKey: string;
+  criadoEm: number;
+}): CreditInvoiceManualStatusRecord => {
+  return buildInvoiceManualStatusRecord({
+    id,
+    cartaoId,
+    cicloKey,
+    statusManual: "paga",
+    parcelamentoFaturaId: null,
+    criadoEm,
+  });
+};
+
+export const buildInstallmentInvoiceManualStatusRecord = ({
+  id,
+  cartaoId,
+  cicloKey,
+  parcelamentoFaturaId,
+  criadoEm,
+}: {
+  id: string;
+  cartaoId: string;
+  cicloKey: string;
+  parcelamentoFaturaId: string;
+  criadoEm: number;
+}): CreditInvoiceManualStatusRecord => {
+  return buildInvoiceManualStatusRecord({
+    id,
+    cartaoId,
+    cicloKey,
+    statusManual: "parcelada",
+    parcelamentoFaturaId,
+    criadoEm,
+  });
+};

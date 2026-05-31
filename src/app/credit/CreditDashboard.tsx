@@ -19,6 +19,7 @@ import { getCreditTransactionCardRef } from "./logic/cardRefs";
 import {
   addMonths,
   formatDateOnlyISO,
+  getInvoiceMonthKeyForTransaction,
   makeDate,
   pad2,
   parseISODateLocal,
@@ -256,27 +257,6 @@ const dataMinimaPermitidaNaFaturaAtual = formatDateOnlyISO(cicloInicio);
     cicloFim
   )}`;
 
-const getInvoiceMonthKeyForTransaction = (iso: string) => {
-  const dt = parseISODateLocal(iso);
-  if (Number.isNaN(dt.getTime())) return "";
-
-  const fechamento = Math.max(1, Math.min(31, Number(diaFechamento ?? 1)));
-  const vencimento = Math.max(1, Math.min(31, Number(diaVencimento ?? 1)));
-  const invoiceOffset = vencimento > fechamento ? 0 : 1;
-
-  const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
-
-  // O dia do fechamento ainda pertence à fatura atual.
-  // A próxima fatura começa no dia seguinte ao fechamento.
-  if (dt.getDate() >= fechamento) {
-    base.setMonth(base.getMonth() + 1);
-  }
-
-  base.setMonth(base.getMonth() + invoiceOffset);
-
-  return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}`;
-};
-
 const txMes = (transacoes || []).filter((t: any) => {
   if (String(t?.tipo ?? "").toLowerCase() !== "cartao_credito") return false;
 
@@ -287,7 +267,11 @@ const txMes = (transacoes || []).filter((t: any) => {
   const dataTx = String(t?.data ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dataTx)) return false;
 
-  return getInvoiceMonthKeyForTransaction(dataTx) === baseMonthKey;
+  return getInvoiceMonthKeyForTransaction({
+  iso: dataTx,
+  diaFechamento,
+  diaVencimento,
+}) === baseMonthKey;
 });
 
 console.log("DEBUG_CARTAO_EXPANDIDO", {
@@ -350,14 +334,27 @@ const txDoCartao = useMemo(() => {
     const ultima = ultimasDoCartao[0];
     if (!ultima) return;
 
-    const invoiceKeyDaUltima = getInvoiceMonthKeyForTransaction(ultima.data);
+    const invoiceKeyDaUltima = getInvoiceMonthKeyForTransaction({
+  iso: ultima.data,
+  diaFechamento,
+  diaVencimento,
+});
     const jumpKey = `${cartao.id}__${ultima.id}__${Number(ultima.criadoEm ?? 0)}`;
 
     if (invoiceKeyDaUltima === nextBaseMonthKey && autoJumpRef.current !== jumpKey) {
       autoJumpRef.current = jumpKey;
       setInvoiceMonthOffset(1);
     }
-  }, [transacoes, invoiceMonthOffset, nextBaseMonthKey, now, cicloFim, cartao.id]);
+}, [
+  transacoes,
+  invoiceMonthOffset,
+  nextBaseMonthKey,
+  now,
+  cicloFim,
+  cartao.id,
+  diaFechamento,
+  diaVencimento,
+]);
 
   const txFaturaCiclo = txMes;
   const valorFaturaTotal = roundMoney(
@@ -680,7 +677,11 @@ const txFaturaAnterior = txDoCartao.filter((t) => {
     return false;
   }
 
-  return getInvoiceMonthKeyForTransaction(dataTx) === previousBaseMonthKey;
+  return getInvoiceMonthKeyForTransaction({
+  iso: dataTx,
+  diaFechamento,
+  diaVencimento,
+}) === previousBaseMonthKey;
 });
 
 const valorTotalFaturaAnterior = roundMoney(

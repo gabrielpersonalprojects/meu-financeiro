@@ -25,6 +25,8 @@ import {
   parseISODateLocal,
 } from "./logic/cardCycles";
 
+import { roundMoney } from "./logic/invoiceStatus";
+
 type Props = {
   cartao: CartaoUI;
   transacoes: TransacaoCCUI[];
@@ -117,11 +119,6 @@ export function CreditDashboard({
 
 const moedaBR = (v: number) =>
   (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-const roundMoney = (value: number) => {
-  const n = Number(value || 0);
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-};
 
   const monthLabelPT = (date: Date) => {
     const fmt = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });

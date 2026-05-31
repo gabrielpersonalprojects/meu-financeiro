@@ -1046,10 +1046,11 @@ const [transacoesResetPageSignal, setTransacoesResetPageSignal] = useState(0);
 const handleHomeTransacoesClick = () => {
   const favoriteId = String(favoriteAccountId ?? "").trim();
 
-  setFiltroMesTransacoes(getHojeLocal().substring(0, 7));
-  setFiltroLancamento("todos");
-  setFiltroCategoria("");
-  setFiltroTipoGasto("");
+setFiltroMesTransacoes(getHojeLocal().substring(0, 7));
+setFiltroLancamento("todos");
+setFiltroCategoria("");
+setFiltroMetodo("");
+setFiltroTipoGasto("");
 
   if (favoriteId) {
     const favoritaExiste = (profiles ?? []).some(

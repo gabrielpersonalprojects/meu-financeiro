@@ -1785,22 +1785,33 @@ const isParcelaDeAcordoFatura =
 const isTransacaoOriginalDaFaturaParcelada =
   isFaturaAtualParcelada && !isParcelaDeAcordoFatura;
 
-const snapshotBloqueioMaisRecente = (() => {
-  const ts = (pagamentosDoCiclo ?? [])
-    .map((p: any) => Number(p?.snapshotCreatedAtMs ?? 0))
-    .filter((n: number) => Number.isFinite(n) && n > 0)
-    .sort((a: number, b: number) => a - b);
+const faturaTemStatusFinal =
+  isInvoiceManualStatusPaid(statusManualAtualObj?.statusManual) ||
+  isInvoiceManualStatusInstallment(statusManualAtualObj?.statusManual) ||
+  !!parcelamentoAtual;
 
-  return ts.length ? ts[ts.length - 1] : null;
-})();
+const existePagamentoAteDataDaTransacao = (tx: any) => {
+  const dataTx = String(tx?.data ?? "").trim();
 
-const podeExcluirCompra = (tx: any) => {
-  if (!snapshotBloqueioMaisRecente) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataTx)) {
+    return (pagamentosDoCiclo ?? []).length > 0;
+  }
 
-  const txTs = Number(tx?.criadoEm ?? 0);
-  if (!Number.isFinite(txTs) || txTs <= 0) return false;
+  return (pagamentosDoCiclo ?? []).some((p: any) => {
+    const dataPagamento = String(p?.dataPagamento ?? "").trim();
 
-  return txTs > Number(snapshotBloqueioMaisRecente);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPagamento)) {
+      return false;
+    }
+
+    return dataPagamento <= dataTx;
+  });
+};
+
+const podeAlterarCompraNoCiclo = (tx: any) => {
+  if (faturaTemStatusFinal) return false;
+
+  return !existePagamentoAteDataDaTransacao(tx);
 };
 
 const descricaoLimpa = String(t.descricao ?? "")
@@ -1864,18 +1875,18 @@ const descricaoLimpa = String(t.descricao ?? "")
                           </div>
 
 {(() => {
-  const podeEditarCompra =
-    !!onEditTransacao &&
-    !isParcelaDeAcordoFatura &&
-    !isTransacaoOriginalDaFaturaParcelada &&
-    !isParcelado &&
-    podeExcluirCompra(t);
+const podeEditarCompra =
+  !!onEditTransacao &&
+  !isParcelaDeAcordoFatura &&
+  !isTransacaoOriginalDaFaturaParcelada &&
+  !isParcelado &&
+  podeAlterarCompraNoCiclo(t);
 
-  const podeExcluirCompraFinal =
-    !!onDeleteTransacao &&
-    !isParcelaDeAcordoFatura &&
-    !isTransacaoOriginalDaFaturaParcelada &&
-    podeExcluirCompra(t);
+const podeExcluirCompraFinal =
+  !!onDeleteTransacao &&
+  !isParcelaDeAcordoFatura &&
+  !isTransacaoOriginalDaFaturaParcelada &&
+  podeAlterarCompraNoCiclo(t);
 
   if (!podeEditarCompra && !podeExcluirCompraFinal) {
     return null;

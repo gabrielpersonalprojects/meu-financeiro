@@ -1,93 +1,18 @@
+import type {
+  CreditCardUI as CartaoUI,
+  CreditCategoryLike as CategoriaLike,
+  CreditTransactionUI as TransacaoCCUI,
+  CreditInvoicePayment as PagamentoFaturaUI,
+  CreditInvoiceInstallment as ParcelamentoFaturaUI,
+  CreditInvoiceManualStatusRecord as FaturaStatusManualUI,
+  CreditInvoiceStatus as FaturaStatus,
+} from "./types";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import CustomDropdown from "../../components/CustomDropdown";
 import { CreditCardVisual } from "./CreditCardVisual";
 import { createPortal } from "react-dom";
 import { Archive, Search } from "lucide-react";
-
-type CartaoUI = {
-  id: string;
-  nome: string;
-  titular: string;
-  limiteTotal: number;
-  diaFechamento: number;
-  diaVencimento: number;
-  bankText?: string;
-  categoria?: string;
-brand: string;
-perfil?: "pf" | "pj";
-last4: string;
-  gradientFrom?: string;
-  gradientTo?: string;
-};
-
-type CategoriaLike =
-  | string
-  | {
-      nome?: string;
-      label?: string;
-      value?: string;
-      id?: string;
-    }
-  | null
-  | undefined;
-
-type TransacaoCCUI = {
-  id: string;
-  tipo: "cartao_credito" | "despesa" | "receita" | "transferencia";
-  valor: number;
-  data: string;
-  descricao?: string;
-  categoria?: CategoriaLike;
-  tag?: string;
-  criadoEm?: number;
-  pago?: boolean;
-  cartaoId?: string;
-  qualCartao?: string;
-  parcelaAtual?: number;
-  totalParcelas?: number;
-  parcelasTotal?: number;
-  origemLancamento?: "manual" | "compra_parcelada" | "parcelamento_fatura";
-  parcelamentoFaturaId?: string;
-  faturaOrigemCicloKey?: string;
-};
-
-type PagamentoFaturaUI = {
-  id: string;
-  cartaoId: string;
-  cicloKey: string;
-  dataPagamento: string;
-  valor: number;
-  contaId?: string | null;
-  contaLabel?: string | null;
-  criadoEm?: number;
-  transacaoId?: string | null;
-  snapshotCreatedAtMs?: number | null;
-};
-
-type FaturaStatusManualUI = {
-  id: string;
-  cartaoId: string;
-  cicloKey: string;
-  statusManual: "parcelada";
-  parcelamentoFaturaId: string;
-  criadoEm: number;
-};
-
-type ParcelamentoFaturaUI = {
-  id: string;
-  cartaoId: string;
-  cicloKeyOrigem: string;
-  dataAcordo: string;
-  valorOriginal: number;
-  valorEntrada: number;
-  saldoParcelado: number;
-  quantidadeParcelas: number;
-  valorParcela: number;
-  valorTotalFinal: number;
-  jurosTotal: number;
-  criadoEm: number;
-  status: "ativo" | "quitado";
-};
 
 type Props = {
   cartao: CartaoUI;
@@ -140,15 +65,6 @@ onRemoverPagamentoFatura?: (pagamentoId: string) => void;
   limiteDisponivelReal?: number;
   initialMonth?: string;
 };
-
-type FaturaStatus =
-  | "PAGA"
-  | "ZERADA"
-  | "FECHADA"
-  | "FUTURA"
-  | "EM_ABERTO"
-  | "PENDENTE"
-  | "ATRASADA";
 
 function categoriaToLabel(cat: CategoriaLike) {
   if (!cat) return "";

@@ -263,12 +263,11 @@ onClick={() => {
 </button>
 </div>
 
-        {/* micro-ajuda opcional (se quiser, deixa; se não, apaga) */}
-<p className="mt-2 text-[14px] md:text-[15px] font-semibold text-slate-500 dark:text-slate-300">
-  {projectionMode === "acumulado"
-    ? "Saldo Projetado = Saldo Inicial + Receita - Despesa e Gastos c/ Cartões"
-    : "Resultado do mês = Entradas no mês - Saídas no mês e Gastos c/ Cartões"}
-</p>
+{projectionMode === "acumulado" && (
+  <p className="mt-1 text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">
+    No acumulado, o saldo inicial calcula-se no Saldo Projetado.
+  </p>
+)}
 
 {perfilView !== "geral" && (
   <>
@@ -364,15 +363,15 @@ const nome = String(
 
 <div className="min-w-[800px] rounded-[2rem] border border-violet-100/80 bg-white p-4 shadow-[0_10px_28px_rgba(34,0,85,0.04)] dark:border-violet-400/10 dark:bg-[#0f0a1f]/80">
   <table className="w-full text-left border-separate border-spacing-y-2">
-    <thead>
-      <tr className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-400 dark:text-violet-300/70">
-        <th className="px-6 py-4">Mês / Ano</th>
-        <th className="px-6 py-4">Entradas</th>
-        <th className="px-6 py-4">Saídas Fixas</th>
-        <th className="px-6 py-4">Saídas Variáveis</th>
-        <th className="px-6 py-4 text-right">{lastColTitle}</th>
-      </tr>
-    </thead>
+<thead>
+  <tr className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-400 dark:text-violet-300/70">
+    <th className="px-6 py-4">Mês / Ano</th>
+    <th className="px-6 py-4">Receitas</th>
+    <th className="px-6 py-4">Despesas Fixas</th>
+    <th className="px-6 py-4">Variáveis + Cartões</th>
+    <th className="px-6 py-4 text-right">{lastColTitle}</th>
+  </tr>
+</thead>
 
     <tbody>
       {projection12Months.map((row, idx) => {

@@ -8635,6 +8635,9 @@ const cartoesFechadosAguardandoPagamentoLista: Array<{
   cartaoId: string;
   label: string;
   ciclo: string;
+  vencimentoIso: string;
+  vencimentoLabel: string;
+  valorLabel: string;
 }> = [];
 
 const cartoesAtrasadosLista: Array<{
@@ -8834,11 +8837,23 @@ if (saldoItem <= 0.009) return null;
     );
     vencimentoItem.setHours(0, 0, 0, 0);
 
-    return {
-      ciclo: String(cicloItem),
-      saldo: saldoItem,
-      vencimento: vencimentoItem,
-    };
+const vencimentoIso = `${vencimentoItem.getFullYear()}-${String(
+  vencimentoItem.getMonth() + 1
+).padStart(2, "0")}-${String(vencimentoItem.getDate()).padStart(2, "0")}`;
+
+const vencimentoLabel = vencimentoItem.toLocaleDateString("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+return {
+  ciclo: String(cicloItem),
+  saldo: saldoItem,
+  vencimento: vencimentoItem,
+  vencimentoIso,
+  vencimentoLabel,
+};
   })
   .filter(Boolean)
   .sort((a: any, b: any) => String(b.ciclo).localeCompare(String(a.ciclo)));
@@ -8915,11 +8930,16 @@ const jaEstaEmVencendoHoje = cartoesVencendoHojeLista.some(
     if (!cartoesFechadosAguardandoPagamentoKeys.has(pendenteKey)) {
       cartoesFechadosAguardandoPagamentoKeys.add(pendenteKey);
 
-      cartoesFechadosAguardandoPagamentoLista.push({
-        cartaoId,
-        label: labelCartaoResumo,
-        ciclo: String(faturaFechadaAguardandoPagamento.ciclo),
-      });
+cartoesFechadosAguardandoPagamentoLista.push({
+  cartaoId,
+  label: labelCartaoResumo,
+  ciclo: String(faturaFechadaAguardandoPagamento.ciclo),
+  vencimentoIso: String(faturaFechadaAguardandoPagamento.vencimentoIso ?? ""),
+  vencimentoLabel: String(faturaFechadaAguardandoPagamento.vencimentoLabel ?? ""),
+  valorLabel: formatResumoBRL(
+    Math.max(0, Number(faturaFechadaAguardandoPagamento.saldo || 0))
+  ),
+});
     }
   }
 }
@@ -9636,9 +9656,9 @@ const resumoPanelContent = (
                 </h3>
               </div>
 
-              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
-                {despesasVencendoHojeLista.length}
-              </span>
+<span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-400">
+  {despesasVencendoHojeLista.length}
+</span>
             </div>
 
             <div className="mt-4 space-y-2.5">
@@ -9688,12 +9708,12 @@ const resumoPanelContent = (
           <section className="rounded-[26px] border border-rose-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-rose-400/15 dark:bg-slate-900">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-400 dark:text-rose-300/80">
-                  Despesas
-                </div>
-                <h3 className="mt-1 text-[15px] font-semibold text-slate-900 dark:text-white">
-                  Em atraso
-                </h3>
+<div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+  Despesas
+</div>
+<h3 className="mt-1 text-[15px] font-semibold text-rose-600 dark:text-rose-300">
+  Em atraso
+</h3>
               </div>
 
               <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
@@ -9804,21 +9824,21 @@ const resumoPanelContent = (
         )}
 
         {receitasAtrasadasLista.length > 0 && (
-          <section className="rounded-[26px] border border-amber-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-amber-400/15 dark:bg-slate-900">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-500 dark:text-amber-300/80">
-                  Receitas
-                </div>
-                <h3 className="mt-1 text-[15px] font-semibold text-slate-900 dark:text-white">
-                  Em atraso
-                </h3>
-              </div>
+<section className="rounded-[26px] border border-rose-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-rose-400/15 dark:bg-slate-900">
+  <div className="flex items-center justify-between gap-3">
+    <div>
+<div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+        Receitas
+      </div>
+<h3 className="mt-1 text-[15px] font-semibold text-rose-600 dark:text-rose-300">
+        Em atraso
+      </h3>
+    </div>
 
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
-                {receitasAtrasadasLista.length}
-              </span>
-            </div>
+    <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+      {receitasAtrasadasLista.length}
+    </span>
+  </div>
 
             <div className="mt-4 space-y-2.5">
               {receitasAtrasadasLista.map((t: any) => (
@@ -9874,9 +9894,9 @@ const resumoPanelContent = (
                 </h3>
               </div>
 
-              <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">
-                {cartoesVencendoHojeLista.length}
-              </span>
+<span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-400">
+  {cartoesVencendoHojeLista.length}
+</span>
             </div>
 
             <div className="mt-4 space-y-2.5">
@@ -9904,21 +9924,21 @@ const resumoPanelContent = (
         )}
 
         {cartoesFechadosAguardandoPagamentoLista.length > 0 && (
-          <section className="rounded-[26px] border border-amber-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-amber-400/15 dark:bg-slate-900">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-500 dark:text-amber-300/80">
-                  Cartões
-                </div>
-                <h3 className="mt-1 text-[15px] font-semibold text-slate-900 dark:text-white">
-                  Faturas aguardando pagamento
-                </h3>
-              </div>
+<section className="rounded-[26px] border border-slate-200/80 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-900">
+  <div className="flex items-center justify-between gap-3">
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+        Cartões
+      </div>
+      <h3 className="mt-1 text-[15px] font-semibold text-slate-900 dark:text-white">
+        Faturas aguardando pagamento
+      </h3>
+    </div>
 
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
-                {cartoesFechadosAguardandoPagamentoLista.length}
-              </span>
-            </div>
+    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-400">
+      {cartoesFechadosAguardandoPagamentoLista.length}
+    </span>
+  </div>
 
             <div className="mt-4 space-y-2.5">
               {cartoesFechadosAguardandoPagamentoLista.map((item) => (
@@ -9926,14 +9946,25 @@ const resumoPanelContent = (
                   key={`cartao_pendente_${item.cartaoId}_${item.ciclo}`}
                   type="button"
                   onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
-                  className="flex w-full items-center justify-between rounded-2xl bg-amber-50/70 px-3 py-3 text-left transition hover:bg-amber-100 dark:bg-amber-500/[0.08] dark:hover:bg-amber-500/[0.14]"
-                >
-                  <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
-                    {item.label}
-                  </span>
+className="flex w-full items-center justify-between gap-3 rounded-2xl bg-amber-50/70 px-3 py-3 text-left transition hover:bg-amber-100 dark:bg-amber-500/[0.08] dark:hover:bg-amber-500/[0.14]"                >
+<div className="min-w-0">
+  <span className="block truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+    {item.label}
+  </span>
+
+  {item.vencimentoLabel ? (
+    <span className="mt-1 block text-[12px] font-medium text-slate-500 dark:text-slate-400">
+      Vence em {item.vencimentoLabel}
+    </span>
+  ) : null}
+
+  <span className="mt-1 block text-[13px] font-semibold text-rose-500 dark:text-rose-400">
+    {item.valorLabel}
+  </span>
+</div>
 
 <span
-  className="rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(70,0,172,0.18)] transition hover:brightness-110"
+  className="shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(70,0,172,0.18)] transition hover:brightness-110"
   style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
 >
   Pagar
@@ -9948,10 +9979,10 @@ const resumoPanelContent = (
           <section className="rounded-[26px] border border-rose-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-rose-400/15 dark:bg-slate-900">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-400 dark:text-rose-300/80">
+<div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
                   Cartões
                 </div>
-                <h3 className="mt-1 text-[15px] font-semibold text-slate-900 dark:text-white">
+<h3 className="mt-1 text-[15px] font-semibold text-rose-600 dark:text-rose-300">
                   Em atraso
                 </h3>
               </div>

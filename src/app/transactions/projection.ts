@@ -200,35 +200,46 @@ const getMesCompetenciaProjection = (t: Transaction) => {
     return data.slice(0, 7);
   }
 
+  const faturaMesSalva = String(
+    (t as any)?.faturaMes ??
+      (t as any)?.payload?.faturaMes ??
+      ""
+  ).trim();
+
+  if (/^\d{4}-\d{2}$/.test(faturaMesSalva)) {
+    return faturaMesSalva;
+  }
+
   const cartao = getCardRefFromTransaction(t);
   if (!cartao) {
     return data.slice(0, 7);
   }
 
-const diaFechamento =
-  Number((cartao as any)?.diaFechamento ?? (cartao as any)?.closingDay ?? 1) || 1;
+  const diaFechamento =
+    Number((cartao as any)?.diaFechamento ?? (cartao as any)?.closingDay ?? 1) || 1;
 
-const diaVencimento =
-  Number((cartao as any)?.diaVencimento ?? (cartao as any)?.dueDay ?? 1) || 1;
+  const diaVencimento =
+    Number((cartao as any)?.diaVencimento ?? (cartao as any)?.dueDay ?? 1) || 1;
 
-const invoiceStartOffset = diaVencimento > diaFechamento ? 0 : 1;
+  const fechamento = Math.max(1, Math.min(31, Number(diaFechamento ?? 1)));
+  const vencimento = Math.max(1, Math.min(31, Number(diaVencimento ?? 1)));
+  const invoiceStartOffset = vencimento > fechamento ? 0 : 1;
 
-const dt = parseISODateLocal(data);
+  const dt = parseISODateLocal(data);
 
-if (Number.isNaN(dt.getTime())) {
-  return data.slice(0, 7);
-}
+  if (Number.isNaN(dt.getTime())) {
+    return data.slice(0, 7);
+  }
 
-const fechamentoAtualDaData = makeDate(dt.getFullYear(), dt.getMonth(), diaFechamento);
+  const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
 
-const mesFechamento =
-  dt.getTime() > fechamentoAtualDaData.getTime()
-    ? addMonths(new Date(dt.getFullYear(), dt.getMonth(), 1), 1)
-    : new Date(dt.getFullYear(), dt.getMonth(), 1);
+  if (dt.getDate() >= fechamento) {
+    base.setMonth(base.getMonth() + 1);
+  }
 
-const mesFatura = addMonths(mesFechamento, invoiceStartOffset);
+  base.setMonth(base.getMonth() + invoiceStartOffset);
 
-return `${mesFatura.getFullYear()}-${pad2(mesFatura.getMonth() + 1)}`;
+  return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}`;
 };
 
 const getPerfilContaFromTransaction = (t: Transaction): "PF" | "PJ" | null => {
@@ -402,10 +413,9 @@ const transacoesFiltradas = (transacoes ?? []).filter((t) => {
 
     if (!batePerfil) return false;
   }
-
-  if (perfilViewNorm === "geral") {
-    return true;
-  }
+if (perfilViewNorm === "geral") {
+  return true;
+}
 
 if (tipo === "cartao_credito") {
   const cardId = getCreditCardIdFromTransaction(t);

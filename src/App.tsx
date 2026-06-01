@@ -5996,44 +5996,58 @@ const transacoesAnoProjecao = useMemo(() => {
   );
 }, [transactions, anoBaseProjecao]);
 
-// --- Saldo inicial pra projeção (respeita filtro de conta) ---
+// --- Saldo inicial pra projeção (respeita seleção de contas da Projeção) ---
 const saldoInicialProjecao = useMemo(() => {
   if (!Array.isArray(profiles) || profiles.length === 0) return 0;
 
-  const fc = String(filtroConta ?? "todas").trim().toLowerCase();
-  const isTodas =
-    fc === "" ||
-    fc === "todas" ||
-    fc === "todas as contas" ||
-    fc === "todas_as_contas";
+  const selectedIdsSet = new Set(
+    (selectedProjectionProfileIds ?? [])
+      .map((id) => String(id ?? "").trim())
+      .filter(Boolean)
+  );
+
+  // Se PF/PJ estiver ativo e nenhuma conta estiver marcada,
+  // o saldo inicial precisa ser zero.
+  if (projecaoPerfilView !== "geral" && selectedIdsSet.size === 0) {
+    return 0;
+  }
 
   const toReais = (p: any) => {
-    // prioridade total pro campo correto do teu app
-    if (p?.initialBalanceCents != null) return (Number(p.initialBalanceCents) || 0) / 100;
+    if (p?.initialBalanceCents != null) {
+      return (Number(p.initialBalanceCents) || 0) / 100;
+    }
 
-    // fallback (caso exista em algum profile antigo)
     if (p?.saldoInicial != null) return Number(p.saldoInicial) || 0;
     if (p?.saldo_inicial != null) return Number(p.saldo_inicial) || 0;
 
     return 0;
   };
 
-const filteredProfiles = (profiles ?? []).filter((p: any) => {
-  const perfil = String(
-    p?.perfilConta ??
-    p?.perfil ??
-    p?.profileType ??
-    p?.tipo ??
-    ""
-  ).trim().toLowerCase();
+  const filteredProfiles = (profiles ?? []).filter((p: any) => {
+    const id = String(p?.id ?? "").trim();
 
-  if (projecaoPerfilView === "pf") return perfil === "pf";
-  if (projecaoPerfilView === "pj") return perfil === "pj";
-  return true;
-});
+    const perfil = String(
+      p?.perfilConta ??
+        p?.perfil ??
+        p?.profileType ??
+        p?.tipo ??
+        ""
+    )
+      .trim()
+      .toLowerCase();
 
-return filteredProfiles.reduce((sum: number, p: any) => sum + toReais(p), 0);
-}, [profiles, projecaoPerfilView]);
+    if (projecaoPerfilView === "pf" && perfil !== "pf") return false;
+    if (projecaoPerfilView === "pj" && perfil !== "pj") return false;
+
+    if (projecaoPerfilView !== "geral") {
+      return !!id && selectedIdsSet.has(id);
+    }
+
+    return true;
+  });
+
+  return filteredProfiles.reduce((sum: number, p: any) => sum + toReais(p), 0);
+}, [profiles, projecaoPerfilView, selectedProjectionProfileIds]);
 
 
 // --- Projeção ---

@@ -160,8 +160,10 @@ import SidebarShell, { type SidebarPanelKey } from "./components/layout/SidebarS
 import {
   getUserFavoriteAccount,
   getUserHiddenAccounts,
+  getUserAccountOrder,
   setUserFavoriteAccount,
   setUserHiddenAccounts,
+  setUserAccountOrder,
 } from "./services/userAccess";
 
 import {
@@ -1043,6 +1045,28 @@ const semPrazoDismissInFlightRef = useRef<Set<string>>(new Set());
 const [activeTab, setActiveTab] = useState<TabType>("transacoes");
 const [transacoesResetPageSignal, setTransacoesResetPageSignal] = useState(0);
 
+const handleSetAccountOrder = async (nextIds: string[]) => {
+  const userId = String(session?.user?.id ?? "").trim();
+
+  const safeIds = Array.isArray(nextIds)
+    ? nextIds.map((id) => String(id ?? "").trim()).filter(Boolean)
+    : [];
+
+  setAccountOrderIds(safeIds);
+
+  if (!userId) {
+    toastCompact("Sessão inválida para salvar a ordem das contas.", "error");
+    return;
+  }
+
+  try {
+    await setUserAccountOrder(userId, safeIds);
+  } catch (err) {
+    console.error("ERRO AO SALVAR ORDEM DAS CONTAS:", err);
+    toastCompact("Não foi possível salvar a ordem das contas.", "error");
+  }
+};
+
 const handleHomeTransacoesClick = () => {
   const favoriteId = String(favoriteAccountId ?? "").trim();
 
@@ -1566,10 +1590,11 @@ const [
   invoiceManualStatusRows,
   categoryRows,
   tagRows,
-  favoriteId,
-  hiddenIds,
-  importBatchRows,
-  accountImportBatchRows,
+favoriteId,
+hiddenIds,
+savedAccountOrderIds,
+importBatchRows,
+accountImportBatchRows,
 ] = await Promise.all([
   fetchCreditCards(cleanUserId),
   fetchAccounts(cleanUserId),
@@ -1579,8 +1604,9 @@ const [
   fetchInvoiceManualStatus(cleanUserId),
   fetchUserCategories(cleanUserId),
   fetchUserTags(cleanUserId),
-  getUserFavoriteAccount(cleanUserId),
-  getUserHiddenAccounts(cleanUserId),
+getUserFavoriteAccount(cleanUserId),
+getUserHiddenAccounts(cleanUserId),
+getUserAccountOrder(cleanUserId),
 
 (async () => {
   const { data, error } = await supabase
@@ -1673,10 +1699,16 @@ const hiddenIdsSafe = Array.isArray(hiddenIds)
       .map((id: any) => String(id ?? "").trim())
       .filter((id: string) => !!id && profileIdsValidos.has(id))
   : [];
+const accountOrderIdsSafe = Array.isArray(savedAccountOrderIds)
+  ? savedAccountOrderIds
+      .map((id: any) => String(id ?? "").trim())
+      .filter((id: string) => !!id && profileIdsValidos.has(id))
+  : [];
 
 setProfiles((profilesFromDb ?? []) as any);
 setFavoriteAccountId(favoriteIdValido);
 setHiddenAccountIds(hiddenIdsSafe);
+setAccountOrderIds(accountOrderIdsSafe);
 setAccountsLoaded(true);
 
 const appTransactionsFromDb = txRows.map((row: any) =>
@@ -1885,6 +1917,7 @@ const limparEstadoUsuario = () => {
 setProfiles([]);
 setFavoriteAccountId(null);
 setHiddenAccountIds([]);
+setAccountOrderIds([]);
 setTransacoes([]);
 setCreditCards([]);
 setPagamentosFatura([]);
@@ -3014,6 +3047,8 @@ const [profiles, setProfiles] = useState<Profile[]>([]);
 const [favoriteAccountId, setFavoriteAccountId] = useState<string | null>(null);
 
 const [hiddenAccountIds, setHiddenAccountIds] = useState<string[]>([]);
+
+const [accountOrderIds, setAccountOrderIds] = useState<string[]>([]);
 
 
 const LABEL_TODAS_CONTAS = "Todas as Contas";
@@ -12281,6 +12316,8 @@ handleToggleFavoriteAccount={handleToggleFavoriteAccount}
 shouldShowAccountEyes={shouldShowAccountEyes}
 hiddenAccountIds={hiddenAccountIds}
 handleToggleHiddenAccount={handleToggleHiddenAccount}
+accountOrderIds={accountOrderIds}
+handleSetAccountOrder={handleSetAccountOrder}
 mostrarReceitasResumo={mostrarReceitasResumo}
     mostrarDespesasResumo={mostrarDespesasResumo}
     totalFiltradoReceitas={totalFiltradoReceitas}

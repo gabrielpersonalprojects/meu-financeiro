@@ -53,3 +53,33 @@ export async function setUserHiddenAccounts(
 
   if (error) throw error;
 }
+
+export async function getUserAccountOrder(userId: string) {
+  const { data, error } = await supabase
+    .from("user_access")
+    .select("account_order_ids")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return Array.isArray(data?.account_order_ids)
+    ? data.account_order_ids.map((id: any) => String(id ?? "").trim()).filter(Boolean)
+    : [];
+}
+
+export async function setUserAccountOrder(
+  userId: string,
+  accountIds: string[]
+) {
+  const safeIds = Array.isArray(accountIds)
+    ? accountIds.map((id) => String(id ?? "").trim()).filter(Boolean)
+    : [];
+
+  const { error } = await supabase
+    .from("user_access")
+    .update({ account_order_ids: safeIds })
+    .eq("user_id", userId);
+
+  if (error) throw error;
+}

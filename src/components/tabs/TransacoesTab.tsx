@@ -64,6 +64,9 @@ type Props = {
   hiddenAccountIds: string[];
   handleToggleHiddenAccount: (accountId: string) => void;
 
+  accountOrderIds: string[];
+handleSetAccountOrder: (accountIds: string[]) => void;
+
   mostrarReceitasResumo: boolean;
   mostrarDespesasResumo: boolean;
   totalFiltradoReceitas: number;
@@ -122,6 +125,8 @@ export default function TransacoesTab({
   shouldShowAccountEyes,
   hiddenAccountIds,
   handleToggleHiddenAccount,
+  accountOrderIds,
+handleSetAccountOrder,
 
   mostrarReceitasResumo,
   mostrarDespesasResumo,
@@ -170,33 +175,24 @@ const hiddenAccountIdsSet = useMemo(
 
 const [draggedAccountId, setDraggedAccountId] = useState<string | null>(null);
 
-const accountOrderStorageKey = "fluxmoney_account_order";
-
-const [accountOrderIds, setAccountOrderIds] = useState<string[]>(() => {
-  try {
-    const saved = localStorage.getItem(accountOrderStorageKey);
-    const parsed = saved ? JSON.parse(saved) : [];
-    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
-  } catch {
-    return [];
-  }
-});
-
-const profilesOrdenados = useMemo(() => {
+const profilesBaseOrdenados = useMemo(() => {
   const base = [...(profiles ?? [])];
 
-  if (!accountOrderIds.length) return base;
-
   const orderMap = new Map(
-    accountOrderIds.map((id, index) => [String(id), index])
+    (accountOrderIds ?? []).map((id, index) => [String(id), index])
   );
 
   return base.sort((a: any, b: any) => {
-    const aId = String(a?.id ?? "");
-    const bId = String(b?.id ?? "");
+    const aId = String(a?.id ?? "").trim();
+    const bId = String(b?.id ?? "").trim();
 
-    const aOrder = orderMap.has(aId) ? orderMap.get(aId)! : Number.MAX_SAFE_INTEGER;
-    const bOrder = orderMap.has(bId) ? orderMap.get(bId)! : Number.MAX_SAFE_INTEGER;
+    const aOrder = orderMap.has(aId)
+      ? orderMap.get(aId)!
+      : Number.MAX_SAFE_INTEGER;
+
+    const bOrder = orderMap.has(bId)
+      ? orderMap.get(bId)!
+      : Number.MAX_SAFE_INTEGER;
 
     if (aOrder !== bOrder) return aOrder - bOrder;
 
@@ -204,15 +200,29 @@ const profilesOrdenados = useMemo(() => {
   });
 }, [profiles, accountOrderIds]);
 
+const profilesOrdenados = useMemo(() => {
+  return [...profilesBaseOrdenados].sort((a: any, b: any) => {
+    const aId = String(a?.id ?? "").trim();
+    const bId = String(b?.id ?? "").trim();
+
+    const aHidden = hiddenAccountIdsSet.has(aId);
+    const bHidden = hiddenAccountIdsSet.has(bId);
+
+    if (aHidden !== bHidden) return aHidden ? 1 : -1;
+
+    return 0;
+  });
+}, [profilesBaseOrdenados, hiddenAccountIdsSet]);
+
 const handleReorderAccount = (fromId: string, toId: string) => {
   const cleanFromId = String(fromId ?? "").trim();
   const cleanToId = String(toId ?? "").trim();
 
   if (!cleanFromId || !cleanToId || cleanFromId === cleanToId) return;
 
-  const currentIds = profilesOrdenados
-    .map((p: any) => String(p?.id ?? "").trim())
-    .filter(Boolean);
+const currentIds = profilesBaseOrdenados
+  .map((p: any) => String(p?.id ?? "").trim())
+  .filter(Boolean);
 
   const fromIndex = currentIds.indexOf(cleanFromId);
   const toIndex = currentIds.indexOf(cleanToId);
@@ -223,13 +233,7 @@ const handleReorderAccount = (fromId: string, toId: string) => {
   const [removed] = nextIds.splice(fromIndex, 1);
   nextIds.splice(toIndex, 0, removed);
 
-  setAccountOrderIds(nextIds);
-
-  try {
-    localStorage.setItem(accountOrderStorageKey, JSON.stringify(nextIds));
-  } catch {
-    // ignora erro de storage
-  }
+  handleSetAccountOrder(nextIds);
 };
 
 const canFavoriteAccounts = (profiles ?? []).length >= 2;

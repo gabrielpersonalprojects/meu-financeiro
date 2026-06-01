@@ -1654,13 +1654,29 @@ setAccountsWithImportHistory(
 );
 
 const profilesFromDb = rows.map(mapAccountRowToProfile);
-setProfiles((profilesFromDb ?? []) as any);
-setFavoriteAccountId(favoriteId ? String(favoriteId) : null);
-setHiddenAccountIds(
-  Array.isArray(hiddenIds)
-    ? hiddenIds.map((id: any) => String(id ?? "").trim()).filter(Boolean)
-    : []
+
+const profileIdsValidos = new Set(
+  (profilesFromDb ?? [])
+    .map((p: any) => String(p?.id ?? "").trim())
+    .filter(Boolean)
 );
+
+const favoriteIdSafe = String(favoriteId ?? "").trim();
+
+const favoriteIdValido =
+  favoriteIdSafe && profileIdsValidos.has(favoriteIdSafe)
+    ? favoriteIdSafe
+    : null;
+
+const hiddenIdsSafe = Array.isArray(hiddenIds)
+  ? hiddenIds
+      .map((id: any) => String(id ?? "").trim())
+      .filter((id: string) => !!id && profileIdsValidos.has(id))
+  : [];
+
+setProfiles((profilesFromDb ?? []) as any);
+setFavoriteAccountId(favoriteIdValido);
+setHiddenAccountIds(hiddenIdsSafe);
 setAccountsLoaded(true);
 
 const appTransactionsFromDb = txRows.map((row: any) =>
@@ -13712,6 +13728,21 @@ profiles.map((p) => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                                    <button
+                    type="button"
+                    onClick={() => handleToggleFavoriteAccount(p.id)}
+                    className={`p-1.5 transition ${
+                      isFavorite
+                        ? "text-amber-400 hover:text-amber-500"
+                        : "text-slate-400 hover:text-amber-400 dark:text-slate-500 dark:hover:text-amber-300"
+                    }`}
+                    title={isFavorite ? "Remover dos favoritos" : "Favoritar conta"}
+                  >
+                    <Star
+                      size={17}
+                      className={isFavorite ? "fill-current" : ""}
+                    />
+                  </button>
                   <button
                     type="button"
                     onClick={() => openEditAccountModal(p.id)}

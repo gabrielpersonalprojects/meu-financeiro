@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Search,
   Printer,
+  GripVertical,
 } from "lucide-react";
 
 import { printTransacoesPdfReport } from "../../app/transactions/reports/transacoesPdfReport";
@@ -166,6 +167,70 @@ const hiddenAccountIdsSet = useMemo(
     ),
   [hiddenAccountIds]
 );
+
+const [draggedAccountId, setDraggedAccountId] = useState<string | null>(null);
+
+const accountOrderStorageKey = "fluxmoney_account_order";
+
+const [accountOrderIds, setAccountOrderIds] = useState<string[]>(() => {
+  try {
+    const saved = localStorage.getItem(accountOrderStorageKey);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+});
+
+const profilesOrdenados = useMemo(() => {
+  const base = [...(profiles ?? [])];
+
+  if (!accountOrderIds.length) return base;
+
+  const orderMap = new Map(
+    accountOrderIds.map((id, index) => [String(id), index])
+  );
+
+  return base.sort((a: any, b: any) => {
+    const aId = String(a?.id ?? "");
+    const bId = String(b?.id ?? "");
+
+    const aOrder = orderMap.has(aId) ? orderMap.get(aId)! : Number.MAX_SAFE_INTEGER;
+    const bOrder = orderMap.has(bId) ? orderMap.get(bId)! : Number.MAX_SAFE_INTEGER;
+
+    if (aOrder !== bOrder) return aOrder - bOrder;
+
+    return String(a?.name ?? "").localeCompare(String(b?.name ?? ""), "pt-BR");
+  });
+}, [profiles, accountOrderIds]);
+
+const handleReorderAccount = (fromId: string, toId: string) => {
+  const cleanFromId = String(fromId ?? "").trim();
+  const cleanToId = String(toId ?? "").trim();
+
+  if (!cleanFromId || !cleanToId || cleanFromId === cleanToId) return;
+
+  const currentIds = profilesOrdenados
+    .map((p: any) => String(p?.id ?? "").trim())
+    .filter(Boolean);
+
+  const fromIndex = currentIds.indexOf(cleanFromId);
+  const toIndex = currentIds.indexOf(cleanToId);
+
+  if (fromIndex < 0 || toIndex < 0) return;
+
+  const nextIds = [...currentIds];
+  const [removed] = nextIds.splice(fromIndex, 1);
+  nextIds.splice(toIndex, 0, removed);
+
+  setAccountOrderIds(nextIds);
+
+  try {
+    localStorage.setItem(accountOrderStorageKey, JSON.stringify(nextIds));
+  } catch {
+    // ignora erro de storage
+  }
+};
 
 const canFavoriteAccounts = (profiles ?? []).length >= 2;
 const canManageAccountVisibility = (profiles ?? []).length >= 3;
@@ -771,10 +836,12 @@ className={[
   )}
 </div>
 
-  <div className="w-full sm:w-auto sm:min-w-[230px] sm:max-w-[360px] shrink-0">
-    <CustomDropdown
-      placeholder="Conta"
-      value={filtroConta}
+<div className="w-full sm:w-auto sm:min-w-[230px] sm:max-w-[360px] shrink-0">
+<CustomDropdown
+  placeholder="Conta"
+  value={filtroConta}
+  renderMenuInPortal={true}
+  menuWidthPx={400}
       options={[
        {
   label: (
@@ -789,7 +856,7 @@ className={[
   ),
   value: "todas",
 },
-...profiles.map((p) => {
+...profilesOrdenados.map((p) => {
 const accountId = String(p.id ?? "").trim();
 const isFavorite =
   String(favoriteAccountId ?? "").trim() === accountId;
@@ -797,7 +864,55 @@ const isHidden = hiddenAccountIdsSet.has(accountId);
 
 return {
 label: (
-  <div className="flex items-center gap-2 w-full min-w-0">
+  <div
+    onDragOver={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+    }}
+    onDrop={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (draggedAccountId) {
+        handleReorderAccount(draggedAccountId, accountId);
+      }
+
+      setDraggedAccountId(null);
+    }}
+className={`group/account flex items-center gap-2 w-full min-w-0 transition-all ${
+  isHidden ? "opacity-40 grayscale" : "opacity-100"
+} ${
+  draggedAccountId === accountId ? "scale-[0.98]" : ""
+}`}
+  >
+    <button
+      type="button"
+      draggable
+      onMouseDown={(e) => {
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onDragStart={(e) => {
+        e.stopPropagation();
+        setDraggedAccountId(accountId);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      onDragEnd={(e) => {
+        e.stopPropagation();
+        setDraggedAccountId(null);
+      }}
+      className="group/drag relative shrink-0 rounded-md p-1 text-slate-500 transition hover:cursor-grab hover:bg-white/10 hover:text-slate-200 active:cursor-grabbing dark:text-slate-400 dark:hover:text-white"
+    >
+      <GripVertical size={15} />
+
+<span className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-[10px] font-semibold text-white shadow-lg group-hover/drag:block">
+  Arrastar esta conta
+</span>
+    </button>
 {shouldRenderEyeActions && (
   <button
     type="button"
@@ -810,8 +925,7 @@ label: (
       e.stopPropagation();
       handleToggleHiddenAccount(accountId);
     }}
-    className="shrink-0 p-0.5 transition"
-    title={isHidden ? "Mostrar conta" : "Ocultar conta"}
+    className="group/eye relative shrink-0 rounded-md p-1 transition hover:bg-white/10"
   >
     {isHidden ? (
       <EyeOff
@@ -824,6 +938,10 @@ label: (
         className="text-slate-500 dark:text-slate-400"
       />
     )}
+
+<span className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-[10px] font-semibold text-white shadow-lg group-hover/eye:block">
+  {isHidden ? "Mostrar esta conta" : "Ocultar esta conta"}
+</span>
   </button>
 )}
 
@@ -839,8 +957,7 @@ label: (
       e.stopPropagation();
       handleToggleFavoriteAccount(accountId);
     }}
-    className="shrink-0 p-0.5 transition"
-    title={isFavorite ? "Desfavoritar conta" : "Favoritar conta"}
+    className="group/star relative shrink-0 rounded-md p-1 transition hover:bg-white/10"
   >
     <Star
       size={14}
@@ -850,6 +967,10 @@ label: (
           : "fill-transparent stroke-violet-600 text-violet-600 dark:stroke-violet-400 dark:text-violet-400"
       }
     />
+
+<span className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-[10px] font-semibold text-white shadow-lg group-hover/star:block">
+  {isFavorite ? "Remover dos favoritos" : "Favoritar esta conta"}
+</span>
   </button>
 )}
 
@@ -859,9 +980,12 @@ label: (
       </span>
     </span>
 
-    <span className="min-w-0 truncate text-slate-100">
-      {getContaLabel(p)}
-    </span>
+<span
+  className="min-w-0 flex-1 whitespace-nowrap text-slate-100"
+  title={getContaLabel(p)}
+>
+  {getContaLabel(p)}
+</span>
   </div>
 ),
     value: p.id,
@@ -870,7 +994,7 @@ label: (
       ]}
       onSelect={(val) => setFiltroConta(String(val))}
       className="w-full sm:w-auto"
-      triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
+triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
     />
   </div>
 

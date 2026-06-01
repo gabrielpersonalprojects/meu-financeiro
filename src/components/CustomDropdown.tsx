@@ -31,6 +31,7 @@ type CustomDropdownProps = {
   menuMaxHeightPx?: number;
   menuMinHeightPx?: number;
   renderMenuInPortal?: boolean;
+  menuWidthPx?: number;
 };
 
 const MAX_MENU_PX = 420; // mostra ~8 a 10 itens com mais conforto
@@ -52,6 +53,7 @@ const CustomDropdown: FC<CustomDropdownProps> = ({
   menuMaxHeightPx = MAX_MENU_PX,
   menuMinHeightPx = MIN_MENU_PX,
   renderMenuInPortal = false,
+  menuWidthPx,
 }) => {
 
   const [isOpen, setIsOpen] = useState(false);
@@ -143,7 +145,7 @@ const recalcMenuHeight = () => {
   setMenuPosition({
     top: rect.bottom + 8,
     left: rect.left,
-    width: rect.width,
+    width: menuWidthPx ?? rect.width,
   });
 };
 
@@ -180,7 +182,7 @@ const onScroll = (event: Event) => {
     window.removeEventListener("resize", onResize);
     window.removeEventListener("scroll", onScroll, true);
   };
-}, [isOpen, renderMenuInPortal]);
+}, [isOpen, renderMenuInPortal, menuWidthPx, menuMaxHeightPx, menuMinHeightPx]);
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>

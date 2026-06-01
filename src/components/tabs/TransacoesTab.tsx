@@ -913,7 +913,7 @@ className={`group/account flex items-center gap-2 w-full min-w-0 transition-all 
     >
       <GripVertical size={15} />
 
-<span className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-[10px] font-semibold text-white shadow-lg group-hover/drag:block">
+<span className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-[10px] font-semibold !text-white shadow-lg group-hover/drag:block">
   Arrastar esta conta
 </span>
     </button>
@@ -943,7 +943,7 @@ className={`group/account flex items-center gap-2 w-full min-w-0 transition-all 
       />
     )}
 
-<span className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-[10px] font-semibold text-white shadow-lg group-hover/eye:block">
+<span className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-[10px] font-semibold !text-white shadow-lg group-hover/eye:block">
   {isHidden ? "Mostrar esta conta" : "Ocultar esta conta"}
 </span>
   </button>
@@ -972,7 +972,7 @@ className={`group/account flex items-center gap-2 w-full min-w-0 transition-all 
       }
     />
 
-<span className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-[10px] font-semibold text-white shadow-lg group-hover/star:block">
+<span className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-[10px] font-semibold !text-white shadow-lg group-hover/star:block">
   {isFavorite ? "Remover dos favoritos" : "Favoritar esta conta"}
 </span>
   </button>

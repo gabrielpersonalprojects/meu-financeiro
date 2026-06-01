@@ -1046,11 +1046,12 @@ const [transacoesResetPageSignal, setTransacoesResetPageSignal] = useState(0);
 const handleHomeTransacoesClick = () => {
   const favoriteId = String(favoriteAccountId ?? "").trim();
 
-setFiltroMesTransacoes(getHojeLocal().substring(0, 7));
-setFiltroLancamento("todos");
-setFiltroCategoria("");
-setFiltroMetodo("");
-setFiltroTipoGasto("");
+  // TRANSAÇÕES
+  setFiltroMesTransacoes(getHojeLocal().substring(0, 7));
+  setFiltroLancamento("todos");
+  setFiltroCategoria("");
+  setFiltroMetodo("");
+  setFiltroTipoGasto("");
 
   if (favoriteId) {
     const favoritaExiste = (profiles ?? []).some(
@@ -1062,14 +1063,30 @@ setFiltroTipoGasto("");
     setFiltroConta("todas");
   }
 
+  setTransacoesCardsPerfilView("geral");
+  setTransacoesResetPageSignal((prev) => prev + 1);
+
+  // CARTÕES
   setIsCcExpanded(false);
   setSelectedCreditCardId("");
   setCreditCardsPage(1);
   setIsCardsResumoOpen(false);
+  setCreditJumpMonth("");
+  setFormQualCartao("");
 
-  setTransacoesCardsPerfilView("geral");
+    // ANÁLISE
+  setFiltroMesAnalise(getHojeLocal().substring(0, 7));
+  setAnalisePerfilView("pf");
+  setAnaliseFonteView("geral");
+
+  // PROJEÇÃO
+  setProjectionMode("acumulado");
+  setProjecaoPerfilView("geral");
+  setSelectedProjectionProfileIds([]);
+  setSelectedProjectionCreditCardIds([]);
+
+  // VOLTA PARA HOME / TRANSAÇÕES
   setActiveTab("transacoes");
-  setTransacoesResetPageSignal((prev) => prev + 1);
 };
 
 const scrollPorAbaRef = useRef<Record<string, number>>({
@@ -4297,103 +4314,158 @@ const [creditCardsPage, setCreditCardsPage] = useState(1);
 const orderedCreditCards = useMemo(() => {
   const hoje = getHojeLocal();
 
-  const getCardRank = (c: any) => {
-    const roundMoneyLocal = (value: number) =>
-      Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+  const hojeDate = new Date(`${hoje}T12:00:00`);
+  hojeDate.setHours(0, 0, 0, 0);
 
-    const cicloBase = getCardCycleMonthFromDate(
-      hoje,
-      Number(c?.diaFechamento ?? 1),
-      Number(c?.diaVencimento ?? 10)
+  const getCardId = (card: any) => String(card?.id ?? "").trim();
+
+  const getTxCardId = (tx: any) =>
+    String(
+      tx?.cartaoId ??
+        tx?.qualCartao ??
+        tx?.payload?.cartaoId ??
+        tx?.payload?.qualCartao ??
+        tx?.payload?.targetId ??
+        ""
+    ).trim();
+
+  const getCardPriorityInfo = (card: any) => {
+    const cardId = getCardId(card);
+
+    if (!cardId) {
+      return {
+        rank: 2,
+        dueTime: Number.MAX_SAFE_INTEGER,
+        saldo: 0,
+      };
+    }
+
+    const diaFechamentoNum = Math.max(
+      1,
+      Math.min(31, Number(card?.diaFechamento ?? 1))
     );
 
-    const transacoesDoCartao = (transacoes ?? []).filter((t: any) => {
-      const cartaoTxId = String(
-        (t as any)?.qualCartao ??
-          (t as any)?.cartaoId ??
-          (t as any)?.qualConta ??
-          ""
+    const diaVencimentoNum = Math.max(
+      1,
+      Math.min(31, Number(card?.diaVencimento ?? 10))
+    );
+
+    const cicloBase = String(
+      getCardCycleMonthFromDate(
+        hoje,
+        diaFechamentoNum,
+        diaVencimentoNum
+      )
+    ).trim();
+
+    const totaisPorCiclo = new Map<
+      string,
+      {
+        total: number;
+        pago: number;
+      }
+    >();
+
+    (transacoes ?? []).forEach((tx: any) => {
+      const tipo = String(tx?.tipo ?? "").trim().toLowerCase();
+      if (tipo !== "cartao_credito") return;
+
+      const txCardId = getTxCardId(tx);
+      if (txCardId !== cardId) return;
+
+      const data = String(tx?.data ?? "").trim();
+      if (!data) return;
+
+      const ciclo = String(
+        getCardCycleMonthFromDate(
+          data,
+          diaFechamentoNum,
+          diaVencimentoNum
+        )
       ).trim();
 
-      const tipo = String((t as any)?.tipo ?? "").toLowerCase();
-      const parcelamentoFaturaId = String(
-        (t as any)?.parcelamentoFaturaId ?? ""
-      ).trim();
+      if (!/^\d{4}-\d{2}$/.test(ciclo)) return;
 
-      const pertenceAoCartaoDiretamente =
-        cartaoTxId === String(c?.id ?? "").trim() &&
-        tipo === "cartao_credito";
+      const atual = totaisPorCiclo.get(ciclo) ?? {
+        total: 0,
+        pago: 0,
+      };
 
-      const pertenceAoCartaoViaParcelamento =
-        Boolean(parcelamentoFaturaId) &&
-        (parcelamentosFatura ?? []).some(
-          (p: any) =>
-            String(p?.id ?? "").trim() === parcelamentoFaturaId &&
-            String(p?.cartaoId ?? "").trim() === String(c?.id ?? "").trim()
-        );
-
-      return pertenceAoCartaoDiretamente || pertenceAoCartaoViaParcelamento;
-    });
-
-const inferirCicloDaTransacaoLocal = (t: any) => {
-  const dataRaw = String((t as any)?.data ?? "").trim();
-  if (!dataRaw) return "";
-
-  return getCardCycleMonthFromDate(
-    dataRaw,
-    Number(c?.diaFechamento ?? 1),
-    Number(c?.diaVencimento ?? 1)
-  );
-};
-
-    const statusManualPorCiclo = new Map<string, string>();
-
-    (faturasStatusManual ?? []).forEach((item: any) => {
-      if (String(item?.cartaoId ?? "").trim() !== String(c?.id ?? "").trim()) return;
-
-      const cicloNormalizado = normalizePaymentCycleKeyToYm(item?.cicloKey);
-      if (!cicloNormalizado) return;
-
-      const status = String(item?.statusManual ?? "").trim().toLowerCase();
-      if (!status) return;
-
-      statusManualPorCiclo.set(cicloNormalizado, status);
-    });
-
-    const totaisPorCiclo = new Map<string, { total: number; pago: number }>();
-
-    transacoesDoCartao.forEach((t: any) => {
-      const ciclo = inferirCicloDaTransacaoLocal(t);
-      if (!ciclo) return;
-
-      const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
-      atual.total += Math.abs(Number((t as any)?.valor || 0));
+      atual.total += Math.abs(Number(tx?.valor || 0));
       totaisPorCiclo.set(ciclo, atual);
     });
 
 (pagamentosFatura ?? []).forEach((p: any) => {
-  if (String(p?.cartaoId ?? "").trim() !== String(c?.id ?? "").trim()) return;
+  const pagamentoCardId = String(p?.cartaoId ?? "").trim();
+  if (pagamentoCardId !== cardId) return;
 
   const ciclo = normalizePaymentCycleKeyToYm(
     p?.cicloKey,
     p?.dataPagamento ?? p?.criadoEm ?? p?.createdAt ?? ""
   );
+
   if (!ciclo) return;
 
-  const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
+  const atual = totaisPorCiclo.get(ciclo) ?? {
+    total: 0,
+    pago: 0,
+  };
+
   atual.pago += Math.abs(Number(p?.valor || 0));
   totaisPorCiclo.set(ciclo, atual);
 });
 
-    const hojeDate = new Date(`${hoje}T12:00:00`);
-    hojeDate.setHours(0, 0, 0, 0);
+const statusManualPorCiclo = new Map<string, string>();
 
-    const diaVencimentoNum = Math.max(
-      1,
-      Math.min(31, Number(c?.diaVencimento ?? 10))
-    );
+(faturasStatusManual ?? []).forEach((item: any) => {
+  const itemCardId = String(item?.cartaoId ?? "").trim();
+  if (itemCardId !== cardId) return;
 
-    const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
+  const status = String(
+    item?.statusManual ??
+      item?.status ??
+      item?.tipo ??
+      item?.payload?.statusManual ??
+      ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (!status) return;
+
+  const cicloRaw = String(
+    item?.cicloKey ??
+      item?.ciclo ??
+      item?.mesAno ??
+      item?.payload?.cicloKey ??
+      ""
+  ).trim();
+
+  const cicloNormalizado = normalizePaymentCycleKeyToYm(cicloRaw);
+
+  if (cicloNormalizado) {
+    statusManualPorCiclo.set(cicloNormalizado, status);
+  }
+
+  if (cicloRaw.includes("__")) {
+    const parts = cicloRaw.split("__");
+    const startIso = String(parts[1] ?? "").trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(startIso)) {
+      const cicloPorDataInicio = getCardCycleMonthFromDate(
+        startIso,
+        diaFechamentoNum,
+        diaVencimentoNum
+      );
+
+      if (cicloPorDataInicio) {
+        statusManualPorCiclo.set(cicloPorDataInicio, status);
+      }
+    }
+  }
+});
+
+    const ciclosPendentes = Array.from(totaisPorCiclo.entries())
       .map(([ciclo, info]) => {
         if (!/^\d{4}-\d{2}$/.test(String(ciclo))) return null;
         if ((info?.total ?? 0) <= 0) return null;
@@ -4403,18 +4475,24 @@ const inferirCicloDaTransacaoLocal = (t: any) => {
         ).toLowerCase();
 
         if (
+          statusManualDoCiclo === "paga" ||
+          statusManualDoCiclo === "pago" ||
           statusManualDoCiclo === "parcelada" ||
-          statusManualDoCiclo === "paga"
+          statusManualDoCiclo === "parcelado"
         ) {
           return null;
         }
 
-        const saldo = roundMoneyLocal(
-          Math.max(0, Number(info.total || 0) - Number(info.pago || 0))
-        );
+const saldo = Number(
+  Math.max(0, Number(info.total || 0) - Number(info.pago || 0)).toFixed(2)
+);
 
         if (saldo <= 0) return null;
-        if (String(ciclo) >= String(cicloBase)) return null;
+
+        // Importante:
+        // Maior que o ciclo base = fatura futura/em aberto.
+        // Igual ao ciclo base ainda pode estar fechada aguardando pagamento.
+        if (String(ciclo) > String(cicloBase)) return null;
 
         const [anoStr, mesStr] = String(ciclo).split("-");
         const ano = Number(anoStr);
@@ -4431,6 +4509,7 @@ const inferirCicloDaTransacaoLocal = (t: any) => {
           0,
           0
         );
+
         vencimento.setHours(0, 0, 0, 0);
 
         return {
@@ -4445,58 +4524,121 @@ const inferirCicloDaTransacaoLocal = (t: any) => {
         vencimento: Date;
       }>;
 
-    const existeFaturaAtrasada = ciclosFechadosPendentes.some((item) => {
+    const atrasadas = ciclosPendentes.filter((item) => {
       const vencimentoTime =
         item?.vencimento instanceof Date
           ? item.vencimento.getTime()
           : Number.NaN;
 
-      return Number.isFinite(vencimentoTime) && vencimentoTime < hojeDate.getTime();
+      return (
+        Number.isFinite(vencimentoTime) &&
+        vencimentoTime < hojeDate.getTime()
+      );
     });
 
-    const existeFaturaFechadaPendente = ciclosFechadosPendentes.some((item) => {
+    if (atrasadas.length > 0) {
+      const vencimentoMaisAntigo = Math.min(
+        ...atrasadas.map((item) => item.vencimento.getTime())
+      );
+
+      const saldoTotal = atrasadas.reduce(
+        (acc, item) => acc + Math.max(0, Number(item?.saldo || 0)),
+        0
+      );
+
+      return {
+        rank: 0,
+        dueTime: vencimentoMaisAntigo,
+        saldo: saldoTotal,
+      };
+    }
+
+    const fechadasAguardandoPagamento = ciclosPendentes.filter((item) => {
       const vencimentoTime =
         item?.vencimento instanceof Date
           ? item.vencimento.getTime()
           : Number.NaN;
 
-      return Number.isFinite(vencimentoTime) && vencimentoTime >= hojeDate.getTime();
+      return (
+        Number.isFinite(vencimentoTime) &&
+        vencimentoTime >= hojeDate.getTime()
+      );
     });
 
-    if (existeFaturaAtrasada) return 0;
-    if (existeFaturaFechadaPendente) return 1;
-    return 2;
+    if (fechadasAguardandoPagamento.length > 0) {
+      const vencimentoMaisProximo = Math.min(
+        ...fechadasAguardandoPagamento.map((item) =>
+          item.vencimento.getTime()
+        )
+      );
+
+      const saldoTotal = fechadasAguardandoPagamento.reduce(
+        (acc, item) => acc + Math.max(0, Number(item?.saldo || 0)),
+        0
+      );
+
+      return {
+        rank: 1,
+        dueTime: vencimentoMaisProximo,
+        saldo: saldoTotal,
+      };
+    }
+
+    return {
+      rank: 2,
+      dueTime: Number.MAX_SAFE_INTEGER,
+      saldo: 0,
+    };
   };
 
-return [...(creditCards ?? [])].sort((a: any, b: any) => {
-  const aInactive = a?.is_active === false ? 1 : 0;
-  const bInactive = b?.is_active === false ? 1 : 0;
+  return [...(creditCards ?? [])].sort((a: any, b: any) => {
+    const aInactive = a?.is_active === false ? 1 : 0;
+    const bInactive = b?.is_active === false ? 1 : 0;
 
-  if (aInactive !== bInactive) return aInactive - bInactive;
+    if (aInactive !== bInactive) return aInactive - bInactive;
 
-  const rankA = getCardRank(a);
-  const rankB = getCardRank(b);
+    const infoA = getCardPriorityInfo(a);
+    const infoB = getCardPriorityInfo(b);
 
-  if (rankA !== rankB) return rankA - rankB;
+    // 1º: atrasados
+    // 2º: fechados aguardando pagamento
+    // 3º: em aberto/normais
+    if (infoA.rank !== infoB.rank) {
+      return infoA.rank - infoB.rank;
+    }
 
-  const aTime = Math.max(
-    new Date(String(a?.updatedAt ?? a?.updated_at ?? "")).getTime() || 0,
-    new Date(String(a?.createdAt ?? a?.created_at ?? "")).getTime() || 0
-  );
+    // Dentro de atrasados/fechados, ordenar pelo vencimento mais próximo/mais antigo.
+    // Assim o cartão mais urgente vem primeiro.
+    if (infoA.rank !== 2 && infoA.dueTime !== infoB.dueTime) {
+      return infoA.dueTime - infoB.dueTime;
+    }
 
-  const bTime = Math.max(
-    new Date(String(b?.updatedAt ?? b?.updated_at ?? "")).getTime() || 0,
-    new Date(String(b?.createdAt ?? b?.created_at ?? "")).getTime() || 0
-  );
+    // Dentro de atrasados/fechados com mesmo vencimento, maior saldo primeiro.
+    if (infoA.rank !== 2 && infoA.saldo !== infoB.saldo) {
+      return infoB.saldo - infoA.saldo;
+    }
 
-  if (aTime !== bTime) return bTime - aTime;
+    // Só cartões normais/em aberto usam updatedAt.
+    // Assim clicar/mexer em cartão aberto não passa na frente de fechado/atrasado.
+    const aTime = Math.max(
+      new Date(String(a?.updatedAt ?? a?.updated_at ?? "")).getTime() || 0,
+      new Date(String(a?.createdAt ?? a?.created_at ?? "")).getTime() || 0
+    );
 
-  return String(a?.name ?? a?.nome ?? "").localeCompare(
-    String(b?.name ?? b?.nome ?? ""),
-    "pt-BR"
-  );
-});
+    const bTime = Math.max(
+      new Date(String(b?.updatedAt ?? b?.updated_at ?? "")).getTime() || 0,
+      new Date(String(b?.createdAt ?? b?.created_at ?? "")).getTime() || 0
+    );
 
+    if (aTime !== bTime) return bTime - aTime;
+
+    return String(
+      a?.emissor ?? a?.name ?? a?.nome ?? ""
+    ).localeCompare(
+      String(b?.emissor ?? b?.name ?? b?.nome ?? ""),
+      "pt-BR"
+    );
+  });
 }, [
   creditCards,
   transacoes,
@@ -8980,9 +9122,23 @@ const resumoHojeLabel = formatResumoBRL(resumoHojeValor);
 const resumoSemanaLabel = formatResumoBRL(resumoSemanaValor);
 const resumoAtrasadosLabel = formatResumoBRL(resumoAtrasadosValor);
 
-cartoesAtrasadosLista.sort((a, b) => String(b.ciclo).localeCompare(String(a.ciclo)));
-cartoesFechadosAguardandoPagamentoLista.sort((a, b) => String(b.ciclo).localeCompare(String(a.ciclo)));
-cartoesVencendoHojeLista.sort((a, b) => String(b.ciclo).localeCompare(String(a.ciclo)));
+cartoesAtrasadosLista.sort((a: any, b: any) =>
+  String(a?.vencimentoIso ?? a?.ciclo ?? "").localeCompare(
+    String(b?.vencimentoIso ?? b?.ciclo ?? "")
+  )
+);
+
+cartoesFechadosAguardandoPagamentoLista.sort((a: any, b: any) =>
+  String(a?.vencimentoIso ?? a?.ciclo ?? "").localeCompare(
+    String(b?.vencimentoIso ?? b?.ciclo ?? "")
+  )
+);
+
+cartoesVencendoHojeLista.sort((a: any, b: any) =>
+  String(a?.vencimentoIso ?? a?.ciclo ?? "").localeCompare(
+    String(b?.vencimentoIso ?? b?.ciclo ?? "")
+  )
+);
 
 const resumoCartoesEmAbertoLabel = formatResumoBRL(resumoCartoesEmAbertoValor);
 const resumoCartoesVencendoHojeLabel = formatResumoBRL(resumoCartoesVencendoHojeValor);
@@ -10680,8 +10836,7 @@ if (activeTab === "cartoes" && tab !== "cartoes") {
     e.stopPropagation();
     handleHomeTransacoesClick();
   }}
-  className="relative top-[1px] hidden md:block h-[17px] w-[17px] mr-12 cursor-pointer text-slate-600 dark:text-slate-400 transition-all duration-200 group-hover:text-violet-600 dark:group-hover:text-violet-200 group-hover:scale-125 group-active:scale-95"
-  strokeWidth={2.2}
+className="relative top-[1px] hidden md:block h-[22px] w-[22px] mr-12 cursor-pointer text-slate-600 dark:text-slate-400 transition-all duration-200 hover:text-violet-600 dark:hover:text-violet-200 hover:scale-125 active:scale-95"  strokeWidth={2.3}
 />
 
       <span className="relative inline-flex items-center">

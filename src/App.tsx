@@ -9841,6 +9841,12 @@ const resumoAlertsCount =
 
 const hasResumoAlerts = resumoAlertsCount > 0;
 
+const resumoItemClass =
+  "flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-3 py-3 text-left transition hover:border-slate-300 hover:bg-white dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.06]";
+
+const resumoItemStaticClass =
+  "flex items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-3 py-3 dark:border-white/10 dark:bg-white/[0.035]";
+
 const resumoPanelContent = (
   <div className="space-y-4">
     {semPrazoResumoAlertsContent}
@@ -9946,7 +9952,7 @@ const resumoPanelContent = (
               {despesasAtrasadasLista.map((t: any) => (
                 <div
                   key={`atraso_${String(t?.id ?? "")}`}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-rose-50/70 px-3 py-3 dark:bg-rose-500/[0.06]"
+                  className={resumoItemStaticClass}
                 >
                   <div className="min-w-0">
                     <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
@@ -10063,18 +10069,46 @@ const resumoPanelContent = (
 
             <div className="mt-4 space-y-2.5">
               {receitasAtrasadasLista.map((t: any) => (
-                <div
-                  key={`receita_atraso_${String(t?.id ?? "")}`}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-amber-50/70 px-3 py-3 dark:bg-amber-500/[0.06]"
-                >
+<div
+  key={`receita_atraso_${String(t?.id ?? "")}`}
+  className={resumoItemStaticClass}
+>
                   <div className="min-w-0">
                     <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
                       {String(t?.descricao ?? "Receita")}
                     </div>
 
-                    <div className="mt-1 text-[11px] text-slate-500 dark:text-white/50">
-                      {formatarData(String(t?.data ?? ""))}
-                    </div>
+<div className="mt-1 truncate text-[11px] text-slate-500 dark:text-white/50">
+  {[
+    formatarData(String(t?.data ?? "")),
+    getContaLabel(
+      profiles.find(
+        (p: any) =>
+          asId(p?.id) ===
+          asId(
+            (t as any)?.profileId ??
+              (t as any)?.contaId ??
+              (t as any)?.qualConta ??
+              ""
+          )
+      )
+    ),
+    getContaBadge(
+      profiles.find(
+        (p: any) =>
+          asId(p?.id) ===
+          asId(
+            (t as any)?.profileId ??
+              (t as any)?.contaId ??
+              (t as any)?.qualConta ??
+              ""
+          )
+      )
+    ),
+  ]
+    .filter(Boolean)
+    .join(" • ")}
+</div>
                   </div>
 
 <div className="flex shrink-0 items-center gap-2">
@@ -10167,7 +10201,7 @@ const resumoPanelContent = (
                   key={`cartao_pendente_${item.cartaoId}_${item.ciclo}`}
                   type="button"
                   onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
-className="flex w-full items-center justify-between gap-3 rounded-2xl bg-amber-50/70 px-3 py-3 text-left transition hover:bg-amber-100 dark:bg-amber-500/[0.08] dark:hover:bg-amber-500/[0.14]"                >
+className={resumoItemClass}             >
 <div className="min-w-0">
   <span className="block truncate text-[13px] font-semibold text-slate-900 dark:text-white">
     {item.label}
@@ -10219,7 +10253,7 @@ className="flex w-full items-center justify-between gap-3 rounded-2xl bg-amber-5
                   key={`cartao_atraso_${item.cartaoId}_${item.ciclo}`}
                   type="button"
                   onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
-                  className="flex w-full items-center justify-between rounded-2xl bg-rose-50/70 px-3 py-3 text-left transition hover:bg-rose-100 dark:bg-rose-500/[0.08] dark:hover:bg-rose-500/[0.14]"
+                  className={resumoItemClass}
                 >
                   <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
                     {item.label} — {String(item.ciclo).slice(5, 7)}/{String(item.ciclo).slice(0, 4)}

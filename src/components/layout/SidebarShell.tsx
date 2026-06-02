@@ -369,7 +369,7 @@ export default function SidebarShell({
         />
 
         <aside
-          className={`absolute left-0 top-0 h-screen w-[86vw] max-w-[320px] border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
+          className={`absolute left-0 top-0 h-[100dvh] max-h-[100dvh] w-[86vw] max-w-[320px] overflow-hidden border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -468,8 +468,7 @@ export default function SidebarShell({
 
       {/* PAINEL DESKTOP */}
       <div
-        className={`hidden md:block fixed left-24 top-0 z-[70] h-screen w-[460px] max-w-[90vw] border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
-          panelOpen ? "translate-x-0" : "-translate-x-full"
+className={`hidden md:flex fixed left-24 top-0 z-[70] h-[100dvh] max-h-[100dvh] min-h-0 w-[460px] max-w-[90vw] flex-col overflow-hidden border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${          panelOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div
@@ -557,7 +556,7 @@ export default function SidebarShell({
           )}
         </div>
 
- <div className="sidebar-panel-scroll h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 pr-2 dark:bg-slate-950">
+ <div className="sidebar-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50 p-3 pr-2 pb-6 dark:bg-slate-950">
           {activePanel && panelContent[activePanel] ? (
             panelContent[activePanel]
           ) : (
@@ -582,7 +581,7 @@ export default function SidebarShell({
         />
 
         <div
-          className={`absolute left-0 top-0 h-screen w-[100vw] max-w-full bg-white shadow-2xl transition-transform duration-300 dark:bg-slate-900 ${
+          className={`absolute left-0 top-0 flex h-[100dvh] max-h-[100dvh] min-h-0 w-[100vw] max-w-full flex-col overflow-hidden bg-white shadow-2xl transition-transform duration-300 dark:bg-slate-900 ${
             panelOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -665,7 +664,7 @@ export default function SidebarShell({
             )}
           </div>
 
-       <div className="sidebar-panel-scroll h-[calc(100vh-88px)] overflow-y-auto bg-slate-50 p-3 pr-2 dark:bg-slate-950">
+       <div className="sidebar-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50 p-3 pr-2 pb-6 dark:bg-slate-950">
             {activePanel && panelContent[activePanel] ? (
               panelContent[activePanel]
             ) : (

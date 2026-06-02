@@ -9232,6 +9232,29 @@ const despesasVencendoHojeLista = despesasResumoLista
   .filter((t: any) => String(t?.data ?? "").trim() === hojeResumoStr)
   .sort((a: any, b: any) => String(a?.data ?? "").localeCompare(String(b?.data ?? "")));
 
+  const proximosVencimentosDias = 7;
+
+const limiteProximosVencimentosDate = new Date(hojeResumoDate);
+limiteProximosVencimentosDate.setDate(
+  hojeResumoDate.getDate() + proximosVencimentosDias
+);
+limiteProximosVencimentosDate.setHours(23, 59, 59, 999);
+
+const proximosVencimentosLista = despesasResumoLista
+  .filter((t: any) => {
+    const data = String(t?.data ?? "").trim();
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return false;
+    if (data <= hojeResumoStr) return false;
+
+    const dataVencimento = new Date(`${data}T00:00:00`);
+
+    return dataVencimento <= limiteProximosVencimentosDate;
+  })
+  .sort((a: any, b: any) =>
+    String(a?.data ?? "").localeCompare(String(b?.data ?? ""))
+  );
+
 const despesasAtrasadasLista = despesasResumoLista
   .filter((t: any) => {
     const data = String(t?.data ?? "").trim();
@@ -9830,6 +9853,7 @@ const isEndedSemPrazoBusy = isDismissingSemPrazo;
 
 const resumoAlertsCount =
   despesasVencendoHojeLista.length +
+  proximosVencimentosLista.length +
   despesasAtrasadasLista.length +
   receitasVencendoHojeLista.length +
   receitasAtrasadasLista.length +
@@ -9846,6 +9870,9 @@ const resumoItemClass =
 
 const resumoItemStaticClass =
   "flex items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-3 py-3 dark:border-white/10 dark:bg-white/[0.035]";
+
+ const resumoActionButtonClass =
+  "shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-[#4600ac] shadow-sm transition hover:border-[#4600ac]/25 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-300/15 dark:bg-violet-400/10 dark:text-violet-200 dark:hover:bg-violet-400/15";
 
 const resumoPanelContent = (
   <div className="space-y-4">
@@ -9890,46 +9917,40 @@ const resumoPanelContent = (
 
             <div className="mt-4 space-y-2.5">
               {despesasVencendoHojeLista.map((t: any) => (
-                <div
-                  key={`hoje_${String(t?.id ?? "")}`}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50/90 px-3 py-3 dark:bg-white/[0.04]"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
-                      {String(t?.descricao ?? "Despesa")}
-                    </div>
+<div
+  key={`hoje_${String(t?.id ?? "")}`}
+  className={resumoItemStaticClass}
+>
+  <div className="min-w-0 pr-3">
+    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+      {String(t?.descricao ?? "Despesa")}
+    </div>
 
-                    <div className="mt-1 text-[11px] text-slate-500 dark:text-white/50">
-                      {formatarData(String(t?.data ?? ""))}
-                      {getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
-                    </div>
-                  </div>
+    <div className="mt-1 text-[11px] text-slate-500 dark:text-white/50">
+      {formatarData(String(t?.data ?? ""))}
+      {getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
+    </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    <div className="text-[13px] font-semibold text-rose-600 dark:text-rose-300">
-                      {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
-                    </div>
+    <div className="mt-1 text-[13px] font-semibold text-rose-600 dark:text-rose-300">
+      {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+    </div>
+  </div>
 
-                    <button
-                      type="button"
-                      onClick={() => togglePago(t)}
-                      disabled={isTogglePagoLocked(t)}
-                      className={[
-                        "rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white transition",
-                        isTogglePagoLocked(t)
-                          ? "cursor-not-allowed opacity-60"
-                          : "hover:brightness-110",
-                      ].join(" ")}
-                      style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
-                    >
-                      {isTogglePagoLocked(t) ? "Pagando..." : "Pagar"}
-                    </button>
-                  </div>
-                </div>
+  <button
+    type="button"
+    onClick={() => togglePago(t)}
+    disabled={isTogglePagoLocked(t)}
+    className={resumoActionButtonClass}
+  >
+    {isTogglePagoLocked(t) ? "Pagando." : "Pagar"}
+  </button>
+</div>
               ))}
             </div>
           </section>
         )}
+
+
 
         {despesasAtrasadasLista.length > 0 && (
           <section className="rounded-[26px] border border-rose-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-rose-400/15 dark:bg-slate-900">
@@ -9950,42 +9971,34 @@ const resumoPanelContent = (
 
             <div className="mt-4 space-y-2.5">
               {despesasAtrasadasLista.map((t: any) => (
-                <div
-                  key={`atraso_${String(t?.id ?? "")}`}
-                  className={resumoItemStaticClass}
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
-                      {String(t?.descricao ?? "Despesa")}
-                    </div>
+<div
+  key={`atraso_${String(t?.id ?? "")}`}
+  className={resumoItemStaticClass}
+>
+  <div className="min-w-0 pr-3">
+    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+      {String(t?.descricao ?? "Despesa")}
+    </div>
 
-                    <div className="mt-1 text-[11px] text-slate-500 dark:text-white/50">
-                      {formatarData(String(t?.data ?? ""))}
-                      {getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
-                    </div>
-                  </div>
+    <div className="mt-1 text-[11px] text-slate-500 dark:text-white/50">
+      {formatarData(String(t?.data ?? ""))}
+      {getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
+    </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    <div className="text-[13px] font-semibold text-rose-600 dark:text-rose-300">
-                      {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
-                    </div>
+    <div className="mt-1 text-[13px] font-semibold text-rose-600 dark:text-rose-300">
+      {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+    </div>
+  </div>
 
-                    <button
-                      type="button"
-                      onClick={() => togglePago(t)}
-                      disabled={isTogglePagoLocked(t)}
-                      className={[
-                        "rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white transition",
-                        isTogglePagoLocked(t)
-                          ? "cursor-not-allowed opacity-60"
-                          : "hover:brightness-110",
-                      ].join(" ")}
-                      style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
-                    >
-                      {isTogglePagoLocked(t) ? "Pagando..." : "Pagar"}
-                    </button>
-                  </div>
-                </div>
+  <button
+    type="button"
+    onClick={() => togglePago(t)}
+    disabled={isTogglePagoLocked(t)}
+    className={resumoActionButtonClass}
+  >
+    {isTogglePagoLocked(t) ? "Pagando." : "Pagar"}
+  </button>
+</div>
               ))}
             </div>
           </section>
@@ -10010,41 +10023,34 @@ const resumoPanelContent = (
 
             <div className="mt-4 space-y-2.5">
               {receitasVencendoHojeLista.map((t: any) => (
-                <div
-                  key={`receita_hoje_${String(t?.id ?? "")}`}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50/90 px-3 py-3 dark:bg-white/[0.04]"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
-                      {String(t?.descricao ?? "Receita")}
-                    </div>
+<div
+  key={`receita_hoje_${String(t?.id ?? "")}`}
+  className={resumoItemStaticClass}
+>
+  <div className="min-w-0 pr-3">
+    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+      {String(t?.descricao ?? "Receita")}
+    </div>
 
-                    <div className="mt-1 text-[11px] text-slate-500 dark:text-white/50">
-                      {formatarData(String(t?.data ?? ""))}
-                    </div>
-                  </div>
+    <div className="mt-1 text-[11px] text-slate-500 dark:text-white/50">
+      {formatarData(String(t?.data ?? ""))}
+      {getResumoReceitaMeta(t) ? ` • ${getResumoReceitaMeta(t)}` : ""}
+    </div>
 
-<div className="flex shrink-0 items-center gap-2">
-  <div className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-300">
-    {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+    <div className="mt-1 text-[13px] font-semibold text-emerald-600 dark:text-emerald-300">
+      {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+    </div>
   </div>
 
   <button
     type="button"
     onClick={() => togglePago(t)}
     disabled={isTogglePagoLocked(t)}
-    className={[
-      "rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white transition",
-      isTogglePagoLocked(t)
-        ? "cursor-not-allowed opacity-60"
-        : "hover:brightness-110",
-    ].join(" ")}
-    style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+    className={resumoActionButtonClass}
   >
-    {isTogglePagoLocked(t) ? "Marcando..." : "Recebido"}
+    {isTogglePagoLocked(t) ? "Marcando." : "Recebido"}
   </button>
 </div>
-                </div>
               ))}
             </div>
           </section>
@@ -10073,65 +10079,57 @@ const resumoPanelContent = (
   key={`receita_atraso_${String(t?.id ?? "")}`}
   className={resumoItemStaticClass}
 >
-                  <div className="min-w-0">
-                    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
-                      {String(t?.descricao ?? "Receita")}
-                    </div>
+  <div className="min-w-0 pr-3">
+    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+      {String(t?.descricao ?? "Receita")}
+    </div>
 
-<div className="mt-1 truncate text-[11px] text-slate-500 dark:text-white/50">
-  {[
-    formatarData(String(t?.data ?? "")),
-    getContaLabel(
-      profiles.find(
-        (p: any) =>
-          asId(p?.id) ===
-          asId(
-            (t as any)?.profileId ??
-              (t as any)?.contaId ??
-              (t as any)?.qualConta ??
-              ""
+    <div className="mt-1 truncate text-[11px] text-slate-500 dark:text-white/50">
+      {[
+        formatarData(String(t?.data ?? "")),
+        getContaLabel(
+          profiles.find(
+            (p: any) =>
+              asId(p?.id) ===
+              asId(
+                (t as any)?.profileId ??
+                  (t as any)?.contaId ??
+                  (t as any)?.qualConta ??
+                  ""
+              )
           )
-      )
-    ),
-    getContaBadge(
-      profiles.find(
-        (p: any) =>
-          asId(p?.id) ===
-          asId(
-            (t as any)?.profileId ??
-              (t as any)?.contaId ??
-              (t as any)?.qualConta ??
-              ""
+        ),
+        getContaBadge(
+          profiles.find(
+            (p: any) =>
+              asId(p?.id) ===
+              asId(
+                (t as any)?.profileId ??
+                  (t as any)?.contaId ??
+                  (t as any)?.qualConta ??
+                  ""
+              )
           )
-      )
-    ),
-  ]
-    .filter(Boolean)
-    .join(" • ")}
-</div>
-                  </div>
+        ),
+      ]
+        .filter(Boolean)
+        .join(" • ")}
+    </div>
 
-<div className="flex shrink-0 items-center gap-2">
-  <div className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-300">
-    {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+    <div className="mt-1 text-[13px] font-semibold text-emerald-600 dark:text-emerald-300">
+      {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+    </div>
   </div>
 
   <button
     type="button"
     onClick={() => togglePago(t)}
     disabled={isTogglePagoLocked(t)}
-    className={[
-      "rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white transition",
-      isTogglePagoLocked(t)
-        ? "cursor-not-allowed opacity-60"
-        : "hover:brightness-110",
-    ].join(" ")}
-    style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
+    className={resumoActionButtonClass}
   >
-    {isTogglePagoLocked(t) ? "Marcando..." : "Recebido"}
+    {isTogglePagoLocked(t) ? "Marcando." : "Recebido"}
   </button>
 </div>
-                </div>
               ))}
             </div>
           </section>
@@ -10166,10 +10164,7 @@ const resumoPanelContent = (
                     {item.label}
                   </span>
 
-<span
-  className="rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(70,0,172,0.18)] transition hover:brightness-110"
-  style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
->
+<span className={resumoActionButtonClass}>
   Acessar fatura
 </span>
                 </button>
@@ -10218,10 +10213,7 @@ className={resumoItemClass}             >
   </span>
 </div>
 
-<span
-  className="shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(70,0,172,0.18)] transition hover:brightness-110"
-  style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
->
+<span className={resumoActionButtonClass}>
   Pagar
 </span>
                 </button>
@@ -10229,6 +10221,61 @@ className={resumoItemClass}             >
             </div>
           </section>
         )}
+
+                {proximosVencimentosLista.length > 0 && (
+  <section className="rounded-[26px] border border-slate-200/80 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-900">
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+          Despesas
+        </div>
+        <h3 className="mt-1 text-[15px] font-semibold text-slate-900 dark:text-white">
+          Próximos vencimentos
+        </h3>
+        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+          Nos próximos {proximosVencimentosDias} dias
+        </p>
+      </div>
+
+      <span className="rounded-full border border-slate-200/70 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+        {proximosVencimentosLista.length}
+      </span>
+    </div>
+
+    <div className="mt-4 space-y-2.5">
+      {proximosVencimentosLista.map((t: any) => (
+<div
+  key={`proximo_vencimento_${String(t?.id ?? "")}`}
+  className={resumoItemStaticClass}
+>
+  <div className="min-w-0 pr-3">
+    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+      {String(t?.descricao ?? "Despesa")}
+    </div>
+
+    <div className="mt-1 text-[11px] text-slate-500 dark:text-white/50">
+      {formatarData(String(t?.data ?? ""))}
+      {getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
+    </div>
+
+    <div className="mt-1 text-[13px] font-semibold text-rose-600 dark:text-rose-300">
+      {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
+    </div>
+  </div>
+
+  <button
+    type="button"
+    onClick={() => togglePago(t)}
+    disabled={isTogglePagoLocked(t)}
+    className={resumoActionButtonClass}
+  >
+    {isTogglePagoLocked(t) ? "Pagando." : "Pagar"}
+  </button>
+</div>
+      ))}
+    </div>
+  </section>
+)}
 
         {cartoesAtrasadosLista.length > 0 && (
           <section className="rounded-[26px] border border-rose-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-rose-400/15 dark:bg-slate-900">
@@ -10259,10 +10306,7 @@ className={resumoItemClass}             >
                     {item.label} — {String(item.ciclo).slice(5, 7)}/{String(item.ciclo).slice(0, 4)}
                   </span>
 
-<span
-  className="rounded-xl px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(70,0,172,0.18)] transition hover:brightness-110"
-  style={{ background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)" }}
->
+<span className={resumoActionButtonClass}>
   Acessar fatura
 </span>
                 </button>

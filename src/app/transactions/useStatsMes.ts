@@ -172,15 +172,32 @@ const saldoInicial =
     ? getInitialBalance(profilesDoPerfilView, "todas")
     : saldoInicialBase;
 
-    let saldoMov = 0;
-    for (const t of txAll) {
-      if (!t) continue;
-      if (String(t.id ?? "").startsWith("tr_")) continue; // display-only
-      if (!getPaid(t)) continue;
-      const tipo = String((t as any).tipo ?? "").toLowerCase();
-      if (tipo === "cartao_credito") continue;
-      saldoMov += safeNumber(t.valor);
-    }
+let saldoMov = 0;
+
+for (const t of txAll) {
+  if (!t) continue;
+  if (String(t.id ?? "").startsWith("tr_")) continue; // display-only
+  if (!getPaid(t)) continue;
+
+  const tipo = String((t as any).tipo ?? "").toLowerCase();
+  const valorAbs = Math.abs(safeNumber(t.valor));
+
+  if (tipo === "cartao_credito") continue;
+
+  if (tipo === "receita") {
+    saldoMov += valorAbs;
+    continue;
+  }
+
+  if (tipo === "despesa") {
+    saldoMov -= valorAbs;
+    continue;
+  }
+
+  // transferências e outros tipos continuam usando o sinal original,
+  // porque podem representar entrada/saída entre contas.
+  saldoMov += safeNumber(t.valor);
+}
 
     const saldoTotal = safeNumber(saldoInicial + saldoMov);
 

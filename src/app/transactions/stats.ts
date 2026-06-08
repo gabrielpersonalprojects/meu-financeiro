@@ -13,7 +13,7 @@ type StatsResult = {
 const signedPago = (t: any) => {
   if (!t?.pago) return 0;
   const v = Number(t.valor || 0);
-  if (t.tipo === "receita") return v;
+  if (t.tipo === "receita") return Math.abs(v);
   if (t.tipo === "despesa") return -Math.abs(v);
   return 0;
 };
@@ -38,17 +38,17 @@ export const computeStatsMes = (params: {
     .filter(passaFiltroConta)
     .filter((t: any) => !t.transferId && String(t.categoria || "").toLowerCase() !== "transferência");
 
-  const receitasMes = transMesSemTransfer
-    .filter((t) => t.tipo === "receita" && (t as any).pago)
-    .reduce((s, t: any) => s + Number(t.valor || 0), 0);
+const receitasMes = transMesSemTransfer
+  .filter((t) => t.tipo === "receita" && (t as any).pago)
+  .reduce((s, t: any) => s + Math.abs(Number(t.valor || 0)), 0);
 
   const despesasMes = transMesSemTransfer
     .filter((t) => t.tipo === "despesa" && (t as any).pago)
     .reduce((s, t: any) => s + Math.abs(Number(t.valor || 0)), 0);
 
-  const pendenteReceita = transMesSemTransfer
-    .filter((t) => t.tipo === "receita" && !(t as any).pago)
-    .reduce((s, t: any) => s + Number(t.valor || 0), 0);
+const pendenteReceita = transMesSemTransfer
+  .filter((t) => t.tipo === "receita" && !(t as any).pago)
+  .reduce((s, t: any) => s + Math.abs(Number(t.valor || 0)), 0);
 
   const pendenteDespesa = transMesSemTransfer
     .filter((t) => t.tipo === "despesa" && !(t as any).pago)

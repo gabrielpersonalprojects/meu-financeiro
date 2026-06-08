@@ -9313,9 +9313,48 @@ const getResumoReceitaMeta = (t: any) => {
   return categoria || "";
 };
 
+const formatResumoMetodoPagamento = (value: any) => {
+  const raw = String(value ?? "").trim();
+
+  if (!raw) return "";
+
+  const normalized = raw
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (
+    normalized === "debito_conta" ||
+    normalized === "debito/conta" ||
+    normalized === "debito conta" ||
+    normalized === "debito"
+  ) {
+    return "Débito";
+  }
+
+  if (normalized === "pix") return "Pix";
+  if (normalized === "boleto") return "Boleto";
+  if (normalized === "dinheiro") return "Dinheiro";
+
+  if (
+    normalized === "transferencia_bancaria" ||
+    normalized === "transferencia bancaria" ||
+    normalized === "transferencia"
+  ) {
+    return "Transferência bancária";
+  }
+
+  return raw
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 const getResumoDespesaMeta = (t: any) => {
   const categoria = String(t?.categoria ?? "").trim();
-  const metodo = String(t?.metodoPagamento ?? t?.payload?.metodoPagamento ?? "").trim();
+ const metodo = formatResumoMetodoPagamento(
+  t?.metodoPagamento ?? t?.payload?.metodoPagamento ?? ""
+);
 
   const contaId =
     String(
@@ -9950,6 +9989,43 @@ const resumoPanelContent = (
           </section>
         )}
 
+                {cartoesVencendoHojeLista.length > 0 && (
+          <section className="rounded-[26px] border border-slate-200/80 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                  Cartões
+                </div>
+                <h3 className="mt-1 text-[15px] font-semibold text-slate-900 dark:text-white">
+                  Faturas vencendo hoje
+                </h3>
+              </div>
+
+<span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-400">
+  {cartoesVencendoHojeLista.length}
+</span>
+            </div>
+
+            <div className="mt-4 space-y-2.5">
+              {cartoesVencendoHojeLista.map((item) => (
+                <button
+                  key={`cartao_hoje_${item.cartaoId}`}
+                  type="button"
+                  onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
+                  className="flex w-full items-center justify-between rounded-2xl bg-slate-50/90 px-3 py-3 text-left transition hover:bg-slate-100 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]"
+                >
+                  <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
+                    {item.label}
+                  </span>
+
+<span className={resumoActionButtonClass}>
+  Acessar fatura
+</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
 
         {despesasAtrasadasLista.length > 0 && (
@@ -10130,44 +10206,6 @@ const resumoPanelContent = (
     {isTogglePagoLocked(t) ? "Marcando." : "Recebido"}
   </button>
 </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {cartoesVencendoHojeLista.length > 0 && (
-          <section className="rounded-[26px] border border-slate-200/80 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-900">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
-                  Cartões
-                </div>
-                <h3 className="mt-1 text-[15px] font-semibold text-slate-900 dark:text-white">
-                  Faturas vencendo hoje
-                </h3>
-              </div>
-
-<span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:bg-white/10 dark:text-slate-400">
-  {cartoesVencendoHojeLista.length}
-</span>
-            </div>
-
-            <div className="mt-4 space-y-2.5">
-              {cartoesVencendoHojeLista.map((item) => (
-                <button
-                  key={`cartao_hoje_${item.cartaoId}`}
-                  type="button"
-                  onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
-                  className="flex w-full items-center justify-between rounded-2xl bg-slate-50/90 px-3 py-3 text-left transition hover:bg-slate-100 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]"
-                >
-                  <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
-                    {item.label}
-                  </span>
-
-<span className={resumoActionButtonClass}>
-  Acessar fatura
-</span>
-                </button>
               ))}
             </div>
           </section>

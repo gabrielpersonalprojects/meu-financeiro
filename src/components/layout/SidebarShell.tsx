@@ -244,50 +244,14 @@ export default function SidebarShell({
 
       {/* SIDEBAR DESKTOP */}
       <aside
-        className={`hidden md:block fixed left-0 top-0 z-[80] h-screen border-r border-slate-200 bg-white transition-all duration-300 dark:border-white/10 dark:bg-slate-900 ${
-          sidebarExpanded ? "w-72" : "w-24"
+className={`hidden md:flex fixed left-0 top-0 z-[80] h-screen flex-col border-r border-slate-200 bg-white transition-all duration-300 dark:border-white/10 dark:bg-slate-900 ${          sidebarExpanded ? "w-72" : "w-24"
         }`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-<div
-  className="flex h-[88px] items-center justify-center border-b border-slate-200 px-4 dark:border-white/10"
->
-<div className="flex items-center gap-2">
-<a
-  href="https://app.fluxmoneyapp.com.br"
-  title="Ir para o site do FluxMoney"
-  aria-label="Ir para o site do FluxMoney"
-  className="flex h-8 w-8 shrink-0 items-center justify-center"
->
-    <img
-      src="/favicon.png"
-      alt="FluxMoney"
-      className="block h-8 w-8 object-contain"
-    />
-  </a>
 
-  <div
-    className={`overflow-hidden transition-all duration-300 ${
-      sidebarExpanded ? "max-w-[170px] opacity-100" : "max-w-0 opacity-0"
-    }`}
-  >
-    <div className="whitespace-nowrap text-[24px] leading-none font-semibold tracking-[-0.02em] text-[#40009c] dark:text-white">
-      Menu
-    </div>
 
-    <div className="mt-1 whitespace-nowrap text-[12px] leading-[1.2] font-light text-slate-400 dark:text-slate-500">
-      {(() => {
-        const email = userEmail ?? "";
-        const atIndex = email.indexOf("@");
-        return atIndex >= 0 ? email.slice(0, atIndex + 1) : email;
-      })()}
-    </div>
-  </div>
-</div>
-        </div>
-
-        <nav className="flex flex-col gap-2 p-4">
+       <nav className="flex flex-1 flex-col gap-2 p-4">
           {menuItems.map((item) => {
             const active = activePanel === item.key;
 
@@ -351,6 +315,42 @@ export default function SidebarShell({
             );
           })}
         </nav>
+<div
+  className="flex h-[88px] items-center justify-center px-4"
+>
+<div className="flex items-center gap-2">
+<a
+  href="https://app.fluxmoneyapp.com.br"
+  title="Ir para o site do FluxMoney"
+  aria-label="Ir para o site do FluxMoney"
+  className="flex h-8 w-8 shrink-0 items-center justify-center"
+>
+    <img
+      src="/favicon.png"
+      alt="FluxMoney"
+      className="block h-8 w-8 object-contain"
+    />
+  </a>
+
+  <div
+    className={`overflow-hidden transition-all duration-300 ${
+      sidebarExpanded ? "max-w-[170px] opacity-100" : "max-w-0 opacity-0"
+    }`}
+  >
+    <div className="whitespace-nowrap text-[12px] leading-none font-semibold tracking-[-0.02em] text-[#40009c] dark:text-white">
+      conta logada
+    </div>
+
+    <div className="mt-1 whitespace-nowrap text-[12px] leading-[1.2] font-light text-slate-400 dark:text-slate-500">
+      {(() => {
+        const email = userEmail ?? "";
+        const atIndex = email.indexOf("@");
+        return atIndex >= 0 ? email.slice(0, atIndex + 1) : email;
+      })()}
+    </div>
+  </div>
+</div>
+        </div>
       </aside>
 
       {/* MENU MOBILE OVERLAY */}

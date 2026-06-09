@@ -326,7 +326,7 @@ const mergeSemPrazoPayloadMeta = (
 
 
   const App: FC = () => {
-  const TOP_BAR_HEIGHT = 76;
+  const TOP_BAR_HEIGHT = 96;
 const authLoadInFlightRef = useRef<string>("");
 const authLoadRequestIdRef = useRef(0);
 const addTxLockRef = useRef(false);
@@ -10879,7 +10879,7 @@ containerStyle={{
 >
   <div className="pointer-events-none absolute bottom-0 left-0 hidden md:block w-4 border-b border-slate-200/70 dark:border-white/10" />
 <div
-  className="relative mx-auto grid h-full w-full max-w-[1250px] grid-cols-[auto_1fr_auto] items-center gap-4 px-3 lg:px-4"
+  className="relative mx-auto grid h-[76px] w-full max-w-[1250px] translate-y-3 grid-cols-[auto_1fr_auto] items-center gap-4 px-3 lg:px-4"
 >
 <div className="flex min-w-[190px] items-center justify-start pl-4 md:pl-6 lg:pl-4">
   <FluxMoneyLogo compact />

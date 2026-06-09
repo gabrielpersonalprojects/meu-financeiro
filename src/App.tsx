@@ -3680,9 +3680,9 @@ const [showProfileMenu, setShowProfileMenu] = useState(false);
 const [analisePerfilView, setAnalisePerfilView] = useState<"geral" | "pf" | "pj">("pf");
   const [analiseFonteView, setAnaliseFonteView] = useState<"geral" | "cartoes">("geral");
   const [projecaoPerfilView, setProjecaoPerfilView] = useState<"geral" | "pf" | "pj">("geral");
-  const [filtroLancamento, setFiltroLancamento] = useState<
+const [filtroLancamento, setFiltroLancamento] = useState<
   "despesa" | "receita" | "todos" | "transferencia"
->("todos");
+>("despesa");
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroMetodo, setFiltroMetodo] = useState("");
   const [filtroTipoGasto, setFiltroTipoGasto] = useState("");

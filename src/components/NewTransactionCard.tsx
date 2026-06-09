@@ -140,13 +140,57 @@ function getCardLabel(card: any) {
 
 function getProfileLabel(profile: any) {
   const nome = safeStr(profile?.name || profile?.nome || "Conta");
-  const perfil = safeStr(profile?.perfilConta || profile?.perfil || profile?.tipoPerfil).toUpperCase();
 
-  if (perfil === "PF" || perfil === "PJ") {
-    return `${nome} • ${perfil}`;
-  }
+  const perfil = safeStr(
+    profile?.perfilConta || profile?.perfil || profile?.tipoPerfil
+  ).toUpperCase();
 
-  return nome;
+  const tipoRaw = safeStr(
+    profile?.tipoConta ||
+      profile?.tipo ||
+      profile?.accountType ||
+      profile?.tipo_conta
+  )
+    .toLowerCase()
+    .trim();
+
+const tipoConta =
+  tipoRaw === "c/c" ||
+  tipoRaw === "conta corrente" ||
+  tipoRaw === "corrente"
+    ? "C/ Corrente"
+    : tipoRaw === "c/poup" ||
+      tipoRaw === "poupança" ||
+      tipoRaw === "poupanca" ||
+      tipoRaw === "conta poupança" ||
+      tipoRaw === "conta poupanca"
+    ? "C/ Poupança"
+    : tipoRaw === "salário" ||
+      tipoRaw === "salario" ||
+      tipoRaw === "conta salário" ||
+      tipoRaw === "conta salario"
+    ? "C/ Salário"
+    : tipoRaw === "pagamento" ||
+      tipoRaw === "conta pagamento"
+    ? "C/ Pagamento"
+    : tipoRaw === "digital" ||
+      tipoRaw === "conta digital"
+    ? "C/ Digital"
+    : tipoRaw === "inv" ||
+      tipoRaw === "investimento" ||
+      tipoRaw === "conta investimento"
+    ? "C/ Investimento"
+    : tipoRaw === "conjunta" ||
+      tipoRaw === "conta conjunta"
+    ? "C/ Conjunta"
+    : safeStr(
+        profile?.tipoConta ||
+          profile?.tipo ||
+          profile?.accountType ||
+          profile?.tipo_conta
+      );
+
+  return [nome, perfil, tipoConta].filter(Boolean).join(" • ");
 }
 
 /**

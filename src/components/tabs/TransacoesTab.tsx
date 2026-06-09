@@ -1151,12 +1151,37 @@ className={`group/account flex items-center gap-2 w-full min-w-0 transition-all 
       </span>
     </span>
 
-<span
-  className="min-w-0 flex-1 whitespace-nowrap text-slate-100"
-  title={getContaLabel(p)}
->
-  {getContaLabel(p)}
-</span>
+{(() => {
+  const contaLabelSemPerfil = getContaLabel(p)
+    .replace(/\s*•\s*(PF|PJ)\s*/i, " • ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+const contaLabelCompleto = contaLabelSemPerfil
+  .replace(/\bc\/c\b/gi, "C/ Corrente")
+  .replace(/\bc\/poup\b/gi, "C/ Poupança")
+  .replace(/\bConta Corrente\b/gi, "C/ Corrente")
+  .replace(/\bConta Poupança\b/gi, "C/ Poupança")
+  .replace(/\bConta Poupanca\b/gi, "C/ Poupança")
+  .replace(/\bConta Salário\b/gi, "C/ Salário")
+  .replace(/\bConta Salario\b/gi, "C/ Salário")
+  .replace(/\bConta Pagamento\b/gi, "C/ Pagamento")
+  .replace(/\bConta Digital\b/gi, "C/ Digital")
+  .replace(/\binv\b/gi, "C/ Investimento")
+  .replace(/\bConta Investimento\b/gi, "C/ Investimento")
+  .replace(/\bInvestimento\b/gi, "C/ Investimento")
+  .replace(/\bConta Conjunta\b/gi, "C/ Conjunta");
+
+  return (
+    <span
+      className="min-w-0 flex-1 whitespace-nowrap text-slate-100"
+      title={contaLabelCompleto}
+    >
+      {contaLabelCompleto}
+    </span>
+  );
+})()}
+
   </div>
 ),
     value: p.id,

@@ -236,14 +236,14 @@ useEffect(() => {
 <div
   key={t.id}
   ref={warningContainerRef}
-  className={`group relative overflow-hidden rounded-2xl border transition-all ${baseBg} ${
+  className={`group relative overflow-hidden rounded-2xl border transition-[transform,box-shadow,border-color] duration-200 ease-out will-change-transform ${baseBg} ${
     paid ? "opacity-80" : ""
-  } ${glowAtraso}`}
+  } ${glowAtraso} hover:scale-[1.003] hover:border-violet-400/25 hover:shadow-[0_0_28px_rgba(124,58,237,0.14)] dark:hover:border-violet-400/25 dark:hover:shadow-[0_0_32px_rgba(124,58,237,0.18)]`}
 >
   {topBadge && (
     <div
       className={[
-        "absolute left-0 top-0 z-10 inline-flex h-7 items-center rounded-br-xl px-3",
+        "absolute right-0 top-0 z-10 inline-flex h-7 items-center rounded-bl-xl px-3",
         "text-[10px] font-black uppercase tracking-[0.14em]",
         topBadge.className,
       ].join(" ")}
@@ -253,9 +253,7 @@ useEffect(() => {
     </div>
   )}
 
-   <div className={`flex flex-col gap-4 p-4 sm:gap-5 sm:p-5 sm:flex-row sm:items-center sm:justify-between ${topBadge ? "pt-9 sm:pt-10" : ""}`}>
-      {/* ESQUERDA */}
-      <div className="min-w-0 flex-1">
+<div className="flex flex-col gap-4 p-4 sm:gap-5 sm:p-5 sm:flex-row sm:items-center sm:justify-between">      {/* ESQUERDA */}      <div className="min-w-0 flex-1">
         <div className="flex items-start gap-3">
 <button
   type="button"
@@ -431,51 +429,53 @@ title={
         </div>
       </div>
 
-      {/* DIREITA */}
-  <div className="flex items-center justify-between gap-3 border-t border-slate-200/10 pt-4 mt-1 sm:mt-0 sm:justify-end sm:border-t-0 sm:pt-0">
-        {(onEdit || onDelete) && (
-          <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-            {onEdit &&
-              !isTransacaoFatura &&
-              !(t as any)?.transferId &&
-              !String((t as any)?.categoria ?? "")
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .includes("transfer") && (
-                <button
-                  type="button"
-                  onClick={() => onEdit(t)}
-                  className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
-                  title="Editar"
-                >
-                  <EditIcon className="w-4 h-4" />
-                </button>
-              )}
-
-            {onDelete && (
-              <button
-                type="button"
-                onClick={handleDeleteClick}
-                className="p-1.5 rounded-lg text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                title="Excluir"
-              >
-                <TrashIcon className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+{/* DIREITA */}
+<div className="flex items-end justify-between gap-3 border-t border-slate-200/10 pt-4 mt-1 sm:mt-0 sm:justify-end sm:border-t-0 sm:pt-0">
+  {(onEdit || onDelete) && (
+    <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+      {onEdit &&
+        !isTransacaoFatura &&
+        !(t as any)?.transferId &&
+        !String((t as any)?.categoria ?? "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .includes("transfer") && (
+          <button
+            type="button"
+            onClick={() => onEdit(t)}
+            className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+            title="Editar"
+          >
+            <EditIcon className="w-4 h-4" />
+          </button>
         )}
 
-        <p
-          className={`shrink-0 text-right font-black text-xl sm:text-lg ${
-            isReceita
-              ? "text-emerald-600 dark:text-emerald-400"
-              : "text-rose-600 dark:text-rose-400"
-          }`}
+      {onDelete && (
+        <button
+          type="button"
+          onClick={handleDeleteClick}
+          className="p-1.5 rounded-lg text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+          title="Excluir"
         >
-          {formatarMoeda(t.valor)}
-        </p>
-      </div>
+          <TrashIcon className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  )}
+
+<div className="flex shrink-0 flex-col items-end gap-2 sm:pt-7">
+  <p
+    className={`shrink-0 text-right font-black text-xl sm:text-lg ${
+      isReceita
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-rose-600 dark:text-rose-400"
+    }`}
+  >
+    {formatarMoeda(t.valor)}
+  </p>
+</div>
+</div>
     </div>
   </div>
   )}

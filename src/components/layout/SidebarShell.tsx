@@ -228,18 +228,26 @@ export default function SidebarShell({
 
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white">
-      {/* BOTÃO MOBILE */}
+{/* ABA MOBILE DO MENU LATERAL */}
 <button
   type="button"
   onClick={() => setMobileMenuOpen(true)}
-  aria-label="Abrir menu"
-  className="fixed left-4 top-4 z-[120] flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-[#40009c] shadow-md transition hover:scale-[1.02] md:hidden dark:border-white/10 dark:bg-slate-900 dark:text-white"
+  aria-label="Abrir menu de lançamentos"
+  className="
+    fixed right-0 top-[160px] z-[120] md:hidden
+    flex h-20 w-8 items-center justify-center
+    rounded-l-xl
+    bg-gradient-to-b from-[#220055] via-[#32007a] to-[#4600ac]
+    text-white shadow-[0_16px_38px_rgba(70,0,172,0.32)]
+    transition active:scale-[0.97]
+  "
 >
-  <img
-    src="/favicon.png"
-    alt="FluxMoney"
-    className="h-6 w-6 object-contain"
-  />
+  <div className="flex rotate-90 items-center gap-1.5 whitespace-nowrap">
+    <Menu className="h-3.5 w-3.5" strokeWidth={2.4} />
+    <span className="text-[9px] font-black uppercase tracking-[0.16em]">
+      Lançar
+    </span>
+  </div>
 </button>
 
       {/* SIDEBAR DESKTOP */}
@@ -353,113 +361,111 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-screen flex-col border-r 
         </div>
       </aside>
 
-      {/* MENU MOBILE OVERLAY */}
-      <div
-        className={`fixed inset-0 z-[130] md:hidden transition ${
-          mobileMenuOpen ? "pointer-events-auto" : "pointer-events-none"
-        }`}
-      >
-        <button
-          type="button"
-          aria-label="Fechar menu mobile"
-          onClick={closeAll}
-          className={`absolute inset-0 bg-slate-900/30 transition-opacity dark:bg-black/40 ${
-            mobileMenuOpen ? "opacity-100" : "opacity-0"
-          }`}
-        />
-
-        <aside
-          className={`absolute left-0 top-0 h-[100dvh] max-h-[100dvh] w-[86vw] max-w-[320px] overflow-hidden border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
-            mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div
-            className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 dark:border-white/10"
-            style={{ height: "88px" }}
-          >
-<div className="flex items-center gap-3">
-  <img
-    src="/favicon.png"
-    alt="FluxMoney"
-    className="block h-10 w-10 shrink-0 object-contain"
+{/* MENU MOBILE OVERLAY */}
+<div
+  className={`fixed inset-0 z-[130] md:hidden transition ${
+    mobileMenuOpen ? "pointer-events-auto" : "pointer-events-none"
+  }`}
+>
+  <button
+    type="button"
+    aria-label="Fechar menu mobile"
+    onClick={closeAll}
+    className={`absolute inset-0 bg-slate-900/10 transition-opacity dark:bg-black/25 ${
+      mobileMenuOpen ? "opacity-100" : "opacity-0"
+    }`}
   />
 
-              <div className="overflow-hidden">
-                <div className="whitespace-nowrap text-[24px] font-medium tracking-[-0.02em] text-[#40009c] dark:text-white">
-                  Flux Menu
-                </div>
-                <div className="mt-0 whitespace-nowrap text-[11px] font-light text-slate-400 dark:text-slate-500">
-                  {(() => {
-                    const email = userEmail ?? "";
-                    const atIndex = email.indexOf("@");
-                    return atIndex >= 0 ? email.slice(0, atIndex + 1) : email;
-                  })()}
-                </div>
-              </div>
-            </div>
+  <aside
+    className={`absolute left-0 top-0 flex h-[100dvh] w-72 max-w-[82vw] flex-col border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
+      mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+    }`}
+  >
+    <nav className="flex flex-1 flex-col gap-2 p-4">
+      {menuItems.map((item) => {
+        const active = activePanel === item.key;
 
-            <button
-            
-              type="button"
-              onClick={closeAll}
-              className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
-              aria-label="Fechar menu"
-            >
-              <X size={20} />
-            </button>
+        return (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => {
+              const isModalItem =
+                item.key === "contas" || item.key === "settings";
+
+              if (isModalItem) {
+                setActivePanel(null);
+                setMobileMenuOpen(false);
+                onPanelOpen?.(item.key);
+                return;
+              }
+
+              setActivePanel(item.key);
+              setMobileMenuOpen(false);
+              onPanelOpen?.(item.key);
+            }}
+            className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
+              active
+                ? "bg-[#40009c] text-white shadow-sm"
+                : "text-slate-700 hover:bg-[#40009c]/8 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-[#40009c]/15 dark:hover:text-white"
+            }`}
+          >
+            <span className="flex min-w-[24px] justify-center">
+              {item.icon}
+            </span>
+
+            <span className="overflow-hidden whitespace-nowrap text-[14px] font-normal tracking-[-0.01em]">
+              {item.label}
+            </span>
+
+            {item.key === "resumo" && resumoAlertsCount > 0 && (
+              <span className="absolute right-4 top-[18px] flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-white/15 bg-[#4c12b3] px-1.5 text-[10px] font-semibold text-white shadow-[0_6px_14px_rgba(76,18,179,0.28)]">
+                {resumoAlertsCount > 99 ? "99+" : resumoAlertsCount}
+              </span>
+            )}
+
+            {item.key === "notificacoes" && unreadNotificationsCount > 0 && (
+              <span className="absolute right-4 top-4 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6d28d9] px-1.5 text-[11px] font-semibold text-white shadow-sm">
+                {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </nav>
+
+    <div className="flex h-[88px] items-center justify-center px-4">
+      <div className="flex items-center gap-2">
+        <a
+          href="https://app.fluxmoneyapp.com.br"
+          title="Ir para o site do FluxMoney"
+          aria-label="Ir para o site do FluxMoney"
+          className="flex h-8 w-8 shrink-0 items-center justify-center"
+        >
+          <img
+            src="/favicon.png"
+            alt="FluxMoney"
+            className="block h-8 w-8 object-contain"
+          />
+        </a>
+
+        <div className="overflow-hidden">
+          <div className="whitespace-nowrap text-[12px] leading-none font-semibold tracking-[-0.02em] text-[#40009c] dark:text-white">
+            conta logada
           </div>
 
-          <nav className="flex flex-col gap-2 p-4">
-            {menuItems.map((item) => {
-              const active = activePanel === item.key;
-
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => {
-                    const isModalItem =
-                      item.key === "contas" || item.key === "settings";
-
-                    if (isModalItem) {
-                      setActivePanel(null);
-                      setMobileMenuOpen(false);
-                      onPanelOpen?.(item.key);
-                      return;
-                    }
-
-                    setActivePanel(item.key);
-                    setMobileMenuOpen(false);
-                    onPanelOpen?.(item.key);
-                  }}
-                  className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
-                    active
-                      ? "bg-[#40009c] text-white shadow-sm"
-                      : "text-slate-700 hover:bg-[#40009c]/8 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-[#40009c]/15 dark:hover:text-white"
-                  }`}
-                >
-<span className="flex min-w-[24px] justify-center">{item.icon}</span>
-<span className="whitespace-nowrap text-[14px] font-normal tracking-[-0.01em]">
-  {item.label}
-</span>
-
-{item.key === "resumo" && resumoAlertsCount > 0 && (
-  <span className="absolute right-4 top-[18px] flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-white/15 bg-[#4c12b3] px-1.5 text-[10px] font-semibold text-white shadow-[0_6px_14px_rgba(76,18,179,0.28)]">
-    {resumoAlertsCount > 99 ? "99+" : resumoAlertsCount}
-  </span>
-)}
-
-{item.key === "notificacoes" && unreadNotificationsCount > 0 && (
-  <span className="absolute right-4 top-4 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#6d28d9] px-1.5 text-[11px] font-semibold text-white shadow-sm">
-    {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
-  </span>
-)}
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
+          <div className="mt-1 whitespace-nowrap text-[12px] leading-[1.2] font-light text-slate-400 dark:text-slate-500">
+            {(() => {
+              const email = userEmail ?? "";
+              const atIndex = email.indexOf("@");
+              return atIndex >= 0 ? email.slice(0, atIndex + 1) : email;
+            })()}
+          </div>
+        </div>
       </div>
+    </div>
+  </aside>
+</div>
 
       {/* CONTEÚDO */}
       <div className="pl-0 md:pl-24">

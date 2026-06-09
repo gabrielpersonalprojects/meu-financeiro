@@ -379,16 +379,20 @@ const getFilteredTransactions = useMemo(() => {
       Boolean(t?.transfer_id) ||
       Boolean(t?.transferencia_id);
 
+    if (filtroLancamento === "transferencia") {
+      return isTransferencia;
+    }
+
+    if (isTransferencia) {
+      return false;
+    }
+
     if (filtroLancamento === "receita") {
       return tipo === "receita" && matchesCategoria(t);
     }
 
     if (filtroLancamento === "despesa") {
       return tipo === "despesa" && matchesCategoria(t) && matchesFiltroTipoGasto(t);
-    }
-
-    if (filtroLancamento === "transferencia") {
-      return isTransferencia;
     }
 
     return true;
@@ -445,7 +449,7 @@ const searchedTransactions = useMemo(() => {
 
 if (!termo) return getFilteredTransactions;
 
-return (searchableTransactionsBase ?? []).filter((t: any) => {
+return (getFilteredTransactions ?? []).filter((t: any) => {
     const contaId = String(
       t?.contaId ??
         t?.profileId ??
@@ -1005,7 +1009,7 @@ className={[
 
 <div className="w-full sm:w-auto sm:min-w-[230px] sm:max-w-[360px] shrink-0">
   <p className="mb-1.5 pl-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
-    Contas bancárias:
+    Conta bancária:
   </p>
 
 <CustomDropdown
@@ -1167,10 +1171,11 @@ const contaLabelCompleto = contaLabelSemPerfil
   .replace(/\bConta Salario\b/gi, "C/ Salário")
   .replace(/\bConta Pagamento\b/gi, "C/ Pagamento")
   .replace(/\bConta Digital\b/gi, "C/ Digital")
-  .replace(/\binv\b/gi, "C/ Investimento")
   .replace(/\bConta Investimento\b/gi, "C/ Investimento")
-  .replace(/\bInvestimento\b/gi, "C/ Investimento")
-  .replace(/\bConta Conjunta\b/gi, "C/ Conjunta");
+  .replace(/\binv\b/gi, "C/ Investimento")
+  .replace(/(?<!C\/\s)\bInvestimento\b/gi, "C/ Investimento")
+  .replace(/\bConta Conjunta\b/gi, "C/ Conjunta")
+  .replace(/\bC\/\s*C\/\s*/gi, "C/ ");
 
   return (
     <span
@@ -1194,55 +1199,43 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
     />
   </div>
 
- <div className="shrink-0 pt-[21px]">
+<div className="flex w-full items-center justify-start gap-2 pt-1 md:w-auto md:justify-start md:gap-2 md:pt-[21px] lg:ml-0">
+  <button
+    type="button"
+    onClick={() => {
+      setFiltroMes(new Date().toISOString().slice(0, 7));
+      setFiltroConta(favoriteAccountId ? String(favoriteAccountId) : "todas");
+
+      setFiltroLancamento("despesa");
+      setFiltroCategoria("");
+      setFiltroTipoGasto("");
+      setOrganizacaoLista("status");
+      setBuscaTransacoes("");
+
+      setPaginaAtual(1);
+    }}
+    title="Limpar todos os filtros"
+    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-slate-500 transition-all hover:scale-[1.06] hover:text-[#4600ac] active:scale-[0.97] dark:text-slate-400 dark:hover:text-violet-300"
+  >
+    <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
+  </button>
+
 <button
   type="button"
-  onClick={() => {
-    setFiltroMes(new Date().toISOString().slice(0, 7));
-    setFiltroConta(favoriteAccountId ? String(favoriteAccountId) : "todas");
-
-    setFiltroLancamento("despesa");
-    setFiltroCategoria("");
-    setFiltroTipoGasto("");
-    setOrganizacaoLista("status");
-    setBuscaTransacoes("");
-
-    setPaginaAtual(1);
-  }}
-  title="Limpar todos os filtros"
-  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
+  onClick={handlePrintTransacoes}
+  title="Imprimir relatório"
+  aria-label="Imprimir relatório"
+ className="inline-flex h-9 w-9 md:h-10 md:w-10 shrink-0 items-center justify-center rounded-xl border-0 bg-[#4600ac] text-white shadow-none outline-none ring-0 transition hover:scale-[1.06] hover:bg-[#350080] active:scale-[0.97] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 dark:border-0 dark:bg-[#4600ac] dark:shadow-none dark:ring-0 dark:hover:bg-[#5b19c9]"
 >
-  <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
+  <Printer className="h-4 w-4 md:h-[18px] md:w-[18px]" strokeWidth={2.2} />
 </button>
 </div>
 
-
-<></>
- 
-
-<div className="w-full sm:w-auto lg:ml-auto shrink-0 flex justify-end pt-[21px]">
-  <button
-    type="button"
-    onClick={handlePrintTransacoes}
-    title="Imprimir relatório"
-    aria-label="Imprimir relatório"
-    className="
-      inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl
-      bg-[#4600ac] text-white
-      border-none outline-none ring-0 shadow-none
-      transition-transform hover:scale-[1.06] active:scale-[0.97]
-      focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0
-      dark:bg-[#4600ac] dark:border-none dark:outline-none dark:ring-0 dark:shadow-none
-    "
-  >
-    <Printer className="h-[18px] w-[18px]" strokeWidth={2.2} />
-  </button>
-</div>
 </div>
 </div>
 
 {stats && (
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4 items-stretch">
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-1 md:mt-4 items-stretch">
 <div
   className="
     relative overflow-hidden rounded-2xl

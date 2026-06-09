@@ -114,7 +114,7 @@ import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
 import { printCardsResumoPdfReport } from "./app/credit/reports/cardsResumoPdfReport";
-import { Archive, BookOpen, Headphones, HelpCircle, Home, LogOut, Moon, Paperclip, Send, Sun, Pencil, PencilLine, Star, Trash2, X, Search, Printer } from "lucide-react";import {
+import { Archive, BookOpen, Headphones, HelpCircle, Home, LogOut, Menu, Moon, Paperclip, Send, Sun, Pencil, PencilLine, Star, Trash2, X, Search, Printer } from "lucide-react";import {
   STORAGE_KEYS,
   PROFILE_KEYS,
   buildProfilePrefix,
@@ -1045,6 +1045,7 @@ const semPrazoCancelInFlightRef = useRef<Set<string>>(new Set());
 const semPrazoDismissInFlightRef = useRef<Set<string>>(new Set());
 
 const [activeTab, setActiveTab] = useState<TabType>("transacoes");
+const [isMobileHeaderMenuOpen, setIsMobileHeaderMenuOpen] = useState(false);
 const [transacoesResetPageSignal, setTransacoesResetPageSignal] = useState(0);
 
 const handleSetAccountOrder = async (nextIds: string[]) => {
@@ -1116,6 +1117,8 @@ const handleHomeTransacoesClick = () => {
 };
 
 const handleHeaderTabChange = (tab: TabType) => {
+  setIsMobileHeaderMenuOpen(false);
+
   if (activeTab === "gastos" && tab !== "gastos") {
     setFiltroMesAnalise(getHojeLocal().substring(0, 7));
   }
@@ -10928,17 +10931,65 @@ containerStyle={{
 <div
   className="relative mx-auto grid h-[76px] w-full max-w-[1250px] translate-y-3 grid-cols-[auto_1fr_auto] items-center gap-4 px-3 lg:px-4"
 >
-<div className="flex min-w-[190px] items-center justify-start pl-4 md:pl-6 lg:pl-4">
-  <FluxMoneyLogo compact />
-</div>
+  <div className="flex min-w-0 items-center justify-start pl-4 md:min-w-[190px] md:pl-6 lg:pl-4">
+    <FluxMoneyLogo compact />
+  </div>
 
-  <AppHeaderNav
-    activeTab={activeTab}
-    onTabChange={handleHeaderTabChange}
-    onHomeClick={handleHomeTransacoesClick}
-  />
+  <div className="hidden md:block">
+    <AppHeaderNav
+      activeTab={activeTab}
+      onTabChange={handleHeaderTabChange}
+      onHomeClick={handleHomeTransacoesClick}
+    />
+  </div>
 
   <div className="hidden min-w-[190px] md:block" />
+
+  <div className="absolute right-3 top-1/2 z-[90] flex -translate-y-1/2 items-center md:hidden">
+    <button
+      type="button"
+      onClick={() => setIsMobileHeaderMenuOpen((prev) => !prev)}
+      className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white shadow-[0_14px_35px_rgba(0,0,0,0.18)] backdrop-blur-xl transition active:scale-[0.97]"
+      aria-label={isMobileHeaderMenuOpen ? "Fechar menu" : "Abrir menu"}
+      aria-expanded={isMobileHeaderMenuOpen}
+    >
+      {isMobileHeaderMenuOpen ? (
+        <X className="h-5 w-5" strokeWidth={2.2} />
+      ) : (
+        <Menu className="h-5 w-5" strokeWidth={2.2} />
+      )}
+    </button>
+
+    {isMobileHeaderMenuOpen && (
+      <div className="absolute right-0 top-14 z-[100] w-56 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 p-2 shadow-[0_22px_60px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+        {[
+          { key: "transacoes", label: "Transações" },
+          { key: "cartoes", label: "Cartões" },
+          { key: "gastos", label: "Análise" },
+          { key: "projecao", label: "Projeção" },
+        ].map((item) => {
+          const active = activeTab === item.key;
+
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => handleHeaderTabChange(item.key as TabType)}
+              className={[
+                "flex h-11 w-full items-center justify-between rounded-2xl px-4 text-left text-sm font-bold transition",
+                active
+                  ? "bg-violet-600 text-white shadow-[0_14px_34px_rgba(109,40,217,0.28)]"
+                  : "text-slate-300 hover:bg-white/8 hover:text-white",
+              ].join(" ")}
+            >
+              <span>{item.label}</span>
+              {active && <span className="h-2 w-2 rounded-full bg-white" />}
+            </button>
+          );
+        })}
+      </div>
+    )}
+  </div>
 
 <div className="absolute right-3 hidden items-center gap-2 md:flex lg:right-4">
   <div ref={helpMenuRef} className="relative">

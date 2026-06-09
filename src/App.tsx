@@ -6443,10 +6443,51 @@ const categoriasFiltradasTransacoes = useMemo(() => {
   ]);
 }, [categorias, filtroLancamento]);
 
+const removeParcelaSuffixFromDescricao = (value: any) => {
+  return String(value ?? "")
+    .replace(/\s*\(\s*\d+\s*\/\s*\d+\s*\)\s*$/g, "")
+    .trim();
+};
+
+const getParcelaSuffixFromTx = (tx: any) => {
+  const parcelaAtual = Number(
+    tx?.parcelaAtual ?? tx?.payload?.parcelaAtual ?? 0
+  );
+
+  const totalParcelas = Number(
+    tx?.totalParcelas ?? tx?.payload?.totalParcelas ?? 0
+  );
+
+  if (
+    !Number.isFinite(parcelaAtual) ||
+    !Number.isFinite(totalParcelas) ||
+    parcelaAtual <= 0 ||
+    totalParcelas <= 1
+  ) {
+    return "";
+  }
+
+  return ` (${parcelaAtual}/${totalParcelas})`;
+};
+
+const buildDescricaoEditadaSegura = (tx: any, rawDescricao: any) => {
+  const suffixParcela = getParcelaSuffixFromTx(tx);
+  const descricaoOriginal = String(tx?.descricao ?? "").trim();
+
+  if (!suffixParcela) {
+    return String(rawDescricao ?? "").trim() || descricaoOriginal;
+  }
+
+  const baseEditada = removeParcelaSuffixFromDescricao(rawDescricao);
+  const baseOriginal = removeParcelaSuffixFromDescricao(descricaoOriginal);
+
+  return `${baseEditada || baseOriginal}${suffixParcela}`;
+};
+
 const handleEditClick = (t: Transaction) => {
   setEditingTransaction(t);
   setEditValueInput(centsDigitsFromAny(t.valor));
-  setEditDescInput(t.descricao);
+  setEditDescInput(removeParcelaSuffixFromDescricao(t.descricao));
   setEditDataInput(String((t as any).data ?? ""));
   setEditCategoriaInput(
     typeof (t as any).categoria === "string"
@@ -6482,9 +6523,12 @@ const salvarEdicao = async () => {
   if (!editingTransaction) return;
 
   try {
-    const novoValorAbs = extrairValorMoeda(editValueInput);
-    const novaDesc = editDescInput.trim() || editingTransaction.descricao;
-    const novaTag = String(editTagInput ?? "").trim();
+const novoValorAbs = extrairValorMoeda(editValueInput);
+const novaDesc = buildDescricaoEditadaSegura(
+  editingTransaction,
+  editDescInput
+);
+const novaTag = String(editTagInput ?? "").trim();
 
 const tipoEditando = String((editingTransaction as any)?.tipo ?? "")
   .trim()
@@ -6555,8 +6599,9 @@ if (isEditandoReceitaOuDespesaComum && !isIsoDate(novaDataSegura)) {
 
       const dataOriginalDaOcorrencia = String((tx as any)?.data ?? "").trim();
 
-      return {
-        ...tx,
+return {
+  ...tx,
+  descricao: buildDescricaoEditadaSegura(tx, novaDesc),
 
         ...(isEditandoReceitaOuDespesaComum
           ? {

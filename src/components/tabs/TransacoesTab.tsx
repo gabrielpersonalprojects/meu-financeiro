@@ -1071,7 +1071,14 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
     onClick={handlePrintTransacoes}
     title="Imprimir relatório"
     aria-label="Imprimir relatório"
-    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#4600ac]/20 bg-[#4600ac] text-white shadow-sm shadow-violet-900/15 transition hover:scale-[1.06] hover:bg-[#350080] hover:shadow-md active:scale-[0.97] dark:border-violet-300/20 dark:bg-[#4600ac] dark:hover:bg-[#5b19c9]"
+    className="
+      inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl
+      bg-[#4600ac] text-white
+      border-none outline-none ring-0 shadow-none
+      transition-transform hover:scale-[1.06] active:scale-[0.97]
+      focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0
+      dark:bg-[#4600ac] dark:border-none dark:outline-none dark:ring-0 dark:shadow-none
+    "
   >
     <Printer className="h-[18px] w-[18px]" strokeWidth={2.2} />
   </button>
@@ -1180,7 +1187,7 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
 <div className="w-full sm:w-auto">
-<div className="flex w-full items-end overflow-x-auto border-b border-slate-200 [-ms-overflow-style:none] [scrollbar-width:none] dark:border-white/10 sm:w-auto [&::-webkit-scrollbar]:hidden">
+  <div className="flex w-full items-end overflow-x-auto border-b border-slate-200 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] dark:border-white/10 sm:w-auto [&::-webkit-scrollbar]:hidden">
     {[
       { key: "despesa", label: "Despesas" },
       { key: "receita", label: "Receitas" },
@@ -1197,7 +1204,7 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
             "relative -mb-px h-11 rounded-t-2xl border px-5 text-[13px] font-bold transition-all",
             "whitespace-nowrap",
             active
-              ? "z-10 border-slate-200 border-b-white bg-white text-[#4600ac] shadow-[0_-8px_24px_-18px_rgba(70,0,172,0.55)] dark:border-white/10 dark:border-b-slate-900 dark:bg-slate-900 dark:text-violet-200"
+              ? "z-10 border-slate-200 border-b-white bg-white text-[#4600ac] shadow-[0_-8px_24px_-18px_rgba(70,0,172,0.55)] dark:border-white/10 dark:border-b-slate-950 dark:bg-slate-950 dark:text-violet-200"
               : "border-transparent bg-transparent text-slate-500 hover:bg-white/70 hover:text-[#4600ac] dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white",
           ].join(" ")}
         >

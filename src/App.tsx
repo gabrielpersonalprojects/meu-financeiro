@@ -11101,7 +11101,7 @@ onClick={() => {
   onClick={handlePrintCardsResumo}
   title="Imprimir relatório"
   aria-label="Imprimir relatório"
-  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#4600ac]/20 bg-[#4600ac] text-white shadow-sm shadow-violet-900/15 transition hover:bg-[#350080] hover:shadow-md dark:border-violet-300/20 dark:bg-[#4600ac] dark:hover:bg-[#5b19c9]"
+  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl !border-0 !border-transparent !bg-[#4600ac] text-white !shadow-none !outline-none !ring-0 transition-transform hover:scale-[1.06] active:scale-[0.97] focus:!outline-none focus:!ring-0 focus-visible:!outline-none focus-visible:!ring-0 dark:!border-0 dark:!border-transparent dark:!bg-[#4600ac] dark:!shadow-none dark:!outline-none dark:!ring-0"
 >
   <Printer size={18} strokeWidth={2.2} />
 </button>

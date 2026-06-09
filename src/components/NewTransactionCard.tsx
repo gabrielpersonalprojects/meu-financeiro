@@ -436,17 +436,19 @@ const ccCategoryOptions = despesaCategoryOptions;
     <PlusIcon /> Novo Lançamento
   </h2>
 
-  {onOpenStatementImport ? (
-    <button
-      type="button"
-      onClick={onOpenStatementImport}
-      className="inline-flex h-10 shrink-0 items-center gap-2 rounded-2xl border border-[#4600ac]/15 bg-[#4600ac]/[0.07] px-3 text-[13px] font-semibold text-[#4600ac] transition hover:bg-[#4600ac]/[0.11] dark:border-white/10 dark:bg-white/5 dark:text-violet-200 dark:hover:bg-white/10"
-      title="Importar extrato"
-    >
-      <Archive className="h-4 w-4" />
-      <span className="hidden sm:inline">Importar Extrato</span>
-    </button>
-  ) : null}
+{onOpenStatementImport ? (
+  <button
+    type="button"
+    onClick={onOpenStatementImport}
+    className="inline-flex h-10 shrink-0 items-center gap-2 rounded-2xl border border-[#4600ac]/15 bg-[#4600ac]/[0.07] px-3 text-[13px] font-semibold text-[#4600ac] transition hover:bg-[#4600ac]/[0.11] dark:border-white/10 dark:bg-white/5 dark:text-violet-200 dark:hover:bg-white/10"
+    title={isCC ? "Importar fatura" : "Importar extrato"}
+  >
+    <Archive className="h-4 w-4" />
+    <span className="hidden sm:inline">
+      {isCC ? "Importar Fatura" : "Importar Extrato"}
+    </span>
+  </button>
+) : null}
 </div>
 
      <div className="space-y-3">

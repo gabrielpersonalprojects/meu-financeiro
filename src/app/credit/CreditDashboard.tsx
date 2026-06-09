@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import CustomDropdown from "../../components/CustomDropdown";
 import { CreditCardVisual } from "./CreditCardVisual";
 import { createPortal } from "react-dom";
-import { Archive, Search } from "lucide-react";
+import { Archive, ArrowLeft, Search } from "lucide-react";
 
 import { getCreditTransactionCardRef } from "./logic/cardRefs";
 
@@ -1414,17 +1414,31 @@ const renderPagamentoFaturaModalContent = () => (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start justify-items-center lg:justify-items-stretch text-slate-900 dark:text-white">
 <div className="w-full max-w-[320px] justify-self-center lg:justify-self-start">
-  <div className="mb-2 flex items-center justify-end">
-    <button
-      type="button"
-      onClick={() => onOpenStatementImport?.()}
-      className="inline-flex h-10 shrink-0 items-center gap-2 rounded-2xl border border-[#4600ac]/15 bg-[#4600ac]/[0.07] px-3 text-[13px] font-semibold text-[#4600ac] transition hover:bg-[#4600ac]/[0.11] dark:border-white/10 dark:bg-white/5 dark:text-violet-200 dark:hover:bg-white/10"
-      title="Importar extrato"
-    >
-      <Archive className="h-4 w-4" />
-      <span>Importar Extrato</span>
-    </button>
-  </div>
+<div className="mb-2 flex items-center justify-between gap-2">
+  {onPickOtherCard ? (
+<button
+  type="button"
+  onClick={onPickOtherCard}
+  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-transparent text-slate-600 transition hover:scale-[1.08] hover:text-[#4600ac] active:scale-[0.96] dark:text-white/70 dark:hover:text-violet-300"
+  title="Voltar para cartões"
+  aria-label="Voltar para cartões"
+>
+  <ArrowLeft className="h-5 w-5" strokeWidth={2.2} />
+</button>
+  ) : (
+    <div className="h-10 w-10 shrink-0" />
+  )}
+
+  <button
+    type="button"
+    onClick={() => onOpenStatementImport?.()}
+    className="inline-flex h-10 shrink-0 items-center gap-2 rounded-2xl border border-[#4600ac]/15 bg-[#4600ac]/[0.07] px-3 text-[13px] font-semibold text-[#4600ac] transition hover:bg-[#4600ac]/[0.11] dark:border-white/10 dark:bg-white/5 dark:text-violet-200 dark:hover:bg-white/10"
+    title="Importar fatura"
+  >
+    <Archive className="h-4 w-4" />
+    <span>Importar Fatura</span>
+  </button>
+</div>
 
   <div>
 {onPickOtherCard ? (

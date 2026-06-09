@@ -273,6 +273,36 @@ const shouldRenderEyeActions =
     });
   }, [itemsFiltrados, filtroLancamento]);
 
+const searchableTransactionsBase = useMemo(() => {
+  const contaFiltro = String(filtroConta ?? "").trim();
+
+  return (transactions || []).filter((t: any) => {
+    const tipo = String(t?.tipo ?? "").toLowerCase();
+
+    if (tipo === "cartao_credito") return false;
+
+    const data = String(t?.data ?? "").trim();
+    if (filtroMes && !data.startsWith(filtroMes)) return false;
+
+    if (!contaFiltro || contaFiltro.toLowerCase() === "todas") return true;
+
+    const refsConta = [
+      t?.contaId,
+      t?.profileId,
+      t?.qualConta,
+      t?.payload?.contaId,
+      t?.contaOrigemId,
+      t?.contaDestinoId,
+      t?.transferFromId,
+      t?.transferToId,
+    ]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean);
+
+    return refsConta.includes(contaFiltro);
+  });
+}, [transactions, filtroMes, filtroConta]);
+
   const normalizeSearchText = (value: any) =>
   String(value ?? "")
     .toLowerCase()
@@ -283,9 +313,9 @@ const shouldRenderEyeActions =
 const searchedTransactions = useMemo(() => {
   const termo = normalizeSearchText(buscaTransacoes);
 
-  if (!termo) return getFilteredTransactions;
+if (!termo) return getFilteredTransactions;
 
-  return (getFilteredTransactions ?? []).filter((t: any) => {
+return (searchableTransactionsBase ?? []).filter((t: any) => {
     const contaId = String(
       t?.contaId ??
         t?.profileId ??
@@ -317,7 +347,7 @@ const searchedTransactions = useMemo(() => {
 
     return normalizeSearchText(camposBusca.join(" ")).includes(termo);
   });
-}, [buscaTransacoes, getFilteredTransactions, profiles]);
+}, [buscaTransacoes, getFilteredTransactions, searchableTransactionsBase, profiles]);
 
 const sortedTransactions = useMemo(() => {
   const toDateNumber = (value: any) => {
@@ -497,14 +527,11 @@ useEffect(() => {
 
   const isFiltroTransferencias = filtroLancamento === "transferencia";
 
-  const deveMostrarFiltroCategoria =
-    filtroLancamento === "todos" ||
-    filtroLancamento === "receita" ||
-    filtroLancamento === "despesa";
+const deveMostrarFiltroCategoria =
+  filtroLancamento === "receita" ||
+  filtroLancamento === "despesa";
 
-  const deveMostrarFiltroTipoGasto =
-    filtroLancamento === "todos" ||
-    filtroLancamento === "despesa";
+const deveMostrarFiltroTipoGasto = filtroLancamento === "despesa";
 
   useEffect(() => {
     if (filtroLancamento === "transferencia") {
@@ -823,24 +850,34 @@ className={[
   <div className="flex flex-col gap-4 pb-6 border-b border-slate-50 dark:border-slate-800">
 <div className="-mt-8">
 <div className="w-full overflow-visible flex flex-wrap lg:flex-nowrap items-end gap-3">
-<div className="relative w-full sm:w-[190px] lg:w-[180px] shrink-0">
-  <CustomDateInput
-    type="month"
-    value={filtroMes}
-    onChange={setFiltroMes}
-    className="w-full"
-  />
+<div className="w-full sm:w-[190px] lg:w-[180px] shrink-0">
+  <p className="mb-1.5 pl-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+    Período:
+  </p>
 
-  {filtroMes === new Date().toISOString().slice(0, 7) && (
-    <div className="pointer-events-none absolute left-[1px] right-10 top-[1px] bottom-[1px] z-10 flex items-center rounded-l-xl bg-white pl-3 dark:bg-slate-900">
-<span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#cecdf6] text-[#220055] border border-[#cecdf6] dark:bg-indigo-600/25 dark:text-white dark:border-indigo-500/20">
-  Este mês
-</span>
-    </div>
-  )}
+  <div className="relative">
+    <CustomDateInput
+      type="month"
+      value={filtroMes}
+      onChange={setFiltroMes}
+      className="w-full"
+    />
+
+    {filtroMes === new Date().toISOString().slice(0, 7) && (
+      <div className="pointer-events-none absolute left-[1px] right-10 top-[1px] bottom-[1px] z-10 flex items-center rounded-l-xl bg-white pl-3 dark:bg-slate-900">
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#cecdf6] text-[#220055] border border-[#cecdf6] dark:bg-indigo-600/25 dark:text-white dark:border-indigo-500/20">
+          Este mês
+        </span>
+      </div>
+    )}
+  </div>
 </div>
 
 <div className="w-full sm:w-auto sm:min-w-[230px] sm:max-w-[360px] shrink-0">
+  <p className="mb-1.5 pl-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+    Contas bancárias:
+  </p>
+
 <CustomDropdown
   placeholder="Conta"
   value={filtroConta}
@@ -1002,26 +1039,33 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
     />
   </div>
 
-  <div className="shrink-0">
-  <button
-    type="button"
-    onClick={() => {
-      setFiltroMes(new Date().toISOString().slice(0, 7));
-      setFiltroConta(favoriteAccountId ? String(favoriteAccountId) : "todas");
-      setPaginaAtual(1);
-    }}
-    title="Limpar mês e conta"
-    className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
-  >
-    <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
-  </button>
+ <div className="shrink-0 pt-[21px]">
+<button
+  type="button"
+  onClick={() => {
+    setFiltroMes(new Date().toISOString().slice(0, 7));
+    setFiltroConta(favoriteAccountId ? String(favoriteAccountId) : "todas");
+
+    setFiltroLancamento("despesa");
+    setFiltroCategoria("");
+    setFiltroTipoGasto("");
+    setOrganizacaoLista("status");
+    setBuscaTransacoes("");
+
+    setPaginaAtual(1);
+  }}
+  title="Limpar todos os filtros"
+  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
+>
+  <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
+</button>
 </div>
 
 
 <></>
  
 
-<div className="w-full sm:w-auto lg:ml-auto shrink-0 flex justify-end">
+<div className="w-full sm:w-auto lg:ml-auto shrink-0 flex justify-end pt-[21px]">
   <button
     type="button"
     onClick={handlePrintTransacoes}
@@ -1041,7 +1085,7 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
   className="
     relative overflow-hidden rounded-2xl
     p-7
-    shadow-xl min-h-[210px]
+    shadow-xl min-h-[180px]
     text-white bg-gradient-to-r from-[#220055] via-[#32007a] to-[#4600ac]
     shadow-[0_18px_50px_-35px_rgba(70,0,172,0.9)]
   "
@@ -1064,8 +1108,8 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
   </div>
 )}
 
-<div className="relative pt-6">
-   <p className="mb-4 flex items-center gap-2 text-[11px] font-black text-white/85 uppercase tracking-[0.16em]">
+<div className="relative flex min-h-[96px] flex-col justify-center">
+   <p className="mb-3 flex items-center gap-2 text-[12px] font-black text-white/85 uppercase tracking-[0.12em]">
       <Wallet className="h-3.5 w-3.5 text-white" strokeWidth={2.2} />
       <span>Saldo Atual</span>
     </p>
@@ -1073,28 +1117,10 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
     <p className="text-[36px] md:text-[40px] font-black text-white tracking-tight leading-none">
       {valorOuOculto(stats.saldoTotal)}
     </p>
-
-    <div className="mt-4">
-<span
-  className="
-    inline-flex items-center gap-2.5
-    px-3.5 py-2 rounded-full
-    text-[12px] font-extrabold uppercase tracking-wider
-    border border-slate-200/80
-    bg-white text-slate-900
-    dark:border-white/15 dark:bg-black/25 dark:text-white
-    backdrop-blur-xl shadow-sm
-  "
-  title={`Filtro de conta: ${badgeLabel}`}
->
-  <span className="h-2 w-2 rounded-full bg-violet-600 dark:bg-violet-300" />
-  {badgeLabel}
-</span>
-    </div>
   </div>
 </div>
 
-    <div className="relative overflow-hidden rounded-2xl p-7 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-between min-h-[210px]">
+    <div className="relative overflow-hidden rounded-2xl p-7 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-between min-h-[180px]">
       <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
 
       <div className="flex h-full flex-col justify-center">
@@ -1116,7 +1142,7 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
       </div>
     </div>
 
-    <div className="relative overflow-hidden rounded-2xl p-7 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-between min-h-[210px]">
+    <div className="relative overflow-hidden rounded-2xl p-7 border border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_50px_-35px_rgba(0,0,0,0.35)] flex flex-col justify-between min-h-[180px]">
       <div className="pointer-events-none absolute top-24 -right-24 h-56 w-56 rounded-full bg-rose-500/10 blur-3xl" />
 
       <button
@@ -1153,52 +1179,34 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="w-full sm:w-[250px]">
-          <CustomDropdown
-            placeholder="Lançamento"
-value={
-  filtroLancamento === "todos"
-    ? "Todos os lançamentos"
-    : filtroLancamento === "receita"
-    ? "Somente Entradas"
-    : filtroLancamento === "despesa"
-    ? "Somente Saídas"
-    : "Transferências"
-}
-options={[
-  "Todos os lançamentos",
-  "Somente Entradas",
-  "Somente Saídas",
-  "Transferências",
-]}
-onSelect={(val) => {
-  if (val === "Todos os lançamentos") setFiltroLancamento("todos");
-  else if (val === "Somente Entradas") setFiltroLancamento("receita");
-  else if (val === "Somente Saídas") setFiltroLancamento("despesa");
-  else if (val === "Transferências") setFiltroLancamento("transferencia");
-}}
-            className="w-full"
-            triggerClassName="h-11 rounded-2xl border border-[#4600ac]/20 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
-            arrowClassName="text-indigo-600 dark:text-slate-300"
-            renderValue={(displayValue) => (
-              <span className="inline-flex min-w-0 items-center gap-2">
-<span className="shrink-0 rounded-full bg-[#cecdf6] px-2 py-0.5 text-[10px] font-bold uppercase text-[#220055] border border-[#cecdf6] dark:bg-indigo-600/25 dark:text-white dark:border-indigo-500/20">
-  {filtroLancamento === "todos"
-    ? "Todos"
-    : filtroLancamento === "receita"
-    ? "Entrada"
-    : filtroLancamento === "despesa"
-    ? "Saída"
-    : "Transf."}
-</span>
+<div className="w-full sm:w-auto">
+<div className="flex w-full items-end overflow-x-auto border-b border-slate-200 [-ms-overflow-style:none] [scrollbar-width:none] dark:border-white/10 sm:w-auto [&::-webkit-scrollbar]:hidden">
+    {[
+      { key: "despesa", label: "Despesas" },
+      { key: "receita", label: "Receitas" },
+      { key: "transferencia", label: "Transferências" },
+    ].map((tab) => {
+      const active = filtroLancamento === tab.key;
 
-<span className="min-w-0 truncate font-semibold text-[#220055] dark:text-white">
-  {filtroLancamento === "todos" ? "os lançamentos" : displayValue}
-</span>
-              </span>
-            )}
-          />
-        </div>
+      return (
+        <button
+          key={tab.key}
+          type="button"
+          onClick={() => setFiltroLancamento(tab.key)}
+          className={[
+            "relative -mb-px h-11 rounded-t-2xl border px-5 text-[13px] font-bold transition-all",
+            "whitespace-nowrap",
+            active
+              ? "z-10 border-slate-200 border-b-white bg-white text-[#4600ac] shadow-[0_-8px_24px_-18px_rgba(70,0,172,0.55)] dark:border-white/10 dark:border-b-slate-900 dark:bg-slate-900 dark:text-violet-200"
+              : "border-transparent bg-transparent text-slate-500 hover:bg-white/70 hover:text-[#4600ac] dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white",
+          ].join(" ")}
+        >
+          {tab.label}
+        </button>
+      );
+    })}
+  </div>
+</div>
 
         {deveMostrarFiltroCategoria && (
           <div className="w-full sm:w-[190px]">
@@ -1280,7 +1288,7 @@ onSelect={(val) => {
       <button
         type="button"
         onClick={() => {
-          setFiltroLancamento("todos");
+          setFiltroLancamento("despesa");
           setFiltroCategoria("");
           setFiltroTipoGasto("");
           setOrganizacaoLista("status");
@@ -1296,8 +1304,12 @@ onSelect={(val) => {
   </div>
 
   <div className="grid grid-cols-1 gap-2 text-[10px] uppercase tracking-wider lg:grid-cols-[1fr_auto] lg:items-center">
-    <div className="flex flex-wrap items-center gap-3">
-      <span className="text-slate-400/80 dark:text-slate-500/80">Mensal</span>
+<div className="flex flex-wrap items-center gap-3">
+<span className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#220055] via-[#32007a] to-[#4600ac] px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white ring-1 ring-[#4600ac]/20 shadow-sm dark:bg-none dark:bg-white dark:text-[#220055] dark:ring-white/10">
+  {badgeLabel}
+</span>
+
+  <span className="text-slate-400/80 dark:text-slate-500/80">Mensal</span>
 
       {mostrarReceitasResumo && (
         <span className="font-semibold text-emerald-600 dark:text-emerald-400">
@@ -1328,15 +1340,15 @@ onSelect={(val) => {
       )}
     </div>
 
-    <div className="font-bold text-slate-400 dark:text-slate-500 lg:min-w-[510px] lg:text-right">
-      {sortedTransactions.length} Lançamentos Encontrados
-    </div>
+<div className="font-bold text-slate-400 dark:text-slate-500 lg:min-w-[510px] lg:text-right">
+  {sortedTransactions.length} Lançamentos Encontrados
+</div>
   </div>
 </div>
       </div>
 
     <div>
-        {getFilteredTransactions.length > 0 ? (
+       {sortedTransactions.length > 0 ? (
           <>
           <div className="relative">
               {perfilCardsSelecionado && (

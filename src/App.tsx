@@ -1074,7 +1074,7 @@ const handleHomeTransacoesClick = () => {
 
   // TRANSAÇÕES
   setFiltroMesTransacoes(getHojeLocal().substring(0, 7));
-  setFiltroLancamento("todos");
+ setFiltroLancamento("despesa");
   setFiltroCategoria("");
   setFiltroMetodo("");
   setFiltroTipoGasto("");
@@ -6030,6 +6030,8 @@ const handleLimparFiltros = () => {
     setFiltroCategoria,
     setFiltroTipoGasto,
   });
+
+  setFiltroLancamento("despesa");
 
   const favoriteId = String(favoriteAccountId ?? "").trim();
 

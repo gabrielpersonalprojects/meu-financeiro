@@ -247,31 +247,161 @@ const shouldRenderEyeActions =
 
   const hasHiddenAccounts = hiddenAccountIdsSet.size > 0;
 
-  const getFilteredTransactions = useMemo(() => {
-    return (itemsFiltrados || []).filter((t: any) => {
-      const tipo = String(t?.tipo ?? "").toLowerCase();
+  const getTipoGastoNormalized = (t: any) => {
+  return String(t?.tipoGasto ?? t?.payload?.tipoGasto ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+};
 
-      if (tipo === "cartao_credito") return false;
+const isTransacaoParcelada = (t: any) => {
+  const parcelaAtual = Number(
+    t?.parcelaAtual ??
+      t?.payload?.parcelaAtual ??
+      t?.parcela ??
+      t?.payload?.parcela ??
+      0
+  );
 
-      if (filtroLancamento === "todos") return true;
+  const totalParcelas = Number(
+    t?.totalParcelas ??
+      t?.payload?.totalParcelas ??
+      t?.parcelas ??
+      t?.payload?.parcelas ??
+      0
+  );
 
-      if (filtroLancamento === "receita") return tipo === "receita";
+  const descricao = String(t?.descricao ?? "").trim();
 
-      if (filtroLancamento === "despesa") return tipo === "despesa";
+  const tipoGasto = getTipoGastoNormalized(t);
 
-      if (filtroLancamento === "transferencia") {
-        return (
-          tipo === "transferencia" ||
-          Boolean(t?.transferId) ||
-          Boolean(t?.transferenciaId) ||
-          Boolean(t?.transfer_id) ||
-          Boolean(t?.transferencia_id)
-        );
-      }
+  return (
+    tipoGasto === "parcelado" ||
+    tipoGasto === "parcelamento" ||
+    tipoGasto === "parcelamentos" ||
+    (Number.isFinite(totalParcelas) && totalParcelas > 1) ||
+    (Number.isFinite(parcelaAtual) && parcelaAtual > 0) ||
+    /\(\s*\d+\s*\/\s*\d+\s*\)\s*$/.test(descricao)
+  );
+};
 
-      return true;
-    });
-  }, [itemsFiltrados, filtroLancamento]);
+const isTransacaoFixaMensal = (t: any) => {
+  if (isTransacaoParcelada(t)) return false;
+
+  const tipoGasto = getTipoGastoNormalized(t);
+
+  return (
+    tipoGasto === "fixo" ||
+    Boolean(t?.isRecorrente) ||
+    Boolean(t?.payload?.isRecorrente) ||
+    Boolean(t?.recorrenciaId) ||
+    Boolean(t?.payload?.recorrenciaId)
+  );
+};
+
+const matchesFiltroTipoGasto = (t: any) => {
+  const filtro = String(filtroTipoGasto ?? "").trim();
+
+  if (!filtro || filtro === "Todos") return true;
+
+  if (filtro === "Parcelado") {
+    return isTransacaoParcelada(t);
+  }
+
+  if (filtro === "Fixo") {
+    return isTransacaoFixaMensal(t);
+  }
+
+  if (filtro === "Variável" || filtro === "Variavel") {
+    return getTipoGastoNormalized(t) === "variavel";
+  }
+
+  return true;
+};
+
+const getFilteredTransactions = useMemo(() => {
+  const contaFiltro = String(filtroConta ?? "").trim();
+  const categoriaFiltro = String(filtroCategoria ?? "").trim();
+
+  const matchesMes = (t: any) => {
+    const data = String(t?.data ?? "").trim();
+    return !filtroMes || data.startsWith(filtroMes);
+  };
+
+  const getRefsConta = (t: any) => {
+    return [
+      t?.contaId,
+      t?.profileId,
+      t?.qualConta,
+      t?.payload?.contaId,
+      t?.contaOrigemId,
+      t?.contaDestinoId,
+      t?.transferFromId,
+      t?.transferToId,
+    ]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean);
+  };
+
+  const matchesConta = (t: any) => {
+    const refsConta = getRefsConta(t);
+
+    if (!contaFiltro || contaFiltro.toLowerCase() === "todas") {
+      if (hiddenAccountIdsSet.size === 0) return true;
+
+      return !refsConta.some((id) => hiddenAccountIdsSet.has(id));
+    }
+
+    return refsConta.includes(contaFiltro);
+  };
+
+  const matchesCategoria = (t: any) => {
+    if (!categoriaFiltro) return true;
+
+    return (
+      String(t?.categoria ?? "").trim().toLowerCase() ===
+      categoriaFiltro.toLowerCase()
+    );
+  };
+
+  return (transactions || []).filter((t: any) => {
+    const tipo = String(t?.tipo ?? "").toLowerCase();
+
+    if (tipo === "cartao_credito") return false;
+    if (!matchesMes(t)) return false;
+    if (!matchesConta(t)) return false;
+
+    const isTransferencia =
+      tipo === "transferencia" ||
+      Boolean(t?.transferId) ||
+      Boolean(t?.transferenciaId) ||
+      Boolean(t?.transfer_id) ||
+      Boolean(t?.transferencia_id);
+
+    if (filtroLancamento === "receita") {
+      return tipo === "receita" && matchesCategoria(t);
+    }
+
+    if (filtroLancamento === "despesa") {
+      return tipo === "despesa" && matchesCategoria(t) && matchesFiltroTipoGasto(t);
+    }
+
+    if (filtroLancamento === "transferencia") {
+      return isTransferencia;
+    }
+
+    return true;
+  });
+}, [
+  transactions,
+  filtroMes,
+  filtroConta,
+  filtroCategoria,
+  filtroLancamento,
+  filtroTipoGasto,
+  hiddenAccountIdsSet,
+]);
 
 const searchableTransactionsBase = useMemo(() => {
   const contaFiltro = String(filtroConta ?? "").trim();
@@ -1227,17 +1357,40 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
           </div>
         )}
 
-        {deveMostrarFiltroTipoGasto && (
-          <div className="w-full sm:w-[160px]">
-            <CustomDropdown
-              placeholder="Tipo Gasto"
-              value={filtroTipoGasto}
-              options={["Todos", "Fixo", "Variável"]}
-              onSelect={(val) => setFiltroTipoGasto(val === "Todos" ? "" : val)}
-              className="w-full"
-            />
-          </div>
-        )}
+{deveMostrarFiltroTipoGasto && (
+  <div className="w-full sm:w-[160px]">
+    <CustomDropdown
+      placeholder="Tipo"
+      value={
+        filtroTipoGasto === "Fixo"
+          ? "Fixo/Mensal"
+          : filtroTipoGasto === "Parcelado"
+          ? "Parcelamentos"
+          : filtroTipoGasto || ""
+      }
+      options={["Todos", "Variável", "Fixo/Mensal", "Parcelamentos"]}
+      onSelect={(val) => {
+        if (val === "Todos") {
+          setFiltroTipoGasto("");
+          return;
+        }
+
+        if (val === "Fixo/Mensal") {
+          setFiltroTipoGasto("Fixo");
+          return;
+        }
+
+        if (val === "Parcelamentos") {
+          setFiltroTipoGasto("Parcelado");
+          return;
+        }
+
+        setFiltroTipoGasto(String(val));
+      }}
+      className="w-full"
+    />
+  </div>
+)}
       </div>
     </div>
 

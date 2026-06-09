@@ -393,11 +393,11 @@ const tagsCC = useMemo(
   [txMes]
 );
 
-  const tiposGastoCC = [
+const tiposGastoCC = [
   { label: "Todos", value: "todas" },
   { label: "Variável", value: "normal" },
   { label: "Fixo/Mensal", value: "fixo" },
-  { label: "Parcelado", value: "parcelado" },
+  { label: "Parcelamentos", value: "parcelado" },
 ];
 
 const txMesFiltradas = useMemo(() => {
@@ -414,12 +414,12 @@ const tipoGasto = resolveCreditSpendingType(t);
       const okTipo =
         filtroTipoGastoCC === "todas" || tipoGasto === filtroTipoGastoCC;
 
-      const tipoLabel =
-        tipoGasto === "parcelado"
-          ? "parcelado"
-          : tipoGasto === "fixo"
-          ? "fixo mensal"
-          : "variavel";
+const tipoLabel =
+  tipoGasto === "parcelado"
+    ? "parcelamentos"
+    : tipoGasto === "fixo"
+    ? "fixo mensal"
+    : "variavel";
 
       const okBusca =
         !termo ||

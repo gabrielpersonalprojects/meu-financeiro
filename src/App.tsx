@@ -10924,7 +10924,11 @@ containerStyle={{
 
 <div className="w-full xl:[zoom:0.78]">
 <div
-  className="relative sticky top-[2px] z-30 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/55"
+  className="
+    sticky top-0 z-50
+    border-b border-slate-200/80 bg-white
+    dark:border-white/10 dark:bg-slate-950
+  "
   style={{ height: `${TOP_BAR_HEIGHT}px` }}
 >
   <div className="pointer-events-none absolute bottom-0 left-0 hidden md:block w-4 border-b border-slate-200/70 dark:border-white/10" />
@@ -10949,7 +10953,15 @@ containerStyle={{
     <button
       type="button"
       onClick={() => setIsMobileHeaderMenuOpen((prev) => !prev)}
-      className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white shadow-[0_14px_35px_rgba(0,0,0,0.18)] backdrop-blur-xl transition active:scale-[0.97]"
+      className="
+  inline-flex h-11 w-11 items-center justify-center rounded-2xl
+  border border-violet-200/80
+  bg-white/90 text-[#40009c]
+  shadow-[0_14px_35px_rgba(15,23,42,0.12)]
+  backdrop-blur-xl transition active:scale-[0.97]
+  dark:border-white/10 dark:bg-white/5 dark:text-white
+  dark:shadow-[0_14px_35px_rgba(0,0,0,0.18)]
+"
       aria-label={isMobileHeaderMenuOpen ? "Fechar menu" : "Abrir menu"}
       aria-expanded={isMobileHeaderMenuOpen}
     >

@@ -252,14 +252,15 @@ export default function SidebarShell({
 
       {/* SIDEBAR DESKTOP */}
       <aside
-className={`hidden md:flex fixed left-0 top-0 z-[80] h-screen flex-col border-r border-slate-200 bg-white transition-all duration-300 dark:border-white/10 dark:bg-slate-900 ${          sidebarExpanded ? "w-72" : "w-24"
-        }`}
+className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 dark:border-white/10 dark:bg-slate-900 ${
+  sidebarExpanded ? "w-72" : "w-24"
+}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
 
 
-       <nav className="flex flex-1 flex-col gap-2 p-4">
+       <nav className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {menuItems.map((item) => {
             const active = activePanel === item.key;
 
@@ -323,9 +324,7 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-screen flex-col border-r 
             );
           })}
         </nav>
-<div
-  className="flex h-[88px] items-center justify-center px-4"
->
+<div className="mt-auto flex h-[88px] shrink-0 items-center justify-center border-t border-slate-200/70 px-4 dark:border-white/10">
 <div className="flex items-center gap-2">
 <a
   href="https://app.fluxmoneyapp.com.br"

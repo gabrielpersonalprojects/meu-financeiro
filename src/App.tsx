@@ -93,6 +93,8 @@ import {
 import { insertStatementImportBatch } from "./services/statementImportBatches";
 import { getHojeLocal } from "./domain/date";
 import { AppHeader } from "./components/AppHeader";
+import { AppHeaderNav } from "./components/layout/AppHeaderNav";
+import { FluxMoneyLogo } from "./components/FluxMoneyLogo";
 import NewTransactionCard from "./components/NewTransactionCard";
 import GastosTab from "./components/tabs/GastosTab";
 import ProjecaoTab from "./components/tabs/ProjecaoTab";
@@ -324,7 +326,7 @@ const mergeSemPrazoPayloadMeta = (
 
 
   const App: FC = () => {
-    const TOP_BAR_HEIGHT = 110;
+  const TOP_BAR_HEIGHT = 76;
 const authLoadInFlightRef = useRef<string>("");
 const authLoadRequestIdRef = useRef(0);
 const addTxLockRef = useRef(false);
@@ -1111,6 +1113,26 @@ const handleHomeTransacoesClick = () => {
 
   // VOLTA PARA HOME / TRANSAÇÕES
   setActiveTab("transacoes");
+};
+
+const handleHeaderTabChange = (tab: TabType) => {
+  if (activeTab === "gastos" && tab !== "gastos") {
+    setFiltroMesAnalise(getHojeLocal().substring(0, 7));
+  }
+
+  if (tab === "cartoes" && activeTab === "cartoes" && isCcExpanded) {
+    setIsCcExpanded(false);
+    setSelectedCreditCardId("");
+    return;
+  }
+
+  if (activeTab === "cartoes" && tab !== "cartoes") {
+    setIsCcExpanded(false);
+    setSelectedCreditCardId("");
+    setCreditCardsPage(1);
+  }
+
+  setActiveTab(tab);
 };
 
 const scrollPorAbaRef = useRef<Record<string, number>>({
@@ -10857,16 +10879,26 @@ containerStyle={{
 >
   <div className="pointer-events-none absolute bottom-0 left-0 hidden md:block w-4 border-b border-slate-200/70 dark:border-white/10" />
 <div
-  className="relative mx-auto flex h-full w-full max-w-[1250px] items-center justify-center px-3 lg:px-4"
+  className="relative mx-auto grid h-full w-full max-w-[1250px] grid-cols-[auto_1fr_auto] items-center gap-4 px-3 lg:px-4"
 >
-  <AppHeader settingsIcon={null} />
+<div className="flex min-w-[190px] items-center justify-start pl-4 md:pl-6 lg:pl-4">
+  <FluxMoneyLogo compact />
+</div>
+
+  <AppHeaderNav
+    activeTab={activeTab}
+    onTabChange={handleHeaderTabChange}
+    onHomeClick={handleHomeTransacoesClick}
+  />
+
+  <div className="hidden min-w-[190px] md:block" />
 
 <div className="absolute right-3 hidden items-center gap-2 md:flex lg:right-4">
   <div ref={helpMenuRef} className="relative">
     <button
       type="button"
       onClick={() => setHelpMenuOpen((prev) => !prev)}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 text-[#40009c] shadow-[0_10px_26px_rgba(64,0,156,0.08)] transition hover:border-violet-300 hover:bg-violet-100/80 hover:text-[#360086] dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-100 dark:hover:bg-violet-500/15"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-violet-200 bg-transparent text-[#40009c] transition hover:border-violet-300 hover:bg-violet-50/70 hover:text-[#360086] dark:border-violet-400/20 dark:bg-transparent dark:text-violet-100 dark:hover:bg-violet-500/10"
       title="Ajuda"
       aria-label="Abrir ajuda"
       aria-expanded={helpMenuOpen}
@@ -10910,8 +10942,7 @@ containerStyle={{
   <button
     type="button"
     onClick={handleLogout}
-    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-4 text-[13px] font-semibold text-[#40009c] shadow-[0_10px_26px_rgba(64,0,156,0.08)] transition hover:border-violet-300 hover:bg-violet-100/80 hover:text-[#360086] dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-100 dark:hover:bg-violet-500/15"
-  >
+className="inline-flex h-10 items-center gap-2 rounded-2xl border border-violet-200 bg-transparent px-4 text-[13px] font-semibold text-[#40009c] transition hover:border-violet-300 hover:bg-violet-50/70 hover:text-[#360086] dark:border-violet-400/20 dark:bg-transparent dark:text-violet-100 dark:hover:bg-violet-500/10"  >
     <LogOut className="h-4 w-4" />
     <span>Sair</span>
   </button>
@@ -10938,112 +10969,6 @@ className={`lg:col-span-12 space-y-6 ${
 {/* Conteúdo */}
  <div className="bg-transparent rounded-3xl p-6 shadow-none border border-transparent min-h-[550px] transition-colors">
     {/* TRANSACOES */}
-{/* Tabs */}
-<div className="w-full md:overflow-visible overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
- <div className="flex md:flex md:justify-center min-w-max md:min-w-0 gap-3 md:gap-8">
-    {(["transacoes", "cartoes", "gastos", "projecao"] as TabType[]).map((tab) => (
-<button
-  key={tab}
-  type="button"
-onClick={() => {
-  if (activeTab === "gastos" && tab !== "gastos") {
-    setFiltroMesAnalise(getHojeLocal().substring(0, 7));
-  }
-
-  if (tab === "cartoes" && activeTab === "cartoes" && isCcExpanded) {
-    setIsCcExpanded(false);
-    setSelectedCreditCardId("");
-    return;
-  }
-
-if (activeTab === "cartoes" && tab !== "cartoes") {
-  setIsCcExpanded(false);
-  setSelectedCreditCardId("");
-  setCreditCardsPage(1);
-}
-
-  setActiveTab(tab);
-}}
-  className={[
-    "group relative shrink-0 md:shrink-0 md:w-auto",
-    "h-12 sm:h-14 md:h-11 px-4 sm:px-5 md:px-2",
-    "whitespace-nowrap text-[14px] sm:text-base md:text-[20px]",
-    "font-medium md:font-normal tracking-[-0.01em]",
-    "transition-all duration-200",
-    "rounded-2xl md:rounded-none",
-    "border-0 outline-none shadow-none",
-    "focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0",
-    "active:outline-none active:ring-0",
-    activeTab === tab
-      ? [
-          // mobile
-          "bg-gradient-to-r from-[#220055] to-[#4600ac] text-white shadow-sm",
-          // desktop
-          "md:!bg-transparent md:bg-none md:shadow-none md:ring-0 md:border-0",
-          "md:text-slate-900 dark:md:text-white",
-          "md:hover:!bg-transparent md:focus:!bg-transparent md:active:!bg-transparent",
-        ].join(" ")
-      : [
-          // mobile
-          "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60",
-          // desktop
-          "md:!bg-transparent md:bg-none md:shadow-none md:ring-0 md:border-0",
-          "md:text-slate-600 dark:md:text-white/65",
-          "md:hover:text-slate-900 dark:md:hover:text-white",
-          "md:hover:!bg-transparent md:focus:!bg-transparent md:active:!bg-transparent",
-        ].join(" "),
-  ].join(" ")}
-  style={{ WebkitTapHighlightColor: "transparent" }}
->
-<span className="relative z-10 inline-flex items-center">
-  {tab === "transacoes" ? (
-    <>
-<Home
-  onClick={(e) => {
-    e.stopPropagation();
-    handleHomeTransacoesClick();
-  }}
-className="relative top-[1px] hidden md:block h-[22px] w-[22px] mr-12 cursor-pointer text-slate-600 dark:text-slate-400 transition-all duration-200 hover:text-violet-600 dark:hover:text-violet-200 hover:scale-125 active:scale-95"  strokeWidth={2.3}
-/>
-
-      <span className="relative inline-flex items-center">
-        <span>Transações</span>
-
-        <span
-          className={[
-            "pointer-events-none absolute left-0 right-0 -bottom-[6px] hidden md:block",
-            "h-[1.5px] rounded-full transition-all duration-200",
-            activeTab === tab
-              ? "bg-gradient-to-r from-transparent via-violet-400 to-transparent opacity-100"
-              : "bg-transparent opacity-0 group-hover:opacity-40 group-hover:bg-gradient-to-r group-hover:from-transparent group-hover:via-slate-500/40 dark:group-hover:via-white/30 group-hover:to-transparent",
-          ].join(" ")}
-        />
-      </span>
-    </>
-  ) : tab === "cartoes" ? (
-    "Cartões"
-  ) : tab === "gastos" ? (
-    "Análise"
-  ) : (
-    "Projeção"
-  )}
-</span>
-
-{tab !== "transacoes" && (
-  <span
-    className={[
-      "pointer-events-none absolute left-4 right-4 bottom-1 hidden md:block",
-      "h-[1.5px] rounded-full transition-all duration-200",
-      activeTab === tab
-        ? "bg-gradient-to-r from-transparent via-violet-400 to-transparent opacity-100"
-        : "bg-transparent opacity-0 group-hover:opacity-40 group-hover:bg-gradient-to-r group-hover:from-transparent group-hover:via-slate-500/40 dark:group-hover:via-white/30 group-hover:to-transparent",
-    ].join(" ")}
-  />
-)}
-</button>
-    ))}
-  </div>
-</div>
 
 <div className="mt-8" />
 

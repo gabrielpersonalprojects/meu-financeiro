@@ -299,7 +299,7 @@ title={
   </div>
 </div>
 
-<div className="flex flex-wrap items-center gap-x-2 gap-y-2.5 text-[10px] leading-relaxed uppercase tracking-wide">
+<div className="flex flex-wrap items-center gap-x-2 gap-y-2.5 text-[11px] leading-relaxed uppercase tracking-wide">
   <span
     className={`px-2 py-0.5 rounded-full font-black ${
       paid
@@ -380,7 +380,7 @@ title={
         ) : (
           <span className="inline-flex flex-wrap items-center gap-2 normal-case">
             <span
-              className="rounded-full bg-indigo-600/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600
+              className="rounded-full bg-indigo-600/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-indigo-600
                          dark:bg-indigo-400/15 dark:text-indigo-300"
             >
               {info.banco}

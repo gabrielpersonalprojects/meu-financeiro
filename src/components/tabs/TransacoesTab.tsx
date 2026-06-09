@@ -32,7 +32,7 @@ const isPaid = (v: any) => {
   return v === true || v === 1 || s === "1" || s === "true" || s === "pago";
 };
 
-const ITENS_POR_PAGINA = 10;
+const ITENS_POR_PAGINA = 15;
 
 type Props = {
   filtroMes: string;
@@ -821,7 +821,7 @@ className={[
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
   <div className="flex flex-col gap-4 pb-6 border-b border-slate-50 dark:border-slate-800">
-<div className="pt-1 md:pt-2">
+<div className="-mt-8">
 <div className="w-full overflow-visible flex flex-wrap lg:flex-nowrap items-end gap-3">
 <div className="relative w-full sm:w-[190px] lg:w-[180px] shrink-0">
   <CustomDateInput

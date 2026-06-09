@@ -10872,7 +10872,7 @@ containerStyle={{
   }}
 />
 
-<div className="w-full xl:w-[128.21%] origin-top-left xl:scale-[0.78]">
+<div className="w-full xl:[zoom:0.78]">
 <div
   className="relative sticky top-[2px] z-30 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/55"
   style={{ height: `${TOP_BAR_HEIGHT}px` }}
@@ -10967,7 +10967,7 @@ className={`lg:col-span-12 space-y-6 ${
 
 
 {/* Conteúdo */}
- <div className="bg-transparent rounded-3xl p-6 shadow-none border border-transparent min-h-[550px] transition-colors">
+ <div className="bg-transparent rounded-3xl p-6 shadow-none border border-transparent transition-colors">
     {/* TRANSACOES */}
 
 <div className="mt-8" />

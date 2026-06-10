@@ -1831,144 +1831,272 @@ const podeAlterarCompraNoCiclo = (tx: any) => {
 const descricaoLimpa = String(t.descricao ?? "")
   .replace(/\s*\(\d+\/\d+\)\s*$/, "")
   .trim();
-                  return (
-<li
-  key={t.id}
-  className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition px-3.5 py-3
-    sm:px-3 sm:py-2
-    dark:border-white/10 dark:bg-black/20 dark:hover:bg-black/25"
->
-<div className="flex items-start justify-between gap-3 overflow-hidden">
-  <div className="min-w-0 flex-1">
-    <div
-      className="text-slate-900 text-[15px] sm:text-sm font-medium leading-snug break-words line-clamp-2 dark:text-white/90"
-      title={descricaoLimpa || "—"}
-    >
-      {descricaoLimpa || "—"}
+
+  const categoriaLabelItem = getCreditCategoryLabel(t);
+const tagLabelItem = String((t as any)?.tag ?? "").trim();
+const tipoGastoItem = resolveCreditSpendingType(t);
+
+const tipoGastoLabelItem =
+  tipoGastoItem === "parcelado"
+    ? "Parcelamento"
+    : tipoGastoItem === "fixo"
+    ? "Fixo/Mensal"
+    : "Variável";
+
+return (
+  <li
+    key={t.id}
+    className={[
+      "rounded-2xl border border-slate-200 bg-white transition dark:border-white/10 dark:bg-black/20",
+      "lg:rounded-xl lg:px-3.5 lg:py-3 lg:hover:bg-slate-50 lg:dark:hover:bg-black/25",
+      "max-lg:border-slate-200/80 max-lg:bg-white/90 max-lg:p-4 max-lg:shadow-sm max-lg:dark:bg-white/[0.035]",
+    ].join(" ")}
+  >
+    {/* MOBILE/TABLET */}
+    <div className="lg:hidden">
+      <div className="min-w-0">
+        <p
+          className="break-words text-[15px] font-extrabold leading-snug text-slate-900 dark:text-white"
+          title={descricaoLimpa || "—"}
+        >
+          {descricaoLimpa || "—"}
+        </p>
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] font-semibold text-slate-500 dark:text-white/45">
+          <span className="shrink-0">
+            {formatBRDate(String(t.data ?? ""))}
+          </span>
+
+          {!!categoriaLabelItem && (
+            <span className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-white/70">
+              {categoriaLabelItem}
+            </span>
+          )}
+
+          {!!tagLabelItem && (
+            <span className="inline-flex max-w-full items-center rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:text-violet-200">
+              {tagLabelItem}
+            </span>
+          )}
+
+          <span className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-white/55">
+            {tipoGastoLabelItem}
+          </span>
+
+          {isParcelado && (
+            <span className="inline-flex max-w-full items-center rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-black text-rose-600 dark:text-rose-300">
+              Parcela {parcelaAtual} de {parcelasTotal}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between border-t border-slate-200/70 pt-3 dark:border-white/10">
+        {(() => {
+          const podeEditarCompra =
+            !!onEditTransacao &&
+            !isParcelaDeAcordoFatura &&
+            !isTransacaoOriginalDaFaturaParcelada &&
+            !isParcelado &&
+            podeAlterarCompraNoCiclo(t);
+
+          const podeExcluirCompraFinal =
+            !!onDeleteTransacao &&
+            !isParcelaDeAcordoFatura &&
+            !isTransacaoOriginalDaFaturaParcelada &&
+            podeAlterarCompraNoCiclo(t);
+
+          if (!podeEditarCompra && !podeExcluirCompraFinal) {
+            return <div className="h-8" />;
+          }
+
+          return (
+            <div className="inline-flex items-center gap-1">
+              {podeEditarCompra ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!podeEditarCompra || !onEditTransacao) return;
+                    onEditTransacao(String(t.id));
+                  }}
+                  className="p-1.5 rounded-lg text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+                  title="Editar transação"
+                  aria-label="Editar transação"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
+                  </svg>
+                </button>
+              ) : null}
+
+              {podeExcluirCompraFinal ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!podeExcluirCompraFinal || !onDeleteTransacao) return;
+                    onDeleteTransacao(String(t.id));
+                  }}
+                  className="p-1.5 rounded-lg text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  title="Excluir transação"
+                  aria-label="Excluir transação"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M3 6h18" />
+                    <path d="M8 6V4h8v2" />
+                    <path d="M19 6l-1 14H6L5 6" />
+                    <path d="M10 11v5" />
+                    <path d="M14 11v5" />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
+          );
+        })()}
+
+        <p className="shrink-0 text-right text-[15px] font-black leading-none text-rose-500 dark:text-rose-300">
+          -{moedaBR(valor)}
+        </p>
+      </div>
     </div>
 
-<div className="mt-1.5 sm:mt-1">
-  <div className="flex items-center gap-x-2 gap-y-1.5 overflow-x-auto whitespace-nowrap text-slate-500 text-xs dark:text-white/60">
-    <span className="shrink-0">{formatBRDate(t.data)}</span>
-
-    {catLabel ? (
-      <span
-        className="inline-flex shrink-0 items-center rounded-full bg-black px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white
-        dark:bg-white dark:text-black"
-      >
-        {catLabel}
-      </span>
-    ) : null}
-
-    {t.tag ? (
-      <span
-        className="inline-flex shrink-0 items-center rounded-full bg-gradient-to-r from-violet-600 to-purple-500 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white"
-      >
-        {t.tag}
-      </span>
-    ) : null}
-
-    {isParcelado ? (
-      <span
-        className="inline-flex shrink-0 items-center text-purple-700 text-[9px] sm:text-xs px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200
-        dark:text-white/80 dark:bg-purple-500/10 dark:border-purple-400/20"
-      >
-        Parcelado {parcelaAtual}/{parcelasTotal}
-      </span>
-    ) : null}
-  </div>
-</div>
-                        </div>
-
-                    <div className="text-right shrink-0 flex items-center gap-2">
-                          <div className="text-sm font-semibold text-rose-700 dark:text-red-300">
-                            -{valor.toLocaleString("pt-BR", {
-                              style: "currency",
-                              currency: "BRL",
-                            })}
-                          </div>
-
-{(() => {
-const podeEditarCompra =
-  !!onEditTransacao &&
-  !isParcelaDeAcordoFatura &&
-  !isTransacaoOriginalDaFaturaParcelada &&
-  !isParcelado &&
-  podeAlterarCompraNoCiclo(t);
-
-const podeExcluirCompraFinal =
-  !!onDeleteTransacao &&
-  !isParcelaDeAcordoFatura &&
-  !isTransacaoOriginalDaFaturaParcelada &&
-  podeAlterarCompraNoCiclo(t);
-
-  if (!podeEditarCompra && !podeExcluirCompraFinal) {
-    return null;
-  }
-
-  return (
-    <div className="inline-flex items-center gap-1">
-      {podeEditarCompra ? (
-        <button
-          type="button"
-          onClick={() => {
-            if (!podeEditarCompra || !onEditTransacao) return;
-            onEditTransacao(String(t.id));
-          }}
-          className="h-8 w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-[#4600ac] dark:text-white/55 dark:hover:text-violet-300"
-          title="Editar transação"
-          aria-label="Editar transação"
+    {/* WEB/DESKTOP - volta ao layout antigo */}
+    <div className="hidden lg:flex lg:items-start lg:justify-between lg:gap-3 lg:overflow-hidden">
+      <div className="min-w-0 flex-1">
+        <div
+          className="text-slate-900 text-sm font-medium leading-snug truncate dark:text-white/90"
+          title={descricaoLimpa || "—"}
         >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 20h9" />
-            <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
-          </svg>
-        </button>
-      ) : null}
+          {descricaoLimpa || "—"}
+        </div>
 
-      {podeExcluirCompraFinal ? (
-        <button
-          type="button"
-          onClick={() => {
-            if (!podeExcluirCompraFinal || !onDeleteTransacao) return;
-            onDeleteTransacao(String(t.id));
-          }}
-          className="h-8 w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
-          title="Excluir transação"
-          aria-label="Excluir transação"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M3 6h18" />
-            <path d="M8 6V4h8v2" />
-            <path d="M6 6l1 14h10l1-14" />
-            <path d="M10 11v6" />
-            <path d="M14 11v6" />
-          </svg>
-        </button>
-      ) : null}
+        <div className="mt-1">
+          <div className="flex items-center gap-x-2 gap-y-1.5 overflow-x-auto whitespace-nowrap text-slate-500 text-xs dark:text-white/60">
+            <span className="shrink-0">{formatBRDate(t.data)}</span>
+
+            {catLabel ? (
+              <span className="inline-flex shrink-0 items-center rounded-full bg-black px-2 py-0.5 text-[10px] font-bold text-white dark:bg-white dark:text-black">
+                {catLabel}
+              </span>
+            ) : null}
+
+            {t.tag ? (
+              <span className="inline-flex shrink-0 items-center rounded-full bg-gradient-to-r from-violet-600 to-purple-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                {t.tag}
+              </span>
+            ) : null}
+
+            <span className="inline-flex shrink-0 items-center rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-white/70">
+              {tipoGastoLabelItem}
+            </span>
+
+            {isParcelado ? (
+              <span className="inline-flex shrink-0 items-center rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-black text-rose-600 dark:text-rose-300">
+                Parcela {parcelaAtual} de {parcelasTotal}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="shrink-0 flex items-center gap-3">
+        <p className="text-right text-sm font-black leading-none text-rose-500 dark:text-rose-300">
+          -{moedaBR(valor)}
+        </p>
+
+        {(() => {
+          const podeEditarCompra =
+            !!onEditTransacao &&
+            !isParcelaDeAcordoFatura &&
+            !isTransacaoOriginalDaFaturaParcelada &&
+            !isParcelado &&
+            podeAlterarCompraNoCiclo(t);
+
+          const podeExcluirCompraFinal =
+            !!onDeleteTransacao &&
+            !isParcelaDeAcordoFatura &&
+            !isTransacaoOriginalDaFaturaParcelada &&
+            podeAlterarCompraNoCiclo(t);
+
+          return (
+            <div className="flex items-center gap-1">
+              {podeEditarCompra ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!podeEditarCompra || !onEditTransacao) return;
+                    onEditTransacao(String(t.id));
+                  }}
+                  className="h-8 w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-[#4600ac] dark:text-white/55 dark:hover:text-violet-300"
+                  title="Editar transação"
+                  aria-label="Editar transação"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
+                  </svg>
+                </button>
+              ) : null}
+
+              {podeExcluirCompraFinal ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!podeExcluirCompraFinal || !onDeleteTransacao) return;
+                    onDeleteTransacao(String(t.id));
+                  }}
+                  className="h-8 w-8 inline-flex items-center justify-center transition text-slate-500 hover:text-slate-900 dark:text-white/55 dark:hover:text-white/90"
+                  title="Excluir transação"
+                  aria-label="Excluir transação"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M3 6h18" />
+                    <path d="M8 6V4h8v2" />
+                    <path d="M6 6l1 14h10l1-14" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
+          );
+        })()}
+      </div>
     </div>
-  );
-})()}
-                        </div>
-                      </div>
-                    </li>
-                  );
+  </li>
+);
                 })}
               </ul>
 

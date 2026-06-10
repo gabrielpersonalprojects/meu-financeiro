@@ -1705,47 +1705,103 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
     </div>
   </div>
 
-  <div className="grid grid-cols-1 gap-2 text-[10px] uppercase tracking-wider lg:grid-cols-[1fr_auto] lg:items-center">
-<div className="flex flex-wrap items-center gap-3">
-<span className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#220055] via-[#32007a] to-[#4600ac] px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white ring-1 ring-[#4600ac]/20 shadow-sm dark:bg-none dark:bg-white dark:text-[#220055] dark:ring-white/10">
-  {badgeLabel}
-</span>
-
-  <span className="text-slate-400/80 dark:text-slate-500/80">Mensal</span>
-
-      {mostrarReceitasResumo && (
-        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-          +{formatarMoeda(totalFiltradoReceitas)}
+  <>
+    {/* MOBILE/TABLET */}
+    <div className="lg:hidden space-y-3 text-[10px] uppercase tracking-wider">
+      <div>
+        <span className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#220055] via-[#32007a] to-[#4600ac] px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white ring-1 ring-[#4600ac]/20 shadow-sm dark:bg-none dark:bg-white dark:text-[#220055] dark:ring-white/10">
+          {badgeLabel}
         </span>
-      )}
+      </div>
 
-      {mostrarDespesasResumo && (
-        <span className="font-semibold text-rose-600 dark:text-rose-400">
-          -{formatarMoeda(totalFiltradoDespesas)}
+      <div className="flex w-full items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <span className="shrink-0 text-slate-400/80 dark:text-slate-500/80">
+          Mensal
         </span>
-      )}
 
-      <span className="mx-1 text-slate-400/50 dark:text-slate-600/50">•</span>
+        {mostrarReceitasResumo && (
+          <span className="shrink-0 font-semibold text-emerald-600 dark:text-emerald-400">
+            +{formatarMoeda(totalFiltradoReceitas)}
+          </span>
+        )}
 
-      <span className="text-slate-400/80 dark:text-slate-500/80">Anual ({anoRef})</span>
+        {mostrarDespesasResumo && (
+          <span className="shrink-0 font-semibold text-rose-600 dark:text-rose-400">
+            -{formatarMoeda(totalFiltradoDespesas)}
+          </span>
+        )}
 
-      {mostrarReceitasResumo && (
-        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-          +{formatarMoeda(totalAnualReceitas)}
+        <span className="shrink-0 text-slate-400/50 dark:text-slate-600/50">
+          •
         </span>
-      )}
 
-      {mostrarDespesasResumo && (
-        <span className="font-semibold text-rose-600 dark:text-rose-400">
-          -{formatarMoeda(totalAnualDespesas)}
+        <span className="shrink-0 text-slate-400/80 dark:text-slate-500/80">
+          Anual ({anoRef})
         </span>
-      )}
+
+        {mostrarReceitasResumo && (
+          <span className="shrink-0 font-semibold text-emerald-600 dark:text-emerald-400">
+            +{formatarMoeda(totalAnualReceitas)}
+          </span>
+        )}
+
+        {mostrarDespesasResumo && (
+          <span className="shrink-0 font-semibold text-rose-600 dark:text-rose-400">
+            -{formatarMoeda(totalAnualDespesas)}
+          </span>
+        )}
+      </div>
+
+      <div className="font-bold text-slate-400 dark:text-slate-500">
+        {sortedTransactions.length} Lançamentos Encontrados
+      </div>
     </div>
 
-<div className="font-bold text-slate-400 dark:text-slate-500 lg:min-w-[510px] lg:text-right">
-  {sortedTransactions.length} Lançamentos Encontrados
-</div>
-  </div>
+    {/* DESKTOP/WEB - mantém como estava */}
+    <div className="hidden grid-cols-1 gap-2 text-[10px] uppercase tracking-wider lg:grid lg:grid-cols-[1fr_auto] lg:items-center">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#220055] via-[#32007a] to-[#4600ac] px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white ring-1 ring-[#4600ac]/20 shadow-sm dark:bg-none dark:bg-white dark:text-[#220055] dark:ring-white/10">
+          {badgeLabel}
+        </span>
+
+        <span className="text-slate-400/80 dark:text-slate-500/80">Mensal</span>
+
+        {mostrarReceitasResumo && (
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+            +{formatarMoeda(totalFiltradoReceitas)}
+          </span>
+        )}
+
+        {mostrarDespesasResumo && (
+          <span className="font-semibold text-rose-600 dark:text-rose-400">
+            -{formatarMoeda(totalFiltradoDespesas)}
+          </span>
+        )}
+
+        <span className="mx-1 text-slate-400/50 dark:text-slate-600/50">•</span>
+
+        <span className="text-slate-400/80 dark:text-slate-500/80">
+          Anual ({anoRef})
+        </span>
+
+        {mostrarReceitasResumo && (
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+            +{formatarMoeda(totalAnualReceitas)}
+          </span>
+        )}
+
+        {mostrarDespesasResumo && (
+          <span className="font-semibold text-rose-600 dark:text-rose-400">
+            -{formatarMoeda(totalAnualDespesas)}
+          </span>
+        )}
+      </div>
+
+      <div className="font-bold text-slate-400 dark:text-slate-500 lg:min-w-[510px] lg:text-right">
+        {sortedTransactions.length} Lançamentos Encontrados
+      </div>
+    </div>
+  </>
 </div>
       </div>
 

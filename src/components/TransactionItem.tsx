@@ -240,18 +240,19 @@ useEffect(() => {
     paid ? "opacity-80" : ""
   } ${glowAtraso} hover:scale-[1.003] hover:border-violet-400/25 hover:shadow-[0_0_28px_rgba(124,58,237,0.14)] dark:hover:border-violet-400/25 dark:hover:shadow-[0_0_32px_rgba(124,58,237,0.18)]`}
 >
-  {topBadge && (
-    <div
-      className={[
-        "absolute right-0 top-0 z-10 inline-flex h-7 items-center rounded-bl-xl px-3",
-        "text-[10px] font-black uppercase tracking-[0.14em]",
-        topBadge.className,
-      ].join(" ")}
-      title={topBadge.title}
-    >
-      {topBadge.label}
-    </div>
-  )}
+{topBadge && (
+  <div
+    className={[
+      "static mb-3 ml-auto inline-flex h-7 items-center rounded-xl px-3",
+      "text-[10px] font-black uppercase tracking-[0.14em]",
+      "sm:absolute sm:right-0 sm:top-0 sm:z-10 sm:mb-0 sm:rounded-bl-xl sm:rounded-br-none sm:rounded-tl-none sm:rounded-tr-2xl",
+      topBadge.className,
+    ].join(" ")}
+    title={topBadge.title}
+  >
+    {topBadge.label}
+  </div>
+)}
 
 <div className="flex flex-col gap-4 p-4 sm:gap-5 sm:p-5 sm:flex-row sm:items-center sm:justify-between">      {/* ESQUERDA */}      <div className="min-w-0 flex-1">
         <div className="flex items-start gap-3">
@@ -288,7 +289,7 @@ title={
   <div className="min-w-0 flex-1">
     <div className="flex flex-wrap items-center gap-2">
 <p
-  className="font-bold leading-snug text-slate-800 dark:text-slate-100 truncate"
+  className="max-w-full break-words text-[15px] font-bold leading-snug text-slate-800 dark:text-slate-100 sm:truncate sm:text-base"
   title={descricaoSemParcela || descricaoRaw}
 >
   {descricaoSemParcela || descricaoRaw}
@@ -297,7 +298,7 @@ title={
   </div>
 </div>
 
-<div className="flex flex-wrap items-center gap-x-2 gap-y-2.5 text-[11px] leading-relaxed uppercase tracking-wide">
+<div className="flex flex-col items-start gap-2 text-[11px] leading-relaxed uppercase tracking-wide sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2 sm:gap-y-2.5">
   <span
     className={`px-2 py-0.5 rounded-full font-black ${
       paid
@@ -316,7 +317,7 @@ title={
 
   {metodoPgto ? (
     <>
-      <span className="text-slate-500 dark:text-slate-400">•</span>
+     <span className="hidden sm:inline text-slate-500 dark:text-slate-400">•</span>
       <span className="text-slate-500 dark:text-slate-400 font-bold">
         {String(metodoPgto).toLowerCase() === "debito_conta" ? "Debito" : metodoPgto}
       </span>
@@ -325,7 +326,7 @@ title={
 
   {t.data ? (
     <>
-      <span className="text-slate-500 dark:text-slate-400">•</span>
+     <span className="hidden sm:inline text-slate-500 dark:text-slate-400">•</span>
       <span className="text-slate-500 dark:text-slate-400 font-bold normal-case">
         {formatarData(t.data)}
       </span>
@@ -334,7 +335,7 @@ title={
 
   {isTransacaoFatura && t.qualConta && (
     <>
-      <span className="text-slate-500 dark:text-slate-400">•</span>
+      <span className="hidden sm:inline text-slate-500 dark:text-slate-400">•</span>
       {(() => {
         const infoContaPagante = getContaPartsById(String(t.qualConta), profiles);
         const nomeContaPagante =
@@ -369,7 +370,7 @@ title={
 
     return (
       <>
-        <span className="text-slate-500 dark:text-slate-400">•</span>
+       <span className="hidden sm:inline text-slate-500 dark:text-slate-400">•</span>
 
         {!info ? (
           <span className="normal-case text-slate-500 dark:text-slate-400">
@@ -398,7 +399,7 @@ title={
 
 {info.numero && (
   <>
-    <span className="text-slate-500 dark:text-slate-400">•</span>
+    <span className="hidden sm:inline text-slate-500 dark:text-slate-400">•</span>
     <span className="text-slate-500 dark:text-slate-400">
       {info.numero}
     </span>
@@ -407,7 +408,7 @@ title={
 
 {info.agencia && (
   <>
-    <span className="text-slate-500 dark:text-slate-400">•</span>
+   <span className="hidden sm:inline text-slate-500 dark:text-slate-400">•</span>
     <span className="text-slate-500 dark:text-slate-400">
       {info.agencia}
     </span>

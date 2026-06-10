@@ -243,12 +243,9 @@ export const printCardsResumoPdfReport = ({
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 14px;
+  gap: 26px;
+  padding-left: 14px;
   margin-bottom: 18px;
-  background: #ffffff;
 }
 
 .filters-title {
@@ -265,12 +262,10 @@ export const printCardsResumoPdfReport = ({
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 2px;
-  min-height: 46px;
-  padding: 8px 14px;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-size: 11px;
   color: #334155;
 }

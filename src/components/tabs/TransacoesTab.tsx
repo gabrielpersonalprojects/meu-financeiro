@@ -153,6 +153,15 @@ confirmDelete,
 const [paginaAtual, setPaginaAtual] = useState(1);
 const [mostrarValoresResumo, setMostrarValoresResumo] = useState(true);
 const [buscaTransacoes, setBuscaTransacoes] = useState("");
+const [printModalOpen, setPrintModalOpen] = useState(false);
+
+const [printOptions, setPrintOptions] = useState({
+  despesas: true,
+  receitas: true,
+  transferencias: true,
+  incluirResumo: true,
+});
+
 const [organizacaoLista, setOrganizacaoLista] = useState<
   | "status"
   | "pagos_primeiro"
@@ -780,7 +789,64 @@ const getTransferIdFromTransaction = (transaction: any) =>
 const transacoesRelatorio = useMemo(() => {
   const seenTransferIds = new Set<string>();
 
-  return (sortedTransactions ?? [])
+  const baseRelatorio = buscaTransacoes.trim()
+    ? searchedTransactions
+    : searchableTransactionsBase;
+
+  const toDateNumberRelatorio = (value: any) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return Number.MAX_SAFE_INTEGER;
+
+    const time = new Date(`${raw}T12:00:00`).getTime();
+    return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER;
+  };
+
+  const getCreatedNumberRelatorio = (value: any) => {
+    const n = Number(value ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const compareStableRelatorio = (a: any, b: any) => {
+    const aCreated = getCreatedNumberRelatorio(a?.criadoEm ?? a?.createdAt);
+    const bCreated = getCreatedNumberRelatorio(b?.criadoEm ?? b?.createdAt);
+
+    if (aCreated !== bCreated) return aCreated - bCreated;
+
+    return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
+  };
+
+  const compareStatusRelatorio = (a: any, b: any) => {
+    const aPaid = isPaid(a?.pago);
+    const bPaid = isPaid(b?.pago);
+
+    const aDate = String(a?.data ?? "");
+    const bDate = String(b?.data ?? "");
+
+    const aOverdue = !aPaid && !!aDate && aDate < hojeStr;
+    const bOverdue = !bPaid && !!bDate && bDate < hojeStr;
+
+    if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+
+    if (aPaid !== bPaid) return aPaid ? 1 : -1;
+
+    const aDateNum = toDateNumberRelatorio(aDate);
+    const bDateNum = toDateNumberRelatorio(bDate);
+
+    if (!aPaid && !bPaid) {
+      const diffPending = aDateNum - bDateNum;
+      if (diffPending !== 0) return diffPending;
+    }
+
+    if (aPaid && bPaid) {
+      const diffPaid = bDateNum - aDateNum;
+      if (diffPaid !== 0) return diffPaid;
+    }
+
+    return compareStableRelatorio(a, b);
+  };
+
+  return [...(baseRelatorio ?? [])]
+    .sort(compareStatusRelatorio)
     .filter((transaction: any) => {
       const tipo = String(transaction?.tipo ?? "").toLowerCase();
       return tipo !== "cartao_credito";
@@ -853,7 +919,14 @@ const transacoesRelatorio = useMemo(() => {
       };
     })
     .filter(Boolean);
-}, [sortedTransactions, transactions, profiles]);
+}, [
+  buscaTransacoes,
+  searchedTransactions,
+  searchableTransactionsBase,
+  transactions,
+  profiles,
+  hojeStr,
+]);
 
 const getLancamentoLabel = () => {
   if (filtroLancamento === "receita") return "Somente Entradas";
@@ -913,7 +986,26 @@ useEffect(() => {
 }, [filtroLancamento, organizacaoLista, organizacaoOptions]);
 
 const handlePrintTransacoes = () => {
-  const totalReceitasRelatorio = transacoesRelatorio.reduce(
+  const transacoesSelecionadasRelatorio = transacoesRelatorio.filter(
+    (transaction: any) => {
+      const tipo = String(transaction?.tipo ?? "").toLowerCase();
+
+      const isTransferencia =
+        tipo === "transferencia" ||
+        Boolean(transaction?.transferId) ||
+        Boolean(transaction?.transferenciaId) ||
+        Boolean(transaction?.transfer_id) ||
+        Boolean(transaction?.transferencia_id);
+
+      if (isTransferencia) return printOptions.transferencias;
+      if (tipo === "receita") return printOptions.receitas;
+      if (tipo === "despesa") return printOptions.despesas;
+
+      return false;
+    }
+  );
+
+  const totalReceitasRelatorio = transacoesSelecionadasRelatorio.reduce(
     (acc: number, transaction: any) =>
       String(transaction?.tipo ?? "").toLowerCase() === "receita"
         ? acc + Math.abs(Number(transaction?.valor ?? 0))
@@ -921,7 +1013,7 @@ const handlePrintTransacoes = () => {
     0
   );
 
-  const totalDespesasRelatorio = transacoesRelatorio.reduce(
+  const totalDespesasRelatorio = transacoesSelecionadasRelatorio.reduce(
     (acc: number, transaction: any) =>
       String(transaction?.tipo ?? "").toLowerCase() === "despesa"
         ? acc + Math.abs(Number(transaction?.valor ?? 0))
@@ -930,7 +1022,7 @@ const handlePrintTransacoes = () => {
   );
 
   printTransacoesPdfReport({
-    transacoes: transacoesRelatorio,
+    transacoes: transacoesSelecionadasRelatorio,
     filtroMes,
     contaLabel: badgeLabel,
     lancamentoLabel: getLancamentoLabel(),
@@ -940,10 +1032,11 @@ const handlePrintTransacoes = () => {
     organizacaoLabel: getOrganizacaoLabel(),
     totalReceitas: Number(stats?.receitasMes ?? totalReceitasRelatorio),
     totalDespesas: Number(stats?.despesasMes ?? totalDespesasRelatorio),
-    saldoTotal: Number(stats?.saldoTotal ?? 0),
-    formatarMoeda,
-    formatarData,
-    getContaLabelByTransaction,
+saldoTotal: Number(stats?.saldoTotal ?? 0),
+incluirResumo: printOptions.incluirResumo,
+formatarMoeda,
+formatarData,
+getContaLabelByTransaction,
   });
 };
 const buscaGlobalAtiva = buscaTransacoes.trim().length > 0;
@@ -981,6 +1074,122 @@ className={[
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
+      {printModalOpen && (
+  <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4 backdrop-blur-sm">
+    <div className="w-full max-w-[420px] rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-950">
+      <div className="mb-5">
+        <h3 className="text-lg font-black text-slate-900 dark:text-white">
+          Imprimir relatório
+        </h3>
+
+        <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+          Escolha o que deseja incluir no PDF.
+        </p>
+      </div>
+
+      <div className="space-y-5">
+        <div>
+          <p className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+            Tipos de lançamento
+          </p>
+
+          <div className="space-y-2">
+            {[
+              ["despesas", "Despesas"],
+              ["receitas", "Receitas"],
+              ["transferencias", "Transferências"],
+            ].map(([key, label]) => (
+              <label
+                key={key}
+                className="flex cursor-pointer items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+              >
+                <span>{label}</span>
+
+                <input
+                  type="checkbox"
+                  checked={Boolean((printOptions as any)[key])}
+                  onChange={(e) =>
+                    setPrintOptions((prev) => ({
+                      ...prev,
+                      [key]: e.target.checked,
+                    }))
+                  }
+                  className="h-4 w-4 accent-[#4600ac]"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+            Modelo do PDF
+          </p>
+
+          <div className="space-y-2">
+            <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5">
+              <span>Completo: cards, filtros e lista</span>
+
+              <input
+                type="radio"
+                checked={printOptions.incluirResumo}
+                onChange={() =>
+                  setPrintOptions((prev) => ({
+                    ...prev,
+                    incluirResumo: true,
+                  }))
+                }
+                className="h-4 w-4 accent-[#4600ac]"
+              />
+            </label>
+
+            <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5">
+              <span>Somente lista de transações</span>
+
+              <input
+                type="radio"
+                checked={!printOptions.incluirResumo}
+                onChange={() =>
+                  setPrintOptions((prev) => ({
+                    ...prev,
+                    incluirResumo: false,
+                  }))
+                }
+                className="h-4 w-4 accent-[#4600ac]"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setPrintModalOpen(false)}
+          className="h-11 rounded-2xl px-4 text-sm font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            handlePrintTransacoes();
+            setPrintModalOpen(false);
+          }}
+          disabled={
+            !printOptions.despesas &&
+            !printOptions.receitas &&
+            !printOptions.transferencias
+          }
+          className="h-11 rounded-2xl bg-[#4600ac] px-5 text-sm font-black text-white transition hover:scale-[1.03] hover:bg-[#350080] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Gerar PDF
+        </button>
+      </div>
+    </div>
+  </div>
+)}
   <div className="flex flex-col gap-4 pb-6 border-b border-slate-50 dark:border-slate-800">
 <div className="-mt-8">
 <div className="w-full overflow-visible flex flex-wrap lg:flex-nowrap items-end gap-3">
@@ -1222,7 +1431,7 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
 
 <button
   type="button"
-  onClick={handlePrintTransacoes}
+  onClick={() => setPrintModalOpen(true)}
   title="Imprimir relatório"
   aria-label="Imprimir relatório"
  className="inline-flex h-9 w-9 md:h-10 md:w-10 shrink-0 items-center justify-center rounded-xl border-0 bg-[#4600ac] text-white shadow-none outline-none ring-0 transition hover:scale-[1.06] hover:bg-[#350080] active:scale-[0.97] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 dark:border-0 dark:bg-[#4600ac] dark:shadow-none dark:ring-0 dark:hover:bg-[#5b19c9]"

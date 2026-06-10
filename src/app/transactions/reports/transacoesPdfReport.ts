@@ -12,6 +12,7 @@ type PrintTransacoesPdfReportParams = {
   totalReceitas: number;
   totalDespesas: number;
   saldoTotal: number;
+  incluirResumo?: boolean;
   formatarMoeda: (value: number) => string;
   formatarData: (value: any) => string;
   getContaLabelByTransaction: (transaction: any) => string;
@@ -125,6 +126,18 @@ const getValorTransacao = (tx: any) => {
   return valor;
 };
 
+const isPaidReport = (value: any) => {
+  const safeValue = String(value ?? "").toLowerCase();
+
+  return (
+    value === true ||
+    value === 1 ||
+    safeValue === "1" ||
+    safeValue === "true" ||
+    safeValue === "pago"
+  );
+};
+
 export const printTransacoesPdfReport = ({
   transacoes,
   filtroMes,
@@ -137,6 +150,7 @@ export const printTransacoesPdfReport = ({
   totalReceitas,
   totalDespesas,
   saldoTotal,
+  incluirResumo = true,
   formatarMoeda,
   formatarData,
   getContaLabelByTransaction,
@@ -150,10 +164,11 @@ export const printTransacoesPdfReport = ({
       const tipo = String(tx?.tipo ?? "").toLowerCase();
       const tipoLabel = getTipoLabel(tipo);
       const tipoClass = getTipoClass(tipo);
-      const valor = getValorTransacao(tx);
-      const valorAbs = Math.abs(Number(valor ?? 0));
-      const valorPrefix = tipo === "receita" ? "+" : tipo === "despesa" ? "-" : "";
-      const conta = getContaLabelByTransaction(tx);
+const valor = getValorTransacao(tx);
+const valorAbs = Math.abs(Number(valor ?? 0));
+const valorPrefix = tipo === "receita" ? "+" : tipo === "despesa" ? "-" : "";
+const paidClass = isPaidReport(tx?.pago) ? "paid-row" : "";
+const conta = getContaLabelByTransaction(tx);
       const categoria = String(tx?.categoria ?? "").trim();
       const tipoGasto = String(tx?.tipoGasto ?? "").trim();
       const tag = String(tx?.tag ?? tx?.tagCC ?? tx?.payload?.tag ?? "").trim();
@@ -170,7 +185,7 @@ const meta = [
         .join(" • ");
 
       return `
-        <tr>
+        <tr class="${paidClass}">
           <td>
 <div class="transaction-title">
   ${getTipoBadgeSvg(tipoLabel, tipoClass)}
@@ -286,12 +301,9 @@ const meta = [
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          gap: 10px;
-          border: 1px solid #e2e8f0;
-          border-radius: 16px;
-          padding: 14px;
+          gap: 26px;
+          padding-left: 14px;
           margin-bottom: 18px;
-          background: #ffffff;
         }
 
         .filter-chip {
@@ -299,12 +311,10 @@ const meta = [
           flex-direction: column;
           align-items: flex-start;
           justify-content: center;
-          gap: 2px;
-          min-height: 46px;
-          padding: 8px 14px;
-          border-radius: 16px;
-          border: 1px solid #e2e8f0;
-          background: #f8fafc;
+          gap: 4px;
+          padding: 0;
+          border: 0;
+          background: transparent;
           font-size: 11px;
           color: #334155;
         }
@@ -362,6 +372,11 @@ const meta = [
         tr {
           break-inside: avoid;
           page-break-inside: avoid;
+        }
+
+        tr.paid-row {
+          opacity: 0.48;
+          filter: grayscale(0.2);
         }
 
         td {
@@ -464,72 +479,59 @@ const meta = [
         </div>
       </header>
 
-      <section class="summary">
-        <div class="summary-card">
-          <div class="summary-row">
-            <span>Saldo atual</span>
-            <strong>${escapeHtml(formatarMoeda(saldoTotal))}</strong>
-          </div>
-        </div>
+      ${
+        incluirResumo
+          ? `
+            <section class="summary">
+              <div class="summary-card">
+                <div class="summary-row">
+                  <span>Saldo atual</span>
+                  <strong>${escapeHtml(formatarMoeda(saldoTotal))}</strong>
+                </div>
+              </div>
 
-        <div class="summary-card">
-          <div class="summary-row">
-            <span>Receitas</span>
-            <strong>${escapeHtml(formatarMoeda(totalReceitas))}</strong>
-          </div>
-        </div>
+              <div class="summary-card">
+                <div class="summary-row">
+                  <span>Receitas</span>
+                  <strong>${escapeHtml(formatarMoeda(totalReceitas))}</strong>
+                </div>
+              </div>
 
-        <div class="summary-card">
-          <div class="summary-row">
-            <span>Despesas</span>
-            <strong>${escapeHtml(formatarMoeda(totalDespesas))}</strong>
-          </div>
-        </div>
+              <div class="summary-card">
+                <div class="summary-row">
+                  <span>Despesas</span>
+                  <strong>${escapeHtml(formatarMoeda(totalDespesas))}</strong>
+                </div>
+              </div>
 
-        <div class="summary-card">
-          <div class="summary-row">
-            <span>Itens</span>
-            <strong>${transacoesSafe.length}</strong>
-          </div>
-        </div>
-      </section>
+              <div class="summary-card">
+                <div class="summary-row">
+                  <span>Itens</span>
+                  <strong>${transacoesSafe.length}</strong>
+                </div>
+              </div>
+            </section>
+          `
+          : ""
+      }
 
-      <section class="filters">
-        <div class="filter-chip">
-          <strong>Mês</strong>
-          <span>${escapeHtml(mesLabel)}</span>
-        </div>
+      ${
+        incluirResumo
+          ? `
+            <section class="filters">
+              <div class="filter-chip">
+                <strong>Mês</strong>
+                <span>${escapeHtml(mesLabel)}</span>
+              </div>
 
-        <div class="filter-chip">
-          <strong>Conta</strong>
-          <span>${escapeHtml(contaLabel)}</span>
-        </div>
-
-        <div class="filter-chip">
-          <strong>Lançamento</strong>
-          <span>${escapeHtml(lancamentoLabel)}</span>
-        </div>
-
-        <div class="filter-chip">
-          <strong>Categoria</strong>
-          <span>${escapeHtml(categoriaLabel)}</span>
-        </div>
-
-        <div class="filter-chip">
-          <strong>Tipo gasto</strong>
-          <span>${escapeHtml(tipoGastoLabel)}</span>
-        </div>
-
-        <div class="filter-chip">
-          <strong>Busca</strong>
-          <span>${escapeHtml(buscaLabel)}</span>
-        </div>
-
-        <div class="filter-chip">
-          <strong>Organização</strong>
-          <span>${escapeHtml(organizacaoLabel)}</span>
-        </div>
-      </section>
+              <div class="filter-chip">
+                <strong>Conta</strong>
+                <span>${escapeHtml(contaLabel)}</span>
+              </div>
+            </section>
+          `
+          : ""
+      }
 
       <section class="transactions-card">
         <div class="transactions-header">

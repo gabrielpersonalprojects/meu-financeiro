@@ -447,9 +447,9 @@ const searchableTransactionsBase = useMemo(() => {
 const searchedTransactions = useMemo(() => {
   const termo = normalizeSearchText(buscaTransacoes);
 
-if (!termo) return getFilteredTransactions;
+  if (!termo) return getFilteredTransactions;
 
-return (getFilteredTransactions ?? []).filter((t: any) => {
+  return (searchableTransactionsBase ?? []).filter((t: any) => {
     const contaId = String(
       t?.contaId ??
         t?.profileId ??
@@ -946,7 +946,7 @@ const handlePrintTransacoes = () => {
     getContaLabelByTransaction,
   });
 };
-
+const buscaGlobalAtiva = buscaTransacoes.trim().length > 0;
 const PerfilToggleButton = ({ perfil }: { perfil: "PF" | "PJ" }) => {
   const ativo = perfilCardsAtivo === perfil;
   const disabled = !perfilCardsHabilitado;
@@ -1335,32 +1335,47 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
 <div className="w-full sm:w-auto">
-  <div className="flex w-full items-end overflow-x-auto border-b border-slate-200 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] dark:border-white/10 sm:w-auto [&::-webkit-scrollbar]:hidden">
-    {[
-      { key: "despesa", label: "Despesas" },
-      { key: "receita", label: "Receitas" },
-      { key: "transferencia", label: "Transferências" },
-    ].map((tab) => {
-      const active = filtroLancamento === tab.key;
+<div
+  className={[
+    "flex w-full items-end overflow-x-auto border-b border-slate-200 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] dark:border-white/10 sm:w-auto [&::-webkit-scrollbar]:hidden",
+    buscaGlobalAtiva ? "opacity-35 grayscale pointer-events-none" : "",
+  ].join(" ")}
+  title={
+    buscaGlobalAtiva
+      ? "Busca global ativa: podem aparecer despesas, receitas e transferências."
+      : undefined
+  }
+>
+  {[
+    { key: "despesa", label: "Despesas" },
+    { key: "receita", label: "Receitas" },
+    { key: "transferencia", label: "Transferências" },
+  ].map((tab) => {
+    const active = filtroLancamento === tab.key;
 
-      return (
-        <button
-          key={tab.key}
-          type="button"
-          onClick={() => setFiltroLancamento(tab.key)}
-          className={[
-            "relative -mb-px h-11 rounded-t-2xl border px-5 text-[13px] font-bold transition-all",
-            "whitespace-nowrap",
-            active
-              ? "z-10 border-slate-200 border-b-white bg-white text-[#4600ac] shadow-[0_-8px_24px_-18px_rgba(70,0,172,0.55)] dark:border-white/10 dark:border-b-slate-950 dark:bg-slate-950 dark:text-violet-200"
-              : "border-transparent bg-transparent text-slate-500 hover:bg-white/70 hover:text-[#4600ac] dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white",
-          ].join(" ")}
-        >
-          {tab.label}
-        </button>
-      );
-    })}
-  </div>
+    return (
+      <button
+        key={tab.key}
+        type="button"
+        onClick={() => {
+          if (buscaGlobalAtiva) return;
+          setFiltroLancamento(tab.key);
+        }}
+        disabled={buscaGlobalAtiva}
+        className={[
+          "relative -mb-px h-11 rounded-t-2xl border px-5 text-[13px] font-bold transition-all",
+          "whitespace-nowrap",
+          buscaGlobalAtiva ? "cursor-not-allowed" : "",
+          active
+            ? "z-10 border-slate-200 border-b-white bg-white text-[#4600ac] shadow-[0_-8px_24px_-18px_rgba(70,0,172,0.55)] dark:border-white/10 dark:border-b-slate-950 dark:bg-slate-950 dark:text-violet-200"
+            : "border-transparent bg-transparent text-slate-500 hover:bg-white/70 hover:text-[#4600ac] dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white",
+        ].join(" ")}
+      >
+        {tab.label}
+      </button>
+    );
+  })}
+</div>
 </div>
 
         {deveMostrarFiltroCategoria && (
@@ -1555,6 +1570,10 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
 
                     const atrasada = !paid && t.data < hojeStr;
 
+                    const paidRowClass = paid
+  ? "opacity-55 saturate-[0.65] grayscale-[0.12] transition-opacity hover:opacity-80"
+  : "";
+
                     const isReceita = t.tipo === "receita";
                     const baseBg = isReceita
                       ? "bg-emerald-50/20 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-700/20"
@@ -1581,22 +1600,26 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
                       ) as any[];
 
                       if (!legs || legs.length < 2) {
-                        return (
-                          <TransactionItem
-                            key={String((t as any)?.id ?? "")}
-                            t={t}
-                            allTransactions={transactions}
-                            profiles={profiles}
-                            hojeStr={hojeStr}
-                            togglePago={togglePago}
-                            isTogglePagoLocked={isTogglePagoLocked}
-                            formatarData={formatarData}
-                            formatarMoeda={formatarMoeda}
-                            getContaPartsById={getContaPartsById}
-                            onEdit={handleEditClick}
-                            onDelete={confirmDelete}
-                          />
-                        );
+return (
+  <div
+    key={String((t as any)?.id ?? "")}
+    className={paidRowClass}
+  >
+    <TransactionItem
+      t={t}
+      allTransactions={transactions}
+      profiles={profiles}
+      hojeStr={hojeStr}
+      togglePago={togglePago}
+      isTogglePagoLocked={isTogglePagoLocked}
+      formatarData={formatarData}
+      formatarMoeda={formatarMoeda}
+      getContaPartsById={getContaPartsById}
+      onEdit={handleEditClick}
+      onDelete={confirmDelete}
+    />
+  </div>
+);
                       }
 
                       const saida =
@@ -1662,7 +1685,7 @@ triggerClassName="sm:min-w-[230px] sm:max-w-[360px] sm:w-auto"
 className={[
   "group flex items-center justify-between p-4 rounded-2xl border transition-all",
   paidTransfer
-    ? "bg-emerald-50/20 border-emerald-100 shadow-sm opacity-75 dark:bg-emerald-900/10 dark:border-emerald-700/20 dark:shadow-lg dark:shadow-black/10"
+      ? "bg-emerald-50/20 border-emerald-100 shadow-sm opacity-55 saturate-[0.65] grayscale-[0.12] dark:bg-emerald-900/10 dark:border-emerald-700/20 dark:shadow-lg dark:shadow-black/10 hover:opacity-80"
     : "bg-white/70 border-slate-200/70 shadow-sm dark:bg-slate-900/40 dark:border-violet-500/20 dark:shadow-lg dark:shadow-black/20",
   "hover:bg-white/90 dark:hover:bg-slate-900/55",
 ].join(" ")}
@@ -1765,22 +1788,26 @@ className={[
                       );
                     }
 
-                    return (
-                      <TransactionItem
-                        key={String((t as any)?.id ?? "")}
-                        t={t}
-                        allTransactions={transactions}
-                        profiles={profiles}
-                        hojeStr={hojeStr}
-                        togglePago={togglePago}
-                        isTogglePagoLocked={isTogglePagoLocked}
-                        formatarData={formatarData}
-                        formatarMoeda={formatarMoeda}
-                        getContaPartsById={getContaPartsById}
-                        onEdit={handleEditClick}
-                        onDelete={confirmDelete}
-                      />
-                    );
+return (
+  <div
+    key={String((t as any)?.id ?? "")}
+    className={paidRowClass}
+  >
+    <TransactionItem
+      t={t}
+      allTransactions={transactions}
+      profiles={profiles}
+      hojeStr={hojeStr}
+      togglePago={togglePago}
+      isTogglePagoLocked={isTogglePagoLocked}
+      formatarData={formatarData}
+      formatarMoeda={formatarMoeda}
+      getContaPartsById={getContaPartsById}
+      onEdit={handleEditClick}
+      onDelete={confirmDelete}
+    />
+  </div>
+);
                   }}
                 />
               </div>

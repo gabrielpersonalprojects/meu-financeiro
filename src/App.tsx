@@ -9964,7 +9964,6 @@ const isEndedSemPrazoBusy = isDismissingSemPrazo;
 
 const resumoAlertsCount =
   despesasVencendoHojeLista.length +
-  proximosVencimentosLista.length +
   despesasAtrasadasLista.length +
   receitasVencendoHojeLista.length +
   receitasAtrasadasLista.length +
@@ -10332,7 +10331,48 @@ className={resumoItemClass}             >
           </section>
         )}
 
-                {proximosVencimentosLista.length > 0 && (
+
+
+        {cartoesAtrasadosLista.length > 0 && (
+          <section className="rounded-[26px] border border-rose-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-rose-400/15 dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+<div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                  Cartões
+                </div>
+<h3 className="mt-1 text-[15px] font-semibold text-rose-600 dark:text-rose-300">
+                  Em atraso
+                </h3>
+              </div>
+
+              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+                {cartoesAtrasadosLista.length}
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-2.5">
+              {cartoesAtrasadosLista.map((item) => (
+                <button
+                  key={`cartao_atraso_${item.cartaoId}_${item.ciclo}`}
+                  type="button"
+                  onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
+                  className={resumoItemClass}
+                >
+                  <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
+                    {item.label} — {String(item.ciclo).slice(5, 7)}/{String(item.ciclo).slice(0, 4)}
+                  </span>
+
+<span className={resumoActionButtonClass}>
+  Acessar fatura
+</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    )}
+                    {proximosVencimentosLista.length > 0 && (
   <section className="rounded-[26px] border border-slate-200/80 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-900">
     <div className="flex items-center justify-between gap-3">
       <div>
@@ -10386,46 +10426,6 @@ className={resumoItemClass}             >
     </div>
   </section>
 )}
-
-        {cartoesAtrasadosLista.length > 0 && (
-          <section className="rounded-[26px] border border-rose-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-rose-400/15 dark:bg-slate-900">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-<div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
-                  Cartões
-                </div>
-<h3 className="mt-1 text-[15px] font-semibold text-rose-600 dark:text-rose-300">
-                  Em atraso
-                </h3>
-              </div>
-
-              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
-                {cartoesAtrasadosLista.length}
-              </span>
-            </div>
-
-            <div className="mt-4 space-y-2.5">
-              {cartoesAtrasadosLista.map((item) => (
-                <button
-                  key={`cartao_atraso_${item.cartaoId}_${item.ciclo}`}
-                  type="button"
-                  onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
-                  className={resumoItemClass}
-                >
-                  <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
-                    {item.label} — {String(item.ciclo).slice(5, 7)}/{String(item.ciclo).slice(0, 4)}
-                  </span>
-
-<span className={resumoActionButtonClass}>
-  Acessar fatura
-</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
-    )}
   </div>
 );
 

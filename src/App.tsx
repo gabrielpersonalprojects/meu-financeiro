@@ -13608,7 +13608,7 @@ stats={stats}
           </button>
         </div>
 
-        <div className="p-2 max-h-[320px] overflow-auto">
+       <div className="sidebar-panel-scroll p-2 max-h-[320px] overflow-auto">
           {profiles
             .filter((p) => {
   const origemVal = String(formContaOrigem || "");
@@ -13669,9 +13669,7 @@ stats={stats}
             : "text-slate-800 dark:text-slate-100"
         }`}
       >
-        {`${String((p as any)?.name ?? (p as any)?.nome ?? "Conta").trim()} • ${
-  String((p as any)?.perfilConta ?? "").trim().toUpperCase() === "PJ" ? "PJ" : "PF"
-}`}
+{`${String((p as any)?.name ?? (p as any)?.nome ?? "Conta").trim()} • ${String((p as any)?.tipoConta ?? "Corrente").trim().replace(/^Conta\s+/i, "C/ ")}`}
       </div>
     </div>
   </div>

@@ -125,13 +125,31 @@ const recurrenceWindowMonths = Number(
     0
 );
 
+const tipoGastoNorm = norm(
+  (t as any)?.tipoGasto ?? (t as any)?.payload?.tipoGasto ?? ""
+);
+
 const isMensalVisual =
   !isParceladoVisual &&
   !!recorrenciaId &&
   (
     (t as any)?.isRecorrente === true ||
     recurrenceKind === "sem_prazo" ||
-    String((t as any)?.tipoGasto ?? "").trim().toLowerCase() === "fixo"
+    tipoGastoNorm === "fixo"
+  );
+
+const isReceitaAvulsaVisual =
+  isReceita &&
+  !isParceladoVisual &&
+  !isMensalVisual &&
+  !recorrenciaId;
+
+const isVariavelVisual =
+  !isParceladoVisual &&
+  !isMensalVisual &&
+  (
+    tipoGastoNorm === "variavel" ||
+    isReceitaAvulsaVisual
   );
 
 const recorrenciasRelacionadas = isMensalVisual
@@ -177,20 +195,27 @@ const mensalTotalNum = isMensalVisual
 
 const topBadge = isParceladoVisual
   ? {
-      label: `Parcela ${parcelaAtualNum} de ${totalParcelasNum}`,
-      title: `Parcela ${parcelaAtualNum} de ${totalParcelasNum}`,
+label: `Parcelado ${parcelaAtualNum} de ${totalParcelasNum}`,
+title: `Parcelado ${parcelaAtualNum} de ${totalParcelasNum}`,
       className: isReceita
         ? "bg-gradient-to-r from-[#059669] to-[#10b981] text-white shadow-[0_10px_24px_rgba(16,185,129,0.28)] dark:from-[#10b981] dark:to-[#34d399] dark:text-white dark:shadow-[0_10px_24px_rgba(52,211,153,0.22)]"
         : "bg-gradient-to-r from-[#be123c] to-[#f43f5e] text-white shadow-[0_10px_24px_rgba(244,63,94,0.28)] dark:from-[#e11d48] dark:to-[#fb7185] dark:text-white dark:shadow-[0_10px_24px_rgba(251,113,133,0.24)]",
     }
   : isMensalVisual && mensalAtualNum > 0 && mensalTotalNum > 0
 ? {
-label: `Mês ${mensalAtualNum} de ${mensalTotalNum}`,
-title: `Mês ${mensalAtualNum} de ${mensalTotalNum}`,
+label: `Mensal ${mensalAtualNum} de ${mensalTotalNum}`,
+title: `Mensal ${mensalAtualNum} de ${mensalTotalNum}`,
     className: isReceita
       ? "bg-gradient-to-r from-[#059669] to-[#10b981] text-white shadow-[0_10px_24px_rgba(16,185,129,0.28)] dark:from-[#10b981] dark:to-[#34d399] dark:text-white dark:shadow-[0_10px_24px_rgba(52,211,153,0.22)]"
      : "bg-gradient-to-r from-[#be123c] to-[#f43f5e] text-white shadow-[0_10px_24px_rgba(244,63,94,0.28)] dark:from-[#e11d48] dark:to-[#fb7185] dark:text-white dark:shadow-[0_10px_24px_rgba(251,113,133,0.24)]",
   }
+  : isVariavelVisual
+  ? {
+      label: "Variável",
+      title: isReceita ? "Receita variável" : "Despesa variável",
+      className:
+        "bg-gradient-to-r from-[#4600ac] to-[#7c3aed] text-white shadow-[0_10px_24px_rgba(124,58,237,0.26)] dark:from-[#7c3aed] dark:to-[#a78bfa] dark:text-white dark:shadow-[0_10px_24px_rgba(167,139,250,0.22)]",
+    }
   : null;
 
   const [showFaturaToggleWarning, setShowFaturaToggleWarning] = useState(false);

@@ -1878,7 +1878,7 @@ return (
       togglePago={togglePago}
       isTogglePagoLocked={isTogglePagoLocked}
       formatarData={formatarData}
-      formatarMoeda={formatarMoeda}
+      formatarMoeda={(valor: any) => formatarMoeda(Math.abs(Number(valor ?? 0)))}
       getContaPartsById={getContaPartsById}
       onEdit={handleEditClick}
       onDelete={confirmDelete}
@@ -2066,7 +2066,7 @@ return (
       togglePago={togglePago}
       isTogglePagoLocked={isTogglePagoLocked}
       formatarData={formatarData}
-      formatarMoeda={formatarMoeda}
+      formatarMoeda={(valor: any) => formatarMoeda(Math.abs(Number(valor ?? 0)))}
       getContaPartsById={getContaPartsById}
       onEdit={handleEditClick}
       onDelete={confirmDelete}

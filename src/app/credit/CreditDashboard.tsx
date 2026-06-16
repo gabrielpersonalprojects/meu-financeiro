@@ -1836,12 +1836,7 @@ const descricaoLimpa = String(t.descricao ?? "")
 const tagLabelItem = String((t as any)?.tag ?? "").trim();
 const tipoGastoItem = resolveCreditSpendingType(t);
 
-const tipoGastoLabelItem =
-  tipoGastoItem === "parcelado"
-    ? "Parcelamento"
-    : tipoGastoItem === "fixo"
-    ? "Fixo/Mensal"
-    : "Variável";
+const tipoGastoLabelItem = tipoGastoItem === "fixo" ? "Fixo/Mensal" : "";
 
 return (
   <li
@@ -1879,9 +1874,11 @@ return (
             </span>
           )}
 
-          <span className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-white/55">
-            {tipoGastoLabelItem}
-          </span>
+{!!tipoGastoLabelItem && (
+  <span className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-white/55">
+    {tipoGastoLabelItem}
+  </span>
+)}
 
           {isParcelado && (
             <span className="inline-flex max-w-full items-center rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-black text-rose-600 dark:text-rose-300">
@@ -2002,9 +1999,11 @@ return (
               </span>
             ) : null}
 
-            <span className="inline-flex shrink-0 items-center rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-white/70">
-              {tipoGastoLabelItem}
-            </span>
+{!!tipoGastoLabelItem && (
+  <span className="inline-flex shrink-0 items-center rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-white/70">
+    {tipoGastoLabelItem}
+  </span>
+)}
 
             {isParcelado ? (
               <span className="inline-flex shrink-0 items-center rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-black text-rose-600 dark:text-rose-300">

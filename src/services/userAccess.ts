@@ -83,3 +83,61 @@ export async function setUserAccountOrder(
 
   if (error) throw error;
 }
+
+export type UserContactInfo = {
+  whatsappNumber: string;
+  whatsappUpdatedAt: string | null;
+};
+
+export async function getUserContactInfo(
+  userId: string
+): Promise<UserContactInfo> {
+  const cleanUserId = String(userId ?? "").trim();
+
+  if (!cleanUserId) {
+    return {
+      whatsappNumber: "",
+      whatsappUpdatedAt: null,
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("user_access")
+    .select("whatsapp_number, whatsapp_updated_at")
+    .eq("user_id", cleanUserId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return {
+    whatsappNumber: String(data?.whatsapp_number ?? "").trim(),
+    whatsappUpdatedAt: data?.whatsapp_updated_at ?? null,
+  };
+}
+
+export async function setUserWhatsapp(
+  userId: string,
+  whatsappNumber: string
+) {
+  const cleanUserId = String(userId ?? "").trim();
+  const cleanWhatsapp = String(whatsappNumber ?? "").trim();
+
+  if (!cleanUserId) {
+    throw new Error("Usuário inválido para salvar WhatsApp.");
+  }
+
+  const { error } = await supabase
+    .from("user_access")
+    .upsert(
+      {
+        user_id: cleanUserId,
+        whatsapp_number: cleanWhatsapp || null,
+        whatsapp_updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "user_id",
+      }
+    );
+
+  if (error) throw error;
+}

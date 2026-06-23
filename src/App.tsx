@@ -163,9 +163,11 @@ import {
   getUserFavoriteAccount,
   getUserHiddenAccounts,
   getUserAccountOrder,
+  getUserContactInfo,
   setUserFavoriteAccount,
   setUserHiddenAccounts,
   setUserAccountOrder,
+  setUserWhatsapp,
 } from "./services/userAccess";
 
 import {
@@ -1355,6 +1357,22 @@ useEffect(() => {
   };
 }, [helpMenuOpen]);
 
+const [userWhatsapp, setUserWhatsappState] = useState("");
+const [settingsWhatsapp, setSettingsWhatsapp] = useState("");
+const [settingsWhatsappSaving, setSettingsWhatsappSaving] = useState(false);
+
+const [settingsNewEmail, setSettingsNewEmail] = useState("");
+const [settingsEmailSaving, setSettingsEmailSaving] = useState(false);
+
+const [settingsAccessOpen, setSettingsAccessOpen] = useState(false);
+const [settingsPasswordOpen, setSettingsPasswordOpen] = useState(false);
+const [settingsWhatsappOpen, setSettingsWhatsappOpen] = useState(false);
+
+const [settingsCurrentPassword, setSettingsCurrentPassword] = useState("");
+const [settingsNewPassword, setSettingsNewPassword] = useState("");
+const [settingsConfirmPassword, setSettingsConfirmPassword] = useState("");
+const [settingsPasswordSaving, setSettingsPasswordSaving] = useState(false);
+
 const [supportForm, setSupportForm] = useState({
   nome: "",
   email: "",
@@ -1377,6 +1395,196 @@ const fileToBase64 = (file: File) =>
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+
+const handleSaveSettingsWhatsapp = async () => {
+  if (settingsWhatsappSaving) return;
+
+  const userId = String(session?.user?.id ?? "").trim();
+  const whatsapp = String(settingsWhatsapp ?? "").trim();
+
+  if (!userId) {
+    toastCompact("Sessão inválida para salvar WhatsApp.", "error");
+    return;
+  }
+
+  setSettingsWhatsappSaving(true);
+
+  try {
+    await setUserWhatsapp(userId, whatsapp);
+
+    setUserWhatsappState(whatsapp);
+    setSettingsWhatsapp(whatsapp);
+    setSupportForm((prev) => ({
+      ...prev,
+      whatsapp,
+    }));
+
+    toastCompact("WhatsApp atualizado com sucesso.", "success");
+  } catch (err) {
+    console.error("ERRO AO SALVAR WHATSAPP DO USUARIO:", err);
+    toastCompact("Não foi possível salvar o WhatsApp.", "error");
+  } finally {
+    setSettingsWhatsappSaving(false);
+  }
+};
+
+const handleRequestEmailChange = async () => {
+  if (settingsEmailSaving) return;
+
+  const currentEmail = String(session?.user?.email ?? "").trim().toLowerCase();
+  const nextEmail = String(settingsNewEmail ?? "").trim().toLowerCase();
+
+  if (!session?.user?.id) {
+    toastCompact("Sessão inválida para alterar e-mail.", "error");
+    return;
+  }
+
+  if (!nextEmail) {
+    toastCompact("Informe o novo e-mail de acesso.", "error");
+    return;
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
+    toastCompact("Informe um e-mail válido.", "error");
+    return;
+  }
+
+  if (nextEmail === currentEmail) {
+    toastCompact("O novo e-mail precisa ser diferente do atual.", "error");
+    return;
+  }
+
+  const confirmou = await new Promise<boolean>((resolve) => {
+    abrirConfirmacao({
+      title: "Alterar e-mail de acesso",
+      message:
+        "Vamos enviar uma confirmação para o novo e-mail. Por segurança, você será desconectado e deverá entrar novamente após confirmar a troca.",
+      confirmText: "Enviar confirmação",
+      cancelText: "Cancelar",
+      onConfirm: () => {
+        resolve(true);
+        fecharConfirmacao();
+      },
+      onCancel: () => {
+        resolve(false);
+        fecharConfirmacao();
+      },
+    });
+  });
+
+  if (!confirmou) return;
+
+  setSettingsEmailSaving(true);
+
+  try {
+    const { error } = await supabase.auth.updateUser({
+      email: nextEmail,
+    });
+
+    if (error) throw error;
+
+    toastCompact(
+      "Confirmação enviada. Entre novamente após validar o novo e-mail.",
+      "success"
+    );
+
+    setSettingsNewEmail("");
+
+   await supabase.auth.signOut({ scope: "local" });
+  } catch (err) {
+    console.error("ERRO AO SOLICITAR TROCA DE EMAIL:", err);
+    toastCompact("Não foi possível solicitar a troca de e-mail.", "error");
+  } finally {
+    setSettingsEmailSaving(false);
+  }
+};
+
+const handleRequestPasswordChange = async () => {
+  if (settingsPasswordSaving) return;
+
+  const email = String(session?.user?.email ?? "").trim().toLowerCase();
+  const currentPassword = String(settingsCurrentPassword ?? "");
+  const newPassword = String(settingsNewPassword ?? "");
+  const confirmPassword = String(settingsConfirmPassword ?? "");
+
+  if (!session?.user?.id || !email) {
+    toastCompact("Sessão inválida para alterar senha.", "error");
+    return;
+  }
+
+  if (!currentPassword) {
+    toastCompact("Informe sua senha atual.", "error");
+    return;
+  }
+
+  setSettingsPasswordSaving(true);
+
+  try {
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: currentPassword,
+    });
+
+    if (signInError) {
+      toastCompact("Senha atual incorreta.", "error");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toastCompact("A nova senha precisa ter pelo menos 8 caracteres.", "error");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toastCompact("As senhas não conferem.", "error");
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      toastCompact("A nova senha precisa ser diferente da senha atual.", "error");
+      return;
+    }
+
+    const confirmou = await new Promise<boolean>((resolve) => {
+      abrirConfirmacao({
+        title: "Alterar senha de acesso",
+        message:
+          "Sua senha atual foi validada. Agora vamos alterar sua senha de acesso. Por segurança, você será desconectado e deverá entrar novamente com a nova senha.",
+        confirmText: "Alterar senha",
+        cancelText: "Cancelar",
+        onConfirm: () => {
+          resolve(true);
+          fecharConfirmacao();
+        },
+        onCancel: () => {
+          resolve(false);
+          fecharConfirmacao();
+        },
+      });
+    });
+
+    if (!confirmou) return;
+
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (updateError) throw updateError;
+
+    toastCompact("Senha alterada com sucesso. Entre novamente.", "success");
+
+    setSettingsCurrentPassword("");
+    setSettingsNewPassword("");
+    setSettingsConfirmPassword("");
+
+    await supabase.auth.signOut({ scope: "local" });
+  } catch (err) {
+    console.error("ERRO AO ALTERAR SENHA:", err);
+    toastCompact("Não foi possível alterar a senha.", "error");
+  } finally {
+    setSettingsPasswordSaving(false);
+  }
+};
 
 const handleSubmitSupportTicket = async () => {
   if (supportSending) return;
@@ -1449,13 +1657,13 @@ if (arquivo && arquivo.size > 3 * 1024 * 1024) {
       "success"
     );
 
-    setSupportForm({
-      nome: "",
-      email: String(session?.user?.email ?? "").trim(),
-      whatsapp: "",
-      mensagem: "",
-      arquivo: null,
-    });
+setSupportForm({
+  nome: "",
+  email: String(session?.user?.email ?? "").trim(),
+  whatsapp: String(userWhatsapp ?? "").trim(),
+  mensagem: "",
+  arquivo: null,
+});
 
     setHelpModalMode(null);
   } catch (err) {
@@ -1615,11 +1823,12 @@ const [
   invoiceManualStatusRows,
   categoryRows,
   tagRows,
-favoriteId,
-hiddenIds,
-savedAccountOrderIds,
-importBatchRows,
-accountImportBatchRows,
+  favoriteId,
+  hiddenIds,
+  savedAccountOrderIds,
+  userContactInfo,
+  importBatchRows,
+  accountImportBatchRows,
 ] = await Promise.all([
   fetchCreditCards(cleanUserId),
   fetchAccounts(cleanUserId),
@@ -1632,6 +1841,7 @@ accountImportBatchRows,
 getUserFavoriteAccount(cleanUserId),
 getUserHiddenAccounts(cleanUserId),
 getUserAccountOrder(cleanUserId),
+getUserContactInfo(cleanUserId),
 
 (async () => {
   const { data, error } = await supabase
@@ -1784,6 +1994,15 @@ setTransacoes(appTransactionsFromDb as any);
         )
       ).sort((a, b) => a.localeCompare(b, "pt-BR"))
     );
+
+    const whatsappFromDb = String(userContactInfo?.whatsappNumber ?? "").trim();
+
+setUserWhatsappState(whatsappFromDb);
+setSettingsWhatsapp(whatsappFromDb);
+setSupportForm((prev) => ({
+  ...prev,
+  whatsapp: whatsappFromDb,
+}));
 
   } catch (err) {
     console.error("ERRO AO CARREGAR DADOS DO USUARIO:", err);
@@ -1950,6 +2169,19 @@ setParcelamentosFatura([]);
 setFaturasStatusManual([]);
 setCategorias(CATEGORIAS_PADRAO);
 setCcTags([]);
+setUserWhatsappState("");
+setSettingsWhatsapp("");
+setSettingsNewEmail("");
+setSettingsAccessOpen(false);
+setSettingsPasswordOpen(false);
+setSettingsWhatsappOpen(false);
+setSettingsCurrentPassword("");
+setSettingsNewPassword("");
+setSettingsConfirmPassword("");
+setSupportForm((prev) => ({
+  ...prev,
+  whatsapp: "",
+}));
 setAccountsLoaded(false);
 setCreditCardsLoaded(false);
 setCardsWithImportHistory(new Set());
@@ -12828,8 +13060,7 @@ stats={stats}
             aria-label="Fechar configurações"
           />
           <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-white/90 dark:bg-slate-900/85 rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200/70 dark:border-slate-700/60 backdrop-blur">
-              <div className="flex items-center justify-between mb-6">
+<div className="max-h-[88vh] w-full max-w-xl overflow-y-auto bg-white/90 dark:bg-slate-900/85 rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200/70 dark:border-slate-700/60 backdrop-blur">              <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white">Configurações</h3>
                 <button
                   type="button"
@@ -12927,6 +13158,230 @@ stats={stats}
   >
     Gerenciar assinatura
   </button>
+</div>
+
+<div className="space-y-3">
+  {/* CONTA DE ACESSO */}
+  <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-800/40">
+    <button
+      type="button"
+      onClick={() => setSettingsAccessOpen((prev) => !prev)}
+      className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-100/70 dark:hover:bg-white/5"
+    >
+      <div>
+        <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+          Conta de acesso
+        </p>
+        <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+          Deseja alterar seu e-mail de acesso?
+        </p>
+      </div>
+
+      <span
+        className={`text-[18px] font-semibold text-[#40009c] transition-transform dark:text-violet-300 ${
+          settingsAccessOpen ? "rotate-90" : ""
+        }`}
+      >
+        ›
+      </span>
+    </button>
+
+    {settingsAccessOpen && (
+      <div className="border-t border-slate-200/70 px-4 py-4 dark:border-slate-700/60">
+        <div>
+          <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+            E-mail atual
+          </label>
+
+          <input
+            type="email"
+            value={String(session?.user?.email ?? "").trim()}
+            disabled
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white/70 px-4 text-[13px] font-semibold text-slate-500 outline-none dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-400"
+          />
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+            Novo e-mail de acesso
+          </label>
+
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <input
+              type="email"
+              value={settingsNewEmail}
+              onChange={(e) => setSettingsNewEmail(e.target.value)}
+              placeholder="novo@email.com"
+              className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-900 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-100 dark:focus:ring-violet-950/40"
+            />
+
+            <button
+              type="button"
+              onClick={handleRequestEmailChange}
+              disabled={settingsEmailSaving}
+              className="h-11 rounded-2xl px-4 text-[13px] font-semibold text-white shadow-lg transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
+              }}
+            >
+              {settingsEmailSaving ? "Enviando..." : "Trocar e-mail"}
+            </button>
+          </div>
+
+          <p className="mt-2 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+            Enviaremos uma confirmação para o novo e-mail. Por segurança, você será desconectado após solicitar a troca.
+          </p>
+        </div>
+      </div>
+    )}
+  </div>
+
+{/* SENHA DE ACESSO */}
+<div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-800/40">
+  <button
+    type="button"
+    onClick={() => setSettingsPasswordOpen((prev) => !prev)}
+    className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-100/70 dark:hover:bg-white/5"
+  >
+    <div>
+      <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+        Senha de acesso
+      </p>
+      <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+        Alterar senha usada para entrar no FluxMoney
+      </p>
+    </div>
+
+    <span
+      className={`text-[18px] font-semibold text-[#40009c] transition-transform dark:text-violet-300 ${
+        settingsPasswordOpen ? "rotate-90" : ""
+      }`}
+    >
+      ›
+    </span>
+  </button>
+
+  {settingsPasswordOpen && (
+    <div className="border-t border-slate-200/70 px-4 py-4 dark:border-slate-700/60">
+      <div>
+        <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+          Senha atual
+        </label>
+
+        <input
+          type="password"
+          value={settingsCurrentPassword}
+          onChange={(e) => setSettingsCurrentPassword(e.target.value)}
+          placeholder="Digite sua senha atual"
+          autoComplete="current-password"
+          className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-900 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-100 dark:focus:ring-violet-950/40"
+        />
+      </div>
+
+      <div className="mt-4">
+        <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+          Nova senha
+        </label>
+
+        <input
+          type="password"
+          value={settingsNewPassword}
+          onChange={(e) => setSettingsNewPassword(e.target.value)}
+          placeholder="Mínimo 8 caracteres"
+          autoComplete="new-password"
+          className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-900 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-100 dark:focus:ring-violet-950/40"
+        />
+      </div>
+
+      <div className="mt-4">
+        <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+          Confirmar nova senha
+        </label>
+
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <input
+            type="password"
+            value={settingsConfirmPassword}
+            onChange={(e) => setSettingsConfirmPassword(e.target.value)}
+            placeholder="Repita a nova senha"
+            autoComplete="new-password"
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-900 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-100 dark:focus:ring-violet-950/40"
+          />
+
+          <button
+            type="button"
+            onClick={handleRequestPasswordChange}
+            disabled={settingsPasswordSaving}
+            className="h-11 rounded-2xl px-4 text-[13px] font-semibold text-white shadow-lg transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+            style={{
+              background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
+            }}
+          >
+            {settingsPasswordSaving ? "Alterando..." : "Alterar senha"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
+
+  {/* WHATSAPP */}
+  <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-800/40">
+    <button
+      type="button"
+      onClick={() => setSettingsWhatsappOpen((prev) => !prev)}
+      className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-100/70 dark:hover:bg-white/5"
+    >
+      <div>
+        <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+          WhatsApp
+        </p>
+        <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+          {String(userWhatsapp ?? "").trim()
+            ? String(userWhatsapp ?? "").trim()
+            : "Cadastrar ou alterar número"}
+        </p>
+      </div>
+
+      <span
+        className={`text-[18px] font-semibold text-[#40009c] transition-transform dark:text-violet-300 ${
+          settingsWhatsappOpen ? "rotate-90" : ""
+        }`}
+      >
+        ›
+      </span>
+    </button>
+
+    {settingsWhatsappOpen && (
+      <div className="border-t border-slate-200/70 px-4 py-4 dark:border-slate-700/60">
+        <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+          WhatsApp
+        </label>
+
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <input
+            type="tel"
+            value={settingsWhatsapp}
+            onChange={(e) => setSettingsWhatsapp(e.target.value)}
+            placeholder="(00) 00000-0000"
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-900 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-100 dark:focus:ring-violet-950/40"
+          />
+
+          <button
+            type="button"
+            onClick={handleSaveSettingsWhatsapp}
+            disabled={settingsWhatsappSaving}
+            className="h-11 rounded-2xl px-4 text-[13px] font-semibold text-white shadow-lg transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+            style={{
+              background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
+            }}
+          >
+            {settingsWhatsappSaving ? "Salvando..." : "Salvar WhatsApp"}
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
 </div>
 
 <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/40 px-4 py-3 flex md:hidden items-center justify-between gap-4">

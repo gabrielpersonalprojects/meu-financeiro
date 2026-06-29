@@ -2,6 +2,7 @@ const { ApiError } = require("./http");
 const { normalizeCatalogName } = require("./catalogNames");
 
 const COMMON_TYPES = new Set(["receita", "despesa"]);
+const MAX_INSTALLMENTS = 120;
 const PAYMENT_METHODS = new Set([
   "pix",
   "boleto",
@@ -34,6 +35,28 @@ function parsePositiveAmount(value) {
   }
 
   return Math.abs(amount);
+}
+
+function parseInstallments(value) {
+  const installments = Number(value);
+
+  if (!Number.isInteger(installments) || installments <= 1) {
+    throw new ApiError(
+      400,
+      "INVALID_INSTALLMENTS",
+      "installments must be an integer greater than 1."
+    );
+  }
+
+  if (installments > MAX_INSTALLMENTS) {
+    throw new ApiError(
+      400,
+      "INVALID_INSTALLMENTS",
+      `installments must be ${MAX_INSTALLMENTS} or less.`
+    );
+  }
+
+  return installments;
 }
 
 function parseBoolean(value, fieldName) {
@@ -70,6 +93,17 @@ function parseIsoDate(value, code = "INVALID_DATE", fieldName = "date") {
 function isFutureDate(date) {
   const today = new Date().toISOString().slice(0, 10);
   return String(date) > today;
+}
+
+function addMonthsLikeUi(isoDate, monthsToAdd) {
+  const [year, month, day] = String(isoDate).split("-").map(Number);
+  const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+  date.setMonth(date.getMonth() + monthsToAdd);
+
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate()
+  )}`;
 }
 
 function normalizePaymentMethod(value) {
@@ -263,6 +297,11 @@ function buildTransactionSummary(type, description) {
   return `${label} ${description} lançada com sucesso.`;
 }
 
+function buildInstallmentsSummary(type, description, installments) {
+  const label = type === "receita" ? "Receita" : "Despesa";
+  return `${label} ${description} parcelada em ${installments}x lanÃ§ada com sucesso.`;
+}
+
 function mapTransactionResponse(row) {
   return {
     id: row.id,
@@ -277,6 +316,9 @@ function mapTransactionResponse(row) {
 }
 
 module.exports = {
+  MAX_INSTALLMENTS,
+  addMonthsLikeUi,
+  buildInstallmentsSummary,
   buildTransactionSummary,
   getAccountProfileId,
   isFutureDate,
@@ -285,6 +327,7 @@ module.exports = {
   normalizeSpendingType,
   normalizeTransactionType,
   parseBoolean,
+  parseInstallments,
   parseIsoDate,
   parsePositiveAmount,
   requireOwnedAccount,

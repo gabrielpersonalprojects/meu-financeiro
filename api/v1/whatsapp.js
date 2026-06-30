@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { getSupabaseAdmin } = require("../_lib/supabaseAdmin");
 const {
   ApiError,
@@ -139,6 +140,10 @@ function normalizeProfileId(value) {
 
 function typeLabel(type) {
   return String(type ?? "") === "receita" ? "Receita" : "Despesa";
+}
+
+function sameAccountId(left, right) {
+  return String(left ?? "").trim() === String(right ?? "").trim();
 }
 
 async function resolveGetUser(supabase, req) {
@@ -983,6 +988,150 @@ async function handleCreateFixed(req, res, action) {
   });
 }
 
+async function handleCreateTransfer(req, res, action) {
+  await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    const description = requireString(
+      body.description,
+      "DESCRIPTION_REQUIRED",
+      "description is required."
+    );
+    const amountAbs = parsePositiveAmount(body.amount);
+    const date = parseIsoDate(body.date);
+    const paid = parseBoolean(body.paid, "paid");
+    const notes = String(body.notes ?? "").trim();
+    const fromAccountId = requireString(
+      body.from_account_id,
+      "FROM_ACCOUNT_ID_REQUIRED",
+      "from_account_id is required."
+    );
+    const toAccountId = requireString(
+      body.to_account_id,
+      "TO_ACCOUNT_ID_REQUIRED",
+      "to_account_id is required."
+    );
+
+    if (sameAccountId(fromAccountId, toAccountId)) {
+      throw new ApiError(
+        400,
+        "SAME_TRANSFER_ACCOUNT",
+        "from_account_id and to_account_id must be different."
+      );
+    }
+
+    const [fromAccount, toAccount] = await Promise.all([
+      requireOwnedAccount(supabase, user.user_id, fromAccountId),
+      requireOwnedAccount(supabase, user.user_id, toAccountId),
+    ]);
+
+    if (sameAccountId(fromAccount.id, toAccount.id)) {
+      throw new ApiError(
+        400,
+        "SAME_TRANSFER_ACCOUNT",
+        "from_account_id and to_account_id must be different."
+      );
+    }
+
+    const transferId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `tr_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const createdAt = Date.now();
+    const effectivePaid = date <= todayIso() ? paid : false;
+
+    const basePayload = {
+      metodoPagamento: "",
+      tipoGasto: "",
+      recorrenciaId: "",
+      isRecorrente: false,
+      recurrenceKind: "",
+      recurrenceWindowMonths: null,
+      recurrenceOriginDate: "",
+      recurrenceWindowStart: "",
+      recurrenceWindowEnd: "",
+      recurrenceStatus: "",
+      recurrenceRenewalDecision: "",
+      recurrenceDismissedAt: "",
+      recurrenceCanceledAt: "",
+      recurrenceLastActionAt: "",
+      transferId,
+      observacoes: notes,
+      parcelaAtual: null,
+      totalParcelas: null,
+      qualCartao: "",
+    };
+
+    const saida = {
+      user_id: user.user_id,
+      tipo: "despesa",
+      valor: -Math.abs(amountAbs),
+      data: date,
+      descricao: description,
+      categoria: "Transferência",
+      tag: "",
+      pago: effectivePaid,
+      conta_id: fromAccount.id,
+      conta_origem_id: fromAccount.id,
+      conta_destino_id: toAccount.id,
+      cartao_id: null,
+      transfer_from_id: fromAccount.id,
+      transfer_to_id: toAccount.id,
+      qual_conta: fromAccount.id,
+      criado_em: createdAt,
+      payload: {
+        ...basePayload,
+        contraParte: toAccount.id,
+      },
+    };
+
+    const entrada = {
+      user_id: user.user_id,
+      tipo: "receita",
+      valor: Math.abs(amountAbs),
+      data: date,
+      descricao: description,
+      categoria: "Transferência",
+      tag: "",
+      pago: effectivePaid,
+      conta_id: toAccount.id,
+      conta_origem_id: fromAccount.id,
+      conta_destino_id: toAccount.id,
+      cartao_id: null,
+      transfer_from_id: fromAccount.id,
+      transfer_to_id: toAccount.id,
+      qual_conta: toAccount.id,
+      criado_em: createdAt + 1,
+      payload: {
+        ...basePayload,
+        contraParte: fromAccount.id,
+      },
+    };
+
+    const { data: created, error } = await supabase
+      .from("transactions")
+      .insert([saida, entrada])
+      .select("*");
+
+    if (error) throw error;
+
+    return {
+      statusCode: 201,
+      body: {
+        ok: true,
+        status: "created",
+        summary: `Transferência ${description} lançada com sucesso.`,
+        transfer_group: {
+          transfer_id: transferId,
+          from_account_id: fromAccount.id,
+          to_account_id: toAccount.id,
+          amount: amountAbs,
+          paid: effectivePaid,
+        },
+        transactions: (created ?? []).map(mapTransactionResponse),
+      },
+    };
+  });
+}
+
 module.exports = withApi(async function handler(req, res) {
   validateSupplierAuth(req);
 
@@ -1017,6 +1166,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "create_fixed") {
     return handleCreateFixed(req, res, action);
+  }
+  if (action === "create_transfer") {
+    return handleCreateTransfer(req, res, action);
   }
 
   throw new ApiError(400, "INVALID_ACTION", "action is not supported.");

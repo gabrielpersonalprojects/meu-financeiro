@@ -6705,6 +6705,65 @@ const getParcelaSuffixFromTx = (tx: any) => {
   return ` (${parcelaAtual}/${totalParcelas})`;
 };
 
+const getResumoCartoesBadgeLabel = (tx: any) => {
+  const parcelaAtual = Number(
+    tx?.parcelaAtual ??
+      tx?.payload?.parcelaAtual ??
+      tx?.installmentCurrent ??
+      tx?.payload?.installmentCurrent ??
+      0
+  );
+
+  const totalParcelas = Number(
+    tx?.totalParcelas ??
+      tx?.parcelasTotal ??
+      tx?.payload?.totalParcelas ??
+      tx?.payload?.parcelasTotal ??
+      tx?.installmentTotal ??
+      tx?.payload?.installmentTotal ??
+      0
+  );
+
+  if (
+    Number.isFinite(parcelaAtual) &&
+    Number.isFinite(totalParcelas) &&
+    parcelaAtual > 0 &&
+    totalParcelas > 1
+  ) {
+    return {
+      label: `Parcela ${parcelaAtual} de ${totalParcelas}`,
+      kind: "parcelado" as const,
+    };
+  }
+
+  const tipoGastoNorm = String(
+    tx?.tipoGasto ??
+      tx?.payload?.tipoGasto ??
+      tx?.spendingType ??
+      tx?.payload?.spendingType ??
+      ""
+  )
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const isFixoMensal =
+    tipoGastoNorm === "fixo" ||
+    tipoGastoNorm === "mensal" ||
+    tx?.isRecorrente === true ||
+    tx?.payload?.isRecorrente === true;
+
+  if (isFixoMensal) {
+    return {
+      label: "Fixo/Mensal",
+      kind: "fixo" as const,
+    };
+  }
+
+  return null;
+};
+
 const buildDescricaoEditadaSegura = (tx: any, rawDescricao: any) => {
   const suffixParcela = getParcelaSuffixFromTx(tx);
   const descricaoOriginal = String(tx?.descricao ?? "").trim();
@@ -11522,11 +11581,11 @@ onClick={() => {
   key={String(item?.id ?? "")}
 className="grid grid-cols-[minmax(0,1fr)_170px] items-center gap-3 rounded-xl bg-white dark:bg-slate-900 px-3 py-2 border border-slate-200/70 dark:border-white/10 shadow-[0_1px_0_rgba(15,23,42,0.02)] dark:shadow-none">
   <div className="min-w-0">
-    <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
-      {String(item?.descricao ?? "Sem descrição")}
-    </div>
+<div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+  {removeParcelaSuffixFromDescricao(item?.descricao) || "Sem descrição"}
+</div>
 
-<div className="mt-1 flex items-center gap-2 flex-nowrap overflow-hidden text-[11px] text-slate-500 dark:text-slate-400">
+<div className="mt-1 flex items-center gap-2 flex-wrap overflow-hidden text-[11px] text-slate-500 dark:text-slate-400">
   <span className="shrink-0">{formatarData(String(item?.data ?? ""))}</span>
 
   {categoriaResumoCartoesLabel(item?.categoria) ? (
@@ -11538,6 +11597,19 @@ className="grid grid-cols-[minmax(0,1fr)_170px] items-center gap-3 rounded-xl bg
   {String(item?.tag ?? "").trim() ? (
     <span className="min-w-0 truncate">
       • {String(item?.tag ?? "").trim()}
+    </span>
+  ) : null}
+
+  {getResumoCartoesBadgeLabel(item) ? (
+    <span
+      className={[
+        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black",
+        getResumoCartoesBadgeLabel(item)?.kind === "parcelado"
+          ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/20 dark:bg-rose-500/15 dark:text-rose-300"
+          : "border-slate-200 bg-slate-100 text-slate-700 dark:border-white/10 dark:bg-white/10 dark:text-slate-300",
+      ].join(" ")}
+    >
+      {getResumoCartoesBadgeLabel(item)?.label}
     </span>
   ) : null}
 </div>

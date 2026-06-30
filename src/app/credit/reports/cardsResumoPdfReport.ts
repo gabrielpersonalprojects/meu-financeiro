@@ -54,6 +54,81 @@ const slugify = (value: string) =>
     .replace(/^-+|-+$/g, "")
     .toLowerCase();
 
+    const removeParcelaSuffixFromResumoPrint = (descricao: any) =>
+  String(descricao ?? "")
+    .replace(/\s*\(\s*\d+\s*\/\s*\d+\s*\)\s*$/g, "")
+    .trim();
+
+const getResumoCartoesPrintBadge = (tx: any) => {
+  const descricaoRaw = String(tx?.descricao ?? "");
+
+  const parcelaMatch = descricaoRaw.match(
+    /\(\s*(\d+)\s*\/\s*(\d+)\s*\)\s*$/
+  );
+
+  let parcelaAtual = Number(
+    tx?.parcelaAtual ??
+      tx?.payload?.parcelaAtual ??
+      tx?.installmentCurrent ??
+      tx?.payload?.installmentCurrent ??
+      0
+  );
+
+  let totalParcelas = Number(
+    tx?.totalParcelas ??
+      tx?.parcelasTotal ??
+      tx?.payload?.totalParcelas ??
+      tx?.payload?.parcelasTotal ??
+      tx?.installmentTotal ??
+      tx?.payload?.installmentTotal ??
+      0
+  );
+
+  if ((!parcelaAtual || !totalParcelas) && parcelaMatch) {
+    parcelaAtual = Number(parcelaMatch[1] ?? 0);
+    totalParcelas = Number(parcelaMatch[2] ?? 0);
+  }
+
+  if (
+    Number.isFinite(parcelaAtual) &&
+    Number.isFinite(totalParcelas) &&
+    parcelaAtual > 0 &&
+    totalParcelas > 1
+  ) {
+    return {
+      label: `Parcela ${parcelaAtual} de ${totalParcelas}`,
+      kind: "parcelado" as const,
+    };
+  }
+
+  const tipoGastoNorm = String(
+    tx?.tipoGasto ??
+      tx?.payload?.tipoGasto ??
+      tx?.spendingType ??
+      tx?.payload?.spendingType ??
+      ""
+  )
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const isFixoMensal =
+    tipoGastoNorm === "fixo" ||
+    tipoGastoNorm === "mensal" ||
+    tx?.isRecorrente === true ||
+    tx?.payload?.isRecorrente === true;
+
+  if (isFixoMensal) {
+    return {
+      label: "Fixo/Mensal",
+      kind: "fixo" as const,
+    };
+  }
+
+  return null;
+};
+
 export const printCardsResumoPdfReport = ({
   cardsResumoAgrupado,
   cardsResumoFiltradas,
@@ -94,23 +169,37 @@ export const printCardsResumoPdfReport = ({
     .map((grupo: any) => {
       const itensHtml = (grupo.itens ?? [])
         .map((item: any) => {
-          const descricao = escapeHtml(item?.descricao ?? "Lançamento");
-          const data = escapeHtml(formatarData(item?.data));
-          const categoria = escapeHtml(
-            categoriaResumoCartoesLabel(item?.categoria)
-          );
-          const tag = escapeHtml(String(item?.tag ?? "").trim());
-          const valor = escapeHtml(
-            formatarMoeda(Math.abs(Number(item?.valor ?? 0)))
-          );
+const badge = getResumoCartoesPrintBadge(item);
+
+const badgeHtml = badge
+  ? `<span class="info-badge info-badge-${badge.kind}">${escapeHtml(
+      badge.label
+    )}</span>`
+  : "";
+
+const descricao = escapeHtml(
+  removeParcelaSuffixFromResumoPrint(item?.descricao) || "Lançamento"
+);
+
+const data = escapeHtml(formatarData(item?.data));
+
+const categoria = escapeHtml(
+  categoriaResumoCartoesLabel(item?.categoria)
+);
+
+const tag = escapeHtml(String(item?.tag ?? "").trim());
+
+const valor = escapeHtml(
+  formatarMoeda(Math.abs(Number(item?.valor ?? 0)))
+);
 
           return `
             <tr>
               <td>
                 <strong>${descricao}</strong>
-                <div class="muted">
-                  ${data}${categoria ? ` • ${categoria}` : ""}${tag ? ` • ${tag}` : ""}
-                </div>
+<div class="muted">
+  ${data}${categoria ? ` • ${categoria}` : ""}${tag ? ` • ${tag}` : ""}${badgeHtml}
+</div>
               </td>
               <td class="value">${valor}</td>
             </tr>
@@ -347,11 +436,38 @@ tr:last-child td {
           white-space: nowrap;
         }
 
-        .muted {
-          color: #64748b;
-          font-size: 10px;
-          margin-top: 3px;
-        }
+.muted {
+  color: #64748b;
+  font-size: 10px;
+  margin-top: 3px;
+  line-height: 1.65;
+}
+
+.info-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 7px;
+  margin-left: 6px;
+  font-size: 8.5px;
+  line-height: 1;
+  font-weight: 900;
+  border: 1px solid;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.info-badge-parcelado {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.info-badge-fixo {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #475569;
+}
 
         .footer {
           margin-top: 22px;

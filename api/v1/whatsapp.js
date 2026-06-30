@@ -19,11 +19,16 @@ const {
 } = require("../_lib/idempotency");
 const {
   addMonthsLikeUi,
+  buildFixedSummary,
   buildInstallmentsSummary,
+  buildSemPrazoMeta,
   buildTransactionSummary,
+  countMonthsInclusive,
   getAccountProfileId,
   isFutureDate,
   mapTransactionResponse,
+  MAX_FIXED_MONTHS,
+  normalizeDeadlineMode,
   normalizePaymentMethod,
   normalizeSpendingType,
   normalizeTransactionType,
@@ -32,6 +37,7 @@ const {
   parseIsoDate,
   parsePositiveAmount,
   requireOwnedAccount,
+  SEM_PRAZO_MONTHS,
   requireOwnedCommonTransaction,
   validateCategoryIfProvided,
 } = require("../_lib/transactionsCommon");
@@ -852,6 +858,131 @@ async function handleCreateInstallments(req, res, action) {
   });
 }
 
+async function handleCreateFixed(req, res, action) {
+  await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    const type = normalizeTransactionType(body.type);
+    const description = requireString(
+      body.description,
+      "DESCRIPTION_REQUIRED",
+      "description is required."
+    );
+    const amountAbs = parsePositiveAmount(body.amount);
+    const date = parseIsoDate(body.date);
+    const paid = parseBoolean(body.paid, "paid");
+    const deadlineMode = normalizeDeadlineMode(body.deadline_mode);
+    const paymentMethod = normalizePaymentMethod(body.payment_method);
+    const notes = String(body.notes ?? "").trim();
+
+    let months = SEM_PRAZO_MONTHS;
+    let semPrazoMeta = null;
+
+    if (deadlineMode === "com_prazo") {
+      const endDate = parseIsoDate(body.end_date, "INVALID_END_DATE", "end_date");
+      if (endDate < date) {
+        throw new ApiError(
+          400,
+          "INVALID_END_DATE",
+          "end_date cannot be before date."
+        );
+      }
+      months = countMonthsInclusive(date, endDate);
+    } else {
+      semPrazoMeta = buildSemPrazoMeta(date, SEM_PRAZO_MONTHS);
+    }
+
+    if (months > MAX_FIXED_MONTHS) {
+      throw new ApiError(
+        400,
+        "FIXED_MONTHS_LIMIT_EXCEEDED",
+        `fixed transactions can generate at most ${MAX_FIXED_MONTHS} months.`
+      );
+    }
+
+    const account = await requireOwnedAccount(supabase, user.user_id, body.account_id);
+    const profileId = getAccountProfileId(account);
+    const category = await validateCategoryIfProvided({
+      supabase,
+      userId: user.user_id,
+      profileId,
+      type,
+      category: body.category,
+    });
+
+    const signedAmount = type === "receita" ? amountAbs : -amountAbs;
+    const createdAt = Date.now();
+    const recorrenciaId = `rec_${createdAt}`;
+
+    const recurrencePayload =
+      semPrazoMeta ?? {
+        recurrenceKind: "",
+        recurrenceWindowMonths: null,
+        recurrenceOriginDate: "",
+        recurrenceWindowStart: "",
+        recurrenceWindowEnd: "",
+        recurrenceStatus: "",
+        recurrenceRenewalDecision: "",
+        recurrenceDismissedAt: "",
+        recurrenceCanceledAt: "",
+        recurrenceLastActionAt: "",
+      };
+
+    const rows = Array.from({ length: months }, (_, index) => ({
+      user_id: user.user_id,
+      tipo: type,
+      valor: signedAmount,
+      data: addMonthsLikeUi(date, index),
+      descricao: description,
+      categoria: category,
+      tag: "",
+      pago: index === 0 ? paid : false,
+      conta_id: account.id,
+      conta_origem_id: null,
+      conta_destino_id: null,
+      cartao_id: null,
+      transfer_from_id: "",
+      transfer_to_id: "",
+      qual_conta: account.id,
+      criado_em: createdAt + index,
+      payload: {
+        metodoPagamento: paymentMethod,
+        tipoGasto: "fixo",
+        recorrenciaId,
+        isRecorrente: true,
+        ...recurrencePayload,
+        contraParte: "",
+        transferId: "",
+        observacoes: notes,
+        parcelaAtual: null,
+        totalParcelas: null,
+        qualCartao: "",
+      },
+    }));
+
+    const { data: created, error } = await supabase
+      .from("transactions")
+      .insert(rows)
+      .select("*");
+
+    if (error) throw error;
+
+    return {
+      statusCode: 201,
+      body: {
+        ok: true,
+        status: "created",
+        summary: buildFixedSummary(type, description, deadlineMode),
+        fixed_group: {
+          recorrencia_id: recorrenciaId,
+          deadline_mode: deadlineMode,
+          months,
+          monthly_amount: signedAmount,
+        },
+        transactions: (created ?? []).map(mapTransactionResponse),
+      },
+    };
+  });
+}
+
 module.exports = withApi(async function handler(req, res) {
   validateSupplierAuth(req);
 
@@ -883,6 +1014,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "create_installments") {
     return handleCreateInstallments(req, res, action);
+  }
+  if (action === "create_fixed") {
+    return handleCreateFixed(req, res, action);
   }
 
   throw new ApiError(400, "INVALID_ACTION", "action is not supported.");

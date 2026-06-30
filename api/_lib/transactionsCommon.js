@@ -2,7 +2,9 @@ const { ApiError } = require("./http");
 const { normalizeCatalogName } = require("./catalogNames");
 
 const COMMON_TYPES = new Set(["receita", "despesa"]);
+const SEM_PRAZO_MONTHS = 12;
 const MAX_INSTALLMENTS = 120;
+const MAX_FIXED_MONTHS = 120;
 const PAYMENT_METHODS = new Set([
   "pix",
   "boleto",
@@ -59,6 +61,20 @@ function parseInstallments(value) {
   return installments;
 }
 
+function normalizeDeadlineMode(value) {
+  const mode = String(value ?? "").trim().toLowerCase();
+
+  if (mode !== "sem_prazo" && mode !== "com_prazo") {
+    throw new ApiError(
+      400,
+      "INVALID_DEADLINE_MODE",
+      "deadline_mode must be sem_prazo or com_prazo."
+    );
+  }
+
+  return mode;
+}
+
 function parseBoolean(value, fieldName) {
   if (typeof value !== "boolean") {
     throw new ApiError(
@@ -104,6 +120,28 @@ function addMonthsLikeUi(isoDate, monthsToAdd) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
     date.getDate()
   )}`;
+}
+
+function countMonthsInclusive(startIso, endIso) {
+  const [startYear, startMonth] = String(startIso).split("-").map(Number);
+  const [endYear, endMonth] = String(endIso).split("-").map(Number);
+  const months = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+  return Math.max(1, months);
+}
+
+function buildSemPrazoMeta(originDate, months = SEM_PRAZO_MONTHS) {
+  return {
+    recurrenceKind: "sem_prazo",
+    recurrenceWindowMonths: months,
+    recurrenceOriginDate: originDate,
+    recurrenceWindowStart: originDate,
+    recurrenceWindowEnd: addMonthsLikeUi(originDate, months - 1),
+    recurrenceStatus: "ativa",
+    recurrenceRenewalDecision: "pendente",
+    recurrenceDismissedAt: "",
+    recurrenceCanceledAt: "",
+    recurrenceLastActionAt: "",
+  };
 }
 
 function normalizePaymentMethod(value) {
@@ -302,6 +340,12 @@ function buildInstallmentsSummary(type, description, installments) {
   return `${label} ${description} parcelada em ${installments}x lanÃ§ada com sucesso.`;
 }
 
+function buildFixedSummary(type, description, deadlineMode) {
+  const label = type === "receita" ? "Receita" : "Despesa";
+  const modeLabel = deadlineMode === "sem_prazo" ? "sem prazo" : "com prazo";
+  return `${label} ${description} fixa ${modeLabel} lanÃ§ada com sucesso.`;
+}
+
 function mapTransactionResponse(row) {
   return {
     id: row.id,
@@ -316,14 +360,20 @@ function mapTransactionResponse(row) {
 }
 
 module.exports = {
+  MAX_FIXED_MONTHS,
   MAX_INSTALLMENTS,
+  SEM_PRAZO_MONTHS,
   addMonthsLikeUi,
+  buildFixedSummary,
   buildInstallmentsSummary,
+  buildSemPrazoMeta,
   buildTransactionSummary,
+  countMonthsInclusive,
   getAccountProfileId,
   isFutureDate,
   mapTransactionResponse,
   normalizePaymentMethod,
+  normalizeDeadlineMode,
   normalizeSpendingType,
   normalizeTransactionType,
   parseBoolean,

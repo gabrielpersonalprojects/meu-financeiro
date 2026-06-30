@@ -112,6 +112,64 @@ function invoiceDueDate(invoiceMonth, dueDay) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function getCreditInvoiceMonth(dateIso, closingDay, dueDay) {
+  const date = new Date(`${dateIso}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const closing = Math.max(1, Math.min(31, Number(closingDay ?? 1)));
+  const due = Math.max(1, Math.min(31, Number(dueDay ?? 1)));
+  const invoiceOffset = due > closing ? 0 : 1;
+  const base = new Date(date.getFullYear(), date.getMonth(), 1, 12, 0, 0, 0);
+
+  if (date.getDate() >= closing) {
+    base.setMonth(base.getMonth() + 1);
+  }
+
+  base.setMonth(base.getMonth() + invoiceOffset);
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function normalizeCreditSpendingType(value) {
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (!raw || raw === "variavel" || raw === "normal") return "Variável";
+  if (raw === "fixo") return "Fixo";
+
+  throw new ApiError(
+    400,
+    "INVALID_SPENDING_TYPE",
+    "spending_type must be variavel, variável, fixo, or omitted."
+  );
+}
+
+function getCreditCardProfileId(card) {
+  return String(card?.brand ?? card?.perfil ?? "")
+    .trim()
+    .toLowerCase() === "pj"
+    ? "pj"
+    : "pf";
+}
+
+function getCreditCardAccountId(card) {
+  return (
+    String(
+      card?.conta_pagante_id ??
+        card?.contaPaganteId ??
+        card?.conta_id ??
+        card?.contaId ??
+        card?.profile_id ??
+        card?.profileId ??
+        card?.account_id ??
+        card?.accountId ??
+        ""
+    ).trim() || null
+  );
+}
+
 function normalizeCategoryType(value) {
   const type = String(value ?? "").trim();
   if (type !== "receita" && type !== "despesa") {
@@ -153,6 +211,72 @@ async function resolveGetUser(supabase, req) {
     "whatsapp_phone query parameter is required."
   );
   return resolveWhatsappUser(supabase, whatsappPhone);
+}
+
+async function requireOwnedCreditCard(supabase, userId, creditCardId) {
+  const cleanCreditCardId = String(creditCardId ?? "").trim();
+
+  if (!cleanCreditCardId) {
+    throw new ApiError(
+      400,
+      "CREDIT_CARD_ID_REQUIRED",
+      "credit_card_id is required."
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("credit_cards")
+    .select("*")
+    .eq("id", cleanCreditCardId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!data?.id) {
+    throw new ApiError(
+      404,
+      "CREDIT_CARD_NOT_FOUND",
+      "credit_card_id was not found for this user."
+    );
+  }
+
+  if (data.is_active === false) {
+    throw new ApiError(
+      400,
+      "CREDIT_CARD_INACTIVE",
+      "credit_card_id is inactive."
+    );
+  }
+
+  return data;
+}
+
+async function validateCreditCardTagIfProvided({ supabase, userId, tag }) {
+  const cleanTag = String(tag ?? "").trim();
+  if (!cleanTag) return "";
+
+  const normalizedName = normalizeCatalogName(cleanTag);
+
+  const { data, error } = await supabase
+    .from("user_tags")
+    .select("id, nome, normalized_name")
+    .eq("user_id", userId)
+    .eq("normalized_name", normalizedName)
+    .limit(1);
+
+  if (error) throw error;
+
+  const found = data?.[0] ?? null;
+  if (!found) {
+    throw new ApiError(
+      400,
+      "TAG_NOT_FOUND",
+      "tag does not exist for this user."
+    );
+  }
+
+  return found.nome || cleanTag;
 }
 
 async function handleContext(req, res, supabase) {
@@ -1132,6 +1256,139 @@ async function handleCreateTransfer(req, res, action) {
   });
 }
 
+async function handleCreateCreditCardPurchase(req, res, action) {
+  await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    if (body.account_id !== undefined) {
+      throw new ApiError(
+        400,
+        "ACCOUNT_ID_NOT_ALLOWED",
+        "account_id is not accepted for credit card purchases."
+      );
+    }
+
+    if (body.installments !== undefined) {
+      throw new ApiError(
+        400,
+        "INSTALLMENTS_NOT_ALLOWED",
+        "installments is not accepted for this action."
+      );
+    }
+
+    const description = requireString(
+      body.description,
+      "DESCRIPTION_REQUIRED",
+      "description is required."
+    );
+    const amountAbs = parsePositiveAmount(body.amount);
+    const date = parseIsoDate(body.date);
+    const paid = body.paid === undefined ? false : parseBoolean(body.paid, "paid");
+    const notes = String(body.notes ?? "").trim();
+    const spendingType = normalizeCreditSpendingType(body.spending_type);
+
+    const card = await requireOwnedCreditCard(
+      supabase,
+      user.user_id,
+      body.credit_card_id
+    );
+    const creditCardId = String(card.id);
+    const profileId = getCreditCardProfileId(card);
+    const category = await validateCategoryIfProvided({
+      supabase,
+      userId: user.user_id,
+      profileId,
+      type: "despesa",
+      category: body.category,
+    });
+    const tag = await validateCreditCardTagIfProvided({
+      supabase,
+      userId: user.user_id,
+      tag: body.tag,
+    });
+
+    const invoiceMonth = getCreditInvoiceMonth(
+      date,
+      Number(card.dia_fechamento ?? card.diaFechamento ?? 1),
+      Number(card.dia_vencimento ?? card.diaVencimento ?? 1)
+    );
+    const linkedAccountId = getCreditCardAccountId(card);
+    const createdAt = Date.now();
+
+    const { data: created, error } = await supabase
+      .from("transactions")
+      .insert({
+        user_id: user.user_id,
+        tipo: "cartao_credito",
+        valor: -Math.abs(amountAbs),
+        data: date,
+        descricao: description,
+        categoria: category,
+        tag,
+        pago: paid,
+        conta_id: linkedAccountId,
+        conta_origem_id: null,
+        conta_destino_id: null,
+        cartao_id: creditCardId,
+        transfer_from_id: "",
+        transfer_to_id: "",
+        qual_conta: creditCardId,
+        criado_em: createdAt,
+        payload: {
+          metodoPagamento: "",
+          tipoGasto: spendingType,
+          recorrenciaId: "",
+          isRecorrente: false,
+          recurrenceKind: "",
+          recurrenceWindowMonths: null,
+          recurrenceOriginDate: "",
+          recurrenceWindowStart: "",
+          recurrenceWindowEnd: "",
+          recurrenceStatus: "",
+          recurrenceRenewalDecision: "",
+          recurrenceDismissedAt: "",
+          recurrenceCanceledAt: "",
+          recurrenceLastActionAt: "",
+          contraParte: "",
+          transferId: "",
+          observacoes: notes,
+          parcelaAtual: null,
+          totalParcelas: null,
+          cartaoId: creditCardId,
+          qualCartao: creditCardId,
+          targetId: creditCardId,
+          faturaMes: invoiceMonth,
+          origemLancamento: "",
+          parcelamentoFaturaId: "",
+          faturaOrigemCicloKey: "",
+        },
+      })
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    return {
+      statusCode: 201,
+      body: {
+        ok: true,
+        status: "created",
+        summary: `Compra ${description} lançada no cartão com sucesso.`,
+        transaction: {
+          id: created.id,
+          type: created.tipo,
+          description: created.descricao || "",
+          amount: Number(created.valor || 0),
+          date: created.data,
+          credit_card_id: created.cartao_id || creditCardId,
+          category: created.categoria || "",
+          tag: created.tag || "",
+          paid: Boolean(created.pago),
+          invoice_month: created.payload?.faturaMes || invoiceMonth,
+        },
+      },
+    };
+  });
+}
+
 module.exports = withApi(async function handler(req, res) {
   validateSupplierAuth(req);
 
@@ -1169,6 +1426,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "create_transfer") {
     return handleCreateTransfer(req, res, action);
+  }
+  if (action === "create_credit_card_purchase") {
+    return handleCreateCreditCardPurchase(req, res, action);
   }
 
   throw new ApiError(400, "INVALID_ACTION", "action is not supported.");

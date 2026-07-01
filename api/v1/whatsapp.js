@@ -129,6 +129,17 @@ function getCreditInvoiceMonth(dateIso, closingDay, dueDay) {
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function addMonthsSafeLikeCreditUi(isoDate, monthsToAdd) {
+  const [year, month, day] = String(isoDate).split("-").map(Number);
+  const lastDayTarget = new Date(year, month - 1 + monthsToAdd + 1, 0).getDate();
+  const safeDay = Math.min(day, lastDayTarget);
+  const date = new Date(year, month - 1 + monthsToAdd, safeDay, 12, 0, 0, 0);
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
+}
+
 function normalizeCreditSpendingType(value) {
   const raw = String(value ?? "")
     .trim()
@@ -1389,6 +1400,147 @@ async function handleCreateCreditCardPurchase(req, res, action) {
   });
 }
 
+async function handleCreateCreditCardInstallments(req, res, action) {
+  await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    if (body.account_id !== undefined) {
+      throw new ApiError(
+        400,
+        "ACCOUNT_ID_NOT_ALLOWED",
+        "account_id is not accepted for credit card purchases."
+      );
+    }
+
+    const description = requireString(
+      body.description,
+      "DESCRIPTION_REQUIRED",
+      "description is required."
+    );
+    const amountAbs = parsePositiveAmount(body.amount);
+    const date = parseIsoDate(body.date);
+    const paid = body.paid === undefined ? false : parseBoolean(body.paid, "paid");
+    const installments = parseInstallments(body.installments);
+    const notes = String(body.notes ?? "").trim();
+
+    const card = await requireOwnedCreditCard(
+      supabase,
+      user.user_id,
+      body.credit_card_id
+    );
+    const creditCardId = String(card.id);
+    const profileId = getCreditCardProfileId(card);
+    const category = await validateCategoryIfProvided({
+      supabase,
+      userId: user.user_id,
+      profileId,
+      type: "despesa",
+      category: body.category,
+    });
+    const tag = await validateCreditCardTagIfProvided({
+      supabase,
+      userId: user.user_id,
+      tag: body.tag,
+    });
+
+    const linkedAccountId = getCreditCardAccountId(card);
+    const createdAt = Date.now();
+    const recorrenciaId = `cc_parc_${creditCardId}_${createdAt}`;
+    const installmentAmount = -Math.abs(amountAbs / installments);
+
+    const rows = Array.from({ length: installments }, (_, index) => {
+      const installmentNumber = index + 1;
+      const installmentDate = addMonthsSafeLikeCreditUi(date, index);
+      const invoiceMonth = getCreditInvoiceMonth(
+        installmentDate,
+        Number(card.dia_fechamento ?? card.diaFechamento ?? 1),
+        Number(card.dia_vencimento ?? card.diaVencimento ?? 1)
+      );
+
+      return {
+        user_id: user.user_id,
+        tipo: "cartao_credito",
+        valor: installmentAmount,
+        data: installmentDate,
+        descricao: `${description} (${installmentNumber}/${installments})`,
+        categoria: category,
+        tag,
+        pago: index === 0 ? paid : false,
+        conta_id: linkedAccountId,
+        conta_origem_id: null,
+        conta_destino_id: null,
+        cartao_id: creditCardId,
+        transfer_from_id: "",
+        transfer_to_id: "",
+        qual_conta: creditCardId,
+        criado_em: createdAt + index,
+        payload: {
+          metodoPagamento: "",
+          tipoGasto: "fixo",
+          recorrenciaId,
+          isRecorrente: false,
+          recurrenceKind: "",
+          recurrenceWindowMonths: null,
+          recurrenceOriginDate: "",
+          recurrenceWindowStart: "",
+          recurrenceWindowEnd: "",
+          recurrenceStatus: "",
+          recurrenceRenewalDecision: "",
+          recurrenceDismissedAt: "",
+          recurrenceCanceledAt: "",
+          recurrenceLastActionAt: "",
+          contraParte: "",
+          transferId: "",
+          observacoes: notes,
+          parcelaAtual: installmentNumber,
+          totalParcelas: installments,
+          cartaoId: creditCardId,
+          qualCartao: creditCardId,
+          targetId: creditCardId,
+          faturaMes: invoiceMonth,
+          origemLancamento: "",
+          parcelamentoFaturaId: "",
+          faturaOrigemCicloKey: "",
+        },
+      };
+    });
+
+    const { data: created, error } = await supabase
+      .from("transactions")
+      .insert(rows)
+      .select("*");
+
+    if (error) throw error;
+
+    return {
+      statusCode: 201,
+      body: {
+        ok: true,
+        status: "created",
+        summary: `Compra ${description} parcelada em ${installments}x lançada no cartão com sucesso.`,
+        installment_group: {
+          installments,
+          total_amount: amountAbs,
+          installment_amount: installmentAmount,
+          recorrencia_id: recorrenciaId,
+        },
+        transactions: (created ?? []).map((row) => ({
+          id: row.id,
+          type: row.tipo,
+          description: row.descricao || "",
+          amount: Number(row.valor || 0),
+          date: row.data,
+          credit_card_id: row.cartao_id || creditCardId,
+          category: row.categoria || "",
+          tag: row.tag || "",
+          paid: Boolean(row.pago),
+          invoice_month: row.payload?.faturaMes || "",
+          installment: Number(row.payload?.parcelaAtual || 0),
+          total_installments: Number(row.payload?.totalParcelas || 0),
+        })),
+      },
+    };
+  });
+}
+
 module.exports = withApi(async function handler(req, res) {
   validateSupplierAuth(req);
 
@@ -1429,6 +1581,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "create_credit_card_purchase") {
     return handleCreateCreditCardPurchase(req, res, action);
+  }
+  if (action === "create_credit_card_installments") {
+    return handleCreateCreditCardInstallments(req, res, action);
   }
 
   throw new ApiError(400, "INVALID_ACTION", "action is not supported.");

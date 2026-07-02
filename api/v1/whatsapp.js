@@ -112,6 +112,70 @@ function invoiceDueDate(invoiceMonth, dueDay) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function clampDay(year, monthIndex0, day) {
+  const lastDay = new Date(year, monthIndex0 + 1, 0).getDate();
+  return Math.max(1, Math.min(Number(day || 1), lastDay));
+}
+
+function makeLocalDate(year, monthIndex0, day) {
+  return new Date(year, monthIndex0, clampDay(year, monthIndex0, day), 12, 0, 0, 0);
+}
+
+function formatDateOnlyIsoLocal(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
+}
+
+function parseInvoiceMonthBase(invoiceMonth) {
+  const [year, month] = String(invoiceMonth ?? "").split("-").map(Number);
+  if (!year || !month) return null;
+  return new Date(year, month - 1, 1, 12, 0, 0, 0);
+}
+
+function getCreditInvoiceCycle(cardId, invoiceMonth, closingDay, dueDay) {
+  const baseMonth = parseInvoiceMonthBase(invoiceMonth);
+  if (!baseMonth) return null;
+
+  const closing = Math.max(1, Math.min(31, Number(closingDay ?? 1)));
+  const due = Math.max(1, Math.min(31, Number(dueDay ?? 1)));
+  const closingOffset = due > closing ? 0 : -1;
+
+  const cycleEnd = makeLocalDate(
+    baseMonth.getFullYear(),
+    baseMonth.getMonth() + closingOffset,
+    closing
+  );
+  cycleEnd.setHours(0, 0, 0, 0);
+
+  const previousClosing = makeLocalDate(
+    baseMonth.getFullYear(),
+    baseMonth.getMonth() + closingOffset - 1,
+    closing
+  );
+  previousClosing.setHours(0, 0, 0, 0);
+
+  const cycleStart = new Date(previousClosing);
+  cycleStart.setDate(cycleStart.getDate() + 1);
+  cycleStart.setHours(0, 0, 0, 0);
+
+  const dueDate = makeLocalDate(baseMonth.getFullYear(), baseMonth.getMonth(), due);
+  dueDate.setHours(0, 0, 0, 0);
+
+  const cycleStartIso = formatDateOnlyIsoLocal(cycleStart);
+  const cycleEndIso = formatDateOnlyIsoLocal(cycleEnd);
+
+  return {
+    ciclo_key: `${cardId}__${cycleStartIso}__${cycleEndIso}`,
+    cycle_start: cycleStartIso,
+    cycle_end: cycleEndIso,
+    due_date: formatDateOnlyIsoLocal(dueDate),
+    cycle_start_date: cycleStart,
+    cycle_end_date: cycleEnd,
+    due_date_obj: dueDate,
+  };
+}
+
 function getCreditInvoiceMonth(dateIso, closingDay, dueDay) {
   const date = new Date(`${dateIso}T12:00:00`);
   if (Number.isNaN(date.getTime())) return "";
@@ -127,6 +191,85 @@ function getCreditInvoiceMonth(dateIso, closingDay, dueDay) {
 
   base.setMonth(base.getMonth() + invoiceOffset);
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getCreditInvoiceStatusForApi({
+  amount,
+  remainingAmount,
+  today,
+  cycleStart,
+  cycleEnd,
+  dueDate,
+  manualStatus,
+}) {
+  const total = Math.abs(Number(amount || 0));
+  const remaining = Math.max(0, Number(remainingAmount || 0));
+  const manual = String(manualStatus ?? "").trim().toLowerCase();
+
+  if (manual === "paga") return "PAGA";
+  if (total <= 0 && remaining <= 0) return "ZERADA";
+  if (total > 0 && remaining <= 0) return "PAGA";
+  if (today < cycleStart) return "FUTURA";
+  if (today <= cycleEnd) return "EM_ABERTO";
+  if (today <= dueDate) return "FECHADA";
+  return "ATRASADA";
+}
+
+function formatCurrencyBR(value) {
+  const amount = Number(value || 0);
+  return `R$ ${amount.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function buildInvoicePaymentGuidance(status, remainingAmount) {
+  const remaining = Math.max(0, Number(remainingAmount || 0));
+  const formatted = formatCurrencyBR(remaining);
+
+  if ((status === "FECHADA" || status === "ATRASADA") && remaining > 0) {
+    return {
+      can_pay_via_api: true,
+      api_payment_type: "full_only",
+      payment_message: `Esta fatura pode ser paga pela API somente pelo valor total à vista de ${formatted}. Para continuar, escolha de qual conta bancária o pagamento deve sair.`,
+      panel_required_reason: null,
+      payment_account_required: true,
+      account_selection_message:
+        "Para pagar esta fatura pela API, escolha de qual conta bancária o pagamento deve sair.",
+    };
+  }
+
+  if (status === "EM_ABERTO" && remaining > 0) {
+    return {
+      can_pay_via_api: false,
+      api_payment_type: "full_only",
+      payment_message: `Esta fatura ainda está em aberto. O valor gasto até agora é ${formatted}. Para pagamento parcial ou antecipado, acesse o painel FluxMoney.`,
+      panel_required_reason: "invoice_still_open",
+      payment_account_required: false,
+      account_selection_message: null,
+    };
+  }
+
+  if (status === "FUTURA") {
+    return {
+      can_pay_via_api: false,
+      api_payment_type: "full_only",
+      payment_message:
+        "Esta fatura ainda é futura. Para consultar ou gerenciar detalhes, acesse o painel FluxMoney.",
+      panel_required_reason: "future_invoice",
+      payment_account_required: false,
+      account_selection_message: null,
+    };
+  }
+
+  return {
+    can_pay_via_api: false,
+    api_payment_type: "full_only",
+    payment_message: "Esta fatura não possui saldo pendente para pagamento.",
+    panel_required_reason: "no_pending_amount",
+    payment_account_required: false,
+    account_selection_message: null,
+  };
 }
 
 function addMonthsSafeLikeCreditUi(isoDate, monthsToAdd) {
@@ -399,13 +542,14 @@ async function handlePendingTransactions(req, res, supabase) {
 
 async function handlePayableInvoices(req, res, supabase) {
   requireMethod(req, "GET");
+  rejectUserIdFromSupplier(req.query || {});
   const user = await resolveGetUser(supabase, req);
 
   const [cardsResult, txResult, paymentsResult, manualStatusResult] =
     await Promise.all([
       supabase
         .from("credit_cards")
-        .select("id, nome, dia_fechamento, dia_vencimento, is_active")
+        .select("*")
         .eq("user_id", user.user_id),
       supabase
         .from("transactions")
@@ -422,17 +566,23 @@ async function handlePayableInvoices(req, res, supabase) {
         .eq("user_id", user.user_id),
     ]);
 
-  for (const result of [cardsResult, txResult, paymentsResult, manualStatusResult]) {
+  for (const result of [
+    cardsResult,
+    txResult,
+    paymentsResult,
+    manualStatusResult,
+  ]) {
     if (result.error) throw result.error;
   }
 
   const cardsById = new Map(
     (cardsResult.data ?? []).map((card) => [String(card.id), card])
   );
-  const paidRefs = new Set(
-    (manualStatusResult.data ?? [])
-      .filter((row) => String(row?.status_manual ?? "") === "paga")
-      .map((row) => `${row.cartao_id}:${row.ciclo_key}`)
+  const manualStatusByRef = new Map(
+    (manualStatusResult.data ?? []).map((row) => [
+      `${row.cartao_id}:${row.ciclo_key}`,
+      String(row?.status_manual ?? ""),
+    ])
   );
   const paymentTotals = new Map();
 
@@ -448,43 +598,86 @@ async function handlePayableInvoices(req, res, supabase) {
     const card = cardsById.get(cardId);
     if (!card || card.is_active === false) continue;
 
-    const invoiceMonth = getInvoiceMonth(tx.data, card.dia_fechamento);
+    const invoiceMonth = getCreditInvoiceMonth(
+      tx.data,
+      card.dia_fechamento,
+      card.dia_vencimento
+    );
     if (!invoiceMonth) continue;
 
+    const cycle = getCreditInvoiceCycle(
+      cardId,
+      invoiceMonth,
+      card.dia_fechamento,
+      card.dia_vencimento
+    );
+    if (!cycle?.ciclo_key) continue;
+
     const invoiceRef = `${cardId}:${invoiceMonth}`;
-    const current = invoices.get(invoiceRef) ?? {
+    const current = invoices.get(cycle.ciclo_key) ?? {
       invoice_ref: invoiceRef,
+      ciclo_key: cycle.ciclo_key,
+      cycle_start: cycle.cycle_start,
+      cycle_end: cycle.cycle_end,
       credit_card_id: cardId,
       credit_card_name: card.nome || "",
       invoice_month: invoiceMonth,
-      due_date: invoiceDueDate(invoiceMonth, card.dia_vencimento),
+      due_date: cycle.due_date,
+      account_id: null,
+      account_label: null,
       amount: 0,
       transaction_count: 0,
+      cycle_start_date: cycle.cycle_start_date,
+      cycle_end_date: cycle.cycle_end_date,
+      due_date_obj: cycle.due_date_obj,
     };
 
     current.amount += Math.abs(Number(tx.valor || 0));
     current.transaction_count += 1;
-    invoices.set(invoiceRef, current);
+    invoices.set(cycle.ciclo_key, current);
   }
 
-  const today = todayIso();
+  const today = new Date(`${todayIso()}T00:00:00`);
   const payable = Array.from(invoices.values())
     .filter((invoice) => invoice.amount > 0)
     .map((invoice) => {
-      const paidAmount = Number(paymentTotals.get(invoice.invoice_ref) || 0);
+      const statusRef = `${invoice.credit_card_id}:${invoice.ciclo_key}`;
+      const paidAmount = Number(paymentTotals.get(statusRef) || 0);
+      const remainingAmount = Math.max(0, invoice.amount - paidAmount);
+      const status = getCreditInvoiceStatusForApi({
+        amount: invoice.amount,
+        remainingAmount,
+        today,
+        cycleStart: invoice.cycle_start_date,
+        cycleEnd: invoice.cycle_end_date,
+        dueDate: invoice.due_date_obj,
+        manualStatus: manualStatusByRef.get(statusRef),
+      });
+      const guidance = buildInvoicePaymentGuidance(status, remainingAmount);
+      const {
+        cycle_start_date,
+        cycle_end_date,
+        due_date_obj,
+        ...publicInvoice
+      } = invoice;
+
       return {
-        ...invoice,
+        ...publicInvoice,
         paid_amount: paidAmount,
-        remaining_amount: Math.max(0, invoice.amount - paidAmount),
-        status: invoice.due_date && invoice.due_date < today ? "overdue" : "closed",
+        remaining_amount: remainingAmount,
+        status,
+        ...guidance,
       };
     })
     .filter((invoice) => {
-      if (paidRefs.has(invoice.invoice_ref)) return false;
       if (invoice.remaining_amount <= 0) return false;
-      return invoice.due_date && invoice.due_date <= today;
+      if (invoice.status === "PAGA" || invoice.status === "ZERADA") return false;
+      return true;
     })
-    .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
+    .sort((a, b) =>
+      String(a.due_date).localeCompare(String(b.due_date)) ||
+      String(a.credit_card_name).localeCompare(String(b.credit_card_name))
+    );
 
   json(res, 200, {
     ok: true,

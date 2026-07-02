@@ -293,28 +293,6 @@ const txMes = getCreditCardTransactionsByInvoiceMonth({
   diaVencimento,
 });
 
-console.log("DEBUG_CARTAO_EXPANDIDO", {
-  cartaoId: cartao.id,
-  cartaoNome: cartao.nome,
-  totalTransacoesRecebidasNoDashboard: transacoes?.length ?? 0,
-  totalTxDoCartaoNoMes: txMes.length,
-  baseMonthKey,
-  labelAtual,
-  cicloInicio: formatDateOnlyISO(cicloInicio),
-  cicloFim: formatDateOnlyISO(cicloFim),
-  primeirasTransacoesRecebidas: (transacoes ?? []).slice(0, 10).map((t: any) => ({
-    id: t?.id,
-    tipo: t?.tipo,
-    data: t?.data,
-    descricao: t?.descricao,
-    cartaoId: t?.cartaoId,
-    qualCartao: t?.qualCartao,
-    payloadCartaoId: t?.payload?.cartaoId,
-    payloadTargetId: t?.payload?.targetId,
-    refResolvida: getCreditTransactionCardRef(t),
-  })),
-});
-
 const txDoCartao = useMemo(
   () =>
     getCreditCardTransactions({

@@ -113,6 +113,11 @@ import { useCallback } from "react";
 import { CreditDashboard } from "./app/credit/CreditDashboard";
 import { renderContaOptionLabel } from "./components/renderContaOptionLabel";
 import { CreditCardVisual } from "./app/credit/CreditCardVisual";
+import { getCreditTransactionCardRef } from "./app/credit/logic/cardRefs";
+import {
+  getCreditCardTransactionsByInvoiceMonth,
+  sumCreditTransactionsAbs,
+} from "./app/credit/logic/creditTransactions";
 import { printCardsResumoPdfReport } from "./app/credit/reports/cardsResumoPdfReport";
 import { Archive, BookOpen, Headphones, HelpCircle, Home, LogOut, Menu, Moon, Paperclip, Send, Sun, Pencil, PencilLine, Star, Trash2, X, Search, Printer } from "lucide-react";import {
   STORAGE_KEYS,
@@ -4329,14 +4334,7 @@ const allCreditCardTransactions = useMemo(() => {
     const tipo = String(t?.tipo ?? "").trim().toLowerCase();
     if (tipo !== "cartao_credito") return false;
 
-    const cartaoId = String(
-      t?.cartaoId ??
-        t?.qualCartao ??
-        t?.payload?.cartaoId ??
-        t?.payload?.qualCartao ??
-        t?.payload?.targetId ??
-        ""
-    ).trim();
+    const cartaoId = getCreditTransactionCardRef(t);
 
     if (!cartaoId) return false;
 
@@ -4398,12 +4396,7 @@ const cardsResumoFiltradas = useMemo(() => {
   const dataTransacao = String(t?.data ?? "").trim();
 
 const cartaoId = String(
-  t?.cartaoId ??
-    t?.qualCartao ??
-    t?.payload?.cartaoId ??
-    t?.payload?.qualCartao ??
-    t?.payload?.targetId ??
-    ""
+  getCreditTransactionCardRef(t)
 ).trim();
 
 const card = (creditCards ?? []).find(
@@ -4483,12 +4476,174 @@ const cardsResumoAgrupado = useMemo(() => {
       cartaoCategoria: string;
       perfil: "pf" | "pj";
       total: number;
+      displayTotal: number;
+      displayStatus: "filtered" | "closed" | "overdue";
+      displayDueLabel: string;
+      displayItems: any[];
       itens: any[];
     }
   >();
 
+  const hojeResumoCartoes = new Date(`${getHojeLocal()}T00:00:00`);
+
+  const normalizeCycleKeyLocal = (raw: any, referenceDate?: any): string => {
+    const value = String(raw ?? "").trim();
+    if (/^\d{4}-\d{2}$/.test(value)) return value;
+    if (value.includes("__")) {
+      const parts = value.split("__");
+      const endIso = String(parts[2] ?? "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(endIso)) return "";
+      const endDate = new Date(`${endIso}T12:00:00`);
+      if (Number.isNaN(endDate.getTime())) return "";
+
+      let refIso = "";
+      if (typeof referenceDate === "string") {
+        const s = String(referenceDate).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+          refIso = s;
+        } else if (/^\d{4}-\d{2}$/.test(s)) {
+          refIso = `${s}-01`;
+        }
+      } else if (typeof referenceDate === "number" && Number.isFinite(referenceDate)) {
+        const d = new Date(referenceDate);
+        if (!Number.isNaN(d.getTime())) {
+          refIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }
+      } else if (referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())) {
+        refIso = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, "0")}-${String(referenceDate.getDate()).padStart(2, "0")}`;
+      }
+
+      if (refIso) {
+        const refDate = new Date(`${refIso}T12:00:00`);
+        if (!Number.isNaN(refDate.getTime())) {
+          const endMonthIndex = endDate.getFullYear() * 12 + endDate.getMonth();
+          const refMonthIndex = refDate.getFullYear() * 12 + refDate.getMonth();
+
+          if (refMonthIndex > endMonthIndex) {
+            endDate.setMonth(endDate.getMonth() + 1);
+          }
+        }
+      }
+
+      return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
+    }
+    return "";
+  };
+
+  const getTxCardIdResumo = (tx: any) =>
+    String(getCreditTransactionCardRef(tx)).trim();
+
+  const getPriorityInvoiceForCard = (card: any) => {
+    const cardId = String(card?.id ?? "").trim();
+    if (!cardId) return null;
+
+    const diaFechamento = Math.max(
+      1,
+      Math.min(31, Number(card?.diaFechamento ?? card?.fechamento ?? 1))
+    );
+    const diaVencimento = Math.max(
+      1,
+      Math.min(31, Number(card?.diaVencimento ?? card?.vencimento ?? 10))
+    );
+    const cicloAbertoAtual = getCardCycleMonthFromDate(
+      getHojeLocal(),
+      diaFechamento,
+      diaVencimento
+    );
+
+    const totalsByCycle = new Map<string, { total: number; paid: number; items: any[] }>();
+
+    for (const tx of allCreditCardTransactions ?? []) {
+      if (getTxCardIdResumo(tx) !== cardId) continue;
+
+      const data = String(tx?.data ?? "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) continue;
+
+      const ciclo = getCardCycleMonthFromDate(data, diaFechamento, diaVencimento);
+      if (!/^\d{4}-\d{2}$/.test(ciclo)) continue;
+
+      const current = totalsByCycle.get(ciclo) ?? { total: 0, paid: 0, items: [] };
+      current.total += Math.abs(Number(tx?.valor ?? 0));
+      current.items.push(tx);
+      totalsByCycle.set(ciclo, current);
+    }
+
+    for (const payment of pagamentosFatura ?? []) {
+      if (String(payment?.cartaoId ?? "").trim() !== cardId) continue;
+
+      const ciclo = normalizeCycleKeyLocal(
+        payment?.cicloKey,
+        payment?.dataPagamento ?? payment?.criadoEm ?? ""
+      );
+      if (!ciclo) continue;
+
+      const current = totalsByCycle.get(ciclo) ?? { total: 0, paid: 0, items: [] };
+      current.paid += Math.abs(Number(payment?.valor ?? 0));
+      totalsByCycle.set(ciclo, current);
+    }
+
+    const manualStatusByCycle = new Map<string, string>();
+    for (const statusItem of faturasStatusManual ?? []) {
+      if (String(statusItem?.cartaoId ?? "").trim() !== cardId) continue;
+
+      const status = String(statusItem?.statusManual ?? "").trim().toLowerCase();
+      if (!status) continue;
+
+      const ciclo = normalizeCycleKeyLocal(
+        statusItem?.cicloKey,
+        statusItem?.criadoEm ?? ""
+      );
+      if (ciclo) manualStatusByCycle.set(ciclo, status);
+    }
+
+    const pendingInvoices = Array.from(totalsByCycle.entries())
+      .map(([ciclo, info]) => {
+        const manualStatus = String(manualStatusByCycle.get(ciclo) ?? "").toLowerCase();
+        if (manualStatus === "paga" || manualStatus === "pago" || manualStatus === "parcelada" || manualStatus === "parcelado") {
+          return null;
+        }
+
+        const total = Math.round(Math.abs(Number(info.total || 0)) * 100) / 100;
+        const paid = Math.round(Math.abs(Number(info.paid || 0)) * 100) / 100;
+        const remaining = Math.round(Math.max(0, total - paid) * 100) / 100;
+        if (remaining <= 0.009) return null;
+        if (String(ciclo) > String(cicloAbertoAtual)) return null;
+
+        const cycleDates = getCardInvoiceCycleDatesFromMonth(
+          ciclo,
+          diaFechamento,
+          diaVencimento
+        );
+        if (!cycleDates) return null;
+        if (cycleDates.cycleEnd.getTime() >= hojeResumoCartoes.getTime()) return null;
+
+        return {
+          ciclo,
+          total,
+          remaining,
+          items: info.items,
+          dueDate: cycleDates.dueDate,
+          isOverdue: cycleDates.dueDate.getTime() < hojeResumoCartoes.getTime(),
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => {
+        if (a.isOverdue !== b.isOverdue) return a.isOverdue ? 1 : -1;
+        return a.dueDate.getTime() - b.dueDate.getTime();
+      }) as Array<{
+        ciclo: string;
+        total: number;
+        remaining: number;
+        items: any[];
+        dueDate: Date;
+        isOverdue: boolean;
+      }>;
+
+    return pendingInvoices[0] ?? null;
+  };
+
   for (const tx of cardsResumoFiltradas) {
-    const cartaoId = String(tx?.cartaoId ?? tx?.qualCartao ?? "").trim();
+    const cartaoId = getCreditTransactionCardRef(tx);
     if (!cartaoId) continue;
 
     const card = (creditCards ?? []).find(
@@ -4509,6 +4664,10 @@ const cardsResumoAgrupado = useMemo(() => {
       cartaoCategoria,
       perfil,
       total: 0,
+      displayTotal: 0,
+      displayStatus: "filtered",
+      displayDueLabel: "",
+      displayItems: [],
       itens: [],
     };
 
@@ -4518,8 +4677,29 @@ const cardsResumoAgrupado = useMemo(() => {
     mapa.set(cartaoId, atual);
   }
 
-  return Array.from(mapa.values()).sort((a, b) => b.total - a.total);
-}, [cardsResumoFiltradas, creditCards]);
+  for (const grupo of mapa.values()) {
+    const card = (creditCards ?? []).find(
+      (c: any) => String(c?.id ?? "").trim() === grupo.cartaoId
+    );
+    const priorityInvoice = getPriorityInvoiceForCard(card);
+
+    if (priorityInvoice) {
+      grupo.displayTotal = priorityInvoice.remaining;
+      grupo.displayStatus = priorityInvoice.isOverdue ? "overdue" : "closed";
+      grupo.displayDueLabel = `${String(priorityInvoice.dueDate.getDate()).padStart(2, "0")}/${String(
+        priorityInvoice.dueDate.getMonth() + 1
+      ).padStart(2, "0")}`;
+      grupo.displayItems = priorityInvoice.items;
+    } else {
+      grupo.displayTotal = grupo.total;
+      grupo.displayStatus = "filtered";
+      grupo.displayDueLabel = "";
+      grupo.displayItems = grupo.itens;
+    }
+  }
+
+  return Array.from(mapa.values()).sort((a, b) => b.displayTotal - a.displayTotal);
+}, [cardsResumoFiltradas, creditCards, allCreditCardTransactions, pagamentosFatura, faturasStatusManual]);
 
 const cardsResumoTotalGeral = useMemo(() => {
   return cardsResumoFiltradas.reduce(
@@ -4627,15 +4807,7 @@ const orderedCreditCards = useMemo(() => {
 
   const getCardId = (card: any) => String(card?.id ?? "").trim();
 
-  const getTxCardId = (tx: any) =>
-    String(
-      tx?.cartaoId ??
-        tx?.qualCartao ??
-        tx?.payload?.cartaoId ??
-        tx?.payload?.qualCartao ??
-        tx?.payload?.targetId ??
-        ""
-    ).trim();
+  const getTxCardId = (tx: any) => getCreditTransactionCardRef(tx);
 
   const getCardPriorityInfo = (card: any) => {
     const cardId = getCardId(card);
@@ -4709,7 +4881,7 @@ const orderedCreditCards = useMemo(() => {
 
   const ciclo = normalizePaymentCycleKeyToYm(
     p?.cicloKey,
-    p?.dataPagamento ?? p?.criadoEm ?? p?.createdAt ?? ""
+    p?.dataPagamento ?? p?.criadoEm ?? ""
   );
 
   if (!ciclo) return;
@@ -4802,28 +4974,20 @@ const saldo = Number(
         // Igual ao ciclo base ainda pode estar fechada aguardando pagamento.
         if (String(ciclo) > String(cicloBase)) return null;
 
-        const [anoStr, mesStr] = String(ciclo).split("-");
-        const ano = Number(anoStr);
-        const mes = Number(mesStr);
-
-        if (!ano || !mes) return null;
-
-        const vencimento = new Date(
-          ano,
-          mes - 1,
-          diaVencimentoNum,
-          12,
-          0,
-          0,
-          0
+        const cycleDates = getCardInvoiceCycleDatesFromMonth(
+          String(ciclo),
+          diaFechamentoNum,
+          diaVencimentoNum
         );
 
-        vencimento.setHours(0, 0, 0, 0);
+        if (!cycleDates) return null;
+
+        if (cycleDates.cycleEnd.getTime() >= hojeDate.getTime()) return null;
 
         return {
           ciclo: String(ciclo),
           saldo,
-          vencimento,
+          vencimento: cycleDates.dueDate,
         };
       })
       .filter(Boolean) as Array<{
@@ -5464,7 +5628,7 @@ const getCardLinkStats = useCallback(
     }).length;
 
     const pagamentosCount = (pagamentosFatura ?? []).filter((p: any) => {
-      const idsRelacionados = [p?.cartaoId, p?.cardId]
+      const idsRelacionados = [p?.cartaoId]
         .map((v) => String(v ?? "").trim())
         .filter(Boolean);
 
@@ -7502,8 +7666,8 @@ const confirmou = await new Promise<boolean>((resolve) => {
       resolve(false);
       fecharConfirmacao();
     },
-  });
 });
+  });
 
 if (!confirmou) {
   return;
@@ -7630,6 +7794,10 @@ function getCardCycleMonthFromDate(
 const dia = dt.getDate();
 const fechamento = Math.max(1, Math.min(31, Number(diaFechamento ?? 1)));
 const vencimento = Math.max(1, Math.min(31, Number(diaVencimento ?? 1)));
+const fechamentoEfetivo = Math.min(
+  fechamento,
+  new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate()
+);
 const invoiceStartOffset = vencimento > fechamento ? 0 : 1;
 
   const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
@@ -7637,12 +7805,66 @@ const invoiceStartOffset = vencimento > fechamento ? 0 : 1;
   // Regra correta:
   // - antes do dia de fechamento: permanece na fatura atual
   // - no dia do fechamento ou depois: vai para a próxima fatura
-  if (dia >= fechamento) {
+  if (dia > fechamentoEfetivo) {
     base.setMonth(base.getMonth() + 1);
   }
 base.setMonth(base.getMonth() + invoiceStartOffset);
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
 };
+
+function makeCardCycleDate(year: number, monthIndex0: number, day: number) {
+  const lastDay = new Date(year, monthIndex0 + 1, 0).getDate();
+  const safeDay = Math.max(1, Math.min(Number(day || 1), lastDay));
+  return new Date(year, monthIndex0, safeDay, 12, 0, 0, 0);
+}
+
+function formatCardDateOnlyISO(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
+}
+
+function getCardInvoiceCycleDatesFromMonth(
+  cycleYm: string,
+  diaFechamento: number,
+  diaVencimento?: number
+) {
+  const [anoStr, mesStr] = String(cycleYm ?? "").split("-");
+  const ano = Number(anoStr);
+  const mes = Number(mesStr);
+  if (!ano || !mes) return null;
+
+  const fechamento = Math.max(1, Math.min(31, Number(diaFechamento ?? 1)));
+  const vencimento = Math.max(1, Math.min(31, Number(diaVencimento ?? 1)));
+  const fechamentoOffsetMesFatura = vencimento > fechamento ? 0 : -1;
+
+  const cycleEnd = makeCardCycleDate(
+    ano,
+    mes - 1 + fechamentoOffsetMesFatura,
+    fechamento
+  );
+  cycleEnd.setHours(23, 59, 59, 999);
+
+  const previousCycleEnd = makeCardCycleDate(
+    cycleEnd.getFullYear(),
+    cycleEnd.getMonth() - 1,
+    fechamento
+  );
+  const cycleStart = new Date(
+    previousCycleEnd.getFullYear(),
+    previousCycleEnd.getMonth(),
+    previousCycleEnd.getDate() + 1,
+    0,
+    0,
+    0,
+    0
+  );
+
+  const dueDate = makeCardCycleDate(ano, mes - 1, vencimento);
+  dueDate.setHours(0, 0, 0, 0);
+
+  return { cycleStart, cycleEnd, dueDate };
+}
 
 // --- Add Transaction (com suporte simples a transferencia/cartao_credito) ---
 const handleAddTransaction = async () => {
@@ -9143,49 +9365,6 @@ const inferirCicloResumo = (
   );
 };
 
-const statusManualResumoPorCartaoECiclo = new Map<string, string>();
-
-(faturasStatusManual ?? []).forEach((item: any) => {
-  const cartaoId = String(item?.cartaoId ?? "").trim();
-  const status = String(item?.statusManual ?? "").trim().toLowerCase();
-  const cicloRaw = String(item?.cicloKey ?? "").trim();
-
-  if (!cartaoId || !status) return;
-
-  const cartaoStatus = (activeCreditCards ?? []).find(
-    (card: any) => String(card?.id ?? "").trim() === cartaoId
-  );
-
-  const setStatusResumo = (ciclo: string) => {
-    const safeCiclo = String(ciclo ?? "").trim();
-    if (!safeCiclo) return;
-
-    statusManualResumoPorCartaoECiclo.set(`${cartaoId}__${safeCiclo}`, status);
-  };
-
-  const cicloNormalizado = normalizeCycleResumo(
-    cicloRaw,
-    item?.criadoEm ?? item?.createdAt ?? ""
-  );
-
-  setStatusResumo(cicloNormalizado);
-
-  if (cicloRaw.includes("__")) {
-    const parts = cicloRaw.split("__");
-    const startIso = String(parts[1] ?? "").trim();
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(startIso)) {
-      const cicloPorDataInicio = calcCycleResumoYm(
-        startIso,
-        Number(cartaoStatus?.diaFechamento ?? 1),
-        Number(cartaoStatus?.diaVencimento ?? 1)
-      );
-
-      setStatusResumo(cicloPorDataInicio);
-    }
-  }
-});
-
 let resumoCartoesEmAbertoValor = 0;
 let resumoCartoesVencendoHojeValor = 0;
 let resumoCartoesPendentesValor = 0;
@@ -9242,15 +9421,7 @@ const transacoesDoCartao = (transacoes ?? [])
   .filter((t: any) => String(t?.data ?? "").trim() <= hojeResumoStr)
   .filter((t: any) => {
 
-  const cartaoTxId = String(
-    (t as any)?.qualCartao ??
-    (t as any)?.cartaoId ??
-    (t as any)?.qualConta ??
-    (t as any)?.payload?.qualCartao ??
-    (t as any)?.payload?.cartaoId ??
-    (t as any)?.payload?.qualConta ??
-    ""
-  ).trim();
+  const cartaoTxId = getCreditTransactionCardRef(t);
 
   const tipo = String((t as any)?.tipo ?? "").trim().toLowerCase();
   const parcelamentoFaturaId = String((t as any)?.parcelamentoFaturaId ?? "").trim();
@@ -9270,266 +9441,171 @@ const transacoesDoCartao = (transacoes ?? [])
   return pertenceAoCartaoDiretamente || pertenceAoCartaoViaParcelamento;
 });
 
+  const diaFechamentoResumo = Math.max(1, Math.min(31, Number(c?.diaFechamento ?? 1)));
+  const diaVencimentoResumo = Math.max(1, Math.min(31, Number(c?.diaVencimento ?? 10)));
   const totaisPorCiclo = new Map<string, { total: number; pago: number }>();
+  const mesesFaturaDoCartao = new Set<string>();
 
   transacoesDoCartao.forEach((t: any) => {
-const ciclo = inferirCicloDaTransacaoResumo(t);
+    const ciclo = inferirCicloDaTransacaoResumo(t);
+    if (ciclo) mesesFaturaDoCartao.add(ciclo);
+  });
+
+  mesesFaturaDoCartao.forEach((ciclo) => {
+    const txFaturaCiclo = getCreditCardTransactionsByInvoiceMonth({
+      transactions: transacoes as any,
+      cartaoId,
+      monthKey: String(ciclo),
+      diaFechamento: diaFechamentoResumo,
+      diaVencimento: diaVencimentoResumo,
+    });
+
+    totaisPorCiclo.set(ciclo, {
+      total: sumCreditTransactionsAbs(txFaturaCiclo as any),
+      pago: 0,
+    });
+  });
+
+  (pagamentosFatura ?? []).forEach((p: any) => {
+    if (String(p?.cartaoId ?? "").trim() !== cartaoId) return;
+
+    const cycleParts = String(p?.cicloKey ?? "").trim().split("__");
+    const cycleEndIso = String(cycleParts[2] ?? "").trim();
+    const ciclo = /^\d{4}-\d{2}-\d{2}$/.test(cycleEndIso)
+      ? calcCycleResumoYm(cycleEndIso, diaFechamentoResumo, diaVencimentoResumo)
+      : "";
     if (!ciclo) return;
 
     const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
-    atual.total += Math.abs(Number(t?.valor || 0));
+    atual.pago += Math.abs(Number(p?.valor || 0));
     totaisPorCiclo.set(ciclo, atual);
   });
 
-const getPagoNoCicloResumo = (cartaoId: string, cicloYm: string) => {
-  return (pagamentosFatura ?? [])
-    .filter((p: any) => String(p?.cartaoId ?? "").trim() === cartaoId)
-    .filter((p: any) => {
-      const cicloNormalizado = normalizeCycleResumo(
-        p?.cicloKey,
-        p?.dataPagamento ?? p?.criadoEm ?? p?.createdAt ?? ""
-      );
+  const statusManualPorCiclo = new Map<string, string>();
 
-      return cicloNormalizado === cicloYm;
-    })
-    .reduce((acc: number, p: any) => acc + Math.abs(Number(p?.valor || 0)), 0);
-};
+  (faturasStatusManual ?? []).forEach((item: any) => {
+    if (String(item?.cartaoId ?? "").trim() !== cartaoId) return;
 
-  Array.from(totaisPorCiclo.entries()).forEach(([ciclo, info]) => {
-    const statusManual = String(
-      statusManualResumoPorCartaoECiclo.get(`${cartaoId}__${ciclo}`) ?? ""
-    ).toLowerCase();
+    const status = String(item?.statusManual ?? "").trim().toLowerCase();
+    if (!status) return;
 
-    if (statusManual === "paga" || statusManual === "parcelada") return;
-
-const totalNoCicloCentavos = Math.round(Math.abs(Number(info?.total || 0)) * 100);
-const pagoNoCicloCentavos = Math.round(getPagoNoCicloResumo(cartaoId, ciclo) * 100);
-
-if (pagoNoCicloCentavos >= totalNoCicloCentavos) return;
-
-const saldo = Math.max(0, (totalNoCicloCentavos - pagoNoCicloCentavos) / 100);
-if (saldo <= 0.009) return;
-
-const [anoStr, mesStr] = String(ciclo).split("-");
-const ano = Number(anoStr);
-const mes = Number(mesStr);
-if (!ano || !mes) return;
-
-const vencimento = new Date(
-  ano,
-  mes - 1,
-  Math.min(28, Math.max(1, Number(c?.diaVencimento ?? 10)))
-);
-vencimento.setHours(0, 0, 0, 0);
+    const cycleParts = String(item?.cicloKey ?? "").trim().split("__");
+    const cycleEndIso = String(cycleParts[2] ?? "").trim();
+    const ciclo = /^\d{4}-\d{2}-\d{2}$/.test(cycleEndIso)
+      ? calcCycleResumoYm(cycleEndIso, diaFechamentoResumo, diaVencimentoResumo)
+      : "";
+    if (ciclo) statusManualPorCiclo.set(ciclo, status);
+  });
 
 const labelCartaoResumo = `${String(
   c?.emissor ?? c?.categoria ?? c?.name ?? "Cartão"
 ).trim()} • ${
   String(c?.perfil ?? "").trim().toLowerCase() === "pj" ? "PJ" : "PF"
 }`;
-
 const hojeResumoIso = String(hojeResumoStr).trim();
-const vencimentoIso = `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(
-  Math.min(28, Math.max(1, Number(c?.diaVencimento ?? 10)))
-).padStart(2, "0")}`;
-
-if (vencimentoIso === hojeResumoIso) {
-  resumoCartoesVencendoHojeValor += saldo;
-
-  if (!cartoesVencendoHojeKeys.has(cartaoId)) {
-    cartoesVencendoHojeKeys.add(cartaoId);
-
-    cartoesVencendoHojeLista.push({
-      cartaoId,
-      label: labelCartaoResumo,
-      ciclo,
-    });
-  }
-
-  return;
-}
-
-if (ciclo === cicloAtual) {
-  resumoCartoesEmAbertoValor += saldo;
-  return;
-}
-
-// ciclos futuros não entram no resumo curto de cartões
-if (String(ciclo) > String(cicloAtual)) {
-  return;
-}
 
 const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
   .map(([cicloItem, infoItem]) => {
     if (!/^\d{4}-\d{2}$/.test(String(cicloItem))) return null;
+    if (String(cicloItem) > String(cicloAtual)) return null;
     if ((infoItem?.total ?? 0) <= 0) return null;
 
-    const statusManualDoCiclo = String(
-      statusManualResumoPorCartaoECiclo.get(`${cartaoId}__${String(cicloItem)}`) ?? ""
-    ).toLowerCase();
+    const statusManualDoCiclo = String(statusManualPorCiclo.get(String(cicloItem)) ?? "").toLowerCase();
+    if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") return null;
 
-    if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") {
+    const totalNoCicloCentavos = Math.round(Math.abs(Number(infoItem.total || 0)) * 100);
+    const pagoNoCicloCentavos = Math.round(Math.abs(Number(infoItem.pago || 0)) * 100);
+    if (pagoNoCicloCentavos >= totalNoCicloCentavos) return null;
+
+    const saldoItem = Math.max(0, (totalNoCicloCentavos - pagoNoCicloCentavos) / 100);
+    if (saldoItem <= 0.009) return null;
+
+    const cycleDates = getCardInvoiceCycleDatesFromMonth(
+      String(cicloItem),
+      diaFechamentoResumo,
+      diaVencimentoResumo
+    );
+    if (!cycleDates) return null;
+
+    if (cycleDates.cycleEnd.getTime() >= hojeResumoDate.getTime()) {
+      resumoCartoesEmAbertoValor += saldoItem;
       return null;
     }
 
-const totalNoCicloCentavos = Math.round(
-  Math.abs(Number(infoItem.total || 0)) * 100
-);
-
-const pagoNoCicloCentavos = Math.round(
-  Math.abs(Number(getPagoNoCicloResumo(cartaoId, String(cicloItem)) || 0)) * 100
-);
-
-if (pagoNoCicloCentavos >= totalNoCicloCentavos) return null;
-
-const saldoItem = Math.max(
-  0,
-  (totalNoCicloCentavos - pagoNoCicloCentavos) / 100
-);
-
-if (saldoItem <= 0.009) return null;
-
-    if (String(cicloItem) >= String(cicloAtual)) return null;
-
-    const [anoStr, mesStr] = String(cicloItem).split("-");
-    const ano = Number(anoStr);
-    const mes = Number(mesStr);
-    if (!ano || !mes) return null;
-
-    const vencimentoItem = new Date(
-      ano,
-      mes - 1,
-      Number(c?.diaVencimento ?? 1),
-      12,
-      0,
-      0,
-      0
-    );
-    vencimentoItem.setHours(0, 0, 0, 0);
-
-const vencimentoIso = `${vencimentoItem.getFullYear()}-${String(
-  vencimentoItem.getMonth() + 1
-).padStart(2, "0")}-${String(vencimentoItem.getDate()).padStart(2, "0")}`;
-
-const vencimentoLabel = vencimentoItem.toLocaleDateString("pt-BR", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-});
-
-return {
-  ciclo: String(cicloItem),
-  saldo: saldoItem,
-  vencimento: vencimentoItem,
-  vencimentoIso,
-  vencimentoLabel,
-};
+    return {
+      ciclo: String(cicloItem),
+      saldo: saldoItem,
+      vencimento: cycleDates.dueDate,
+      vencimentoIso: formatCardDateOnlyISO(cycleDates.dueDate),
+      vencimentoLabel: cycleDates.dueDate.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }),
+    };
   })
   .filter(Boolean)
-  .sort((a: any, b: any) => String(b.ciclo).localeCompare(String(a.ciclo)));
+  .sort((a: any, b: any) => {
+    const aOverdue = a.vencimento.getTime() < hojeResumoDate.getTime();
+    const bOverdue = b.vencimento.getTime() < hojeResumoDate.getTime();
+    if (aOverdue !== bOverdue) return aOverdue ? 1 : -1;
+    return a.vencimento.getTime() - b.vencimento.getTime();
+  });
 
-const faturasFechadasAtrasadas = ciclosFechadosPendentes.filter(
-  (item: any) =>
-    item?.vencimento instanceof Date &&
-    item.vencimento.getTime() < hojeResumoDate.getTime()
-);
+const faturaPendentePrioritaria = ciclosFechadosPendentes[0] as any;
+if (!faturaPendentePrioritaria) return;
 
-const faturasFechadasAguardandoPagamento = ciclosFechadosPendentes.filter(
-  (item: any) =>
-    item?.vencimento instanceof Date &&
-    item.vencimento.getTime() > hojeResumoDate.getTime()
-);
+const saldoPrioritario = Math.max(0, Number(faturaPendentePrioritaria.saldo || 0));
+const keyPrioritaria = `${cartaoId}__${String(faturaPendentePrioritaria.ciclo)}`;
+const estaAtrasada = faturaPendentePrioritaria.vencimento.getTime() < hojeResumoDate.getTime();
 
-const faturaFechadaMaisRecente =
-  ciclosFechadosPendentes.length > 0 ? ciclosFechadosPendentes[0] : undefined;
+if (estaAtrasada) {
+  resumoCartoesAtrasadasValor += saldoPrioritario;
 
-const existeFaturaAtrasada = faturasFechadasAtrasadas.length > 0;
-
-const faturaFechadaAguardandoPagamento =
-  faturasFechadasAguardandoPagamento.length > 0
-    ? faturasFechadasAguardandoPagamento[0]
-    : undefined;
-
-const existeFaturaFechadaPendente =
-  Boolean(faturaFechadaAguardandoPagamento) &&
-  Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0)) > 0;
-
-if (String(c?.emissor ?? "").toLowerCase().includes("nubank") || String(c?.emissor ?? "").toLowerCase().includes("ita")) {
-  console.log(
-    "DEBUG RESUMO CARTAO",
-    JSON.stringify(
-      {
-        cartao: c?.emissor,
-        cartaoId,
-        cicloAtual,
-        existeFaturaAtrasada,
-        existeFaturaFechadaPendente,
-        faturaFechadaAguardandoPagamento,
-        faturaFechadaMaisRecente,
-        faturasFechadasAtrasadas,
-pagamentosDoCartao: (pagamentosFatura ?? [])
-          .filter((p: any) => String(p?.cartaoId ?? "").trim() === cartaoId)
-          .map((p: any) => ({
-            id: p?.id,
-            cicloKeyOriginal: p?.cicloKey,
-            valor: p?.valor,
-            dataPagamento: p?.dataPagamento,
-            transacaoId: p?.transacaoId,
-          })),
-      },
-      null,
-      2
-    )
-  );
-}
-
-if (existeFaturaFechadaPendente && faturaFechadaAguardandoPagamento) {
-const pendenteKey = `${cartaoId}__${String(faturaFechadaAguardandoPagamento.ciclo)}`;
-const jaEstaEmVencendoHoje = cartoesVencendoHojeLista.some(
-  (item) =>
-    String(item.cartaoId) === cartaoId &&
-    String(item.ciclo) === String(faturaFechadaAguardandoPagamento.ciclo)
-);
-
-  if (!jaEstaEmVencendoHoje) {
-    resumoCartoesPendentesValor += Math.max(
-      0,
-      Number(faturaFechadaAguardandoPagamento.saldo || 0)
-    );
-
-    if (!cartoesFechadosAguardandoPagamentoKeys.has(pendenteKey)) {
-      cartoesFechadosAguardandoPagamentoKeys.add(pendenteKey);
-
-cartoesFechadosAguardandoPagamentoLista.push({
-  cartaoId,
-  label: labelCartaoResumo,
-  ciclo: String(faturaFechadaAguardandoPagamento.ciclo),
-  vencimentoIso: String(faturaFechadaAguardandoPagamento.vencimentoIso ?? ""),
-  vencimentoLabel: String(faturaFechadaAguardandoPagamento.vencimentoLabel ?? ""),
-  valorLabel: formatResumoBRL(
-    Math.max(0, Number(faturaFechadaAguardandoPagamento.saldo || 0))
-  ),
-});
-    }
-  }
-}
-
-faturasFechadasAtrasadas.forEach((item: any) => {
-  resumoCartoesAtrasadasValor += Math.max(0, Number(item?.saldo || 0));
-  const atrasoKey = `${cartaoId}__${String(item?.ciclo ?? "")}`;
-
-  if (!cartoesAtrasadosKeys.has(atrasoKey)) {
-    cartoesAtrasadosKeys.add(atrasoKey);
+  if (!cartoesAtrasadosKeys.has(keyPrioritaria)) {
+    cartoesAtrasadosKeys.add(keyPrioritaria);
 
     cartoesAtrasadosLista.push({
       cartaoId,
       label: labelCartaoResumo,
-      ciclo: String(item?.ciclo ?? ""),
+      ciclo: String(faturaPendentePrioritaria.ciclo),
     });
   }
-});
 
+  return;
+}
+
+if (String(faturaPendentePrioritaria.vencimentoIso ?? "") === hojeResumoIso) {
+  resumoCartoesVencendoHojeValor += saldoPrioritario;
+
+  if (!cartoesVencendoHojeKeys.has(keyPrioritaria)) {
+    cartoesVencendoHojeKeys.add(keyPrioritaria);
+
+    cartoesVencendoHojeLista.push({
+      cartaoId,
+      label: labelCartaoResumo,
+      ciclo: String(faturaPendentePrioritaria.ciclo),
+    });
+  }
+
+  return;
+}
+
+resumoCartoesPendentesValor += saldoPrioritario;
+
+if (!cartoesFechadosAguardandoPagamentoKeys.has(keyPrioritaria)) {
+  cartoesFechadosAguardandoPagamentoKeys.add(keyPrioritaria);
+
+  cartoesFechadosAguardandoPagamentoLista.push({
+    cartaoId,
+    label: labelCartaoResumo,
+    ciclo: String(faturaPendentePrioritaria.ciclo),
+    vencimentoIso: String(faturaPendentePrioritaria.vencimentoIso ?? ""),
+    vencimentoLabel: String(faturaPendentePrioritaria.vencimentoLabel ?? ""),
+    valorLabel: formatResumoBRL(saldoPrioritario),
   });
+}
+
 });
 
 const resumoHojeLabel = formatResumoBRL(resumoHojeValor);
@@ -11570,13 +11646,40 @@ onClick={() => {
                     </div>
                   </div>
 
-<div className="w-[170px] text-[15px] font-black text-violet-700 dark:text-violet-300 text-right">
-  {formatarMoeda(grupo.total)}
+<div className="w-[170px] text-right">
+  {grupo.displayStatus === "closed" ? (
+    <div className="inline-flex flex-col items-end gap-0.5">
+      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+        Venc. {grupo.displayDueLabel}
+      </span>
+      <span className="text-[15px] font-black text-violet-700 dark:text-violet-300">
+        Total: {formatarMoeda(grupo.displayTotal)}
+      </span>
+    </div>
+  ) : grupo.displayStatus === "overdue" ? (
+    <div className="inline-flex flex-col items-end gap-0.5">
+      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-rose-600 dark:text-rose-300">
+        Atrasada
+      </span>
+      <span className="text-[15px] font-black text-rose-700 dark:text-rose-300">
+        Total: {formatarMoeda(grupo.displayTotal)}
+      </span>
+    </div>
+  ) : (
+    <div className="inline-flex flex-col items-end gap-0.5">
+      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+        Em aberto
+      </span>
+      <span className="text-[15px] font-black text-violet-700 dark:text-violet-300">
+        {formatarMoeda(grupo.displayTotal)}
+      </span>
+    </div>
+  )}
 </div>
                 </div>
 
                 <div className="space-y-2">
-                  {grupo.itens.map((item: any) => (
+                  {grupo.displayItems.map((item: any) => (
 <div
   key={String(item?.id ?? "")}
 className="grid grid-cols-[minmax(0,1fr)_170px] items-center gap-3 rounded-xl bg-white dark:bg-slate-900 px-3 py-2 border border-slate-200/70 dark:border-white/10 shadow-[0_1px_0_rgba(15,23,42,0.02)] dark:shadow-none">
@@ -11677,9 +11780,6 @@ const cardLinks = getCardLinkStats(c.id);
             return Math.round((n + Number.EPSILON) * 100) / 100;
           };
 
-          const hojeFiltro = new Date();
-          hojeFiltro.setHours(23, 59, 59, 999);
-
           const cicloBase = getCardCycleMonthFromDate(
             getHojeLocal(),
             Number(c.diaFechamento ?? 1),
@@ -11689,6 +11789,11 @@ const cardLinks = getCardLinkStats(c.id);
           const diaFechamentoAtual = Math.max(
             1,
             Math.min(31, Number(c.diaFechamento ?? 1))
+          );
+
+          const diaVencimentoNum = Math.max(
+            1,
+            Math.min(31, Number(c.diaVencimento ?? 10))
           );
 
           const makeDateSafe = (year: number, month: number, day: number) => {
@@ -11733,13 +11838,22 @@ const inferirCicloDaTransacao = (t: any): string => {
   );
 };
 
+const getCicloKeyDaFatura = (invoiceMonth: string) => {
+  const cycleDates = getCardInvoiceCycleDatesFromMonth(
+    String(invoiceMonth),
+    diaFechamentoAtual,
+    diaVencimentoNum
+  );
+
+  if (!cycleDates) return "";
+
+  return `${String(c.id)}__${formatCardDateOnlyISO(cycleDates.cycleStart)}__${formatCardDateOnlyISO(
+    cycleDates.cycleEnd
+  )}`;
+};
+
           const transacoesDoCartao = transacoes.filter((t: any) => {
-            const cartaoTxId = String(
-              (t as any).qualCartao ??
-              (t as any).cartaoId ??
-              (t as any).qualConta ??
-              ""
-            );
+            const cartaoTxId = getCreditTransactionCardRef(t);
             const tipo = String((t as any)?.tipo ?? "").toLowerCase();
             const parcelamentoFaturaId = String((t as any)?.parcelamentoFaturaId ?? "").trim();
 
@@ -11755,13 +11869,6 @@ const inferirCicloDaTransacao = (t: any): string => {
               );
 
             return pertenceAoCartaoDiretamente || pertenceAoCartaoViaParcelamento;
-          });
-
-          const transacoesAteHoje = transacoesDoCartao.filter((t: any) => {
-            const dataRaw = String((t as any).data ?? "").trim();
-            const dataTx = dataRaw ? new Date(`${dataRaw}T12:00:00`) : null;
-            if (!dataTx || Number.isNaN(dataTx.getTime())) return false;
-            return dataTx.getTime() <= hojeFiltro.getTime();
           });
 
 const transacoesDaFaturaAtual = transacoesDoCartao.filter((t: any) => {
@@ -11780,34 +11887,7 @@ const transacoesDaFaturaAtual = transacoesDoCartao.filter((t: any) => {
           const pagamentosDaFaturaAtual = (pagamentosFatura ?? []).filter((p: any) => {
             if (String(p?.cartaoId ?? "") !== String(c.id)) return false;
 
-            const cicloNormalizado = normalizePaymentCycleKeyToYm(p?.cicloKey);
-            if (cicloNormalizado === cicloBase) return true;
-
-            const cicloRaw = String(p?.cicloKey ?? "").trim();
-            if (!cicloRaw.includes("__")) return false;
-
-            const parts = cicloRaw.split("__");
-            const startIso = String(parts[1] ?? "").trim();
-            const endIso = String(parts[2] ?? "").trim();
-
-            if (
-              !/^\d{4}-\d{2}-\d{2}$/.test(startIso) ||
-              !/^\d{4}-\d{2}-\d{2}$/.test(endIso)
-            ) {
-              return false;
-            }
-
-            const startDate = new Date(`${startIso}T00:00:00`);
-            const endDate = new Date(`${endIso}T23:59:59.999`);
-
-            if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-              return false;
-            }
-
-            return (
-              startDate.getTime() === cicloInicioReal.getTime() &&
-              endDate.getTime() === cicloFimReal.getTime()
-            );
+            return String(p?.cicloKey ?? "").trim() === getCicloKeyDaFatura(cicloBase);
           });
 
           const totalFatura = roundMoney(
@@ -11836,27 +11916,17 @@ const statusManualPorCiclo = new Map<string, string>();
 
   const cicloRaw = String(item?.cicloKey ?? "").trim();
 
-  const cicloNormalizado = normalizePaymentCycleKeyToYm(cicloRaw);
+  const cycleParts = cicloRaw.split("__");
+  const cycleEndIso = String(cycleParts[2] ?? "").trim();
 
-  if (cicloNormalizado) {
-    statusManualPorCiclo.set(cicloNormalizado, status);
-  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cycleEndIso)) {
+    const invoiceMonth = getCardCycleMonthFromDate(
+      cycleEndIso,
+      Number(c?.diaFechamento ?? 1),
+      Number(c?.diaVencimento ?? 1)
+    );
 
-  if (cicloRaw.includes("__")) {
-    const parts = cicloRaw.split("__");
-    const startIso = String(parts[1] ?? "").trim();
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(startIso)) {
-      const cicloPorDataInicio = getCardCycleMonthFromDate(
-        startIso,
-        Number(c?.diaFechamento ?? 1),
-        Number(c?.diaVencimento ?? 1)
-      );
-
-      if (cicloPorDataInicio) {
-        statusManualPorCiclo.set(cicloPorDataInicio, status);
-      }
-    }
+    if (invoiceMonth) statusManualPorCiclo.set(invoiceMonth, status);
   }
 });
 
@@ -11891,27 +11961,44 @@ const isPagaNoCicloAtual = statusManualCicloAtual === "paga";
           );
 
           const totaisPorCiclo = new Map<string, { total: number; pago: number }>();
+          const mesesFaturaDoCartao = new Set<string>();
 
-          transacoesAteHoje.forEach((t: any) => {
+          transacoesDoCartao.forEach((t: any) => {
             const ciclo = inferirCicloDaTransacao(t);
             if (!ciclo) return;
+            mesesFaturaDoCartao.add(ciclo);
+          });
+
+          mesesFaturaDoCartao.forEach((ciclo) => {
+            const txFaturaCiclo = getCreditCardTransactionsByInvoiceMonth({
+              transactions: transacoes as any,
+              cartaoId: String(c.id),
+              monthKey: String(ciclo),
+              diaFechamento: Number(c.diaFechamento ?? 1),
+              diaVencimento: Number(c.diaVencimento ?? 1),
+            });
 
             const atual = totaisPorCiclo.get(ciclo) ?? { total: 0, pago: 0 };
-            atual.total += Math.abs(Number(t.valor || 0));
+            atual.total = sumCreditTransactionsAbs(txFaturaCiclo as any);
             totaisPorCiclo.set(ciclo, atual);
           });
 
           (pagamentosFatura ?? []).forEach((p: any) => {
-            const idsPagamento = [p?.cartaoId, p?.cardId]
+            const idsPagamento = [p?.cartaoId]
               .map((value) => String(value ?? "").trim())
               .filter(Boolean);
 
             if (!idsPagamento.includes(String(c.id).trim())) return;
 
-            const ciclo = normalizePaymentCycleKeyToYm(
-              p?.cicloKey,
-              p?.dataPagamento ?? p?.criadoEm ?? p?.createdAt ?? ""
-            );
+            const cycleParts = String(p?.cicloKey ?? "").trim().split("__");
+            const cycleEndIso = String(cycleParts[2] ?? "").trim();
+            const ciclo = /^\d{4}-\d{2}-\d{2}$/.test(cycleEndIso)
+              ? getCardCycleMonthFromDate(
+                  cycleEndIso,
+                  Number(c?.diaFechamento ?? 1),
+                  Number(c?.diaVencimento ?? 1)
+                )
+              : "";
 
             if (!ciclo) return;
 
@@ -11919,11 +12006,6 @@ const isPagaNoCicloAtual = statusManualCicloAtual === "paga";
             atual.pago += Math.abs(Number(p?.valor || 0));
             totaisPorCiclo.set(ciclo, atual);
           });
-
-          const diaVencimentoNum = Math.max(
-            1,
-            Math.min(31, Number(c.diaVencimento ?? 10))
-          );
 
           const hojeNoCicloAtual = new Date(`${getHojeLocal()}T12:00:00`);
 hojeNoCicloAtual.setHours(0, 0, 0, 0);
@@ -11938,27 +12020,19 @@ const faturaDoCicloAtual = Array.from(totaisPorCiclo.entries())
       Math.max(0, Number(info.total || 0) - Number(info.pago || 0))
     );
 
-    const [anoStr, mesStr] = String(ciclo).split("-");
-    const ano = Number(anoStr);
-    const mes = Number(mesStr);
-    if (!ano || !mes) return null;
-
-    const vencimento = new Date(
-      ano,
-      mes - 1,
-      diaVencimentoNum,
-      12,
-      0,
-      0,
-      0
+    const cycleDates = getCardInvoiceCycleDatesFromMonth(
+      String(ciclo),
+      diaFechamentoAtual,
+      diaVencimentoNum
     );
-    vencimento.setHours(0, 0, 0, 0);
+    if (!cycleDates) return null;
 
     return {
       ciclo: String(ciclo),
       total: roundMoney(Math.max(0, Number(info.total || 0))),
       saldo,
-      vencimento,
+      vencimento: cycleDates.dueDate,
+      cycleEnd: cycleDates.cycleEnd,
     };
   })
   .filter(Boolean)[0] as
@@ -11967,6 +12041,7 @@ const faturaDoCicloAtual = Array.from(totaisPorCiclo.entries())
       total: number;
       saldo: number;
       vencimento: Date;
+      cycleEnd: Date;
     }
   | undefined;
 
@@ -11982,11 +12057,7 @@ const cicloAtualFechadoAguardandoPagamento =
   !!faturaDoCicloAtual &&
   existeSaldoNoCicloAtual &&
   !cicloAtualEstaAtrasado &&
-  String(cicloBase) < String(getCardCycleMonthFromDate(
-    getHojeLocal(),
-    Number(c?.diaFechamento ?? 1),
-    Number(c?.diaVencimento ?? 1)
-  ));
+  faturaDoCicloAtual.cycleEnd.getTime() < hojeNoCicloAtual.getTime();
 
           const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
             .map(([ciclo, info]) => {
@@ -12006,29 +12077,22 @@ const cicloAtualFechadoAguardandoPagamento =
               );
 
               if (saldo <= 0) return null;
-              if (String(ciclo) >= String(cicloBase)) return null;
 
-              const [anoStr, mesStr] = String(ciclo).split("-");
-              const ano = Number(anoStr);
-              const mes = Number(mesStr);
-              if (!ano || !mes) return null;
+              if (String(ciclo) > String(cicloBase)) return null;
 
-              const vencimento = new Date(
-                ano,
-                mes - 1,
-                diaVencimentoNum,
-                12,
-                0,
-                0,
-                0
+              const cycleDates = getCardInvoiceCycleDatesFromMonth(
+                String(ciclo),
+                diaFechamentoAtual,
+                diaVencimentoNum
               );
-              vencimento.setHours(0, 0, 0, 0);
+              if (!cycleDates) return null;
+              if (cycleDates.cycleEnd.getTime() >= hojeNoCicloAtual.getTime()) return null;
 
               return {
                 ciclo: String(ciclo),
                 total: roundMoney(Math.max(0, Number(info.total || 0))),
                 saldo,
-                vencimento,
+                vencimento: cycleDates.dueDate,
               };
             })
             .filter(Boolean)
@@ -12064,9 +12128,18 @@ const faturaFechadaAguardandoPagamento =
     ? faturasFechadasAguardandoPagamento[0]
     : undefined;
 
+const faturaPendentePrioritaria =
+  ciclosFechadosPendentes.length > 0 ? ciclosFechadosPendentes[0] : undefined;
+
+const faturaPendentePrioritariaEstaAtrasada =
+  !!faturaPendentePrioritaria &&
+  faturaPendentePrioritaria.vencimento instanceof Date &&
+  faturaPendentePrioritaria.vencimento.getTime() < hojeNoCicloAtual.getTime();
+
 const existeFaturaFechadaPendente =
-  Boolean(faturaFechadaAguardandoPagamento) &&
-  Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0)) > 0;
+  Boolean(faturaPendentePrioritaria) &&
+  !faturaPendentePrioritariaEstaAtrasada &&
+  Math.max(0, Number(faturaPendentePrioritaria?.saldo || 0)) > 0;
 
 const statusResumoFaturaAtual: "paga" | "parcelada" | "atrasada" | "fechada" | "aberta" =
   isPagaNoCicloAtual
@@ -12085,7 +12158,7 @@ const cardFaturaAtualPaga =
 const statusMiniCard: "normal" | "atrasada" | "zerada" =
   cardFaturaAtualPaga
     ? "normal"
-    : existeFaturaAtrasada
+    : faturaPendentePrioritariaEstaAtrasada
     ? "atrasada"
     : existeFaturaFechadaPendente
     ? "zerada"
@@ -12095,17 +12168,17 @@ const miniCardValor =
   cardFaturaAtualPaga
     ? 0
     : statusMiniCard === "atrasada"
-    ? Math.max(0, valorEmAtraso)
+    ? Math.max(0, Number(faturaPendentePrioritaria?.saldo || 0))
     : statusMiniCard === "zerada"
-    ? Math.max(0, Number(faturaFechadaAguardandoPagamento?.saldo || 0))
+    ? Math.max(0, Number(faturaPendentePrioritaria?.saldo || 0))
     : Math.max(0, Number(emAberto || 0));
 
 const miniCardDueLabel =
   cardFaturaAtualPaga
     ? undefined
-    : statusMiniCard === "zerada" && faturaFechadaAguardandoPagamento
-    ? `${String(faturaFechadaAguardandoPagamento.vencimento.getDate()).padStart(2, "0")}/${String(
-        faturaFechadaAguardandoPagamento.vencimento.getMonth() + 1
+    : statusMiniCard === "zerada" && faturaPendentePrioritaria
+    ? `${String(faturaPendentePrioritaria.vencimento.getDate()).padStart(2, "0")}/${String(
+        faturaPendentePrioritaria.vencimento.getMonth() + 1
       ).padStart(2, "0")}`
     : undefined;
 

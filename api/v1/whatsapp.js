@@ -176,6 +176,68 @@ function getCreditInvoiceCycle(cardId, invoiceMonth, closingDay, dueDay) {
   };
 }
 
+function parseCreditInvoiceCycleKey(cicloKey) {
+  const clean = String(cicloKey ?? "").trim();
+  const parts = clean.split("__");
+
+  if (parts.length !== 3) {
+    throw new ApiError(
+      400,
+      "INVALID_CICLO_KEY",
+      "ciclo_key must use format credit_card_id__YYYY-MM-DD__YYYY-MM-DD."
+    );
+  }
+
+  const [creditCardId, cycleStart, cycleEnd] = parts.map((part) =>
+    String(part ?? "").trim()
+  );
+
+  if (!creditCardId || !/^\d{4}-\d{2}-\d{2}$/.test(cycleStart) || !/^\d{4}-\d{2}-\d{2}$/.test(cycleEnd)) {
+    throw new ApiError(
+      400,
+      "INVALID_CICLO_KEY",
+      "ciclo_key must use format credit_card_id__YYYY-MM-DD__YYYY-MM-DD."
+    );
+  }
+
+  const cycleStartDate = new Date(`${cycleStart}T00:00:00`);
+  const cycleEndDate = new Date(`${cycleEnd}T00:00:00`);
+
+  if (
+    Number.isNaN(cycleStartDate.getTime()) ||
+    Number.isNaN(cycleEndDate.getTime()) ||
+    cycleStartDate.getTime() > cycleEndDate.getTime()
+  ) {
+    throw new ApiError(
+      400,
+      "INVALID_CICLO_KEY",
+      "ciclo_key has invalid cycle dates."
+    );
+  }
+
+  return {
+    ciclo_key: clean,
+    credit_card_id: creditCardId,
+    cycle_start: cycleStart,
+    cycle_end: cycleEnd,
+    cycle_start_date: cycleStartDate,
+    cycle_end_date: cycleEndDate,
+  };
+}
+
+function getInvoiceMonthFromCycleEnd(cycleEndIso, closingDay, dueDay) {
+  const date = new Date(`${cycleEndIso}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const closing = Math.max(1, Math.min(31, Number(closingDay ?? 1)));
+  const due = Math.max(1, Math.min(31, Number(dueDay ?? 1)));
+  const invoiceOffset = due > closing ? 0 : 1;
+  const base = new Date(date.getFullYear(), date.getMonth(), 1, 12, 0, 0, 0);
+  base.setMonth(base.getMonth() + invoiceOffset);
+
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function getCreditInvoiceMonth(dateIso, closingDay, dueDay) {
   const date = new Date(`${dateIso}T12:00:00`);
   if (Number.isNaN(date.getTime())) return "";
@@ -191,6 +253,31 @@ function getCreditInvoiceMonth(dateIso, closingDay, dueDay) {
 
   base.setMonth(base.getMonth() + invoiceOffset);
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getCreditTransactionCardId(row) {
+  return String(
+    row?.cartao_id ??
+      row?.qual_conta ??
+      row?.payload?.cartaoId ??
+      row?.payload?.qualCartao ??
+      row?.payload?.targetId ??
+      ""
+  ).trim();
+}
+
+function roundMoney(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function toCents(value) {
+  return Math.round(Number(value || 0) * 100);
+}
+
+function buildInvoicePaymentTransactionDescription(card) {
+  const issuer = String(card?.bank_text ?? card?.titular ?? card?.emissor ?? "").trim() || "CartÃ£o";
+  const category = String(card?.categoria ?? "").trim();
+  return category ? `Fatura: ${issuer} ${category}` : `Fatura: ${issuer}`;
 }
 
 function getCreditInvoiceStatusForApi({
@@ -540,30 +627,41 @@ async function handlePendingTransactions(req, res, supabase) {
   });
 }
 
-async function handlePayableInvoices(req, res, supabase) {
-  requireMethod(req, "GET");
-  rejectUserIdFromSupplier(req.query || {});
-  const user = await resolveGetUser(supabase, req);
-
+async function getCreditInvoiceSummaries(
+  supabase,
+  userId,
+  { creditCardId, cicloKey } = {}
+) {
   const [cardsResult, txResult, paymentsResult, manualStatusResult] =
     await Promise.all([
-      supabase
-        .from("credit_cards")
-        .select("*")
-        .eq("user_id", user.user_id),
+      (() => {
+        let query = supabase.from("credit_cards").select("*").eq("user_id", userId);
+        if (creditCardId) query = query.eq("id", creditCardId);
+        return query;
+      })(),
       supabase
         .from("transactions")
-        .select("id, tipo, valor, data, descricao, categoria, cartao_id, pago, payload")
-        .eq("user_id", user.user_id)
+        .select("id, tipo, valor, data, descricao, categoria, cartao_id, qual_conta, pago, payload")
+        .eq("user_id", userId)
         .eq("tipo", "cartao_credito"),
-      supabase
-        .from("invoice_payments")
-        .select("credit_card_id, ciclo_key, amount")
-        .eq("user_id", user.user_id),
-      supabase
-        .from("invoice_manual_status")
-        .select("cartao_id, ciclo_key, status_manual")
-        .eq("user_id", user.user_id),
+      (() => {
+        let query = supabase
+          .from("invoice_payments")
+          .select("credit_card_id, ciclo_key, amount")
+          .eq("user_id", userId);
+        if (creditCardId) query = query.eq("credit_card_id", creditCardId);
+        if (cicloKey) query = query.eq("ciclo_key", cicloKey);
+        return query;
+      })(),
+      (() => {
+        let query = supabase
+          .from("invoice_manual_status")
+          .select("cartao_id, ciclo_key, status_manual")
+          .eq("user_id", userId);
+        if (creditCardId) query = query.eq("cartao_id", creditCardId);
+        if (cicloKey) query = query.eq("ciclo_key", cicloKey);
+        return query;
+      })(),
     ]);
 
   for (const result of [
@@ -594,7 +692,8 @@ async function handlePayableInvoices(req, res, supabase) {
   const invoices = new Map();
 
   for (const tx of txResult.data ?? []) {
-    const cardId = String(tx.cartao_id || tx?.payload?.cartaoId || tx?.payload?.qualCartao || "").trim();
+    const cardId = getCreditTransactionCardId(tx);
+    if (creditCardId && cardId !== String(creditCardId)) continue;
     const card = cardsById.get(cardId);
     if (!card || card.is_active === false) continue;
 
@@ -612,6 +711,7 @@ async function handlePayableInvoices(req, res, supabase) {
       card.dia_vencimento
     );
     if (!cycle?.ciclo_key) continue;
+    if (cicloKey && cycle.ciclo_key !== String(cicloKey)) continue;
 
     const invoiceRef = `${cardId}:${invoiceMonth}`;
     const current = invoices.get(cycle.ciclo_key) ?? {
@@ -638,12 +738,12 @@ async function handlePayableInvoices(req, res, supabase) {
   }
 
   const today = new Date(`${todayIso()}T00:00:00`);
-  const payable = Array.from(invoices.values())
+  return Array.from(invoices.values())
     .filter((invoice) => invoice.amount > 0)
     .map((invoice) => {
       const statusRef = `${invoice.credit_card_id}:${invoice.ciclo_key}`;
-      const paidAmount = Number(paymentTotals.get(statusRef) || 0);
-      const remainingAmount = Math.max(0, invoice.amount - paidAmount);
+      const paidAmount = roundMoney(Number(paymentTotals.get(statusRef) || 0));
+      const remainingAmount = roundMoney(Math.max(0, invoice.amount - paidAmount));
       const status = getCreditInvoiceStatusForApi({
         amount: invoice.amount,
         remainingAmount,
@@ -668,7 +768,15 @@ async function handlePayableInvoices(req, res, supabase) {
         status,
         ...guidance,
       };
-    })
+    });
+}
+
+async function handlePayableInvoices(req, res, supabase) {
+  requireMethod(req, "GET");
+  rejectUserIdFromSupplier(req.query || {});
+  const user = await resolveGetUser(supabase, req);
+
+  const payable = (await getCreditInvoiceSummaries(supabase, user.user_id))
     .filter((invoice) => {
       if (invoice.remaining_amount <= 0) return false;
       if (invoice.status === "PAGA" || invoice.status === "ZERADA") return false;
@@ -1734,6 +1842,282 @@ async function handleCreateCreditCardInstallments(req, res, action) {
   });
 }
 
+async function handlePayCreditCardInvoice(req, res, action) {
+  await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    const creditCardId = requireString(
+      body.credit_card_id,
+      "CREDIT_CARD_ID_REQUIRED",
+      "credit_card_id is required."
+    );
+    const cicloKey = requireString(
+      body.ciclo_key,
+      "CICLO_KEY_REQUIRED",
+      "ciclo_key is required."
+    );
+    const accountId = String(body.account_id ?? "").trim();
+
+    if (!accountId) {
+      throw new ApiError(
+        400,
+        "PAYMENT_ACCOUNT_REQUIRED",
+        "Para pagar a fatura, informe de qual conta bancÃ¡ria o valor deve sair."
+      );
+    }
+
+    const paymentDate = parseIsoDate(
+      body.payment_date || todayIso(),
+      "INVALID_PAYMENT_DATE",
+      "payment_date"
+    );
+    const notes = String(body.notes ?? "").trim();
+    const cycle = parseCreditInvoiceCycleKey(cicloKey);
+
+    if (String(cycle.credit_card_id) !== String(creditCardId)) {
+      throw new ApiError(
+        400,
+        "CICLO_KEY_CARD_MISMATCH",
+        "ciclo_key does not belong to credit_card_id."
+      );
+    }
+
+    const [card, account] = await Promise.all([
+      requireOwnedCreditCard(supabase, user.user_id, creditCardId),
+      requireOwnedAccount(supabase, user.user_id, accountId),
+    ]);
+
+    const closingDay = Number(card.dia_fechamento ?? card.diaFechamento ?? 1);
+    const dueDay = Number(card.dia_vencimento ?? card.diaVencimento ?? 10);
+    const invoiceMonth = getInvoiceMonthFromCycleEnd(
+      cycle.cycle_end,
+      closingDay,
+      dueDay
+    );
+    const expectedCycle = getCreditInvoiceCycle(
+      creditCardId,
+      invoiceMonth,
+      closingDay,
+      dueDay
+    );
+
+    if (!invoiceMonth || !expectedCycle || expectedCycle.ciclo_key !== cicloKey) {
+      throw new ApiError(
+        400,
+        "INVALID_CICLO_KEY",
+        "ciclo_key does not match this credit card invoice cycle."
+      );
+    }
+
+    const invoice = (
+      await getCreditInvoiceSummaries(supabase, user.user_id, {
+        creditCardId,
+        cicloKey,
+      })
+    ).find(
+      (item) =>
+        String(item.credit_card_id) === String(creditCardId) &&
+        String(item.ciclo_key) === String(cicloKey)
+    );
+
+    if (!invoice || Number(invoice.amount || 0) <= 0) {
+      throw new ApiError(
+        404,
+        "INVOICE_NOT_FOUND_OR_EMPTY",
+        "Invoice was not found or has no credit card purchases."
+      );
+    }
+
+    const invoiceAmount = roundMoney(Number(invoice.amount || 0));
+    const paidAmount = roundMoney(Number(invoice.paid_amount || 0));
+    const remainingAmount = roundMoney(Number(invoice.remaining_amount || 0));
+    const status = String(invoice.status || "");
+
+    if (body.amount !== undefined) {
+      const requestedAmount = Number(body.amount);
+      if (
+        !Number.isFinite(requestedAmount) ||
+        toCents(Math.abs(requestedAmount)) !== toCents(remainingAmount)
+      ) {
+        throw new ApiError(
+          400,
+          "FULL_PAYMENT_ONLY",
+          "Pela API, sÃ³ Ã© permitido pagar o valor total da fatura. Para pagamento parcial, acesse o painel FluxMoney."
+        );
+      }
+    }
+
+    if (remainingAmount <= 0 || status === "PAGA" || status === "ZERADA") {
+      throw new ApiError(
+        400,
+        "INVOICE_ALREADY_PAID",
+        "Esta fatura nÃ£o possui saldo pendente para pagamento."
+      );
+    }
+
+    if (status !== "FECHADA" && status !== "ATRASADA") {
+      throw new ApiError(
+        400,
+        "INVOICE_NOT_PAYABLE_VIA_API",
+        "Esta fatura ainda nÃ£o estÃ¡ fechada. Pela API, o pagamento Ã© permitido apenas para fatura fechada/atrasada e pelo valor total. Para consultar ou pagar parcialmente, acesse o painel FluxMoney.",
+        {
+          current_amount: invoiceAmount,
+          remaining_amount: remainingAmount,
+          status,
+          payment_message: invoice.payment_message,
+        }
+      );
+    }
+
+    const createdAt = Date.now();
+    const accountLabel = String(account.name || account.banco || "").trim() || null;
+    const description = buildInvoicePaymentTransactionDescription(card);
+    let createdTransaction = null;
+    let createdPayment = null;
+
+    try {
+      const { data: transactionRow, error: transactionError } = await supabase
+        .from("transactions")
+        .insert({
+          user_id: user.user_id,
+          tipo: "despesa",
+          valor: -Math.abs(remainingAmount),
+          data: paymentDate,
+          descricao: description,
+          categoria: "CartÃ£o de CrÃ©dito",
+          tag: "",
+          pago: true,
+          conta_id: accountId,
+          conta_origem_id: null,
+          conta_destino_id: null,
+          cartao_id: null,
+          transfer_from_id: "",
+          transfer_to_id: "",
+          qual_conta: accountId,
+          criado_em: createdAt,
+          payload: {
+            metodoPagamento: "",
+            tipoGasto: "",
+            recorrenciaId: "",
+            isRecorrente: false,
+            recurrenceKind: "",
+            recurrenceWindowMonths: null,
+            recurrenceOriginDate: "",
+            recurrenceWindowStart: "",
+            recurrenceWindowEnd: "",
+            recurrenceStatus: "",
+            recurrenceRenewalDecision: "",
+            recurrenceDismissedAt: "",
+            recurrenceCanceledAt: "",
+            recurrenceLastActionAt: "",
+            contraParte: "",
+            transferId: "",
+            observacoes: notes,
+            parcelaAtual: null,
+            totalParcelas: null,
+            qualCartao: "",
+            origemLancamento: "whatsapp_api",
+            action: "pay_credit_card_invoice",
+            creditCardId,
+            cicloKey,
+            invoiceMonth,
+            providerMessageId: body.provider_message_id,
+            notes,
+          },
+        })
+        .select("*")
+        .single();
+
+      if (transactionError) throw transactionError;
+      createdTransaction = transactionRow;
+
+      const { data: paymentRow, error: paymentError } = await supabase
+        .from("invoice_payments")
+        .insert({
+          id: crypto.randomUUID(),
+          user_id: user.user_id,
+          credit_card_id: creditCardId,
+          ciclo_key: cicloKey,
+          payment_date: paymentDate,
+          amount: remainingAmount,
+          account_id: accountId,
+          account_label: accountLabel,
+          transaction_id: String(createdTransaction.id),
+          snapshot_created_at_ms: createdAt,
+        })
+        .select("*")
+        .single();
+
+      if (paymentError) throw paymentError;
+      createdPayment = paymentRow;
+
+      const { error: statusError } = await supabase
+        .from("invoice_manual_status")
+        .upsert(
+          {
+            id: crypto.randomUUID(),
+            user_id: user.user_id,
+            cartao_id: creditCardId,
+            ciclo_key: cicloKey,
+            status_manual: "paga",
+            parcelamento_fatura_id: null,
+            criado_em: createdAt,
+          },
+          {
+            onConflict: "user_id,cartao_id,ciclo_key",
+          }
+        );
+
+      if (statusError) throw statusError;
+    } catch (error) {
+      if (createdPayment?.id) {
+        await supabase
+          .from("invoice_payments")
+          .delete()
+          .eq("id", createdPayment.id)
+          .eq("user_id", user.user_id);
+      }
+
+      if (createdTransaction?.id) {
+        await supabase
+          .from("transactions")
+          .delete()
+          .eq("id", createdTransaction.id)
+          .eq("user_id", user.user_id);
+      }
+
+      throw new ApiError(
+        500,
+        "INVOICE_PAYMENT_FAILED",
+        "NÃ£o foi possÃ­vel registrar o pagamento da fatura com seguranÃ§a. Nenhuma despesa solta foi mantida."
+      );
+    }
+
+    return {
+      statusCode: 201,
+      body: {
+        ok: true,
+        status: "created",
+        summary: `Fatura ${card.nome || card.bank_text || "do cartÃ£o"} paga com sucesso.`,
+        payment: {
+          id: createdPayment.id,
+          credit_card_id: creditCardId,
+          ciclo_key: cicloKey,
+          amount: remainingAmount,
+          payment_date: paymentDate,
+          account_id: accountId,
+          transaction_id: String(createdTransaction.id),
+        },
+        invoice: {
+          invoice_month: invoiceMonth,
+          previous_pending_amount: remainingAmount,
+          paid_amount: remainingAmount,
+          remaining_pending_amount: 0,
+          status: "PAGA",
+        },
+      },
+    };
+  });
+}
+
 module.exports = withApi(async function handler(req, res) {
   validateSupplierAuth(req);
 
@@ -1777,6 +2161,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "create_credit_card_installments") {
     return handleCreateCreditCardInstallments(req, res, action);
+  }
+  if (action === "pay_credit_card_invoice") {
+    return handlePayCreditCardInvoice(req, res, action);
   }
 
   throw new ApiError(400, "INVALID_ACTION", "action is not supported.");

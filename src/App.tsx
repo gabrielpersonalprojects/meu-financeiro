@@ -3056,9 +3056,35 @@ const handleRemoverPagamentoFatura = async (pagamentoId: string) => {
       await deleteTransactionById(String(alvo.transacaoId), userId);
     }
 
+    const alvoCartaoId = String((alvo as any)?.cartaoId ?? "").trim();
+    const alvoCicloKey = String((alvo as any)?.cicloKey ?? "").trim();
+    const statusManualPagoDoCiclo = (faturasStatusManual ?? []).some(
+      (item: any) =>
+        String(item?.cartaoId ?? "").trim() === alvoCartaoId &&
+        String(item?.cicloKey ?? "").trim() === alvoCicloKey &&
+        String(item?.statusManual ?? "").trim().toLowerCase() === "paga"
+    );
+
+    if (alvoCartaoId && alvoCicloKey && statusManualPagoDoCiclo) {
+      await deleteInvoiceManualStatusByCycle(alvoCartaoId, alvoCicloKey, userId);
+    }
+
 setPagamentosFatura((prev) =>
   (prev ?? []).filter((p: any) => String(p?.id ?? "") !== String(pagamentoId))
 );
+
+if (alvoCartaoId && alvoCicloKey && statusManualPagoDoCiclo) {
+  setFaturasStatusManual((prev: any[]) =>
+    (Array.isArray(prev) ? prev : []).filter(
+      (item: any) =>
+        !(
+          String(item?.cartaoId ?? "").trim() === alvoCartaoId &&
+          String(item?.cicloKey ?? "").trim() === alvoCicloKey &&
+          String(item?.statusManual ?? "").trim().toLowerCase() === "paga"
+        )
+    )
+  );
+}
 
 if (alvo.transacaoId) {
   setTransacoes((prev) =>
@@ -3068,8 +3094,8 @@ if (alvo.transacaoId) {
   );
 }
 
-if (alvo.cartaoId) {
-  await touchCardAndRefreshInState(alvo.cartaoId);
+if (alvoCartaoId || alvo.cartaoId) {
+  await touchCardAndRefreshInState(alvoCartaoId || alvo.cartaoId);
 }
 
 toastCompact("Pagamento removido.", "success");
@@ -4599,7 +4625,7 @@ const cardsResumoAgrupado = useMemo(() => {
     const pendingInvoices = Array.from(totalsByCycle.entries())
       .map(([ciclo, info]) => {
         const manualStatus = String(manualStatusByCycle.get(ciclo) ?? "").toLowerCase();
-        if (manualStatus === "paga" || manualStatus === "pago" || manualStatus === "parcelada" || manualStatus === "parcelado") {
+        if (manualStatus === "parcelada" || manualStatus === "parcelado") {
           return null;
         }
 
@@ -4955,8 +4981,6 @@ const statusManualPorCiclo = new Map<string, string>();
         ).toLowerCase();
 
         if (
-          statusManualDoCiclo === "paga" ||
-          statusManualDoCiclo === "pago" ||
           statusManualDoCiclo === "parcelada" ||
           statusManualDoCiclo === "parcelado"
         ) {
@@ -7404,11 +7428,37 @@ if (!userId) return;
 
 await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
 
+      const alvoCartaoId = String((alvoPagamento as any)?.cartaoId ?? "").trim();
+      const alvoCicloKey = String((alvoPagamento as any)?.cicloKey ?? "").trim();
+      const statusManualPagoDoCiclo = (faturasStatusManual ?? []).some(
+        (item: any) =>
+          String(item?.cartaoId ?? "").trim() === alvoCartaoId &&
+          String(item?.cicloKey ?? "").trim() === alvoCicloKey &&
+          String(item?.statusManual ?? "").trim().toLowerCase() === "paga"
+      );
+
+      if (alvoCartaoId && alvoCicloKey && statusManualPagoDoCiclo) {
+        await deleteInvoiceManualStatusByCycle(alvoCartaoId, alvoCicloKey, userId);
+      }
+
       setPagamentosFatura((prev) =>
         (prev ?? []).filter(
           (p: any) => String(p?.id ?? "") !== String(alvoPagamento.id)
         )
       );
+
+      if (alvoCartaoId && alvoCicloKey && statusManualPagoDoCiclo) {
+        setFaturasStatusManual((prev: any[]) =>
+          (Array.isArray(prev) ? prev : []).filter(
+            (item: any) =>
+              !(
+                String(item?.cartaoId ?? "").trim() === alvoCartaoId &&
+                String(item?.cicloKey ?? "").trim() === alvoCicloKey &&
+                String(item?.statusManual ?? "").trim().toLowerCase() === "paga"
+              )
+          )
+        );
+      }
     }
 
     if (isTransfer && transferId) {
@@ -9510,8 +9560,8 @@ const ciclosFechadosPendentes = Array.from(totaisPorCiclo.entries())
     if (String(cicloItem) > String(cicloAtual)) return null;
     if ((infoItem?.total ?? 0) <= 0) return null;
 
-    const statusManualDoCiclo = String(statusManualPorCiclo.get(String(cicloItem)) ?? "").toLowerCase();
-    if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") return null;
+      const statusManualDoCiclo = String(statusManualPorCiclo.get(String(cicloItem)) ?? "").toLowerCase();
+      if (statusManualDoCiclo === "parcelada") return null;
 
     const totalNoCicloCentavos = Math.round(Math.abs(Number(infoItem.total || 0)) * 100);
     const pagoNoCicloCentavos = Math.round(Math.abs(Number(infoItem.pago || 0)) * 100);
@@ -12068,7 +12118,7 @@ const cicloAtualFechadoAguardandoPagamento =
                 statusManualPorCiclo.get(ciclo) ?? ""
               ).toLowerCase();
 
-              if (statusManualDoCiclo === "parcelada" || statusManualDoCiclo === "paga") {
+              if (statusManualDoCiclo === "parcelada") {
                 return null;
               }
 
@@ -12153,7 +12203,8 @@ const statusResumoFaturaAtual: "paga" | "parcelada" | "atrasada" | "fechada" | "
     : "aberta";
 
 const cardFaturaAtualPaga =
-  statusResumoFaturaAtual === "paga" || isPagaNoCicloAtual;
+  (statusResumoFaturaAtual === "paga" || isPagaNoCicloAtual) &&
+  !existeSaldoNoCicloAtual;
 
 const statusMiniCard: "normal" | "atrasada" | "zerada" =
   cardFaturaAtualPaga
@@ -12756,11 +12807,37 @@ try {
 
     await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
 
+    const alvoCartaoId = String((alvoPagamento as any)?.cartaoId ?? "").trim();
+    const alvoCicloKey = String((alvoPagamento as any)?.cicloKey ?? "").trim();
+    const statusManualPagoDoCiclo = (faturasStatusManual ?? []).some(
+      (item: any) =>
+        String(item?.cartaoId ?? "").trim() === alvoCartaoId &&
+        String(item?.cicloKey ?? "").trim() === alvoCicloKey &&
+        String(item?.statusManual ?? "").trim().toLowerCase() === "paga"
+    );
+
+    if (alvoCartaoId && alvoCicloKey && statusManualPagoDoCiclo) {
+      await deleteInvoiceManualStatusByCycle(alvoCartaoId, alvoCicloKey, userId);
+    }
+
     setPagamentosFatura((prev) =>
       (prev ?? []).filter(
         (p: any) => String(p?.id ?? "") !== String(alvoPagamento.id)
       )
     );
+
+    if (alvoCartaoId && alvoCicloKey && statusManualPagoDoCiclo) {
+      setFaturasStatusManual((prev: any[]) =>
+        (Array.isArray(prev) ? prev : []).filter(
+          (item: any) =>
+            !(
+              String(item?.cartaoId ?? "").trim() === alvoCartaoId &&
+              String(item?.cicloKey ?? "").trim() === alvoCicloKey &&
+              String(item?.statusManual ?? "").trim().toLowerCase() === "paga"
+            )
+        )
+      );
+    }
   }
 
 if (isUuid(String(id))) {

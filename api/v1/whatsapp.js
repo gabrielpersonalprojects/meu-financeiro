@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 const { getSupabaseAdmin } = require("../_lib/supabaseAdmin");
 const {
   ApiError,
@@ -275,7 +275,7 @@ function toCents(value) {
 }
 
 function buildInvoicePaymentTransactionDescription(card) {
-  const issuer = String(card?.bank_text ?? card?.titular ?? card?.emissor ?? "").trim() || "CartÃ£o";
+  const issuer = String(card?.bank_text ?? card?.titular ?? card?.emissor ?? "").trim() || "CartÃƒÂ£o";
   const category = String(card?.categoria ?? "").trim();
   return category ? `Fatura: ${issuer} ${category}` : `Fatura: ${issuer}`;
 }
@@ -318,11 +318,11 @@ function buildInvoicePaymentGuidance(status, remainingAmount) {
     return {
       can_pay_via_api: true,
       api_payment_type: "full_only",
-      payment_message: `Esta fatura pode ser paga pela API somente pelo valor total à vista de ${formatted}. Para continuar, escolha de qual conta bancária o pagamento deve sair.`,
+      payment_message: `Esta fatura pode ser paga pela API somente pelo valor total Ã  vista de ${formatted}. Para continuar, escolha de qual conta bancÃ¡ria o pagamento deve sair.`,
       panel_required_reason: null,
       payment_account_required: true,
       account_selection_message:
-        "Para pagar esta fatura pela API, escolha de qual conta bancária o pagamento deve sair.",
+        "Para pagar esta fatura pela API, escolha de qual conta bancÃ¡ria o pagamento deve sair.",
     };
   }
 
@@ -330,7 +330,7 @@ function buildInvoicePaymentGuidance(status, remainingAmount) {
     return {
       can_pay_via_api: false,
       api_payment_type: "full_only",
-      payment_message: `Esta fatura ainda está em aberto. O valor gasto até agora é ${formatted}. Para pagamento parcial ou antecipado, acesse o painel FluxMoney.`,
+      payment_message: `Esta fatura ainda estÃ¡ em aberto. O valor gasto atÃ© agora Ã© ${formatted}. Para pagamento parcial ou antecipado, acesse o painel FluxMoney.`,
       panel_required_reason: "invoice_still_open",
       payment_account_required: false,
       account_selection_message: null,
@@ -342,7 +342,7 @@ function buildInvoicePaymentGuidance(status, remainingAmount) {
       can_pay_via_api: false,
       api_payment_type: "full_only",
       payment_message:
-        "Esta fatura ainda é futura. Para consultar ou gerenciar detalhes, acesse o painel FluxMoney.",
+        "Esta fatura ainda Ã© futura. Para consultar ou gerenciar detalhes, acesse o painel FluxMoney.",
       panel_required_reason: "future_invoice",
       payment_account_required: false,
       account_selection_message: null,
@@ -352,7 +352,7 @@ function buildInvoicePaymentGuidance(status, remainingAmount) {
   return {
     can_pay_via_api: false,
     api_payment_type: "full_only",
-    payment_message: "Esta fatura não possui saldo pendente para pagamento.",
+    payment_message: "Esta fatura nÃ£o possui saldo pendente para pagamento.",
     panel_required_reason: "no_pending_amount",
     payment_account_required: false,
     account_selection_message: null,
@@ -377,13 +377,13 @@ function normalizeCreditSpendingType(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-  if (!raw || raw === "variavel" || raw === "normal") return "Variável";
+  if (!raw || raw === "variavel" || raw === "normal") return "VariÃ¡vel";
   if (raw === "fixo") return "Fixo";
 
   throw new ApiError(
     400,
     "INVALID_SPENDING_TYPE",
-    "spending_type must be variavel, variável, fixo, or omitted."
+    "spending_type must be variavel, variÃ¡vel, fixo, or omitted."
   );
 }
 
@@ -450,6 +450,184 @@ function formatMoneyPtBr(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function getSaoPauloTodayIso() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function normalizeSummaryPeriod(value, todayIsoValue) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return String(todayIsoValue).slice(0, 7);
+
+  if (!/^\d{4}-\d{2}$/.test(raw)) {
+    throw new ApiError(400, "PERIOD_INVALID", "period must use format YYYY-MM.");
+  }
+
+  const month = Number(raw.slice(5, 7));
+  if (month < 1 || month > 12) {
+    throw new ApiError(400, "PERIOD_INVALID", "period must use format YYYY-MM.");
+  }
+
+  return raw;
+}
+
+function addDaysIso(dateIso, days) {
+  const date = new Date(`${dateIso}T12:00:00`);
+  date.setDate(date.getDate() + Number(days || 0));
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
+}
+
+function isPaidValue(value) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  return value === true || value === 1 || raw === "1" || raw === "true" || raw === "pago";
+}
+
+function getTransactionAccountId(row) {
+  return String(row?.conta_id ?? row?.qual_conta ?? "").trim();
+}
+
+function normalizeText(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function isTransferTransaction(row) {
+  const type = normalizeText(row?.tipo);
+  const category = normalizeText(row?.categoria);
+  const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
+
+  return (
+    type === "transferencia" ||
+    category === "transferencia" ||
+    category.includes("transfer") ||
+    Boolean(String(payload?.transferId ?? "").trim()) ||
+    Boolean(String(row?.transfer_from_id ?? "").trim()) ||
+    Boolean(String(row?.transfer_to_id ?? "").trim())
+  );
+}
+
+function signedBankAmount(row) {
+  const type = String(row?.tipo ?? "").trim().toLowerCase();
+  const amount = Math.abs(Number(row?.valor || 0));
+
+  if (type === "cartao_credito") return 0;
+  if (type === "receita") return amount;
+  if (type === "despesa") return -amount;
+
+  return Number(row?.valor || 0);
+}
+
+function makeAccountLabel(account) {
+  return String(account?.name || account?.banco || "Conta").trim();
+}
+
+function makeProfileLabel(account) {
+  return String(account?.perfil_conta || "").trim().toUpperCase();
+}
+
+function normalizeSummaryProfile(value) {
+  const raw = String(value ?? "").trim().toUpperCase();
+  if (!raw) return null;
+
+  if (raw !== "PF" && raw !== "PJ") {
+    throw new ApiError(400, "PROFILE_INVALID", "profile must be PF or PJ.");
+  }
+
+  return raw;
+}
+
+function parseSummaryAccountFilters(query) {
+  const accountId = String(query?.account_id ?? "").trim();
+  const accountIdsRaw = String(query?.account_ids ?? "").trim();
+  const hasAccountIdsParam = Object.prototype.hasOwnProperty.call(
+    query ?? {},
+    "account_ids"
+  );
+
+  if (accountId && accountIdsRaw) {
+    throw new ApiError(
+      400,
+      "ACCOUNT_FILTER_CONFLICT",
+      "Use account_id or account_ids, not both."
+    );
+  }
+
+  if (accountId) {
+    return { account_id: accountId, account_ids: [accountId] };
+  }
+
+  if (!accountIdsRaw && !hasAccountIdsParam) {
+    return { account_id: null, account_ids: [] };
+  }
+
+  if (!accountIdsRaw && hasAccountIdsParam) {
+    throw new ApiError(
+      400,
+      "ACCOUNT_IDS_INVALID",
+      "account_ids must include at least one account id."
+    );
+  }
+
+  const accountIds = accountIdsRaw
+    .split(",")
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean);
+
+  const uniqueAccountIds = Array.from(new Set(accountIds));
+
+  if (!uniqueAccountIds.length) {
+    throw new ApiError(
+      400,
+      "ACCOUNT_IDS_INVALID",
+      "account_ids must include at least one account id."
+    );
+  }
+
+  return { account_id: null, account_ids: uniqueAccountIds };
+}
+
+function mapSummaryTransactionItem(row, accountsById, status) {
+  const accountId = getTransactionAccountId(row);
+  const account = accountId ? accountsById.get(accountId) : null;
+  return {
+    kind: "transaction",
+    id: row.id,
+    type: row.tipo,
+    description: row.descricao || "",
+    amount: Number(row.valor || 0),
+    date: row.data,
+    due_date: row.data,
+    status,
+    account_label: account ? makeAccountLabel(account) : null,
+    profile: account ? makeProfileLabel(account) || null : null,
+  };
+}
+
+function mapSummaryInvoiceItem(invoice) {
+  return {
+    kind: "credit_card_invoice",
+    invoice_ref: invoice.invoice_ref,
+    ciclo_key: invoice.ciclo_key,
+    type: "credit_card_invoice",
+    name: invoice.credit_card_name || "Fatura",
+    amount: Number(invoice.remaining_amount || 0),
+    due_date: invoice.due_date,
+    status: invoice.status,
+  };
 }
 
 function sameAccountId(left, right) {
@@ -686,7 +864,7 @@ async function handlePendingTransactions(req, res, supabase) {
           account_label: accountLabel || null,
           profile: profile || null,
           status: getPendingStatus(row.data),
-          settle_confirmation_message: `Confirma marcar a ${typeText} ${description || "lançamento"} de ${formatMoneyPtBr(
+          settle_confirmation_message: `Confirma marcar a ${typeText} ${description || "lanÃ§amento"} de ${formatMoneyPtBr(
             absoluteAmount
           )} como ${actionText}?`,
           paid: Boolean(row.pago),
@@ -790,6 +968,7 @@ async function getCreditInvoiceSummaries(
       cycle_end: cycle.cycle_end,
       credit_card_id: cardId,
       credit_card_name: card.nome || "",
+      credit_card_profile: getCreditCardProfileId(card).toUpperCase(),
       invoice_month: invoiceMonth,
       due_date: cycle.due_date,
       account_id: null,
@@ -864,6 +1043,365 @@ async function handlePayableInvoices(req, res, supabase) {
     },
     invoices: payable,
   });
+}
+
+async function handleFinancialSummary(req, res, supabase) {
+  requireMethod(req, "GET");
+  rejectUserIdFromSupplier(req.query || {});
+
+  const user = await resolveGetUser(supabase, req);
+  const today = getSaoPauloTodayIso();
+  const period = normalizeSummaryPeriod(req.query?.period, today);
+  const profileFilter = normalizeSummaryProfile(req.query?.profile);
+  const accountFilter = parseSummaryAccountFilters(req.query || {});
+  const upcomingLimit = addDaysIso(today, 7);
+
+  const [accountsResult, transactionsResult, invoiceSummaries] = await Promise.all([
+    supabase
+      .from("accounts")
+      .select("id, banco, name, perfil_conta, initial_balance_cents")
+      .eq("user_id", user.user_id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("transactions")
+      .select(
+        "id, tipo, valor, data, descricao, categoria, tag, conta_id, qual_conta, pago, payload, transfer_from_id, transfer_to_id"
+      )
+      .eq("user_id", user.user_id),
+    getCreditInvoiceSummaries(supabase, user.user_id),
+  ]);
+
+  for (const result of [accountsResult, transactionsResult]) {
+    if (result.error) throw result.error;
+  }
+
+  const accounts = accountsResult.data ?? [];
+  const transactions = transactionsResult.data ?? [];
+  const accountsById = new Map(accounts.map((account) => [String(account.id), account]));
+  const requestedAccountIds = accountFilter.account_ids;
+
+  for (const accountId of requestedAccountIds) {
+    if (!accountsById.has(String(accountId))) {
+      throw new ApiError(
+        404,
+        "ACCOUNT_NOT_FOUND",
+        "account_id was not found for this user."
+      );
+    }
+  }
+
+  const hasAccountFilter = requestedAccountIds.length > 0;
+  const baseAccounts = hasAccountFilter
+    ? requestedAccountIds.map((id) => accountsById.get(String(id))).filter(Boolean)
+    : accounts;
+  const selectedAccounts = profileFilter
+    ? baseAccounts.filter((account) => makeProfileLabel(account) === profileFilter)
+    : baseAccounts;
+  const selectedAccountIds = new Set(
+    selectedAccounts.map((account) => String(account.id))
+  );
+  const isGlobalScope = !profileFilter && !hasAccountFilter;
+  const accountLabels = selectedAccounts.map((account) => makeAccountLabel(account));
+  const transactionBelongsToScope = (transaction) => {
+    if (isGlobalScope) return true;
+    const accountId = getTransactionAccountId(transaction);
+    return Boolean(accountId && selectedAccountIds.has(accountId));
+  };
+  const scopedTransactions = transactions.filter(transactionBelongsToScope);
+  const balancesByAccount = new Map();
+
+  for (const account of selectedAccounts) {
+    balancesByAccount.set(
+      String(account.id),
+      Number(account.initial_balance_cents || 0) / 100
+    );
+  }
+
+  let totalCashBalance = selectedAccounts.reduce(
+    (sum, account) => sum + Number(account.initial_balance_cents || 0) / 100,
+    0
+  );
+
+  for (const transaction of scopedTransactions) {
+    if (!isPaidValue(transaction.pago)) continue;
+
+    const signedAmount = signedBankAmount(transaction);
+    if (!signedAmount) continue;
+
+    const accountId = getTransactionAccountId(transaction);
+    if (accountId && balancesByAccount.has(accountId)) {
+      totalCashBalance += signedAmount;
+      balancesByAccount.set(
+        accountId,
+        Number(balancesByAccount.get(accountId) || 0) + signedAmount
+      );
+    }
+  }
+
+  const balanceAccounts = selectedAccounts.map((account) => ({
+    account_id: account.id,
+    account_label: makeAccountLabel(account),
+    profile: makeProfileLabel(account) || null,
+    balance: roundMoney(balancesByAccount.get(String(account.id)) || 0),
+  }));
+
+  let received = 0;
+  let paidExpenses = 0;
+  let pendingReceivables = 0;
+  let pendingExpenses = 0;
+  let transactionsCount = 0;
+
+  const monthPendingExpenses = [];
+  const monthPendingReceivables = [];
+  const overdueItems = [];
+  const dueTodayItems = [];
+  const upcomingItems = [];
+
+  for (const transaction of scopedTransactions) {
+    const type = String(transaction?.tipo ?? "").trim().toLowerCase();
+    if (type !== "receita" && type !== "despesa") continue;
+    if (isTransferTransaction(transaction)) continue;
+
+    const date = String(transaction?.data ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+
+    const paid = isPaidValue(transaction.pago);
+    const amountAbs = Math.abs(Number(transaction.valor || 0));
+    const isInPeriod = date.slice(0, 7) === period;
+
+    if (isInPeriod) {
+      transactionsCount += 1;
+      if (type === "receita") {
+        if (paid) received += amountAbs;
+        else {
+          pendingReceivables += amountAbs;
+          monthPendingReceivables.push(transaction);
+        }
+      }
+
+      if (type === "despesa") {
+        if (paid) paidExpenses += amountAbs;
+        else {
+          pendingExpenses += amountAbs;
+          monthPendingExpenses.push(transaction);
+        }
+      }
+    }
+
+    if (!paid) {
+      if (date < today) {
+        overdueItems.push(
+          mapSummaryTransactionItem(transaction, accountsById, "overdue")
+        );
+      } else if (date === today) {
+        dueTodayItems.push(
+          mapSummaryTransactionItem(transaction, accountsById, "due_today")
+        );
+      } else if (date <= upcomingLimit) {
+        upcomingItems.push(
+          mapSummaryTransactionItem(transaction, accountsById, "future")
+        );
+      }
+    }
+  }
+
+  const invoiceScopeNotes = [];
+  if (hasAccountFilter) {
+    invoiceScopeNotes.push(
+      "credit_card_summary is not filtered by account_id because credit cards do not have a reliable bank account link."
+    );
+  }
+
+  const scopedInvoiceSummaries = (invoiceSummaries ?? []).filter((invoice) => {
+    if (!profileFilter) return true;
+    return String(invoice.credit_card_profile ?? "").trim().toUpperCase() === profileFilter;
+  });
+
+  const invoicesWithPending = scopedInvoiceSummaries.filter(
+    (invoice) =>
+      Number(invoice.remaining_amount || 0) > 0 &&
+      invoice.status !== "PAGA" &&
+      invoice.status !== "ZERADA"
+  );
+
+  const invoiceItems = invoicesWithPending
+    .map((invoice) => ({
+      invoice_ref: invoice.invoice_ref,
+      ciclo_key: invoice.ciclo_key,
+      credit_card_id: invoice.credit_card_id,
+      credit_card_name: invoice.credit_card_name,
+      credit_card_profile: invoice.credit_card_profile || null,
+      due_date: invoice.due_date,
+      amount: roundMoney(invoice.amount),
+      paid_amount: roundMoney(invoice.paid_amount),
+      remaining_amount: roundMoney(invoice.remaining_amount),
+      status: invoice.status,
+      can_pay_via_api: Boolean(invoice.can_pay_via_api),
+      payment_message: invoice.payment_message,
+    }))
+    .sort((a, b) =>
+      String(a.due_date).localeCompare(String(b.due_date)) ||
+      String(a.credit_card_name).localeCompare(String(b.credit_card_name))
+    );
+
+  let creditCardOpenTotal = 0;
+  let creditCardAwaitingTotal = 0;
+  let creditCardOverdueTotal = 0;
+
+  for (const invoice of invoicesWithPending) {
+    const remaining = Number(invoice.remaining_amount || 0);
+
+    if (invoice.status === "ATRASADA") {
+      creditCardOverdueTotal += remaining;
+      overdueItems.push(mapSummaryInvoiceItem(invoice));
+      continue;
+    }
+
+    if (invoice.status === "FECHADA") {
+      creditCardAwaitingTotal += remaining;
+    } else if (invoice.status === "EM_ABERTO" || invoice.status === "FUTURA") {
+      creditCardOpenTotal += remaining;
+    }
+
+    if (String(invoice.due_date) === today) {
+      dueTodayItems.push(mapSummaryInvoiceItem(invoice));
+    } else if (String(invoice.due_date) > today && String(invoice.due_date) <= upcomingLimit) {
+      upcomingItems.push(mapSummaryInvoiceItem(invoice));
+    }
+  }
+
+  const overdueExpenseTotal = overdueItems
+    .filter((item) => item.kind === "transaction" && item.type === "despesa")
+    .reduce((sum, item) => sum + Math.abs(Number(item.amount || 0)), 0);
+  const overdueReceivableTotal = overdueItems
+    .filter((item) => item.kind === "transaction" && item.type === "receita")
+    .reduce((sum, item) => sum + Math.abs(Number(item.amount || 0)), 0);
+  const dueTodayExpenseTotal = dueTodayItems
+    .filter((item) => item.kind === "transaction" && item.type === "despesa")
+    .reduce((sum, item) => sum + Math.abs(Number(item.amount || 0)), 0);
+  const dueTodayReceivableTotal = dueTodayItems
+    .filter((item) => item.kind === "transaction" && item.type === "receita")
+    .reduce((sum, item) => sum + Math.abs(Number(item.amount || 0)), 0);
+  const dueTodayInvoiceTotal = dueTodayItems
+    .filter((item) => item.kind === "credit_card_invoice")
+    .reduce((sum, item) => sum + Math.abs(Number(item.amount || 0)), 0);
+  const upcomingTotal = upcomingItems.reduce(
+    (sum, item) => sum + Math.abs(Number(item.amount || 0)),
+    0
+  );
+
+  const payableInvoicesCount = invoicesWithPending.filter((invoice) =>
+    Boolean(invoice.can_pay_via_api)
+  ).length;
+  const dashboardCurrentBalance = received - paidExpenses;
+  const scopeLabel =
+    accountLabels.length === 1
+      ? accountLabels[0]
+      : accountLabels.length > 1
+      ? accountLabels.join(", ")
+      : profileFilter
+      ? profileFilter
+      : "contas consultadas";
+
+  const response = {
+    ok: true,
+    user: {
+      user_id: user.user_id,
+      whatsapp_phone_normalized: user.whatsapp_phone_normalized,
+    },
+    period: {
+      month: period,
+      today,
+      timezone: "America/Sao_Paulo",
+    },
+    scope: {
+      period,
+      profile: profileFilter || "all",
+      account_id: accountFilter.account_id,
+      account_ids: requestedAccountIds,
+      account_labels: accountLabels,
+      account_label: accountLabels.length === 1 ? accountLabels[0] : null,
+      is_global: isGlobalScope,
+      notes: invoiceScopeNotes,
+    },
+    dashboard_summary: {
+      current_balance: roundMoney(dashboardCurrentBalance),
+      received: roundMoney(received),
+      paid_expenses: roundMoney(paidExpenses),
+      pending_receivables: roundMoney(pendingReceivables),
+      pending_expenses: roundMoney(pendingExpenses),
+    },
+    balances: {
+      total_balance: roundMoney(totalCashBalance),
+      total_cash_balance: roundMoney(totalCashBalance),
+      accounts: balanceAccounts,
+    },
+    monthly_totals: {
+      received: roundMoney(received),
+      paid_expenses: roundMoney(paidExpenses),
+      net: roundMoney(dashboardCurrentBalance),
+      pending_receivables: roundMoney(pendingReceivables),
+      pending_expenses: roundMoney(pendingExpenses),
+      transactions_count: transactionsCount,
+    },
+    pending_summary: {
+      expenses_total: roundMoney(pendingExpenses),
+      receivables_total: roundMoney(pendingReceivables),
+      count: monthPendingExpenses.length + monthPendingReceivables.length,
+    },
+    overdue_summary: {
+      expenses_total: roundMoney(overdueExpenseTotal),
+      receivables_total: roundMoney(overdueReceivableTotal),
+      credit_card_invoices_total: roundMoney(creditCardOverdueTotal),
+      count: overdueItems.length,
+      items: overdueItems.sort((a, b) =>
+        String(a.due_date || a.date).localeCompare(String(b.due_date || b.date))
+      ),
+    },
+    due_today: {
+      expenses_total: roundMoney(dueTodayExpenseTotal),
+      receivables_total: roundMoney(dueTodayReceivableTotal),
+      credit_card_invoices_total: roundMoney(dueTodayInvoiceTotal),
+      items: dueTodayItems.sort((a, b) =>
+        String(a.description || a.name || "").localeCompare(
+          String(b.description || b.name || "")
+        )
+      ),
+    },
+    upcoming: {
+      days: 7,
+      total: roundMoney(upcomingTotal),
+      items: upcomingItems.sort((a, b) =>
+        String(a.due_date || a.date).localeCompare(String(b.due_date || b.date))
+      ),
+    },
+    credit_card_summary: {
+      open_total: roundMoney(creditCardOpenTotal),
+      awaiting_payment_total: roundMoney(creditCardAwaitingTotal),
+      overdue_total: roundMoney(creditCardOverdueTotal),
+      payable_invoices_count: payableInvoicesCount,
+      scope_notes: invoiceScopeNotes,
+      invoices: invoiceItems,
+    },
+    suggested_messages_for_nimble: [
+      hasAccountFilter && accountLabels.length === 1
+        ? `No ${scopeLabel}, seu saldo líquido do mês é ${formatMoneyPtBr(
+            dashboardCurrentBalance
+          )}.`
+        : `No mês, seu saldo líquido é ${formatMoneyPtBr(dashboardCurrentBalance)}.`,
+      `Nas contas consultadas, seu saldo bancário estimado é ${formatMoneyPtBr(
+        totalCashBalance
+      )}.`,
+      `Você já recebeu ${formatMoneyPtBr(received)} e pagou ${formatMoneyPtBr(
+        paidExpenses
+      )} em despesas no mês.`,
+      `Você tem ${formatMoneyPtBr(pendingExpenses)} em despesas pendentes no mês.`,
+      `Há ${formatMoneyPtBr(overdueReceivableTotal)} em receitas atrasadas.`,
+      `Há ${payableInvoicesCount} fatura(s) aguardando pagamento pela API.`,
+    ],
+  };
+
+  json(res, 200, response);
 }
 
 async function resolvePostContext(req, action) {
@@ -1161,7 +1699,7 @@ async function handleMarkPaid(req, res, action) {
         body: {
           ok: true,
           status: "already_paid",
-          summary: "Esse lanÃ§amento jÃ¡ estava marcado como pago.",
+          summary: "Esse lanÃƒÂ§amento jÃƒÂ¡ estava marcado como pago.",
           transaction: {
             id: transaction.id,
             paid: true,
@@ -1199,7 +1737,7 @@ async function handleMarkPaid(req, res, action) {
       body: {
         ok: true,
         status: "updated",
-        summary: `${typeLabel(updated.tipo)} ${updated.descricao || "lanÃ§amento"} marcada como paga.`,
+        summary: `${typeLabel(updated.tipo)} ${updated.descricao || "lanÃƒÂ§amento"} marcada como paga.`,
         transaction: {
           id: updated.id,
           paid: true,
@@ -1229,7 +1767,7 @@ async function handleMarkUnpaid(req, res, action) {
         body: {
           ok: true,
           status: "already_unpaid",
-          summary: "Esse lanÃ§amento jÃ¡ estava marcado como nÃ£o pago.",
+          summary: "Esse lanÃƒÂ§amento jÃƒÂ¡ estava marcado como nÃƒÂ£o pago.",
           transaction: {
             id: transaction.id,
             paid: false,
@@ -1262,7 +1800,7 @@ async function handleMarkUnpaid(req, res, action) {
       body: {
         ok: true,
         status: "updated",
-        summary: "LanÃ§amento marcado como nÃ£o pago.",
+        summary: "LanÃƒÂ§amento marcado como nÃƒÂ£o pago.",
         transaction: {
           id: updated.id,
           paid: false,
@@ -1295,7 +1833,7 @@ function rejectUnsupportedSettlementFields(body) {
     throw new ApiError(
       400,
       "UNSUPPORTED_SETTLEMENT_FIELD",
-      "Pela API, a baixa não altera valor, conta, data ou categoria. Para editar, acesse o painel FluxMoney."
+      "Pela API, a baixa nÃ£o altera valor, conta, data ou categoria. Para editar, acesse o painel FluxMoney."
     );
   }
 }
@@ -1320,7 +1858,7 @@ function ensureSettleableTransaction(transaction) {
     throw new ApiError(
       400,
       "CREDIT_CARD_NOT_SETTLEABLE_VIA_API",
-      "Compras no cartão de crédito não podem ser baixadas por esta action."
+      "Compras no cartÃ£o de crÃ©dito nÃ£o podem ser baixadas por esta action."
     );
   }
 
@@ -1336,7 +1874,7 @@ function ensureSettleableTransaction(transaction) {
     throw new ApiError(
       400,
       "TRANSFER_NOT_SETTLEABLE_VIA_API",
-      "Transferências não podem ser baixadas por esta action."
+      "TransferÃªncias nÃ£o podem ser baixadas por esta action."
     );
   }
 
@@ -1352,7 +1890,7 @@ function ensureSettleableTransaction(transaction) {
     throw new ApiError(
       400,
       "UNSUPPORTED_TRANSACTION_TYPE",
-      "Pagamentos de fatura não podem ser baixados por esta action."
+      "Pagamentos de fatura nÃ£o podem ser baixados por esta action."
     );
   }
 
@@ -1377,7 +1915,7 @@ async function handleSettleTransaction(req, res, action) {
         throw new ApiError(
           400,
           "CONFIRMATION_REQUIRED",
-          "Confirme com o usuário antes de marcar esta transação como paga ou recebida."
+          "Confirme com o usuÃ¡rio antes de marcar esta transaÃ§Ã£o como paga ou recebida."
         );
       }
 
@@ -1424,7 +1962,7 @@ async function handleSettleTransaction(req, res, action) {
         throw new ApiError(
           400,
           "TRANSACTION_ACCOUNT_REQUIRED",
-          "Esta transação não possui conta bancária vinculada. Corrija pelo painel FluxMoney antes de baixar pela API."
+          "Esta transaÃ§Ã£o nÃ£o possui conta bancÃ¡ria vinculada. Corrija pelo painel FluxMoney antes de baixar pela API."
         );
       }
 
@@ -1432,7 +1970,7 @@ async function handleSettleTransaction(req, res, action) {
         throw new ApiError(
           409,
           "TRANSACTION_ALREADY_SETTLED",
-          "Esta transação já está marcada como paga ou recebida."
+          "Esta transaÃ§Ã£o jÃ¡ estÃ¡ marcada como paga ou recebida."
         );
       }
 
@@ -1460,7 +1998,7 @@ async function handleSettleTransaction(req, res, action) {
       if (error) throw error;
 
       const type = String(updated.tipo ?? "").trim().toLowerCase();
-      const description = updated.descricao || "lançamento";
+      const description = updated.descricao || "lanÃ§amento";
 
       return {
         statusCode: 200,
@@ -1783,7 +2321,7 @@ async function handleCreateTransfer(req, res, action) {
       valor: -Math.abs(amountAbs),
       data: date,
       descricao: description,
-      categoria: "Transferência",
+      categoria: "TransferÃªncia",
       tag: "",
       pago: effectivePaid,
       conta_id: fromAccount.id,
@@ -1806,7 +2344,7 @@ async function handleCreateTransfer(req, res, action) {
       valor: Math.abs(amountAbs),
       data: date,
       descricao: description,
-      categoria: "Transferência",
+      categoria: "TransferÃªncia",
       tag: "",
       pago: effectivePaid,
       conta_id: toAccount.id,
@@ -1835,7 +2373,7 @@ async function handleCreateTransfer(req, res, action) {
       body: {
         ok: true,
         status: "created",
-        summary: `Transferência ${description} lançada com sucesso.`,
+        summary: `TransferÃªncia ${description} lanÃ§ada com sucesso.`,
         transfer_group: {
           transfer_id: transferId,
           from_account_id: fromAccount.id,
@@ -1964,7 +2502,7 @@ async function handleCreateCreditCardPurchase(req, res, action) {
       body: {
         ok: true,
         status: "created",
-        summary: `Compra ${description} lançada no cartão com sucesso.`,
+        summary: `Compra ${description} lanÃ§ada no cartÃ£o com sucesso.`,
         transaction: {
           id: created.id,
           type: created.tipo,
@@ -2097,7 +2635,7 @@ async function handleCreateCreditCardInstallments(req, res, action) {
       body: {
         ok: true,
         status: "created",
-        summary: `Compra ${description} parcelada em ${installments}x lançada no cartão com sucesso.`,
+        summary: `Compra ${description} parcelada em ${installments}x lanÃ§ada no cartÃ£o com sucesso.`,
         installment_group: {
           installments,
           total_amount: amountAbs,
@@ -2141,7 +2679,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       throw new ApiError(
         400,
         "PAYMENT_ACCOUNT_REQUIRED",
-        "Para pagar a fatura, informe de qual conta bancÃ¡ria o valor deve sair."
+        "Para pagar a fatura, informe de qual conta bancÃƒÂ¡ria o valor deve sair."
       );
     }
 
@@ -2221,7 +2759,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
         throw new ApiError(
           400,
           "FULL_PAYMENT_ONLY",
-          "Pela API, sÃ³ Ã© permitido pagar o valor total da fatura. Para pagamento parcial, acesse o painel FluxMoney."
+          "Pela API, sÃƒÂ³ ÃƒÂ© permitido pagar o valor total da fatura. Para pagamento parcial, acesse o painel FluxMoney."
         );
       }
     }
@@ -2230,7 +2768,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       throw new ApiError(
         400,
         "INVOICE_ALREADY_PAID",
-        "Esta fatura nÃ£o possui saldo pendente para pagamento."
+        "Esta fatura nÃƒÂ£o possui saldo pendente para pagamento."
       );
     }
 
@@ -2238,7 +2776,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       throw new ApiError(
         400,
         "INVOICE_NOT_PAYABLE_VIA_API",
-        "Esta fatura ainda nÃ£o estÃ¡ fechada. Pela API, o pagamento Ã© permitido apenas para fatura fechada/atrasada e pelo valor total. Para consultar ou pagar parcialmente, acesse o painel FluxMoney.",
+        "Esta fatura ainda nÃƒÂ£o estÃƒÂ¡ fechada. Pela API, o pagamento ÃƒÂ© permitido apenas para fatura fechada/atrasada e pelo valor total. Para consultar ou pagar parcialmente, acesse o painel FluxMoney.",
         {
           current_amount: invoiceAmount,
           remaining_amount: remainingAmount,
@@ -2263,7 +2801,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
           valor: -Math.abs(remainingAmount),
           data: paymentDate,
           descricao: description,
-          categoria: "CartÃ£o de CrÃ©dito",
+          categoria: "CartÃƒÂ£o de CrÃƒÂ©dito",
           tag: "",
           pago: true,
           conta_id: accountId,
@@ -2368,7 +2906,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       throw new ApiError(
         500,
         "INVOICE_PAYMENT_FAILED",
-        "NÃ£o foi possÃ­vel registrar o pagamento da fatura com seguranÃ§a. Nenhuma despesa solta foi mantida."
+        "NÃƒÂ£o foi possÃƒÂ­vel registrar o pagamento da fatura com seguranÃƒÂ§a. Nenhuma despesa solta foi mantida."
       );
     }
 
@@ -2377,7 +2915,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       body: {
         ok: true,
         status: "created",
-        summary: `Fatura ${card.nome || card.bank_text || "do cartÃ£o"} paga com sucesso.`,
+        summary: `Fatura ${card.nome || card.bank_text || "do cartÃƒÂ£o"} paga com sucesso.`,
         payment: {
           id: createdPayment.id,
           credit_card_id: creditCardId,
@@ -2412,6 +2950,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "payable_invoices") {
     return handlePayableInvoices(req, res, getSupabaseAdmin());
+  }
+  if (action === "financial_summary") {
+    return handleFinancialSummary(req, res, getSupabaseAdmin());
   }
   if (action === "create_category") {
     return handleCreateCategory(req, res, action);

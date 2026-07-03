@@ -441,6 +441,17 @@ function typeLabel(type) {
   return String(type ?? "") === "receita" ? "Receita" : "Despesa";
 }
 
+function settledVerb(type) {
+  return String(type ?? "") === "receita" ? "recebida" : "paga";
+}
+
+function formatMoneyPtBr(value) {
+  return `R$ ${Number(value || 0).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 function sameAccountId(left, right) {
   return String(left ?? "").trim() === String(right ?? "").trim();
 }
@@ -611,18 +622,76 @@ async function handlePendingTransactions(req, res, supabase) {
   const { data, error } = await query;
   if (error) throw error;
 
+  const accountIds = Array.from(
+    new Set(
+      (data ?? [])
+        .map((row) => String(row.conta_id || row.qual_conta || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  let accountsById = new Map();
+  if (accountIds.length > 0) {
+    const { data: accountsData, error: accountsError } = await supabase
+      .from("accounts")
+      .select("id, name, banco, perfil_conta")
+      .eq("user_id", user.user_id)
+      .in("id", accountIds);
+
+    if (accountsError) throw accountsError;
+
+    accountsById = new Map(
+      (accountsData ?? []).map((account) => [String(account.id), account])
+    );
+  }
+
+  const getPendingStatus = (date) => {
+    const cleanDate = String(date ?? "").trim();
+    const today = todayIso();
+    if (cleanDate < today) return "overdue";
+    if (cleanDate === today) return "due_today";
+    return "future";
+  };
+
   json(res, 200, {
     ok: true,
     transactions: (data ?? []).map((row) => ({
-      id: row.id,
-      type: row.tipo,
-      amount: Number(row.valor || 0),
-      date: row.data,
-      description: row.descricao || "",
-      category: row.categoria || "",
-      tag: row.tag || "",
-      account_id: row.conta_id || row.qual_conta || null,
-      paid: Boolean(row.pago),
+      ...(() => {
+        const accountId = String(row.conta_id || row.qual_conta || "").trim();
+        const account = accountId ? accountsById.get(accountId) : null;
+        const amount = Number(row.valor || 0);
+        const absoluteAmount = Math.abs(amount);
+        const type = row.tipo;
+        const description = row.descricao || "";
+        const accountLabel = account
+          ? String(account.name || account.banco || "Conta").trim()
+          : "";
+        const profile = account
+          ? String(account.perfil_conta || "").trim().toUpperCase()
+          : "";
+        const actionText = type === "receita" ? "recebida" : "paga";
+        const typeText = type === "receita" ? "receita" : "despesa";
+
+        return {
+          id: row.id,
+          transaction_id: row.id,
+          type,
+          amount,
+          absolute_amount: absoluteAmount,
+          date: row.data,
+          description,
+          category: row.categoria || "",
+          tag: row.tag || "",
+          account_id: accountId || null,
+          account_label: accountLabel || null,
+          profile: profile || null,
+          status: getPendingStatus(row.data),
+          settle_confirmation_message: `Confirma marcar a ${typeText} ${description || "lançamento"} de ${formatMoneyPtBr(
+            absoluteAmount
+          )} como ${actionText}?`,
+          paid: Boolean(row.pago),
+        };
+      })(),
     })),
   });
 }
@@ -837,7 +906,7 @@ async function runPostCommand(req, res, action, execute) {
     idempotencyKey,
     route,
     requestBody: body,
-    execute: () => execute({ body, supabase, user }),
+    execute: () => execute({ body, providerMessageId, supabase, user }),
   });
 
   json(res, result.statusCode, {
@@ -1201,6 +1270,218 @@ async function handleMarkUnpaid(req, res, action) {
       },
     };
   });
+}
+
+const UNSUPPORTED_SETTLEMENT_FIELDS = [
+  "amount",
+  "account_id",
+  "category",
+  "tag",
+  "date",
+  "paid",
+  "new_value",
+  "new_date",
+  "undo",
+  "delete",
+  "cancel",
+];
+
+function rejectUnsupportedSettlementFields(body) {
+  const found = UNSUPPORTED_SETTLEMENT_FIELDS.find((field) =>
+    Object.prototype.hasOwnProperty.call(body ?? {}, field)
+  );
+
+  if (found) {
+    throw new ApiError(
+      400,
+      "UNSUPPORTED_SETTLEMENT_FIELD",
+      "Pela API, a baixa não altera valor, conta, data ou categoria. Para editar, acesse o painel FluxMoney."
+    );
+  }
+}
+
+function ensureSettleableTransaction(transaction) {
+  const type = String(transaction?.tipo ?? "").trim().toLowerCase();
+  const category = String(transaction?.categoria ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const description = String(transaction?.descricao ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const payload = transaction?.payload && typeof transaction.payload === "object"
+    ? transaction.payload
+    : {};
+
+  if (type === "cartao_credito") {
+    throw new ApiError(
+      400,
+      "CREDIT_CARD_NOT_SETTLEABLE_VIA_API",
+      "Compras no cartão de crédito não podem ser baixadas por esta action."
+    );
+  }
+
+  const hasTransferSignal =
+    type === "transferencia" ||
+    category === "transferencia" ||
+    category.includes("transfer") ||
+    String(payload?.transferId ?? "").trim() ||
+    String(transaction?.transfer_from_id ?? "").trim() ||
+    String(transaction?.transfer_to_id ?? "").trim();
+
+  if (hasTransferSignal) {
+    throw new ApiError(
+      400,
+      "TRANSFER_NOT_SETTLEABLE_VIA_API",
+      "Transferências não podem ser baixadas por esta action."
+    );
+  }
+
+  const isInvoicePayment =
+    category === "cartao de credito" ||
+    /^fatura\s*:/.test(description) ||
+    String(payload?.origemLancamento ?? "").trim().toLowerCase() ===
+      "pagamento_fatura" ||
+    String(payload?.invoicePaymentId ?? "").trim() ||
+    String(payload?.pagamentoFaturaId ?? "").trim();
+
+  if (isInvoicePayment) {
+    throw new ApiError(
+      400,
+      "UNSUPPORTED_TRANSACTION_TYPE",
+      "Pagamentos de fatura não podem ser baixados por esta action."
+    );
+  }
+
+  if (type !== "receita" && type !== "despesa") {
+    throw new ApiError(
+      400,
+      "UNSUPPORTED_TRANSACTION_TYPE",
+      "Esta action aceita apenas receitas e despesas comuns."
+    );
+  }
+}
+
+async function handleSettleTransaction(req, res, action) {
+  await runPostCommand(
+    req,
+    res,
+    action,
+    async ({ body, providerMessageId, supabase, user }) => {
+      rejectUnsupportedSettlementFields(body);
+
+      if (body.confirmed !== true) {
+        throw new ApiError(
+          400,
+          "CONFIRMATION_REQUIRED",
+          "Confirme com o usuário antes de marcar esta transação como paga ou recebida."
+        );
+      }
+
+      const transactionId = requireString(
+        body.transaction_id,
+        "TRANSACTION_ID_REQUIRED",
+        "transaction_id is required."
+      );
+
+      const settlementDate =
+        body.settlement_date === undefined ||
+        String(body.settlement_date ?? "").trim() === ""
+          ? todayIso()
+          : parseIsoDate(
+              body.settlement_date,
+              "INVALID_SETTLEMENT_DATE",
+              "settlement_date"
+            );
+
+      const { data: transaction, error: transactionError } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("id", transactionId)
+        .eq("user_id", user.user_id)
+        .maybeSingle();
+
+      if (transactionError) throw transactionError;
+
+      if (!transaction?.id) {
+        throw new ApiError(
+          404,
+          "TRANSACTION_NOT_FOUND",
+          "transaction_id was not found for this user."
+        );
+      }
+
+      ensureSettleableTransaction(transaction);
+
+      const accountId = String(
+        transaction.conta_id ?? transaction.qual_conta ?? ""
+      ).trim();
+
+      if (!accountId) {
+        throw new ApiError(
+          400,
+          "TRANSACTION_ACCOUNT_REQUIRED",
+          "Esta transação não possui conta bancária vinculada. Corrija pelo painel FluxMoney antes de baixar pela API."
+        );
+      }
+
+      if (transaction.pago === true) {
+        throw new ApiError(
+          409,
+          "TRANSACTION_ALREADY_SETTLED",
+          "Esta transação já está marcada como paga ou recebida."
+        );
+      }
+
+      const payload =
+        transaction.payload && typeof transaction.payload === "object"
+          ? { ...transaction.payload }
+          : {};
+
+      payload.settledAt = settlementDate;
+      payload.settlementNotes = String(body.notes ?? "").trim();
+      payload.settledBy = "whatsapp_api";
+      payload.providerMessageId = providerMessageId;
+
+      const { data: updated, error } = await supabase
+        .from("transactions")
+        .update({
+          pago: true,
+          payload,
+        })
+        .eq("id", transaction.id)
+        .eq("user_id", user.user_id)
+        .select("id, tipo, descricao, valor, data, conta_id, qual_conta, pago, payload")
+        .single();
+
+      if (error) throw error;
+
+      const type = String(updated.tipo ?? "").trim().toLowerCase();
+      const description = updated.descricao || "lançamento";
+
+      return {
+        statusCode: 200,
+        body: {
+          ok: true,
+          status: "settled",
+          summary: `${typeLabel(type)} ${description} marcada como ${settledVerb(type)}.`,
+          transaction: {
+            id: updated.id,
+            type,
+            description,
+            amount: Number(updated.valor || 0),
+            date: updated.data,
+            account_id: updated.conta_id || updated.qual_conta || null,
+            paid: true,
+            settled_at: updated.payload?.settledAt || settlementDate,
+          },
+        },
+      };
+    }
+  );
 }
 
 async function handleCreateInstallments(req, res, action) {
@@ -2146,6 +2427,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "mark_unpaid") {
     return handleMarkUnpaid(req, res, action);
+  }
+  if (action === "settle_transaction") {
+    return handleSettleTransaction(req, res, action);
   }
   if (action === "create_installments") {
     return handleCreateInstallments(req, res, action);

@@ -600,6 +600,357 @@ function parseSummaryAccountFilters(query) {
   return { account_id: null, account_ids: uniqueAccountIds };
 }
 
+function normalizeProjectionMonths(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 12;
+
+  const months = Number(raw);
+  if (!Number.isInteger(months) || months < 1 || months > 24) {
+    throw new ApiError(
+      400,
+      "MONTHS_INVALID",
+      "months deve ser um número entre 1 e 24."
+    );
+  }
+
+  return months;
+}
+
+function normalizeProjectionStartPeriod(value, todayIsoValue) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return String(todayIsoValue).slice(0, 7);
+
+  if (!/^\d{4}-\d{2}$/.test(raw)) {
+    throw new ApiError(
+      400,
+      "START_PERIOD_INVALID",
+      "start_period must use format YYYY-MM."
+    );
+  }
+
+  const month = Number(raw.slice(5, 7));
+  if (month < 1 || month > 12) {
+    throw new ApiError(
+      400,
+      "START_PERIOD_INVALID",
+      "start_period must use format YYYY-MM."
+    );
+  }
+
+  return raw;
+}
+
+function normalizeProjectionMode(value) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "acumulado";
+
+  if (raw !== "acumulado" && raw !== "mensal") {
+    throw new ApiError(
+      400,
+      "PROJECTION_MODE_INVALID",
+      "mode must be acumulado or mensal."
+    );
+  }
+
+  return raw;
+}
+
+function normalizeProjectionProfile(value) {
+  const raw = String(value ?? "").trim().toUpperCase();
+  if (!raw || raw === "ALL") return "all";
+
+  if (raw !== "PF" && raw !== "PJ") {
+    throw new ApiError(
+      400,
+      "PROFILE_INVALID",
+      "profile must be PF, PJ, or all."
+    );
+  }
+
+  return raw;
+}
+
+function parseProjectionIdFilters(query, singularName, pluralName, conflictCode, invalidCode) {
+  const singleId = String(query?.[singularName] ?? "").trim();
+  const idsRaw = String(query?.[pluralName] ?? "").trim();
+  const hasPluralParam = Object.prototype.hasOwnProperty.call(query ?? {}, pluralName);
+
+  if (singleId && idsRaw) {
+    throw new ApiError(
+      400,
+      conflictCode,
+      `Use ${singularName} or ${pluralName}, not both.`
+    );
+  }
+
+  if (singleId) {
+    return { single_id: singleId, ids: [singleId] };
+  }
+
+  if (!idsRaw && !hasPluralParam) {
+    return { single_id: null, ids: [] };
+  }
+
+  if (!idsRaw && hasPluralParam) {
+    throw new ApiError(
+      400,
+      invalidCode,
+      `${pluralName} must include at least one id.`
+    );
+  }
+
+  const ids = idsRaw
+    .split(",")
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean);
+  const uniqueIds = Array.from(new Set(ids));
+
+  if (!uniqueIds.length) {
+    throw new ApiError(
+      400,
+      invalidCode,
+      `${pluralName} must include at least one id.`
+    );
+  }
+
+  return { single_id: null, ids: uniqueIds };
+}
+
+function parseProjectionBoolean(value, defaultValue, code, name) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return defaultValue;
+  if (["true", "1", "yes", "sim"].includes(raw)) return true;
+  if (["false", "0", "no", "nao", "não"].includes(raw)) return false;
+
+  throw new ApiError(400, code, `${name} must be true or false.`);
+}
+
+function addMonthsToPeriod(period, offset) {
+  const [year, month] = String(period).split("-").map(Number);
+  const date = new Date(year, month - 1 + Number(offset || 0), 1, 12, 0, 0, 0);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatProjectionPeriodLabel(period) {
+  const months = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+  ];
+  const [year, month] = String(period).split("-").map(Number);
+  const index = Math.max(0, Math.min(11, (month || 1) - 1));
+  return `${months[index]} de ${year}`;
+}
+
+function normalizeProjectionAccountProfile(account) {
+  const raw = String(
+    account?.perfil_conta ??
+      account?.perfilConta ??
+      account?.perfil ??
+      account?.brand ??
+      ""
+  )
+    .trim()
+    .toUpperCase();
+
+  return raw === "PF" || raw === "PJ" ? raw : "";
+}
+
+function normalizeProjectionCardProfile(card) {
+  const raw = String(card?.perfil ?? card?.brand ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (raw === "PF" || raw === "PJ") return raw;
+  return getCreditCardProfileId(card).toUpperCase();
+}
+
+function getProjectionInitialBalance(account) {
+  if (account?.initial_balance_cents != null) {
+    return Number(account.initial_balance_cents || 0) / 100;
+  }
+  if (account?.initialBalanceCents != null) {
+    return Number(account.initialBalanceCents || 0) / 100;
+  }
+  if (account?.initialBalance != null) return Number(account.initialBalance || 0);
+  if (account?.saldoInicial != null) return Number(account.saldoInicial || 0);
+  if (account?.saldo_inicial != null) return Number(account.saldo_inicial || 0);
+  return 0;
+}
+
+function getProjectionTransactionAccountId(row) {
+  return String(
+    row?.profileId ??
+      row?.profile_id ??
+      row?.conta_id ??
+      row?.account_id ??
+      row?.contaId ??
+      row?.accountId ??
+      row?.qual_conta ??
+      row?.qualConta ??
+      row?.conta_origem_id ??
+      row?.contaOrigemId ??
+      row?.conta_destino_id ??
+      row?.contaDestinoId ??
+      row?.transfer_from_id ??
+      row?.transferFromId ??
+      row?.transfer_to_id ??
+      row?.transferToId ??
+      row?.conta?.id ??
+      row?.profile?.id ??
+      row?.payload?.profileId ??
+      row?.payload?.profile_id ??
+      row?.payload?.conta_id ??
+      row?.payload?.account_id ??
+      row?.payload?.contaId ??
+      row?.payload?.accountId ??
+      row?.payload?.qual_conta ??
+      row?.payload?.qualConta ??
+      row?.payload?.conta_origem_id ??
+      row?.payload?.contaOrigemId ??
+      row?.payload?.conta_destino_id ??
+      row?.payload?.contaDestinoId ??
+      row?.payload?.transfer_from_id ??
+      row?.payload?.transferFromId ??
+      row?.payload?.transfer_to_id ??
+      row?.payload?.transferToId ??
+      ""
+  ).trim();
+}
+
+function getProjectionCreditCardId(row, cardsById) {
+  const refs = [
+    row?.cartao_id,
+    row?.cartaoId,
+    row?.creditCardId,
+    row?.credit_card_id,
+    row?.card_id,
+    row?.cardId,
+    row?.selectedCreditCardId,
+    row?.selected_credit_card_id,
+    row?.qual_conta,
+    row?.qualConta,
+    row?.qual_cartao,
+    row?.qualCartao,
+    row?.payload?.cartao_id,
+    row?.payload?.cartaoId,
+    row?.payload?.creditCardId,
+    row?.payload?.credit_card_id,
+    row?.payload?.card_id,
+    row?.payload?.cardId,
+    row?.payload?.selectedCreditCardId,
+    row?.payload?.selected_credit_card_id,
+    row?.payload?.qual_conta,
+    row?.payload?.qualConta,
+    row?.payload?.qual_cartao,
+    row?.payload?.qualCartao,
+    row?.payload?.targetId,
+    row?.payload?.target_id,
+  ]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+
+  if (!refs.length) return "";
+
+  for (const ref of refs) {
+    if (cardsById.has(ref)) return ref;
+  }
+
+  const cards = Array.from(cardsById.values());
+  for (const ref of refs) {
+    const refNorm = normalizeText(ref);
+    const matched = cards.find((card) => {
+      const name = normalizeText(card?.nome ?? card?.name);
+      const issuer = normalizeText(
+        card?.bank_text ?? card?.bankText ?? card?.titular ?? card?.emissor
+      );
+      return (name && refNorm === name) || (issuer && refNorm === issuer);
+    });
+    if (matched?.id) return String(matched.id);
+  }
+
+  return "";
+}
+
+function getProjectionTransactionProfile(row, accountsById, cardsById) {
+  const accountId = getProjectionTransactionAccountId(row);
+  if (accountId && accountsById.has(accountId)) {
+    const profile = normalizeProjectionAccountProfile(accountsById.get(accountId));
+    if (profile) return profile;
+  }
+
+  const cardId = getProjectionCreditCardId(row, cardsById);
+  if (cardId && cardsById.has(cardId)) {
+    const profile = normalizeProjectionCardProfile(cardsById.get(cardId));
+    if (profile) return profile;
+  }
+
+  return "";
+}
+
+function getProjectionTransactionPeriod(row, cardsById) {
+  const type = String(row?.tipo ?? "").trim().toLowerCase();
+  const date = String(row?.data ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return "";
+
+  if (type !== "cartao_credito") return date.slice(0, 7);
+
+  const savedInvoiceMonth = String(row?.faturaMes ?? row?.payload?.faturaMes ?? "").trim();
+  if (/^\d{4}-\d{2}$/.test(savedInvoiceMonth)) return savedInvoiceMonth;
+
+  const cardId = getProjectionCreditCardId(row, cardsById);
+  const card = cardId ? cardsById.get(cardId) : null;
+  if (!card) return date.slice(0, 7);
+
+  return getCreditInvoiceMonth(date, card.dia_fechamento, card.dia_vencimento) || date.slice(0, 7);
+}
+
+function isProjectionInvoicePayment(row) {
+  const description = normalizeText(row?.descricao);
+  const categoryRaw = row?.categoria;
+  const category = normalizeText(
+    typeof categoryRaw === "string"
+      ? categoryRaw
+      : categoryRaw?.nome ?? categoryRaw?.label ?? categoryRaw?.value ?? ""
+  );
+  const origin = normalizeText(row?.origemLancamento ?? row?.payload?.origemLancamento);
+  const isInvoiceInstallment =
+    origin === "parcelamento_fatura" ||
+    description.startsWith("parcelamento de fatura") ||
+    category === "parcelamento de fatura";
+
+  if (isInvoiceInstallment) return false;
+  return description.startsWith("fatura:");
+}
+
+function isProjectionTransfer(row) {
+  const type = normalizeText(row?.tipo);
+  const category = normalizeText(row?.categoria);
+  const description = normalizeText(row?.descricao);
+
+  return (
+    type === "transferencia" ||
+    category === "transferencia" ||
+    category.includes("transfer") ||
+    Boolean(String(row?.payload?.transferId ?? "").trim()) ||
+    Boolean(String(row?.payload?.transferenciaId ?? "").trim()) ||
+    Boolean(String(row?.transfer_from_id ?? "").trim()) ||
+    Boolean(String(row?.transfer_to_id ?? "").trim()) ||
+    Boolean(String(row?.conta_origem_id ?? "").trim()) ||
+    Boolean(String(row?.conta_destino_id ?? "").trim()) ||
+    description.includes("transfer")
+  );
+}
+
 function mapSummaryTransactionItem(row, accountsById, status) {
   const accountId = getTransactionAccountId(row);
   const account = accountId ? accountsById.get(accountId) : null;
@@ -628,6 +979,236 @@ function mapSummaryInvoiceItem(invoice) {
     due_date: invoice.due_date,
     status: invoice.status,
   };
+}
+
+function computeFinancialProjection({
+  transactions,
+  accountsById,
+  cardsById,
+  selectedAccountIds,
+  selectedCreditCardIds,
+  profile,
+  includeCreditCards,
+  includeTransfers,
+  startPeriod,
+  months,
+  mode,
+  initialBalance,
+}) {
+  const selectedAccountSet = new Set(selectedAccountIds.map((id) => String(id)));
+  const selectedCardSet = new Set(selectedCreditCardIds.map((id) => String(id)));
+  const hasAccountFilter = selectedAccountSet.size > 0;
+  const hasCardFilter = selectedCardSet.size > 0;
+  const profileFilter = profile === "PF" || profile === "PJ" ? profile : null;
+
+  const transactionBelongsToProjection = (transaction) => {
+    const type = String(transaction?.tipo ?? "").trim().toLowerCase();
+
+    if (type === "cartao_credito") {
+      if (!includeCreditCards) return false;
+
+      const cardId = getProjectionCreditCardId(transaction, cardsById);
+      const card = cardId ? cardsById.get(cardId) : null;
+      if (!card || card.is_active === false) return false;
+
+      if (profileFilter && normalizeProjectionCardProfile(card) !== profileFilter) {
+        return false;
+      }
+
+      if (hasCardFilter && !selectedCardSet.has(cardId)) return false;
+      return true;
+    }
+
+    const accountId = getProjectionTransactionAccountId(transaction);
+    const account = accountId ? accountsById.get(accountId) : null;
+
+    if (profileFilter) {
+      if (!account || normalizeProjectionAccountProfile(account) !== profileFilter) {
+        return false;
+      }
+    }
+
+    if (hasAccountFilter && (!accountId || !selectedAccountSet.has(accountId))) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const scopedTransactions = (transactions ?? []).filter((transaction) => {
+    if (!transactionBelongsToProjection(transaction)) return false;
+    if (!includeTransfers && isProjectionTransfer(transaction)) return false;
+    return true;
+  });
+
+  const projection = [];
+  let runningBalance = Number(initialBalance || 0);
+
+  for (let index = 0; index < months; index += 1) {
+    const period = addMonthsToPeriod(startPeriod, index);
+    const monthTransactions = scopedTransactions.filter(
+      (transaction) => getProjectionTransactionPeriod(transaction, cardsById) === period
+    );
+
+    const incomeItems = monthTransactions.filter(
+      (transaction) => String(transaction?.tipo ?? "").trim().toLowerCase() === "receita"
+    );
+
+    const fixedExpenseItems = monthTransactions.filter((transaction) => {
+      const type = String(transaction?.tipo ?? "").trim().toLowerCase();
+      const spendingType = normalizeText(transaction?.tipoGasto ?? transaction?.payload?.tipoGasto);
+      return type === "despesa" && spendingType === "fixo";
+    });
+
+    const variableAndCardItems = monthTransactions
+      .filter((transaction) => {
+        const type = String(transaction?.tipo ?? "").trim().toLowerCase();
+        const spendingType = normalizeText(
+          transaction?.tipoGasto ?? transaction?.payload?.tipoGasto
+        );
+        const origin = normalizeText(
+          transaction?.origemLancamento ?? transaction?.payload?.origemLancamento
+        );
+        const isCard = type === "cartao_credito";
+        const isVariableExpense =
+          type === "despesa" &&
+          (spendingType === "normal" || spendingType === "variavel");
+        const isInvoiceInstallment = origin === "parcelamento_fatura";
+
+        return (
+          isCard ||
+          isVariableExpense ||
+          isInvoiceInstallment ||
+          isProjectionInvoicePayment(transaction)
+        );
+      })
+      .filter((transaction) => !isProjectionInvoicePayment(transaction));
+
+    const income = incomeItems.reduce(
+      (sum, transaction) => sum + Number(transaction?.valor || 0),
+      0
+    );
+    const fixedExpenses = fixedExpenseItems.reduce(
+      (sum, transaction) => sum + Math.abs(Number(transaction?.valor || 0)),
+      0
+    );
+    const variableAndCardExpenses = variableAndCardItems.reduce(
+      (sum, transaction) => sum + Math.abs(Number(transaction?.valor || 0)),
+      0
+    );
+    const monthlyResult = income - (fixedExpenses + variableAndCardExpenses);
+
+    if (mode === "acumulado") {
+      runningBalance += monthlyResult;
+    }
+
+    const projectedBalance = mode === "acumulado" ? runningBalance : monthlyResult;
+
+    projection.push({
+      period,
+      label: formatProjectionPeriodLabel(period),
+      income: roundMoney(income),
+      fixed_expenses: roundMoney(fixedExpenses),
+      variable_and_card_expenses: roundMoney(variableAndCardExpenses),
+      monthly_result: roundMoney(monthlyResult),
+      projected_balance: roundMoney(projectedBalance),
+      items_summary: {
+        income_count: incomeItems.length,
+        fixed_expense_count: fixedExpenseItems.length,
+        variable_and_card_count: variableAndCardItems.length,
+      },
+    });
+  }
+
+  return projection;
+}
+
+function buildProjectionSuggestedMessages({
+  projection,
+  months,
+  mode,
+  profile,
+  accountLabels,
+  finalProjectedBalance,
+  tightestMonth,
+  firstNegativeMonth,
+}) {
+  const scopeLabel =
+    accountLabels.length === 1
+      ? `Na conta ${accountLabels[0]}`
+      : accountLabels.length > 1
+      ? `Nas contas ${accountLabels.join(", ")}`
+      : profile === "PF" || profile === "PJ"
+      ? `Na ${profile}`
+      : "Na visão geral";
+  const projectionKind = mode === "acumulado" ? "acumulada" : "mensal";
+  const balanceLabel = mode === "acumulado" ? "termina em" : "tem resultado final de";
+  const firstMessage =
+    accountLabels.length || profile === "PF" || profile === "PJ"
+      ? `${scopeLabel}, sua projeção ${projectionKind} para os próximos ${months} meses ${balanceLabel} ${formatMoneyPtBr(
+          finalProjectedBalance
+        )}.`
+      : `Sua projeção ${projectionKind} para os próximos ${months} meses ${balanceLabel} ${formatMoneyPtBr(
+          finalProjectedBalance
+        )}.`;
+  const messages = [
+    firstMessage,
+  ];
+
+  if (tightestMonth?.period) {
+    messages.push(
+      `O mês mais apertado é ${tightestMonth.label}, com saldo projetado de ${formatMoneyPtBr(
+        tightestMonth.projected_balance
+      )}.`
+    );
+  }
+
+  if (firstNegativeMonth?.period) {
+    messages.push(`Atenção: sua projeção fica negativa em ${firstNegativeMonth.label}.`);
+  }
+
+  const firstMonth = projection?.[0];
+  if (firstMonth) {
+    messages.push(
+      `Em ${firstMonth.label}, o resultado projetado é ${formatMoneyPtBr(
+        firstMonth.monthly_result
+      )}.`
+    );
+  }
+
+  return messages;
+}
+
+function assertFinancialProjectionContract(projection, months) {
+  if (!Array.isArray(projection) || projection.length !== months) {
+    throw new ApiError(
+      500,
+      "FINANCIAL_PROJECTION_CONTRACT_ERROR",
+      "financial_projection did not produce the expected monthly projection array."
+    );
+  }
+
+  for (const item of projection) {
+    const hasRequiredShape =
+      item &&
+      typeof item === "object" &&
+      typeof item.period === "string" &&
+      Object.prototype.hasOwnProperty.call(item, "income") &&
+      Object.prototype.hasOwnProperty.call(item, "fixed_expenses") &&
+      Object.prototype.hasOwnProperty.call(item, "variable_and_card_expenses") &&
+      Object.prototype.hasOwnProperty.call(item, "monthly_result") &&
+      Object.prototype.hasOwnProperty.call(item, "projected_balance") &&
+      item.items_summary &&
+      typeof item.items_summary === "object";
+
+    if (!hasRequiredShape) {
+      throw new ApiError(
+        500,
+        "FINANCIAL_PROJECTION_CONTRACT_ERROR",
+        "financial_projection produced a malformed projection item."
+      );
+    }
+  }
 }
 
 function sameAccountId(left, right) {
@@ -1399,6 +1980,274 @@ async function handleFinancialSummary(req, res, supabase) {
       `Há ${formatMoneyPtBr(overdueReceivableTotal)} em receitas atrasadas.`,
       `Há ${payableInvoicesCount} fatura(s) aguardando pagamento pela API.`,
     ],
+  };
+
+  json(res, 200, response);
+}
+
+async function handleFinancialProjection(req, res, supabase) {
+  requireMethod(req, "GET");
+  rejectUserIdFromSupplier(req.query || {});
+
+  const user = await resolveGetUser(supabase, req);
+  const today = getSaoPauloTodayIso();
+  const months = normalizeProjectionMonths(req.query?.months);
+  const startPeriod = normalizeProjectionStartPeriod(req.query?.start_period, today);
+  const mode = normalizeProjectionMode(req.query?.mode);
+  const profile = normalizeProjectionProfile(req.query?.profile);
+  const accountFilter = parseProjectionIdFilters(
+    req.query || {},
+    "account_id",
+    "account_ids",
+    "ACCOUNT_FILTER_CONFLICT",
+    "ACCOUNT_IDS_INVALID"
+  );
+  const creditCardFilter = parseProjectionIdFilters(
+    req.query || {},
+    "credit_card_id",
+    "credit_card_ids",
+    "CREDIT_CARD_FILTER_CONFLICT",
+    "CREDIT_CARD_IDS_INVALID"
+  );
+  const includeCreditCards = parseProjectionBoolean(
+    req.query?.include_credit_cards,
+    true,
+    "INCLUDE_CREDIT_CARDS_INVALID",
+    "include_credit_cards"
+  );
+  const includeTransfers = parseProjectionBoolean(
+    req.query?.include_transfers,
+    false,
+    "INCLUDE_TRANSFERS_INVALID",
+    "include_transfers"
+  );
+
+  if (includeTransfers) {
+    throw new ApiError(
+      400,
+      "TRANSFERS_PROJECTION_NOT_SUPPORTED",
+      "A projeção via API ainda não inclui transferências. Use include_transfers=false."
+    );
+  }
+
+  const [accountsResult, cardsResult, transactionsResult] = await Promise.all([
+    supabase
+      .from("accounts")
+      .select("*")
+      .eq("user_id", user.user_id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("credit_cards")
+      .select("*")
+      .eq("user_id", user.user_id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", user.user_id),
+  ]);
+
+  for (const result of [accountsResult, cardsResult, transactionsResult]) {
+    if (result.error) throw result.error;
+  }
+
+  const accounts = accountsResult.data ?? [];
+  const cards = cardsResult.data ?? [];
+  const transactions = transactionsResult.data ?? [];
+  const accountsById = new Map(accounts.map((account) => [String(account.id), account]));
+  const cardsById = new Map(cards.map((card) => [String(card.id), card]));
+
+  for (const accountId of accountFilter.ids) {
+    if (!accountsById.has(String(accountId))) {
+      throw new ApiError(
+        404,
+        "ACCOUNT_NOT_FOUND",
+        "account_id was not found for this user."
+      );
+    }
+  }
+
+  for (const cardId of creditCardFilter.ids) {
+    if (!cardsById.has(String(cardId))) {
+      throw new ApiError(
+        404,
+        "CREDIT_CARD_NOT_FOUND",
+        "credit_card_id was not found for this user."
+      );
+    }
+  }
+
+  const profileFilter = profile === "PF" || profile === "PJ" ? profile : null;
+  const requestedAccountSet = new Set(accountFilter.ids.map((id) => String(id)));
+  const requestedCardSet = new Set(creditCardFilter.ids.map((id) => String(id)));
+  const hasAccountFilter = requestedAccountSet.size > 0;
+  const hasCardFilter = requestedCardSet.size > 0;
+
+  const selectedAccounts = accounts.filter((account) => {
+    const id = String(account.id);
+    if (hasAccountFilter && !requestedAccountSet.has(id)) return false;
+    if (profileFilter && normalizeProjectionAccountProfile(account) !== profileFilter) {
+      return false;
+    }
+    return hasAccountFilter || profileFilter || profile === "all";
+  });
+
+  const activeCards = cards.filter((card) => card.is_active !== false);
+  const selectedCards = activeCards.filter((card) => {
+    const id = String(card.id);
+    if (hasCardFilter && !requestedCardSet.has(id)) return false;
+    if (profileFilter && normalizeProjectionCardProfile(card) !== profileFilter) {
+      return false;
+    }
+    return hasCardFilter || profileFilter || profile === "all";
+  });
+
+  const selectedAccountIds =
+    hasAccountFilter || profileFilter
+      ? selectedAccounts.length
+        ? selectedAccounts.map((account) => String(account.id))
+        : ["__no_matching_account__"]
+      : [];
+  const selectedCreditCardIds =
+    hasCardFilter || profileFilter
+      ? selectedCards.length
+        ? selectedCards.map((card) => String(card.id))
+        : ["__no_matching_credit_card__"]
+      : [];
+  const accountLabels = selectedAccounts.map((account) => makeAccountLabel(account));
+  const creditCardLabels = selectedCards.map((card) =>
+    String(card.nome || card.bank_text || card.titular || "Cartão").trim()
+  );
+  const initialBalance = selectedAccounts.reduce(
+    (sum, account) => sum + getProjectionInitialBalance(account),
+    0
+  );
+
+  const projection = computeFinancialProjection({
+    transactions,
+    accountsById,
+    cardsById,
+    selectedAccountIds,
+    selectedCreditCardIds,
+    profile,
+    includeCreditCards,
+    includeTransfers,
+    startPeriod,
+    months,
+    mode,
+    initialBalance,
+  });
+
+  assertFinancialProjectionContract(projection, months);
+
+  const totals = projection.reduce(
+    (acc, row) => {
+      acc.income += Number(row.income || 0);
+      acc.fixed_expenses += Number(row.fixed_expenses || 0);
+      acc.variable_and_card_expenses += Number(row.variable_and_card_expenses || 0);
+      acc.net_result += Number(row.monthly_result || 0);
+      return acc;
+    },
+    {
+      income: 0,
+      fixed_expenses: 0,
+      variable_and_card_expenses: 0,
+      net_result: 0,
+    }
+  );
+  const finalProjectedBalance =
+    projection.length > 0
+      ? Number(projection[projection.length - 1].projected_balance || 0)
+      : roundMoney(initialBalance);
+  const tightestMonth = projection.reduce((lowest, row) => {
+    if (!lowest) return row;
+    return Number(row.projected_balance || 0) < Number(lowest.projected_balance || 0)
+      ? row
+      : lowest;
+  }, null);
+  const firstNegativeMonth =
+    projection.find((row) => Number(row.projected_balance || 0) < 0) ?? null;
+  const notes = [
+    "initial_balance follows the projection panel semantics: initial balance of the selected accounts.",
+  ];
+
+  if (!includeCreditCards) {
+    notes.push("credit card transactions were excluded by include_credit_cards=false.");
+  }
+
+  if (hasAccountFilter && !hasCardFilter && includeCreditCards) {
+    notes.push(
+      "credit card transactions are not filtered by account_id because credit cards do not have a reliable bank account link."
+    );
+  }
+
+  const response = {
+    ok: true,
+    action: "financial_projection",
+    user: {
+      user_id: user.user_id,
+      whatsapp_phone_normalized: user.whatsapp_phone_normalized,
+    },
+    scope: {
+      period_start: startPeriod,
+      months,
+      mode,
+      profile,
+      account_ids: hasAccountFilter
+        ? accountFilter.ids
+        : profileFilter
+        ? selectedAccounts.map((account) => String(account.id))
+        : [],
+      account_labels: accountLabels,
+      credit_card_ids: hasCardFilter
+        ? creditCardFilter.ids
+        : profileFilter
+        ? selectedCards.map((card) => String(card.id))
+        : [],
+      credit_card_labels: creditCardLabels,
+      include_credit_cards: includeCreditCards,
+      include_transfers: includeTransfers,
+      is_global: !profileFilter && !hasAccountFilter && !hasCardFilter,
+      notes,
+    },
+    initial_balance: roundMoney(initialBalance),
+    projection,
+    totals: {
+      income: roundMoney(totals.income),
+      fixed_expenses: roundMoney(totals.fixed_expenses),
+      variable_and_card_expenses: roundMoney(totals.variable_and_card_expenses),
+      net_result: roundMoney(totals.net_result),
+      final_projected_balance: roundMoney(finalProjectedBalance),
+    },
+    critical_points: {
+      tightest_month: tightestMonth
+        ? {
+            period: tightestMonth.period,
+            label: tightestMonth.label,
+            projected_balance: roundMoney(tightestMonth.projected_balance),
+          }
+        : null,
+      first_negative_month: firstNegativeMonth
+        ? {
+            period: firstNegativeMonth.period,
+            label: firstNegativeMonth.label,
+            projected_balance: roundMoney(firstNegativeMonth.projected_balance),
+          }
+        : null,
+      lowest_projected_balance: tightestMonth
+        ? roundMoney(tightestMonth.projected_balance)
+        : null,
+    },
+    suggested_messages_for_nimble: buildProjectionSuggestedMessages({
+      projection,
+      months,
+      mode,
+      profile,
+      accountLabels,
+      finalProjectedBalance,
+      tightestMonth,
+      firstNegativeMonth,
+    }),
   };
 
   json(res, 200, response);
@@ -2950,6 +3799,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "payable_invoices") {
     return handlePayableInvoices(req, res, getSupabaseAdmin());
+  }
+  if (action === "financial_projection") {
+    return handleFinancialProjection(req, res, getSupabaseAdmin());
   }
   if (action === "financial_summary") {
     return handleFinancialSummary(req, res, getSupabaseAdmin());

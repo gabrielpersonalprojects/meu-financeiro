@@ -85,6 +85,41 @@ function parseLimit(value) {
   return Math.min(Math.max(Math.trunc(limit), 1), 100);
 }
 
+async function fetchAllRows(buildQuery, pageSize = 1000) {
+  const allRows = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + pageSize - 1;
+    const { data, error } = await buildQuery().range(from, to);
+
+    if (error) throw error;
+
+    const rows = data ?? [];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allRows;
+}
+
+async function fetchAllTransactionsForUser(
+  supabase,
+  userId,
+  { select = "*", build = (query) => query } = {}
+) {
+  return fetchAllRows(() => {
+    const query = supabase
+      .from("transactions")
+      .select(select)
+      .eq("user_id", userId);
+
+    return build(query);
+  });
+}
+
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -1211,6 +1246,326 @@ function assertFinancialProjectionContract(projection, months) {
   }
 }
 
+function normalizeAnalyticsPeriod(value, todayIsoValue) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return String(todayIsoValue).slice(0, 7);
+
+  if (!/^\d{4}-\d{2}$/.test(raw)) {
+    throw new ApiError(400, "PERIOD_INVALID", "period must use format YYYY-MM.");
+  }
+
+  const month = Number(raw.slice(5, 7));
+  if (month < 1 || month > 12) {
+    throw new ApiError(400, "PERIOD_INVALID", "period must use format YYYY-MM.");
+  }
+
+  return raw;
+}
+
+function normalizeAnalyticsSource(value) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "all";
+
+  if (raw !== "general" && raw !== "credit_cards" && raw !== "all") {
+    throw new ApiError(
+      400,
+      "ANALYTICS_SOURCE_INVALID",
+      "source must be general, credit_cards, or all."
+    );
+  }
+
+  return raw;
+}
+
+function normalizeAnalyticsLimit(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 10;
+
+  const limit = Number(raw);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 20) {
+    throw new ApiError(400, "LIMIT_INVALID", "limit must be a number between 1 and 20.");
+  }
+
+  return limit;
+}
+
+function getAnalyticsCategory(row) {
+  const category = String(row?.categoria ?? row?.payload?.categoria ?? "").trim();
+  return category || "Sem categoria";
+}
+
+function getAnalyticsGeneralCategory(row) {
+  const category = String(row?.categoria || "Sem categoria").trim();
+  return category || "Sem categoria";
+}
+
+function mapAnalyticsTransactionToApp(row) {
+  const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
+  const mapped = {
+    id: row?.id,
+    tipo: row?.tipo,
+    valor: Number(row?.valor ?? 0),
+    data: row?.data,
+    descricao: row?.descricao ?? "",
+    categoria: row?.categoria ?? "",
+    tag: row?.tag ?? "",
+    pago: Boolean(row?.pago),
+    payload,
+    conta_id: row?.conta_id ?? null,
+    conta_origem_id: row?.conta_origem_id ?? null,
+    conta_destino_id: row?.conta_destino_id ?? null,
+    cartao_id: row?.cartao_id ?? null,
+    transfer_from_id: row?.transfer_from_id ?? "",
+    transfer_to_id: row?.transfer_to_id ?? "",
+    qual_conta: row?.qual_conta ?? "",
+    criado_em: row?.criado_em ?? undefined,
+    contaId: row?.conta_id ?? undefined,
+    contaOrigemId: row?.conta_origem_id ?? undefined,
+    contaDestinoId: row?.conta_destino_id ?? undefined,
+    cartaoId: row?.cartao_id ?? payload?.cartaoId ?? "",
+    qualCartao: row?.cartao_id ?? payload?.qualCartao ?? payload?.cartaoId ?? "",
+    qualConta: row?.qual_conta ?? "",
+    transferFromId: row?.transfer_from_id ?? "",
+    transferToId: row?.transfer_to_id ?? "",
+    metodoPagamento: payload?.metodoPagamento ?? "",
+    tipoGasto: payload?.tipoGasto ?? "",
+    recorrenciaId: payload?.recorrenciaId ?? row?.recorrenciaId ?? "",
+    isRecorrente: payload?.isRecorrente ?? false,
+    contraParte: payload?.contraParte ?? "",
+    transferId: payload?.transferId ?? row?.transferId ?? "",
+    observacoes: payload?.observacoes ?? "",
+    parcelaAtual: payload?.parcelaAtual ?? row?.parcelaAtual ?? undefined,
+    totalParcelas: payload?.totalParcelas ?? row?.totalParcelas ?? undefined,
+    origemLancamento: payload?.origemLancamento ?? "",
+    parcelamentoFaturaId: payload?.parcelamentoFaturaId ?? "",
+    faturaOrigemCicloKey: payload?.faturaOrigemCicloKey ?? "",
+  };
+
+  return normalizeAnalyticsCreditTransactionCardRefs(mapped);
+}
+
+function normalizeAnalyticsCreditTransactionCardRefs(transaction) {
+  if (String(transaction?.tipo ?? "").trim().toLowerCase() !== "cartao_credito") {
+    return transaction;
+  }
+
+  const payload =
+    transaction?.payload && typeof transaction.payload === "object"
+      ? transaction.payload
+      : {};
+  const cardRef = String(
+    transaction?.cartaoId ??
+      transaction?.cartao_id ??
+      transaction?.qualCartao ??
+      transaction?.qual_cartao ??
+      transaction?.qualConta ??
+      transaction?.qual_conta ??
+      payload?.cartaoId ??
+      payload?.cartao_id ??
+      payload?.qualCartao ??
+      payload?.qual_cartao ??
+      payload?.qualConta ??
+      payload?.qual_conta ??
+      payload?.targetId ??
+      payload?.target_id ??
+      ""
+  ).trim();
+
+  if (!cardRef) {
+    return { ...transaction, payload };
+  }
+
+  return {
+    ...transaction,
+    cartaoId: cardRef,
+    qualCartao: cardRef,
+    payload: {
+      ...payload,
+      cartaoId: cardRef,
+      qualCartao: cardRef,
+      targetId: String(payload?.targetId ?? payload?.target_id ?? cardRef).trim(),
+    },
+  };
+}
+
+function mapAnalyticsAccountToApp(row) {
+  return {
+    ...row,
+    id: row?.id,
+    name: row?.name || row?.banco || "Conta",
+    banco: row?.banco || row?.name || "Conta",
+    numeroConta: row?.numero_conta || "",
+    numeroAgencia: row?.numero_agencia || "",
+    perfilConta: row?.perfil_conta || "PF",
+    tipoConta: row?.tipo_conta || "Conta Corrente",
+    initialBalanceCents: Number(row?.initial_balance_cents ?? 0),
+  };
+}
+
+function mapAnalyticsCreditCardToApp(row) {
+  return {
+    ...row,
+    id: row?.id,
+    name: row?.nome,
+    emissor: row?.bank_text ?? row?.titular ?? "",
+    validade: String(row?.validade ?? ""),
+    diaFechamento: Number(row?.dia_fechamento ?? 1),
+    diaVencimento: Number(row?.dia_vencimento ?? 10),
+    limite: Number(row?.limite_total ?? 0),
+    limiteDisponivel: undefined,
+    contaVinculadaId: null,
+    gradientFrom: row?.gradient_from ?? "#220055",
+    gradientTo: row?.gradient_to ?? "#4600ac",
+    categoria: row?.categoria ?? "",
+    perfil: String(row?.brand ?? "pf").toLowerCase() === "pj" ? "pj" : "pf",
+    createdAt: row?.created_at ?? "",
+    updatedAt: row?.updated_at ?? "",
+  };
+}
+
+function getAnalyticsCardClosingDay(card) {
+  return Number(card?.diaFechamento ?? card?.dia_fechamento ?? 1);
+}
+
+function getAnalyticsCardDueDay(card) {
+  return Number(card?.diaVencimento ?? card?.dia_vencimento ?? 1);
+}
+
+function getAnalyticsProfileFromTransaction(transaction, accountsById) {
+  const ids = [
+    transaction?.profileId,
+    transaction?.contaId,
+    transaction?.qualConta,
+    transaction?.conta?.id,
+    transaction?.profile?.id,
+  ]
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean);
+
+  if (!ids.length) return null;
+
+  const account = ids
+    .map((id) => accountsById.get(id))
+    .find(Boolean);
+  const profile = String(
+    account?.perfilConta ?? account?.perfil_conta ?? account?.perfil ?? ""
+  )
+    .trim()
+    .toUpperCase();
+
+  return profile === "PF" || profile === "PJ" ? profile : null;
+}
+
+function getAnalyticsCardMonthFromDate(dateIso, closingDay, dueDay) {
+  const date = new Date(`${dateIso}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const day = date.getDate();
+  const closing = Math.max(1, Math.min(31, Number(closingDay ?? 1)));
+  const due = Math.max(1, Math.min(31, Number(dueDay ?? 1)));
+  const effectiveClosing = Math.min(
+    closing,
+    new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+  );
+  const invoiceOffset = due > closing ? 0 : 1;
+  const base = new Date(date.getFullYear(), date.getMonth(), 1, 12, 0, 0, 0);
+
+  if (day > effectiveClosing) {
+    base.setMonth(base.getMonth() + 1);
+  }
+
+  base.setMonth(base.getMonth() + invoiceOffset);
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function buildAnalyticsCategoryRows(grouped, limit) {
+  const allEntries = Array.from(grouped.entries())
+    .map(([category, data]) => ({
+      category,
+      amount: roundMoney(data.amount),
+      count: data.count,
+    }))
+    .sort((a, b) => b.amount - a.amount || a.category.localeCompare(b.category));
+  const total = allEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+  return allEntries
+    .slice(0, limit)
+    .map((entry) => ({
+      ...entry,
+      percentage: total > 0 ? Number(((entry.amount / total) * 100).toFixed(1)) : 0,
+    }));
+}
+
+function addAnalyticsGroupValue(grouped, category, amount) {
+  const current = grouped.get(category) ?? { amount: 0, count: 0 };
+  current.amount += Math.abs(Number(amount || 0));
+  current.count += 1;
+  grouped.set(category, current);
+}
+
+function buildAnalyticsChart(title, data) {
+  return {
+    chart_type: "donut",
+    title,
+    data: data.map((item) => ({
+      label: item.category,
+      value: item.amount,
+    })),
+  };
+}
+
+function buildAnalyticsSuggestedMessages({
+  source,
+  period,
+  generalRows,
+  creditCardRows,
+}) {
+  const label = formatProjectionPeriodLabel(period).toLowerCase();
+  const topGeneral = generalRows[0] ?? null;
+  const topCredit = creditCardRows[0] ?? null;
+
+  if (!topGeneral && !topCredit) {
+    return ["Não encontrei gastos para esse período e escopo."];
+  }
+
+  if (source === "general") {
+    return topGeneral
+      ? [
+          `Na fonte Geral, sua maior categoria de gastos em ${label} foi ${topGeneral.category}, com ${formatMoneyPtBr(
+            topGeneral.amount
+          )}.`,
+        ]
+      : ["Não encontrei gastos na fonte Geral para esse período e escopo."];
+  }
+
+  if (source === "credit_cards") {
+    return topCredit
+      ? [
+          `Nos cartões, sua maior categoria de gastos em ${label} foi ${topCredit.category}, com ${formatMoneyPtBr(
+            topCredit.amount
+          )}.`,
+        ]
+      : ["Não encontrei gastos de cartão para esse período e escopo."];
+  }
+
+  const messages = [];
+  if (topGeneral) {
+    messages.push(
+      `Na fonte Geral, a maior categoria em ${label} foi ${topGeneral.category}, com ${formatMoneyPtBr(
+        topGeneral.amount
+      )}.`
+    );
+  }
+  if (topCredit) {
+    messages.push(
+      `Nos cartões, a maior categoria em ${label} foi ${topCredit.category}, com ${formatMoneyPtBr(
+        topCredit.amount
+      )}.`
+    );
+  }
+  return messages;
+}
+
 function sameAccountId(left, right) {
   return String(left ?? "").trim() === String(right ?? "").trim();
 }
@@ -1361,29 +1716,32 @@ async function handlePendingTransactions(req, res, supabase) {
   const type = String(req.query?.type ?? "").trim();
   const accountId = String(req.query?.account_id ?? "").trim();
 
-  let query = supabase
-    .from("transactions")
-    .select("id, tipo, valor, data, descricao, categoria, tag, conta_id, qual_conta, pago, payload")
-    .eq("user_id", user.user_id)
-    .eq("pago", false)
-    .in("tipo", ["receita", "despesa"])
-    .order("data", { ascending: true })
-    .limit(limit);
+  const pendingRows = await fetchAllTransactionsForUser(supabase, user.user_id, {
+    select: "id, tipo, valor, data, descricao, categoria, tag, conta_id, qual_conta, pago, payload",
+    build: (query) => {
+      let pendingQuery = query
+        .eq("pago", false)
+        .in("tipo", ["receita", "despesa"])
+        .order("data", { ascending: true })
+        .order("id", { ascending: true });
 
-  if (type === "receita" || type === "despesa") {
-    query = query.eq("tipo", type);
-  }
+      if (type === "receita" || type === "despesa") {
+        pendingQuery = pendingQuery.eq("tipo", type);
+      }
 
-  if (accountId) {
-    query = query.eq("conta_id", accountId);
-  }
+      if (accountId) {
+        pendingQuery = pendingQuery.eq("conta_id", accountId);
+      }
 
-  const { data, error } = await query;
-  if (error) throw error;
+      return pendingQuery;
+    },
+  });
+
+  const data = pendingRows.slice(0, limit);
 
   const accountIds = Array.from(
     new Set(
-      (data ?? [])
+      data
         .map((row) => String(row.conta_id || row.qual_conta || "").trim())
         .filter(Boolean)
     )
@@ -1414,7 +1772,7 @@ async function handlePendingTransactions(req, res, supabase) {
 
   json(res, 200, {
     ok: true,
-    transactions: (data ?? []).map((row) => ({
+    transactions: data.map((row) => ({
       ...(() => {
         const accountId = String(row.conta_id || row.qual_conta || "").trim();
         const account = accountId ? accountsById.get(accountId) : null;
@@ -1460,18 +1818,22 @@ async function getCreditInvoiceSummaries(
   userId,
   { creditCardId, cicloKey } = {}
 ) {
-  const [cardsResult, txResult, paymentsResult, manualStatusResult] =
+  const [cardsResult, transactionRows, paymentsResult, manualStatusResult] =
     await Promise.all([
       (() => {
         let query = supabase.from("credit_cards").select("*").eq("user_id", userId);
         if (creditCardId) query = query.eq("id", creditCardId);
         return query;
       })(),
-      supabase
-        .from("transactions")
-        .select("id, tipo, valor, data, descricao, categoria, cartao_id, qual_conta, pago, payload")
-        .eq("user_id", userId)
-        .eq("tipo", "cartao_credito"),
+      fetchAllTransactionsForUser(supabase, userId, {
+        select:
+          "id, tipo, valor, data, descricao, categoria, cartao_id, qual_conta, pago, payload",
+        build: (query) =>
+          query
+            .eq("tipo", "cartao_credito")
+            .order("data", { ascending: true })
+            .order("id", { ascending: true }),
+      }),
       (() => {
         let query = supabase
           .from("invoice_payments")
@@ -1494,7 +1856,6 @@ async function getCreditInvoiceSummaries(
 
   for (const result of [
     cardsResult,
-    txResult,
     paymentsResult,
     manualStatusResult,
   ]) {
@@ -1519,7 +1880,7 @@ async function getCreditInvoiceSummaries(
 
   const invoices = new Map();
 
-  for (const tx of txResult.data ?? []) {
+  for (const tx of transactionRows) {
     const cardId = getCreditTransactionCardId(tx);
     if (creditCardId && cardId !== String(creditCardId)) continue;
     const card = cardsById.get(cardId);
@@ -1637,27 +1998,27 @@ async function handleFinancialSummary(req, res, supabase) {
   const accountFilter = parseSummaryAccountFilters(req.query || {});
   const upcomingLimit = addDaysIso(today, 7);
 
-  const [accountsResult, transactionsResult, invoiceSummaries] = await Promise.all([
+  const [accountsResult, transactionRows, invoiceSummaries] = await Promise.all([
     supabase
       .from("accounts")
       .select("id, banco, name, perfil_conta, initial_balance_cents")
       .eq("user_id", user.user_id)
       .order("created_at", { ascending: true }),
-    supabase
-      .from("transactions")
-      .select(
-        "id, tipo, valor, data, descricao, categoria, tag, conta_id, qual_conta, pago, payload, transfer_from_id, transfer_to_id"
-      )
-      .eq("user_id", user.user_id),
+    fetchAllTransactionsForUser(supabase, user.user_id, {
+      select:
+        "id, tipo, valor, data, descricao, categoria, tag, conta_id, qual_conta, pago, payload, transfer_from_id, transfer_to_id",
+      build: (query) =>
+        query.order("data", { ascending: true }).order("id", { ascending: true }),
+    }),
     getCreditInvoiceSummaries(supabase, user.user_id),
   ]);
 
-  for (const result of [accountsResult, transactionsResult]) {
+  for (const result of [accountsResult]) {
     if (result.error) throw result.error;
   }
 
   const accounts = accountsResult.data ?? [];
-  const transactions = transactionsResult.data ?? [];
+  const transactions = transactionRows;
   const accountsById = new Map(accounts.map((account) => [String(account.id), account]));
   const requestedAccountIds = accountFilter.account_ids;
 
@@ -2030,7 +2391,7 @@ async function handleFinancialProjection(req, res, supabase) {
     );
   }
 
-  const [accountsResult, cardsResult, transactionsResult] = await Promise.all([
+  const [accountsResult, cardsResult, transactionRows] = await Promise.all([
     supabase
       .from("accounts")
       .select("*")
@@ -2041,19 +2402,19 @@ async function handleFinancialProjection(req, res, supabase) {
       .select("*")
       .eq("user_id", user.user_id)
       .order("created_at", { ascending: true }),
-    supabase
-      .from("transactions")
-      .select("*")
-      .eq("user_id", user.user_id),
+    fetchAllTransactionsForUser(supabase, user.user_id, {
+      build: (query) =>
+        query.order("data", { ascending: true }).order("id", { ascending: true }),
+    }),
   ]);
 
-  for (const result of [accountsResult, cardsResult, transactionsResult]) {
+  for (const result of [accountsResult, cardsResult]) {
     if (result.error) throw result.error;
   }
 
   const accounts = accountsResult.data ?? [];
   const cards = cardsResult.data ?? [];
-  const transactions = transactionsResult.data ?? [];
+  const transactions = transactionRows;
   const accountsById = new Map(accounts.map((account) => [String(account.id), account]));
   const cardsById = new Map(cards.map((card) => [String(card.id), card]));
 
@@ -2251,6 +2612,249 @@ async function handleFinancialProjection(req, res, supabase) {
   };
 
   json(res, 200, response);
+}
+
+async function handleFinancialAnalytics(req, res, supabase) {
+  requireMethod(req, "GET");
+  rejectUserIdFromSupplier(req.query || {});
+
+  const user = await resolveGetUser(supabase, req);
+  const today = getSaoPauloTodayIso();
+  const period = normalizeAnalyticsPeriod(req.query?.period, today);
+  const profile = normalizeProjectionProfile(req.query?.profile);
+  const source = normalizeAnalyticsSource(req.query?.source);
+  const limit = normalizeAnalyticsLimit(req.query?.limit);
+  const accountFilter = parseProjectionIdFilters(
+    req.query || {},
+    "account_id",
+    "account_ids",
+    "ACCOUNT_FILTER_CONFLICT",
+    "ACCOUNT_IDS_INVALID"
+  );
+  const creditCardFilter = parseProjectionIdFilters(
+    req.query || {},
+    "credit_card_id",
+    "credit_card_ids",
+    "CREDIT_CARD_FILTER_CONFLICT",
+    "CREDIT_CARD_IDS_INVALID"
+  );
+
+  const [accountsResult, cardsResult, transactionRows] = await Promise.all([
+    supabase
+      .from("accounts")
+      .select("*")
+      .eq("user_id", user.user_id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("credit_cards")
+      .select("*")
+      .eq("user_id", user.user_id)
+      .order("created_at", { ascending: true }),
+    fetchAllTransactionsForUser(supabase, user.user_id, {
+      build: (query) =>
+        query.order("data", { ascending: true }).order("id", { ascending: true }),
+    }),
+  ]);
+
+  for (const result of [accountsResult, cardsResult]) {
+    if (result.error) throw result.error;
+  }
+
+  const accounts = (accountsResult.data ?? []).map(mapAnalyticsAccountToApp);
+  const cards = (cardsResult.data ?? []).map(mapAnalyticsCreditCardToApp);
+  const transactions = transactionRows.map(mapAnalyticsTransactionToApp);
+  const accountsById = new Map(accounts.map((account) => [String(account.id), account]));
+  const cardsById = new Map(cards.map((card) => [String(card.id), card]));
+
+  for (const accountId of accountFilter.ids) {
+    if (!accountsById.has(String(accountId))) {
+      throw new ApiError(
+        404,
+        "ACCOUNT_NOT_FOUND",
+        "account_id was not found for this user."
+      );
+    }
+  }
+
+  for (const cardId of creditCardFilter.ids) {
+    if (!cardsById.has(String(cardId))) {
+      throw new ApiError(
+        404,
+        "CREDIT_CARD_NOT_FOUND",
+        "credit_card_id was not found for this user."
+      );
+    }
+  }
+
+  const profileFilter = profile === "PF" || profile === "PJ" ? profile : null;
+  const requestedAccountSet = new Set(accountFilter.ids.map((id) => String(id)));
+  const requestedCardSet = new Set(creditCardFilter.ids.map((id) => String(id)));
+  const hasAccountFilter = requestedAccountSet.size > 0;
+  const hasCardFilter = requestedCardSet.size > 0;
+  const includeGeneral = source === "general" || source === "all";
+  const includeCreditCards = source === "credit_cards" || source === "all";
+
+  const selectedAccounts = accounts.filter((account) => {
+    const id = String(account.id);
+    if (hasAccountFilter && !requestedAccountSet.has(id)) return false;
+    if (profileFilter && normalizeProjectionAccountProfile(account) !== profileFilter) {
+      return false;
+    }
+    return hasAccountFilter || profileFilter || profile === "all";
+  });
+  const selectedCards = cards
+    .filter((card) => card.is_active !== false)
+    .filter((card) => {
+      const id = String(card.id);
+      if (hasCardFilter && !requestedCardSet.has(id)) return false;
+      if (profileFilter && normalizeProjectionCardProfile(card) !== profileFilter) {
+        return false;
+      }
+      return hasCardFilter || profileFilter || profile === "all";
+    });
+  const selectedAccountSet = new Set(selectedAccounts.map((account) => String(account.id)));
+  const selectedCardSet = new Set(selectedCards.map((card) => String(card.id)));
+  const generalGrouped = new Map();
+  const creditCardGrouped = new Map();
+  const notes = [
+    "Esta versão prioriza paridade com a aba Análise atual: gastos por categoria na fonte Geral e Cartões.",
+  ];
+
+  if (includeGeneral) {
+    for (const transaction of transactions) {
+      const type = String(transaction?.tipo ?? "").trim().toLowerCase();
+      if (type !== "despesa") continue;
+
+      const date = String(transaction?.data ?? "").trim();
+      if (!date.startsWith(period)) continue;
+
+      const category = getAnalyticsGeneralCategory(transaction);
+      const categoryNorm = normalizeText(category);
+      if (categoryNorm.includes("transfer")) continue;
+
+      if (profileFilter) {
+        const transactionProfile = getAnalyticsProfileFromTransaction(
+          transaction,
+          accountsById
+        );
+        if (transactionProfile !== profileFilter) {
+          continue;
+        }
+      }
+
+      const accountId = getProjectionTransactionAccountId(transaction);
+      if (hasAccountFilter && (!accountId || !selectedAccountSet.has(accountId))) {
+        continue;
+      }
+
+      addAnalyticsGroupValue(generalGrouped, category, transaction.valor);
+    }
+  }
+
+  if (includeCreditCards) {
+    for (const transaction of transactions) {
+      const type = String(transaction?.tipo ?? "").trim().toLowerCase();
+      if (type !== "cartao_credito") continue;
+
+      const cardId = getProjectionCreditCardId(transaction, cardsById);
+      const card = cardId ? cardsById.get(cardId) : null;
+      if (!card || card.is_active === false) continue;
+
+      if (profileFilter && normalizeProjectionCardProfile(card) !== profileFilter) {
+        continue;
+      }
+
+      if (hasCardFilter && !selectedCardSet.has(cardId)) {
+        continue;
+      }
+
+      const transactionPeriod = getAnalyticsCardMonthFromDate(
+        transaction.data,
+        getAnalyticsCardClosingDay(card),
+        getAnalyticsCardDueDay(card)
+      );
+      if (transactionPeriod !== period) continue;
+
+      const category = getAnalyticsCategory(transaction);
+      const categoryNorm = normalizeText(category);
+      if (categoryNorm.includes("transfer")) continue;
+
+      addAnalyticsGroupValue(creditCardGrouped, category, transaction.valor);
+    }
+  }
+
+  if (includeCreditCards && hasAccountFilter) {
+    notes.push(
+      "credit_card_expense_by_category is not filtered by account_id because credit cards do not have a reliable bank account link."
+    );
+  }
+
+  const generalRows = includeGeneral
+    ? buildAnalyticsCategoryRows(generalGrouped, limit)
+    : [];
+  const creditCardRows = includeCreditCards
+    ? buildAnalyticsCategoryRows(creditCardGrouped, limit)
+    : [];
+  const generalTotal = roundMoney(
+    generalRows.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+  );
+  const creditCardTotal = roundMoney(
+    creditCardRows.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+  );
+  const allCategories = new Set([
+    ...generalRows.map((item) => item.category),
+    ...creditCardRows.map((item) => item.category),
+  ]);
+  const accountLabels = selectedAccounts.map((account) => makeAccountLabel(account));
+  const creditCardLabels = selectedCards.map((card) =>
+    String(card.name || card.nome || card.emissor || card.bank_text || card.titular || "Cartão").trim()
+  );
+
+  json(res, 200, {
+    ok: true,
+    action: "financial_analytics",
+    user: {
+      user_id: user.user_id,
+      whatsapp_phone_normalized: user.whatsapp_phone_normalized,
+    },
+    scope: {
+      period,
+      profile,
+      source,
+      account_ids: hasAccountFilter ? accountFilter.ids : [],
+      account_labels: hasAccountFilter || profileFilter ? accountLabels : [],
+      credit_card_ids: hasCardFilter ? creditCardFilter.ids : [],
+      credit_card_labels: hasCardFilter || profileFilter ? creditCardLabels : [],
+      is_global: !profileFilter && !hasAccountFilter && !hasCardFilter,
+      notes,
+    },
+    summary: {
+      general_expenses_total: generalTotal,
+      credit_card_expenses_total: creditCardTotal,
+      combined_expenses_total: roundMoney(generalTotal + creditCardTotal),
+      top_general_category: generalRows[0] ?? null,
+      top_credit_card_category: creditCardRows[0] ?? null,
+      categories_count: allCategories.size,
+    },
+    general_expense_by_category: generalRows,
+    credit_card_expense_by_category: creditCardRows,
+    chart_data: {
+      general_expense_by_category: buildAnalyticsChart(
+        "Gastos por categoria",
+        generalRows
+      ),
+      credit_card_expense_by_category: buildAnalyticsChart(
+        "Gastos por categoria no cartão",
+        creditCardRows
+      ),
+    },
+    suggested_messages_for_nimble: buildAnalyticsSuggestedMessages({
+      source,
+      period,
+      generalRows,
+      creditCardRows,
+    }),
+  });
 }
 
 async function resolvePostContext(req, action) {
@@ -3802,6 +4406,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "financial_projection") {
     return handleFinancialProjection(req, res, getSupabaseAdmin());
+  }
+  if (action === "financial_analytics") {
+    return handleFinancialAnalytics(req, res, getSupabaseAdmin());
   }
   if (action === "financial_summary") {
     return handleFinancialSummary(req, res, getSupabaseAdmin());

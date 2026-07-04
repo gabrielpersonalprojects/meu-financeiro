@@ -1647,6 +1647,7 @@ async function validateCreditCardTagIfProvided({ supabase, userId, tag }) {
 
 async function handleContext(req, res, supabase) {
   requireMethod(req, "GET");
+  rejectUserIdFromSupplier(req.query || {});
   const user = await resolveGetUser(supabase, req);
 
   const [accountsResult, cardsResult, categoriesResult, tagsResult] =
@@ -1711,6 +1712,7 @@ async function handleContext(req, res, supabase) {
 
 async function handlePendingTransactions(req, res, supabase) {
   requireMethod(req, "GET");
+  rejectUserIdFromSupplier(req.query || {});
   const user = await resolveGetUser(supabase, req);
   const limit = parseLimit(req.query?.limit);
   const type = String(req.query?.type ?? "").trim();
@@ -3121,145 +3123,30 @@ async function handleCreateTransaction(req, res, action) {
 }
 
 async function handleMarkPaid(req, res, action) {
-  await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
-    const transactionId = requireString(
-      body.transaction_id,
-      "TRANSACTION_ID_REQUIRED",
-      "transaction_id is required."
-    );
-    const paidAt = parseIsoDate(body.paid_at, "INVALID_PAID_DATE", "paid_at");
-    if (isFutureDate(paidAt)) {
-      throw new ApiError(
-        400,
-        "INVALID_PAID_DATE",
-        "paid_at cannot be in the future."
-      );
-    }
-    const paymentMethod = normalizePaymentMethod(body.payment_method);
-    const transaction = await requireOwnedCommonTransaction(
-      supabase,
-      user.user_id,
-      transactionId
-    );
+  requireMethod(req, "POST");
+  const body = await parseJson(req);
+  rejectUserIdFromSupplier(body);
 
-    if (body.account_id !== undefined && String(body.account_id ?? "").trim()) {
-      await requireOwnedAccount(supabase, user.user_id, body.account_id);
-    }
-
-    if (transaction.pago === true) {
-      return {
-        statusCode: 200,
-        body: {
-          ok: true,
-          status: "already_paid",
-          summary: "Esse lanÃƒÂ§amento jÃƒÂ¡ estava marcado como pago.",
-          transaction: {
-            id: transaction.id,
-            paid: true,
-          },
-        },
-      };
-    }
-
-    const payload = {
-      ...(transaction.payload && typeof transaction.payload === "object"
-        ? transaction.payload
-        : {}),
-      paidAt,
-    };
-
-    if (paymentMethod) {
-      payload.metodoPagamento = paymentMethod;
-    }
-
-    const { data: updated, error } = await supabase
-      .from("transactions")
-      .update({
-        pago: true,
-        payload,
-      })
-      .eq("id", transaction.id)
-      .eq("user_id", user.user_id)
-      .select("id, tipo, descricao, pago, payload")
-      .single();
-
-    if (error) throw error;
-
-    return {
-      statusCode: 200,
-      body: {
-        ok: true,
-        status: "updated",
-        summary: `${typeLabel(updated.tipo)} ${updated.descricao || "lanÃƒÂ§amento"} marcada como paga.`,
-        transaction: {
-          id: updated.id,
-          paid: true,
-          paid_at: updated.payload?.paidAt || paidAt,
-        },
-      },
-    };
+  json(res, 400, {
+    ok: false,
+    error: {
+      code: "ACTION_DEPRECATED",
+      message: "Use settle_transaction with confirmed:true to settle a transaction.",
+    },
   });
 }
 
 async function handleMarkUnpaid(req, res, action) {
-  await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
-    const transactionId = requireString(
-      body.transaction_id,
-      "TRANSACTION_ID_REQUIRED",
-      "transaction_id is required."
-    );
-    const transaction = await requireOwnedCommonTransaction(
-      supabase,
-      user.user_id,
-      transactionId
-    );
+  requireMethod(req, "POST");
+  const body = await parseJson(req);
+  rejectUserIdFromSupplier(body);
 
-    if (transaction.pago !== true) {
-      return {
-        statusCode: 200,
-        body: {
-          ok: true,
-          status: "already_unpaid",
-          summary: "Esse lanÃƒÂ§amento jÃƒÂ¡ estava marcado como nÃƒÂ£o pago.",
-          transaction: {
-            id: transaction.id,
-            paid: false,
-          },
-        },
-      };
-    }
-
-    const payload =
-      transaction.payload && typeof transaction.payload === "object"
-        ? { ...transaction.payload }
-        : {};
-    delete payload.paidAt;
-
-    const { data: updated, error } = await supabase
-      .from("transactions")
-      .update({
-        pago: false,
-        payload,
-      })
-      .eq("id", transaction.id)
-      .eq("user_id", user.user_id)
-      .select("id, pago")
-      .single();
-
-    if (error) throw error;
-
-    return {
-      statusCode: 200,
-      body: {
-        ok: true,
-        status: "updated",
-        summary: "LanÃƒÂ§amento marcado como nÃƒÂ£o pago.",
-        transaction: {
-          id: updated.id,
-          paid: false,
-        },
-      },
-    };
+  json(res, 400, {
+    ok: false,
+    error: {
+      code: "ACTION_NOT_SUPPORTED",
+      message: "Undoing a payment is not available via WhatsApp API. Use the FluxMoney panel.",
+    },
   });
 }
 
@@ -4116,6 +4003,14 @@ async function handleCreateCreditCardInstallments(req, res, action) {
 
 async function handlePayCreditCardInvoice(req, res, action) {
   await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    if (body.confirmed !== true) {
+      throw new ApiError(
+        400,
+        "CONFIRMATION_REQUIRED",
+        "Invoice payment requires explicit user confirmation."
+      );
+    }
+
     const creditCardId = requireString(
       body.credit_card_id,
       "CREDIT_CARD_ID_REQUIRED",

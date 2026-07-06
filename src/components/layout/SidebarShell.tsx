@@ -399,9 +399,12 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] f
                 return;
               }
 
-              setActivePanel(item.key);
-              setMobileMenuOpen(false);
-              onPanelOpen?.(item.key);
+setMobileMenuOpen(false);
+
+requestAnimationFrame(() => {
+  setActivePanel(item.key);
+  onPanelOpen?.(item.key);
+});
             }}
             className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
               active
@@ -570,12 +573,12 @@ className={`hidden md:flex fixed left-24 top-0 z-[70] h-[100dvh] max-h-[100dvh] 
         </div>
       </div>
 
-      {/* PAINEL MOBILE */}
-      <div
-        className={`fixed inset-0 z-[140] md:hidden transition ${
-          panelOpen ? "pointer-events-auto" : "pointer-events-none"
-        }`}
-      >
+{/* PAINEL MOBILE */}
+<div
+  className={`fixed inset-0 z-[260] md:hidden transition ${
+    panelOpen ? "pointer-events-auto" : "pointer-events-none"
+  }`}
+>
         <button
           type="button"
           aria-label="Fechar painel mobile"

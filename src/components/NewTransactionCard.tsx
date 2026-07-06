@@ -3,7 +3,7 @@ import { CATEGORIAS_PADRAO } from "../constants";
 import CustomDateInput from "./CustomDateInput";
 import CustomDropdown from "./CustomDropdown";
 import { PlusIcon } from "./LucideIcons";
-import { Archive } from "lucide-react";
+import { Archive, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect } from "react";
@@ -214,6 +214,93 @@ function normalizeCategory(val: any): string {
   }
 
   return String(val).trim();
+}
+
+type ParcelasInputAccent = "violet" | "emerald" | "indigo";
+
+function ParcelasInput({
+  value,
+  onChange,
+  accent,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  accent: ParcelasInputAccent;
+}) {
+  const currentValue = Number(value || 2);
+
+  const accentClasses = {
+    violet: {
+      focus: "focus:ring-violet-100 dark:focus:ring-violet-900",
+      button:
+        "text-violet-500 hover:bg-violet-600 hover:text-white dark:text-violet-200 dark:hover:bg-violet-600",
+    },
+    emerald: {
+      focus: "focus:ring-emerald-100 dark:focus:ring-emerald-900",
+      button:
+        "text-emerald-500 hover:bg-emerald-600 hover:text-white dark:text-emerald-200 dark:hover:bg-emerald-600",
+    },
+    indigo: {
+      focus: "focus:ring-indigo-100 dark:focus:ring-indigo-900",
+      button:
+        "text-indigo-500 hover:bg-indigo-600 hover:text-white dark:text-indigo-200 dark:hover:bg-indigo-600",
+    },
+  }[accent];
+
+  const setSafeParcelas = (nextValue: number) => {
+    const safeValue = Number.isFinite(nextValue) ? Math.max(2, nextValue) : 2;
+    onChange(safeValue);
+  };
+
+  return (
+    <div>
+      <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+        Número de parcelas
+      </label>
+
+      <div className="relative">
+        <input
+          type="number"
+          min={2}
+          value={currentValue}
+          onChange={(e) => {
+            const n = parseInt(e.target.value || "2", 10);
+            setSafeParcelas(n);
+          }}
+          className={[
+            "w-full p-2.5 pr-12 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700",
+            "text-slate-800 dark:text-slate-100 font-bold outline-none focus:ring-2",
+            "appearance-none [appearance:textfield]",
+            "[&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+            "[&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0",
+            accentClasses.focus,
+          ].join(" ")}
+        />
+
+        <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-slate-200/80 bg-white/80 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70">
+          <button
+            type="button"
+            onClick={() => setSafeParcelas(currentValue + 1)}
+            className={`flex h-5 w-8 items-center justify-center transition ${accentClasses.button}`}
+            aria-label="Aumentar número de parcelas"
+          >
+            <ChevronUp size={14} strokeWidth={2.8} />
+          </button>
+
+          <div className="h-px bg-slate-200 dark:bg-slate-700" />
+
+          <button
+            type="button"
+            onClick={() => setSafeParcelas(currentValue - 1)}
+            className={`flex h-5 w-8 items-center justify-center transition ${accentClasses.button}`}
+            aria-label="Diminuir número de parcelas"
+          >
+            <ChevronDown size={14} strokeWidth={2.8} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function NewTransactionCard({
@@ -718,23 +805,13 @@ onClick={() => {
             {/* Tipo de Gasto (esq) + Categoria (dir) SEMPRE aqui, abaixo dos botões */}
 {ccIsParceladoMode !== null && (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-    {ccIsParceladoMode === true ? (
-      <div>
-        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-          Número de parcelas
-        </label>
-        <input
-          type="number"
-          min={2}
-          value={formParcelas}
-          onChange={(e) => {
-            const n = parseInt(e.target.value || "2", 10);
-            setFormParcelas(Number.isFinite(n) ? Math.max(2, n) : 2);
-          }}
-          className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none focus:ring-2 focus:ring-violet-100 dark:focus:ring-violet-900"
-        />
-      </div>
-    ) : (
+{ccIsParceladoMode === true ? (
+  <ParcelasInput
+    value={formParcelas}
+    onChange={setFormParcelas}
+    accent="violet"
+  />
+) : (
 <CustomDropdown
   label="Tipo de Gasto *"
   value={formTipoGasto}
@@ -939,25 +1016,13 @@ onClick={() => {
                 </button>
               </div>
             </div>
-
-            {isParceladoMode === true && (
-              <div>
-                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                  Número de parcelas
-                </label>
-
-                <input
-                  type="number"
-                  min={2}
-                  value={formParcelas}
-                  onChange={(e) => {
-                    const n = parseInt(e.target.value || "2", 10);
-                    setFormParcelas(Number.isFinite(n) ? Math.max(2, n) : 2);
-                  }}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none focus:ring-2 focus:ring-emerald-100 dark:focus:ring-emerald-900"
-                />
-              </div>
-            )}
+{isParceladoMode === true && (
+  <ParcelasInput
+    value={formParcelas}
+    onChange={setFormParcelas}
+    accent="emerald"
+  />
+)}
           </div>
         )}
 
@@ -1009,23 +1074,13 @@ onClick={() => {
 
             {isParceladoMode !== null && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {isParceladoMode === true ? (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-                      Número de parcelas
-                    </label>
-                    <input
-                      type="number"
-                      min={2}
-                      value={formParcelas}
-                      onChange={(e) => {
-                        const n = parseInt(e.target.value || "2", 10);
-                        setFormParcelas(Number.isFinite(n) ? Math.max(2, n) : 2);
-                      }}
-                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900"
-                    />
-                  </div>
-                ) : (
+{isParceladoMode === true ? (
+  <ParcelasInput
+    value={formParcelas}
+    onChange={setFormParcelas}
+    accent="indigo"
+  />
+) : (
 <CustomDropdown
   label="Tipo de Gasto *"
   value={formTipoGasto}

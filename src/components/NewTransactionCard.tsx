@@ -1186,23 +1186,81 @@ onClick={() => {
         )}
 
         {formTipo === "transferencia" && isPfPjMovement && (
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-            <CustomDropdown
-              label="Categoria de saída"
-              value={formCatTransferenciaOrigem ?? ""}
-              options={despesaCategoryOptions as any}
-              onSelect={(val) => setFormCatTransferenciaOrigem?.(normalizeCategory(val))}
-              onDelete={(value) => removerCategoria("despesa", value)}
-              onAddNew={() => onOpenCategoriaModal?.("despesa")}
-            />
-            <CustomDropdown
-              label="Categoria de entrada"
-              value={formCatTransferenciaDestino ?? ""}
-              options={receitaCategoryOptions as any}
-              onSelect={(val) => setFormCatTransferenciaDestino?.(normalizeCategory(val))}
-              onDelete={(value) => removerCategoria("receita", value)}
-              onAddNew={() => onOpenCategoriaModal?.("receita")}
-            />
+          <div className="mt-3 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <CustomDropdown
+                label="Categoria de saída"
+                value={formCatTransferenciaOrigem ?? ""}
+                options={despesaCategoryOptions as any}
+                onSelect={(val) => setFormCatTransferenciaOrigem?.(normalizeCategory(val))}
+                onDelete={(value) => removerCategoria("despesa", value)}
+                onAddNew={() => onOpenCategoriaModal?.("despesa")}
+              />
+              <CustomDropdown
+                label="Categoria de entrada"
+                value={formCatTransferenciaDestino ?? ""}
+                options={receitaCategoryOptions as any}
+                onSelect={(val) => setFormCatTransferenciaDestino?.(normalizeCategory(val))}
+                onDelete={(value) => removerCategoria("receita", value)}
+                onAddNew={() => onOpenCategoriaModal?.("receita")}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
+                Recorrência mensal
+              </label>
+
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 backdrop-blur-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPrazoMode(prazoMode === "com_prazo" ? null : "com_prazo");
+                  }}
+                  className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
+                    ${
+                      prazoMode === "com_prazo"
+                        ? "bg-indigo-600/90 border-indigo-500/40 text-white"
+                        : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
+                    }`}
+                >
+                  Com prazo
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPrazoMode(prazoMode === "sem_prazo" ? null : "sem_prazo");
+                  }}
+                  className={`w-full h-9 rounded-xl text-[13px] font-semibold transition-all border
+                    ${
+                      prazoMode === "sem_prazo"
+                        ? "bg-indigo-600/90 border-indigo-500/40 text-white"
+                        : "bg-white/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/70 text-slate-700 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-slate-900/80"
+                    }`}
+                >
+                  Sem prazo
+                </button>
+              </div>
+
+              {prazoMode === "com_prazo" && (
+                <div className="mt-2">
+                  <CustomDateInput
+                    label="Último lançamento em:"
+                    value={formDataTerminoFixa}
+                    onChange={setFormDataTerminoFixa}
+                  />
+                </div>
+              )}
+
+              {prazoMode === "sem_prazo" && (
+                <div className="mt-2 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30">
+                  <p className="text-[12px] leading-snug text-slate-500 dark:text-slate-400">
+                    Sem prazo: vamos considerar <span className="font-bold">{SEM_PRAZO_MESES} meses</span> (1 ano) ou até você excluir este lançamento.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

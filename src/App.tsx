@@ -7732,20 +7732,54 @@ await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
       transacoes.find((t: any) => String(t?.id ?? "") === String(tx?.id ?? "")) ?? tx;
     const linkedMovementId = String(targetTx?.payload?.linkedMovementId ?? "").trim();
     const movementKind = String(targetTx?.payload?.movementKind ?? "").trim();
+    const recurrenceId = String(
+      targetTx?.payload?.recorrenciaId ??
+        targetTx?.payload?.recurrenceId ??
+        targetTx?.recorrenciaId ??
+        ""
+    ).trim();
+    const targetDate = String(targetTx?.data ?? "").trim();
 
     if (movementKind === "pf_pj" && linkedMovementId) {
-      const relatedIds = new Set(
+      const relatedIds = new Set<string>();
+
+      if (apagarTodas && recurrenceId && targetDate) {
+        transacoes
+          .filter((t: any) => {
+            const itemMovementKind = String(t?.payload?.movementKind ?? "").trim();
+            const itemRecurrenceId = String(
+              t?.payload?.recorrenciaId ??
+                t?.payload?.recurrenceId ??
+                t?.recorrenciaId ??
+                ""
+            ).trim();
+            const itemDate = String(t?.data ?? "").trim();
+
+            return (
+              itemMovementKind === "pf_pj" &&
+              itemRecurrenceId === recurrenceId &&
+              itemDate >= targetDate
+            );
+          })
+          .forEach((t: any) => {
+            const id = String(t?.id ?? "").trim();
+            if (id) relatedIds.add(id);
+          });
+      } else {
         transacoes
           .filter(
             (t: any) =>
               String(t?.payload?.movementKind ?? "").trim() === "pf_pj" &&
               String(t?.payload?.linkedMovementId ?? "").trim() === linkedMovementId
           )
-          .map((t: any) => String(t?.id ?? ""))
-          .filter(Boolean)
-      );
+          .forEach((t: any) => {
+            const id = String(t?.id ?? "").trim();
+            if (id) relatedIds.add(id);
+          });
+      }
 
-      relatedIds.add(String(targetTx.id ?? ""));
+      const targetId = String(targetTx?.id ?? "").trim();
+      if (targetId) relatedIds.add(targetId);
 
       const userId = session?.user?.id;
       if (!userId) return;
@@ -7765,7 +7799,12 @@ await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
       }
 
       setDeletingTransaction(null);
-      toastCompact("Movimento PF/PJ excluído.", "success");
+      toastCompact(
+        apagarTodas && recurrenceId && targetDate
+          ? "Movimento PF/PJ e próximos excluídos."
+          : "Movimento PF/PJ excluído.",
+        "success"
+      );
       return;
     }
 
@@ -8403,65 +8442,185 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
       const transferenciaPagoInicial = formData <= hoje ? formPago : false;
 
       if (origemPerfil !== destinoPerfil) {
-        const linkedMovementId = newId("mov");
         const categoriaSaida =
           String(formCatTransferenciaOrigem ?? "").trim() || "Movimento PF/PJ";
         const categoriaEntrada =
           String(formCatTransferenciaDestino ?? "").trim() || "Movimento PF/PJ";
+        const isRecorrentePfPj = prazoMode === "com_prazo" || prazoMode === "sem_prazo";
 
-        const saida: any = {
-          id: newId("tx"),
-          tipo: "despesa",
-          descricao: descFinal,
-          valor: -Math.abs(valorNum),
-          data: formData,
-          categoria: categoriaSaida,
-          pago: transferenciaPagoInicial,
+        if (!isRecorrentePfPj) {
+          const linkedMovementId = newId("mov");
 
-          profileId: origemId,
-          contaId: origemId,
-          qualConta: origemId,
-          tipoGasto: "Variável",
+          const saida: any = {
+            id: newId("tx"),
+            tipo: "despesa",
+            descricao: descFinal,
+            valor: -Math.abs(valorNum),
+            data: formData,
+            categoria: categoriaSaida,
+            pago: transferenciaPagoInicial,
 
-          payload: {
-            movementKind: "pf_pj",
+            profileId: origemId,
+            contaId: origemId,
+            qualConta: origemId,
             tipoGasto: "Variável",
-            linkedMovementId,
-            linkedMovementDirection: "saida",
-            originAccountId: origemId,
-            destinationAccountId: destinoId,
-            originProfileKind: origemPerfil,
-            destinationProfileKind: destinoPerfil,
-          },
-        };
 
-        const entrada: any = {
-          id: newId("tx"),
-          tipo: "receita",
-          descricao: descFinal,
-          valor: Math.abs(valorNum),
-          data: formData,
-          categoria: categoriaEntrada,
-          pago: transferenciaPagoInicial,
+            payload: {
+              movementKind: "pf_pj",
+              tipoGasto: "Variável",
+              linkedMovementId,
+              linkedMovementDirection: "saida",
+              originAccountId: origemId,
+              destinationAccountId: destinoId,
+              originProfileKind: origemPerfil,
+              destinationProfileKind: destinoPerfil,
+            },
+          };
 
-          profileId: destinoId,
-          contaId: destinoId,
-          qualConta: destinoId,
-          tipoGasto: "Variável",
+          const entrada: any = {
+            id: newId("tx"),
+            tipo: "receita",
+            descricao: descFinal,
+            valor: Math.abs(valorNum),
+            data: formData,
+            categoria: categoriaEntrada,
+            pago: transferenciaPagoInicial,
 
-          payload: {
-            movementKind: "pf_pj",
+            profileId: destinoId,
+            contaId: destinoId,
+            qualConta: destinoId,
             tipoGasto: "Variável",
-            linkedMovementId,
-            linkedMovementDirection: "entrada",
-            originAccountId: origemId,
-            destinationAccountId: destinoId,
-            originProfileKind: origemPerfil,
-            destinationProfileKind: destinoPerfil,
-          },
-        };
 
-        const criadas = await salvarNoSupabase([saida, entrada]);
+            payload: {
+              movementKind: "pf_pj",
+              tipoGasto: "Variável",
+              linkedMovementId,
+              linkedMovementDirection: "entrada",
+              originAccountId: origemId,
+              destinationAccountId: destinoId,
+              originProfileKind: origemPerfil,
+              destinationProfileKind: destinoPerfil,
+            },
+          };
+
+          const criadas = await salvarNoSupabase([saida, entrada]);
+          setTransacoes((prev) => [...prev, ...(criadas as any)]);
+
+          setFormDesc("");
+          setFormValor("0,00");
+          setFormContaOrigem("");
+          setFormContaDestino("");
+          setFormCat("");
+          setFormCatTransferenciaOrigem("");
+          setFormCatTransferenciaDestino("");
+          setFormTipoGasto("");
+          setPrazoMode(null);
+          setIsParceladoMode(null);
+          setCcIsParceladoMode(null);
+          setFormParcelas(2);
+          setFormDataTerminoFixa(getHojeLocal());
+
+          toastCompact("Movimento PF/PJ registrado.", "success");
+          return;
+        }
+
+        if (prazoMode === "com_prazo" && !formDataTerminoFixa) {
+          toastCompact("Selecione a data final da recorrência para continuar.", "error");
+          return;
+        }
+
+        const dataInicio = new Date(formData + "T12:00:00");
+        let mesesParaGerar = 12;
+
+        if (prazoMode === "sem_prazo") {
+          mesesParaGerar = SEM_PRAZO_MESES;
+        } else {
+          const dataFim = new Date(formDataTerminoFixa + "T12:00:00");
+          const diffAnos = dataFim.getFullYear() - dataInicio.getFullYear();
+          const diffMeses = dataFim.getMonth() - dataInicio.getMonth();
+          const mesesEntreDatas = diffAnos * 12 + diffMeses;
+          mesesParaGerar = Math.max(1, mesesEntreDatas + 1);
+        }
+
+        const recurrenceId = `rec_${Date.now()}`;
+        const windowStart = formData;
+        const windowEnd = addMonthsToIsoDate(formData, mesesParaGerar - 1);
+        const semPrazoMeta =
+          prazoMode === "sem_prazo"
+            ? buildSemPrazoMeta({
+                originDate: formData,
+                windowStart,
+                windowEnd,
+              })
+            : null;
+
+        const mesesCriados: any[] = [];
+
+        for (let i = 0; i < mesesParaGerar; i++) {
+          const d = new Date(dataInicio);
+          d.setMonth(dataInicio.getMonth() + i);
+          const dataIso = d.toISOString().split("T")[0];
+          const linkedMovementId = newId("mov");
+          const pagoMes = i === 0 ? transferenciaPagoInicial : false;
+
+          mesesCriados.push({
+            id: newId("tx"),
+            tipo: "despesa",
+            descricao: descFinal,
+            valor: -Math.abs(valorNum),
+            data: dataIso,
+            categoria: categoriaSaida,
+            pago: pagoMes,
+            profileId: origemId,
+            contaId: origemId,
+            qualConta: origemId,
+            tipoGasto: "Variável",
+            isRecorrente: true,
+            recorrenciaId: recurrenceId,
+            payload: {
+              movementKind: "pf_pj",
+              tipoGasto: "Variável",
+              linkedMovementId,
+              linkedMovementDirection: "saida",
+              originAccountId: origemId,
+              destinationAccountId: destinoId,
+              originProfileKind: origemPerfil,
+              destinationProfileKind: destinoPerfil,
+              recorrenciaId: recurrenceId,
+              ...(semPrazoMeta ?? {}),
+            },
+          });
+
+          mesesCriados.push({
+            id: newId("tx"),
+            tipo: "receita",
+            descricao: descFinal,
+            valor: Math.abs(valorNum),
+            data: dataIso,
+            categoria: categoriaEntrada,
+            pago: pagoMes,
+            profileId: destinoId,
+            contaId: destinoId,
+            qualConta: destinoId,
+            tipoGasto: "Variável",
+            isRecorrente: true,
+            recorrenciaId: recurrenceId,
+            payload: {
+              movementKind: "pf_pj",
+              tipoGasto: "Variável",
+              linkedMovementId,
+              linkedMovementDirection: "entrada",
+              originAccountId: origemId,
+              destinationAccountId: destinoId,
+              originProfileKind: origemPerfil,
+              destinationProfileKind: destinoPerfil,
+              recorrenciaId: recurrenceId,
+              ...(semPrazoMeta ?? {}),
+            },
+          });
+        }
+
+        const criadas = await salvarNoSupabase(mesesCriados);
         setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
         setFormDesc("");
@@ -8476,8 +8635,9 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
         setIsParceladoMode(null);
         setCcIsParceladoMode(null);
         setFormParcelas(2);
+        setFormDataTerminoFixa(getHojeLocal());
 
-        toastCompact("Movimento PF/PJ registrado.", "success");
+        toastCompact("Par PF/PJ recorrente registrado.", "success");
         return;
       }
 

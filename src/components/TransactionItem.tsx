@@ -156,6 +156,12 @@ const isVariavelVisual =
 const isPfPjMovement =
   String((t as any)?.payload?.movementKind ?? "").trim() === "pf_pj";
 
+const linkedMovementDirection = String(
+  (t as any)?.payload?.linkedMovementDirection ??
+    (t as any)?.linkedMovementDirection ??
+    ""
+).trim().toLowerCase();
+
 // no pf/pj label text; we render a discrete icon instead when needed
 
 const recorrenciasRelacionadas = isMensalVisual
@@ -165,7 +171,25 @@ const recorrenciasRelacionadas = isMensalVisual
           item?.recorrenciaId ?? item?.payload?.recorrenciaId ?? ""
         ).trim();
 
-        return itemRecorrenciaId === recorrenciaId;
+        if (itemRecorrenciaId !== recorrenciaId) return false;
+
+        const itemIsPfPj =
+          String(item?.payload?.movementKind ?? item?.movementKind ?? "").trim() ===
+          "pf_pj";
+
+        if (!itemIsPfPj) return true;
+
+        const itemDirection = String(
+          item?.payload?.linkedMovementDirection ??
+            item?.linkedMovementDirection ??
+            ""
+        )
+          .trim()
+          .toLowerCase();
+
+        if (!linkedMovementDirection) return itemDirection === "";
+
+        return itemDirection === linkedMovementDirection;
       })
       .sort((a: any, b: any) => {
         const dataA = String(a?.data ?? "");

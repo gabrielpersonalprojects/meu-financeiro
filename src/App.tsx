@@ -3936,6 +3936,8 @@ const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const [editDataInput, setEditDataInput] = useState<string>("");
   const [editCategoriaInput, setEditCategoriaInput] = useState<string>("");
+  const [editCategoriaSaidaInput, setEditCategoriaSaidaInput] = useState("");
+  const [editCategoriaEntradaInput, setEditCategoriaEntradaInput] = useState("");
   const [editTagInput, setEditTagInput] = useState("");
   // --- Inputs Modais ---
   const [inputNovaCat, setInputNovaCat] = useState("");
@@ -6969,6 +6971,36 @@ const buildDescricaoEditadaSegura = (tx: any, rawDescricao: any) => {
   return `${baseEditada || baseOriginal}${suffixParcela}`;
 };
 
+const isPfPjTransaction = (tx: any) =>
+  String((tx as any)?.payload?.movementKind ?? "").trim() === "pf_pj";
+
+const getLinkedPfPjTransactions = (tx: any, sourceTransactions: any[] = transacoes) => {
+  const linkedMovementId = String(
+    (tx as any)?.payload?.linkedMovementId ??
+      (tx as any)?.linkedMovementId ??
+      ""
+  ).trim();
+
+  if (!linkedMovementId) return [] as any[];
+
+  const related = (sourceTransactions ?? []).filter((item: any) => {
+    const itemMovementKind = String(
+      item?.payload?.movementKind ?? item?.movementKind ?? ""
+    ).trim();
+    const itemLinkedMovementId = String(
+      item?.payload?.linkedMovementId ?? item?.linkedMovementId ?? ""
+    ).trim();
+
+    return itemMovementKind === "pf_pj" && itemLinkedMovementId === linkedMovementId;
+  });
+
+  if (!related.some((item: any) => String(item?.id ?? "") === String((tx as any)?.id ?? ""))) {
+    related.push(tx);
+  }
+
+  return related;
+};
+
 const handleEditClick = (t: Transaction) => {
   setEditingTransaction(t);
   setEditValueInput(centsDigitsFromAny(t.valor));
@@ -6979,11 +7011,31 @@ const handleEditClick = (t: Transaction) => {
       ? (t as any).categoria
       : String((t as any).categoria?.nome ?? "")
   );
+  setEditCategoriaSaidaInput("");
+  setEditCategoriaEntradaInput("");
   setEditTagInput(
     String((t as any)?.tipo ?? "").toLowerCase() === "cartao_credito"
       ? String((t as any).tag ?? "")
       : ""
   );
+
+  if (isPfPjTransaction(t)) {
+    const linkedTransactions = getLinkedPfPjTransactions(t);
+    const saida = linkedTransactions.find((item: any) => {
+      const direction = String(item?.payload?.linkedMovementDirection ?? "").trim();
+      const tipo = String(item?.tipo ?? "").trim().toLowerCase();
+      return direction === "saida" || tipo === "despesa";
+    });
+    const entrada = linkedTransactions.find((item: any) => {
+      const direction = String(item?.payload?.linkedMovementDirection ?? "").trim();
+      const tipo = String(item?.tipo ?? "").trim().toLowerCase();
+      return direction === "entrada" || tipo === "receita";
+    });
+
+    setEditCategoriaSaidaInput(String((saida as any)?.categoria ?? ""));
+    setEditCategoriaEntradaInput(String((entrada as any)?.categoria ?? ""));
+  }
+
   setApplyToAllRelated(false);
 };
 const inputModalClass =
@@ -7014,6 +7066,164 @@ const novaDesc = buildDescricaoEditadaSegura(
   editDescInput
 );
 const novaTag = String(editTagInput ?? "").trim();
+
+if (isPfPjTransaction(editingTransaction)) {
+  const linkedMovementId = String(
+    (editingTransaction as any)?.payload?.linkedMovementId ??
+      (editingTransaction as any)?.linkedMovementId ??
+      ""
+  ).trim();
+
+  if (!linkedMovementId) {
+    toastCompact("Não foi possível localizar o vínculo PF/PJ.", "error");
+    return;
+  }
+
+  const novaDataSegura = String(editDataInput ?? "").trim();
+  if (!isIsoDate(novaDataSegura)) {
+    toastCompact("Informe uma data válida para o lançamento.", "error");
+    return;
+  }
+
+  const linkedTransactions = getLinkedPfPjTransactions(editingTransaction, transacoes);
+  const saidaTx = linkedTransactions.find((item: any) => {
+    const direction = String(item?.payload?.linkedMovementDirection ?? "").trim();
+    const tipo = String(item?.tipo ?? "").trim().toLowerCase();
+    return direction === "saida" || tipo === "despesa";
+  });
+  const entradaTx = linkedTransactions.find((item: any) => {
+    const direction = String(item?.payload?.linkedMovementDirection ?? "").trim();
+    const tipo = String(item?.tipo ?? "").trim().toLowerCase();
+    return direction === "entrada" || tipo === "receita";
+  });
+
+  if (!saidaTx || !entradaTx) {
+    toastCompact("Não foi possível localizar as duas pernas do PF/PJ.", "error");
+    return;
+  }
+
+  const buildPfPjPayload = (tx: any, direction: "saida" | "entrada") => {
+    const existingPayload =
+      tx?.payload && typeof tx.payload === "object" ? tx.payload : {};
+
+    const originAccountId = String(
+      existingPayload?.originAccountId ??
+        (tx as any)?.originAccountId ??
+        (tx as any)?.payload?.originAccountId ??
+        (tx as any)?.contaOrigemId ??
+        (tx as any)?.contaId ??
+        (tx as any)?.profileId ??
+        ""
+    ).trim();
+
+    const destinationAccountId = String(
+      existingPayload?.destinationAccountId ??
+        (tx as any)?.destinationAccountId ??
+        (tx as any)?.payload?.destinationAccountId ??
+        (tx as any)?.contaDestinoId ??
+        (tx as any)?.contaId ??
+        (tx as any)?.profileId ??
+        ""
+    ).trim();
+
+    return {
+      ...existingPayload,
+      movementKind: "pf_pj",
+      linkedMovementId,
+      linkedMovementDirection: direction,
+      originAccountId,
+      destinationAccountId,
+      originProfileKind:
+        String(
+          existingPayload?.originProfileKind ??
+            (tx as any)?.payload?.originProfileKind ??
+            ""
+        ).trim() || "PF",
+      destinationProfileKind:
+        String(
+          existingPayload?.destinationProfileKind ??
+            (tx as any)?.payload?.destinationProfileKind ??
+            ""
+        ).trim() || "PF",
+      tipoGasto: "Variável",
+    };
+  };
+
+  const nextSaida = {
+    ...saidaTx,
+    tipo: "despesa",
+    valor: -Math.abs(novoValorAbs),
+    descricao: novaDesc,
+    data: novaDataSegura,
+    categoria: String(editCategoriaSaidaInput ?? "").trim(),
+    contaId: String((saidaTx as any)?.contaId ?? (saidaTx as any)?.profileId ?? "").trim(),
+    qualConta: String(
+      (saidaTx as any)?.qualConta ??
+        (saidaTx as any)?.contaId ??
+        (saidaTx as any)?.profileId ??
+        ""
+    ).trim(),
+    payload: buildPfPjPayload(saidaTx, "saida"),
+  };
+
+  const nextEntrada = {
+    ...entradaTx,
+    tipo: "receita",
+    valor: Math.abs(novoValorAbs),
+    descricao: novaDesc,
+    data: novaDataSegura,
+    categoria: String(editCategoriaEntradaInput ?? "").trim(),
+    contaId: String((entradaTx as any)?.contaId ?? (entradaTx as any)?.profileId ?? "").trim(),
+    qualConta: String(
+      (entradaTx as any)?.qualConta ??
+        (entradaTx as any)?.contaId ??
+        (entradaTx as any)?.profileId ??
+        ""
+    ).trim(),
+    payload: buildPfPjPayload(entradaTx, "entrada"),
+  };
+
+  const userId = session?.user?.id;
+  if (!userId) return;
+
+  await Promise.all([
+    updateTransactionById(String((saidaTx as any)?.id ?? ""), userId, {
+      tipo: "despesa",
+      valor: Number(nextSaida.valor ?? 0),
+      data: String(nextSaida.data ?? ""),
+      descricao: String(nextSaida.descricao ?? ""),
+      categoria: String(nextSaida.categoria ?? ""),
+      conta_id: String((nextSaida as any)?.contaId ?? "").trim() || null,
+      qual_conta: String((nextSaida as any)?.qualConta ?? "").trim(),
+      pago: !!(nextSaida as any)?.pago,
+      payload: nextSaida.payload,
+    }),
+    updateTransactionById(String((entradaTx as any)?.id ?? ""), userId, {
+      tipo: "receita",
+      valor: Number(nextEntrada.valor ?? 0),
+      data: String(nextEntrada.data ?? ""),
+      descricao: String(nextEntrada.descricao ?? ""),
+      categoria: String(nextEntrada.categoria ?? ""),
+      conta_id: String((nextEntrada as any)?.contaId ?? "").trim() || null,
+      qual_conta: String((nextEntrada as any)?.qualConta ?? "").trim(),
+      pago: !!(nextEntrada as any)?.pago,
+      payload: nextEntrada.payload,
+    }),
+  ]);
+
+  setTransacoes((prev: any[]) =>
+    prev.map((tx: any) => {
+      const txId = String(tx?.id ?? "").trim();
+      if (txId === String((saidaTx as any)?.id ?? "")) return nextSaida;
+      if (txId === String((entradaTx as any)?.id ?? "")) return nextEntrada;
+      return tx;
+    })
+  );
+
+  setEditingTransaction(null);
+  toastCompact("Alteração salva com sucesso.", "success");
+  return;
+}
 
 const tipoEditando = String((editingTransaction as any)?.tipo ?? "")
   .trim()
@@ -14038,6 +14248,66 @@ stats={stats}
     !isTransferencia;
 
   const isCartaoCredito = tipoEditando === "cartao_credito";
+  const isPfPjEditing = isPfPjTransaction(editingTransaction);
+
+  if (isPfPjEditing) {
+    return (
+      <div className="space-y-3">
+        <div className="rounded-2xl border border-violet-200/70 bg-violet-50/70 p-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300">
+          Você vai editar as duas pernas do movimento PF/PJ.
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
+            Data
+          </label>
+
+          <input
+            type="date"
+            value={editDataInput}
+            onChange={(e) => setEditDataInput(e.target.value)}
+            className={inputModalClass}
+          />
+        </div>
+
+        <div className="text-xs">
+          <CustomDropdown
+            label="Categoria saída"
+            value={editCategoriaSaidaInput || ""}
+            options={[
+              { label: "Sem categoria", value: "" },
+              ...((categorias.despesa ?? []).map((c) => ({
+                label: c,
+                value: c,
+              }))),
+            ]}
+            onSelect={(v: any) => setEditCategoriaSaidaInput(String(v))}
+            renderMenuInPortal={true}
+            menuMaxHeightPx={220}
+            menuMinHeightPx={180}
+          />
+        </div>
+
+        <div className="text-xs">
+          <CustomDropdown
+            label="Categoria entrada"
+            value={editCategoriaEntradaInput || ""}
+            options={[
+              { label: "Sem categoria", value: "" },
+              ...((categorias.receita ?? []).map((c) => ({
+                label: c,
+                value: c,
+              }))),
+            ]}
+            onSelect={(v: any) => setEditCategoriaEntradaInput(String(v))}
+            renderMenuInPortal={true}
+            menuMaxHeightPx={220}
+            menuMinHeightPx={180}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (!isReceitaOuDespesaComum && !isCartaoCredito) {
     return null;

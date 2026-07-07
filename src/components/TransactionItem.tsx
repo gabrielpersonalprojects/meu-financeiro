@@ -472,7 +472,8 @@ title={
   {(onEdit || onDelete) && (
     <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
       {onEdit &&
-        !isTransacaoFatura &&        !isPfPjMovement &&        !(t as any)?.transferId &&
+        !isTransacaoFatura &&
+        !(t as any)?.transferId &&
         !String((t as any)?.categoria ?? "")
           .toLowerCase()
           .normalize("NFD")

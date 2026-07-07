@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CreditCardIcon, EditIcon, TrashIcon } from "./LucideIcons";
+import { ArrowLeftRight } from "lucide-react";
 
 type ContaParts = {
   banco?: string;
@@ -151,6 +152,11 @@ const isVariavelVisual =
     tipoGastoNorm === "variavel" ||
     isReceitaAvulsaVisual
   );
+
+const isPfPjMovement =
+  String((t as any)?.payload?.movementKind ?? "").trim() === "pf_pj";
+
+// no pf/pj label text; we render a discrete icon instead when needed
 
 const recorrenciasRelacionadas = isMensalVisual
   ? [...(allTransactions ?? [])]
@@ -311,6 +317,12 @@ title={
     </span>
   )}
 
+  {isPfPjMovement && (
+    <span className="mt-0.5 inline-flex shrink-0 items-center text-slate-500 dark:text-slate-400">
+      <ArrowLeftRight className="h-4 w-4" />
+    </span>
+  )}
+
   <div className="min-w-0 flex-1">
     <div className="flex flex-wrap items-center gap-2">
 <p
@@ -460,8 +472,7 @@ title={
   {(onEdit || onDelete) && (
     <div className="flex items-center gap-2 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
       {onEdit &&
-        !isTransacaoFatura &&
-        !(t as any)?.transferId &&
+        !isTransacaoFatura &&        !isPfPjMovement &&        !(t as any)?.transferId &&
         !String((t as any)?.categoria ?? "")
           .toLowerCase()
           .normalize("NFD")

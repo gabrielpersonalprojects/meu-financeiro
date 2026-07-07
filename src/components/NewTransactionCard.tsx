@@ -69,8 +69,12 @@ type Props = {
   categorias: Categories;
   formCat: any;
   setFormCat: (v: any) => void;
+  formCatTransferenciaOrigem?: any;
+  setFormCatTransferenciaOrigem?: (v: any) => void;
+  formCatTransferenciaDestino?: any;
+  setFormCatTransferenciaDestino?: (v: any) => void;
   removerCategoria: (tipo: "despesa" | "receita", idx: string | number) => void;
-  onOpenCategoriaModal: () => void;
+  onOpenCategoriaModal?: (tipo?: "despesa" | "receita") => void;
 
   // método/conta
   formMetodo: any;
@@ -354,6 +358,10 @@ export default function NewTransactionCard({
   categorias,
   formCat,
   setFormCat,
+  formCatTransferenciaOrigem = "",
+  setFormCatTransferenciaOrigem,
+  formCatTransferenciaDestino = "",
+  setFormCatTransferenciaDestino,
   removerCategoria,
   onOpenCategoriaModal,
 
@@ -559,6 +567,22 @@ const receitaCategoryOptions = ((categorias as any).receita ?? []).map((cat: str
 }));
 
 const ccCategoryOptions = despesaCategoryOptions;
+
+  const contaOrigemProfile = profiles.find((p) => String(p.id) === String(formContaOrigem));
+  const contaDestinoProfile = profiles.find((p) => String(p.id) === String(formContaDestino));
+  const origemPerfil =
+    String(contaOrigemProfile?.perfilConta ?? "PF").trim().toUpperCase() === "PJ"
+      ? "PJ"
+      : "PF";
+  const destinoPerfil =
+    String(contaDestinoProfile?.perfilConta ?? "PF").trim().toUpperCase() === "PJ"
+      ? "PJ"
+      : "PF";
+  const isPfPjMovement =
+    formTipo === "transferencia" &&
+    origemPerfil !== destinoPerfil &&
+    String(formContaOrigem).trim() !== "" &&
+    String(formContaDestino).trim() !== "";
 
   return (
    <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 lg:p-4">
@@ -832,7 +856,7 @@ onClick={() => {
       options={ccCategoryOptions as any}
       onSelect={(val) => setFormCat(normalizeCategory(val))}
       onDelete={(value) => removerCategoria("despesa", value)}
-      onAddNew={onOpenCategoriaModal}
+      onAddNew={() => onOpenCategoriaModal?.("despesa")}
     />
   </div>
 )}
@@ -900,7 +924,7 @@ onClick={() => {
   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
     {/* DESPESA: Conta no lugar da Categoria | RECEITA: Categoria normal */}
     {formTipo === "despesa" ? (
-<CustomDropdown
+  <CustomDropdown
   label="Conta *"
   value={formQualCartao}
         options={profiles.map((p) => ({ label: getProfileLabel(p), value: p.id })) as any}
@@ -1101,7 +1125,7 @@ onClick={() => {
   options={despesaCategoryOptions as any}
   onSelect={(val) => setFormCat(normalizeCategory(val))}
   onDelete={(value) => removerCategoria("despesa", value)}
-  onAddNew={onOpenCategoriaModal}
+  onAddNew={() => onOpenCategoriaModal?.("despesa")}
 />
               </div>
             )}
@@ -1158,6 +1182,27 @@ onClick={() => {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {formTipo === "transferencia" && isPfPjMovement && (
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <CustomDropdown
+              label="Categoria de saída"
+              value={formCatTransferenciaOrigem ?? ""}
+              options={despesaCategoryOptions as any}
+              onSelect={(val) => setFormCatTransferenciaOrigem?.(normalizeCategory(val))}
+              onDelete={(value) => removerCategoria("despesa", value)}
+              onAddNew={() => onOpenCategoriaModal?.("despesa")}
+            />
+            <CustomDropdown
+              label="Categoria de entrada"
+              value={formCatTransferenciaDestino ?? ""}
+              options={receitaCategoryOptions as any}
+              onSelect={(val) => setFormCatTransferenciaDestino?.(normalizeCategory(val))}
+              onDelete={(value) => removerCategoria("receita", value)}
+              onAddNew={() => onOpenCategoriaModal?.("receita")}
+            />
           </div>
         )}
 

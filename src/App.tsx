@@ -3921,6 +3921,7 @@ const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
   // --- Modais ---
   const [showModalMetodo, setShowModalMetodo] = useState(false);
   const [showModalCategoria, setShowModalCategoria] = useState(false);
+  const [modalCategoriaTargetTipo, setModalCategoriaTargetTipo] = useState<"despesa" | "receita" | null>(null);
 
 const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -4089,6 +4090,8 @@ useEffect(() => {
   const [formValor, setFormValor] = useState("");
   const [formData, setFormData] = useState(getHojeLocal());
   const [formCat, setFormCat] = useState("");
+  const [formCatTransferenciaOrigem, setFormCatTransferenciaOrigem] = useState("");
+  const [formCatTransferenciaDestino, setFormCatTransferenciaDestino] = useState("");
   const [formTagCC, setFormTagCC] = useState("");
   const [formTipoGasto, setFormTipoGasto] = useState<SpendingType | "">("");
   const [formMetodo, setFormMetodo] = useState<PaymentMethod | "">("");
@@ -7258,6 +7261,13 @@ const getTogglePagoLockKey = (payload: any) => {
     return `source:${sourceIds.join("|")}`;
   }
 
+  const linkedMovementId = String(
+    payload?.payload?.linkedMovementId ?? payload?.linkedMovementId ?? ""
+  ).trim();
+  if (linkedMovementId) {
+    return `pfpj:${linkedMovementId}`;
+  }
+
   const transferId = String(payload?.transferId ?? "").trim();
   if (transferId) {
     return `transfer:${transferId}`;
@@ -7309,6 +7319,53 @@ const togglePago = async (payload: any) => {
 
   try {
     const novoPago = !txAtual.pago;
+    const linkedMovementId = String(
+      (txAtual as any)?.payload?.linkedMovementId ??
+        (payload as any)?.payload?.linkedMovementId ??
+        (payload as any)?.linkedMovementId ??
+        ""
+    ).trim();
+    const movementKind = String(
+      (txAtual as any)?.payload?.movementKind ??
+        (payload as any)?.payload?.movementKind ??
+        (payload as any)?.movementKind ??
+        ""
+    ).trim();
+
+    if (movementKind === "pf_pj" && linkedMovementId) {
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      const relatedIds = new Set(
+        transacoes
+          .filter(
+            (t: any) =>
+              String(t?.payload?.movementKind ?? "").trim() === "pf_pj" &&
+              String(t?.payload?.linkedMovementId ?? "").trim() === linkedMovementId
+          )
+          .map((t: any) => String(t?.id ?? ""))
+          .filter(Boolean)
+      );
+
+      if (!relatedIds.size) {
+        relatedIds.add(String(txAtual.id ?? ""));
+      }
+
+      await Promise.all(
+        Array.from(relatedIds).map((relatedId) =>
+          updateTransactionPago(String(relatedId), userId, novoPago)
+        )
+      );
+
+      setTransacoes((prev: any[]) =>
+        prev.map((t: any) =>
+          relatedIds.has(String(t?.id ?? ""))
+            ? { ...t, pago: novoPago }
+            : t
+        )
+      );
+      return;
+    }
 
     if (transferId) {
       const userId = session?.user?.id;
@@ -7461,6 +7518,47 @@ await deleteInvoicePaymentById(String(alvoPagamento.id), userId);
       }
     }
 
+    const targetTx =
+      transacoes.find((t: any) => String(t?.id ?? "") === String(tx?.id ?? "")) ?? tx;
+    const linkedMovementId = String(targetTx?.payload?.linkedMovementId ?? "").trim();
+    const movementKind = String(targetTx?.payload?.movementKind ?? "").trim();
+
+    if (movementKind === "pf_pj" && linkedMovementId) {
+      const relatedIds = new Set(
+        transacoes
+          .filter(
+            (t: any) =>
+              String(t?.payload?.movementKind ?? "").trim() === "pf_pj" &&
+              String(t?.payload?.linkedMovementId ?? "").trim() === linkedMovementId
+          )
+          .map((t: any) => String(t?.id ?? ""))
+          .filter(Boolean)
+      );
+
+      relatedIds.add(String(targetTx.id ?? ""));
+
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      await Promise.all(
+        Array.from(relatedIds).map((relatedId) =>
+          deleteTransactionById(String(relatedId), userId)
+        )
+      );
+
+      setTransacoes((prev: any[]) =>
+        prev.filter((t: any) => !relatedIds.has(String(t?.id ?? "")))
+      );
+
+      if (cardIdToTouch) {
+        await touchCardAndRefreshInState(cardIdToTouch);
+      }
+
+      setDeletingTransaction(null);
+      toastCompact("Movimento PF/PJ excluído.", "success");
+      return;
+    }
+
     if (isTransfer && transferId) {
       const relacionadas = transacoes.filter(
         (t: any) => String(t?.transferId ?? "") === String(transferId)
@@ -7573,32 +7671,41 @@ const adicionarCategoria = async () => {
   if (
     formTipo !== "receita" &&
     formTipo !== "despesa" &&
-    formTipo !== "cartao_credito"
+    formTipo !== "cartao_credito" &&
+    formTipo !== "transferencia"
   ) {
     return;
   }
 
 const userId = session?.user?.id;
 
-const profileIdResolved = String(
-  formTipo === "cartao_credito"
-    ? (
-        creditCards.find(
-          (c: any) => String(c?.id ?? "") === String(selectedCreditCardId ?? "")
-        )?.perfil ??
+  // Resolve profile id depending on context. For transfers, use the account related to the modal target.
+  let profileIdResolved = "";
+
+  if (formTipo === "cartao_credito") {
+    profileIdResolved = String(
+      creditCards.find((c: any) => String(c?.id ?? "") === String(selectedCreditCardId ?? ""))?.perfil ??
         activeProfileId ??
         ""
-      )
-: (
-profiles.find(
-  (p: any) => String(p?.id ?? "") === String(formQualCartao ?? "")
-)?.perfilConta ??
-activeProfileId ??
-""
-  )
-)
-  .trim()
-  .toLowerCase();
+    )
+      .trim()
+      .toLowerCase();
+  } else if (formTipo === "transferencia" && modalCategoriaTargetTipo) {
+    const targetAccountId =
+      modalCategoriaTargetTipo === "despesa" ? formContaOrigem : formContaDestino;
+
+    profileIdResolved = String(
+      profiles.find((p: any) => String(p?.id ?? "") === String(targetAccountId ?? ""))?.perfilConta ?? activeProfileId ?? ""
+    )
+      .trim()
+      .toLowerCase();
+  } else {
+    profileIdResolved = String(
+      profiles.find((p: any) => String(p?.id ?? "") === String(formQualCartao ?? ""))?.perfilConta ?? activeProfileId ?? ""
+    )
+      .trim()
+      .toLowerCase();
+  }
 
 if (!userId) {
   toastCompact("Sessão inválida para salvar categoria.", "error");
@@ -7610,9 +7717,12 @@ if (!profileIdResolved) {
   return;
 }
 
-  const key = (formTipo === "cartao_credito" ? "despesa" : formTipo) as
-    | "receita"
-    | "despesa";
+  // Determine category group: when modalCategoriaTargetTipo is set use it, otherwise fallback to formTipo
+  const key = (formTipo === "cartao_credito"
+    ? "despesa"
+    : formTipo === "transferencia" && modalCategoriaTargetTipo
+    ? modalCategoriaTargetTipo
+    : formTipo) as "receita" | "despesa";
 
   const listaAtual = categorias[key] ?? [];
   const exists = listaAtual.some(
@@ -7620,7 +7730,13 @@ if (!profileIdResolved) {
   );
 
   if (exists) {
-    setFormCat(nome);
+    if (formTipo === "transferencia" && modalCategoriaTargetTipo) {
+      if (modalCategoriaTargetTipo === "despesa") setFormCatTransferenciaOrigem(nome);
+      else setFormCatTransferenciaDestino(nome);
+    } else {
+      setFormCat(nome);
+    }
+
     setInputNovaCat("");
     setShowModalCategoria(false);
     return;
@@ -7642,7 +7758,12 @@ await insertUserCategory({
       };
     });
 
-    setFormCat(nome);
+    if (formTipo === "transferencia" && modalCategoriaTargetTipo) {
+      if (modalCategoriaTargetTipo === "despesa") setFormCatTransferenciaOrigem(nome);
+      else setFormCatTransferenciaDestino(nome);
+    } else {
+      setFormCat(nome);
+    }
     setInputNovaCat("");
     setShowModalCategoria(false);
     toastCompact("Categoria adicionada.", "success");
@@ -7988,6 +8109,8 @@ payload: {
   parcelaAtual: tx.parcelaAtual ?? null,
   totalParcelas: tx.totalParcelas ?? null,
   qualCartao: String(tx.qualCartao ?? ""),
+  // Preserve any extra payload keys provided on the transaction (e.g. movementKind, linkedMovementId)
+  ...(tx.payload && typeof tx.payload === "object" ? tx.payload : {}),
 },
       })
     )
@@ -8053,64 +8176,156 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
       const descDigitada = (formDesc || "").trim();
       const descFinal = descDigitada || `Transferência ${origemNome} → ${destinoNome}`;
 
+      const origemPerfil =
+        String((contaOrigemProfile as any)?.perfilConta ?? "PF")
+          .trim()
+          .toUpperCase() === "PJ"
+          ? "PJ"
+          : "PF";
+      const destinoPerfil =
+        String((contaDestinoProfile as any)?.perfilConta ?? "PF")
+          .trim()
+          .toUpperCase() === "PJ"
+          ? "PJ"
+          : "PF";
+
+      const hoje = new Date().toISOString().slice(0, 10);
+      const transferenciaPagoInicial = formData <= hoje ? formPago : false;
+
+      if (origemPerfil !== destinoPerfil) {
+        const linkedMovementId = newId("mov");
+        const categoriaSaida =
+          String(formCatTransferenciaOrigem ?? "").trim() || "Movimento PF/PJ";
+        const categoriaEntrada =
+          String(formCatTransferenciaDestino ?? "").trim() || "Movimento PF/PJ";
+
+        const saida: any = {
+          id: newId("tx"),
+          tipo: "despesa",
+          descricao: descFinal,
+          valor: -Math.abs(valorNum),
+          data: formData,
+          categoria: categoriaSaida,
+          pago: transferenciaPagoInicial,
+
+          profileId: origemId,
+          contaId: origemId,
+          qualConta: origemId,
+          tipoGasto: "Variável",
+
+          payload: {
+            movementKind: "pf_pj",
+            tipoGasto: "Variável",
+            linkedMovementId,
+            linkedMovementDirection: "saida",
+            originAccountId: origemId,
+            destinationAccountId: destinoId,
+            originProfileKind: origemPerfil,
+            destinationProfileKind: destinoPerfil,
+          },
+        };
+
+        const entrada: any = {
+          id: newId("tx"),
+          tipo: "receita",
+          descricao: descFinal,
+          valor: Math.abs(valorNum),
+          data: formData,
+          categoria: categoriaEntrada,
+          pago: transferenciaPagoInicial,
+
+          profileId: destinoId,
+          contaId: destinoId,
+          qualConta: destinoId,
+          tipoGasto: "Variável",
+
+          payload: {
+            movementKind: "pf_pj",
+            tipoGasto: "Variável",
+            linkedMovementId,
+            linkedMovementDirection: "entrada",
+            originAccountId: origemId,
+            destinationAccountId: destinoId,
+            originProfileKind: origemPerfil,
+            destinationProfileKind: destinoPerfil,
+          },
+        };
+
+        const criadas = await salvarNoSupabase([saida, entrada]);
+        setTransacoes((prev) => [...prev, ...(criadas as any)]);
+
+        setFormDesc("");
+        setFormValor("0,00");
+        setFormContaOrigem("");
+        setFormContaDestino("");
+        setFormCat("");
+        setFormCatTransferenciaOrigem("");
+        setFormCatTransferenciaDestino("");
+        setFormTipoGasto("");
+        setPrazoMode(null);
+        setIsParceladoMode(null);
+        setCcIsParceladoMode(null);
+        setFormParcelas(2);
+
+        toastCompact("Movimento PF/PJ registrado.", "success");
+        return;
+      }
+
       const transferId = newId("tr");
 
       const normalizeTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
       const tid = normalizeTid(transferId);
 
-  const hoje = new Date().toISOString().slice(0, 10);
-  const transferenciaPagoInicial = formData <= hoje ? formPago : false;
-
       // saída (negativa) na origem
-const saida: Transaction = {
-  id: newId("tx"),
-  tipo: "despesa" as any,
-  descricao: descFinal,
-  valor: -Math.abs(valorNum),
-  data: formData,
-  categoria: "Transferência",
-  pago: transferenciaPagoInicial,
+      const saida: Transaction = {
+        id: newId("tx"),
+        tipo: "despesa" as any,
+        descricao: descFinal,
+        valor: -Math.abs(valorNum),
+        data: formData,
+        categoria: "Transferência",
+        pago: transferenciaPagoInicial,
 
-  profileId: origemId as any,
-  contaId: origemId as any,
-  qualConta: origemId as any,
+        profileId: origemId as any,
+        contaId: origemId as any,
+        qualConta: origemId as any,
 
-  transferId: tid as any,
-  transferFromId: origemId as any,
-  transferToId: destinoId as any,
-  contraParte: destinoNome as any,
+        transferId: tid as any,
+        transferFromId: origemId as any,
+        transferToId: destinoId as any,
+        contraParte: destinoNome as any,
 
-  // pra filtro/UI
-  contaOrigemId: origemId as any,
-  contaDestinoId: destinoId as any,
-} as any;
-
-      // entrada (positiva) no destino
-const entrada: Transaction = {
-  id: newId("tx"),
-  tipo: "receita" as any,
-  descricao: descFinal,
-  valor: Math.abs(valorNum),
-  data: formData,
-  categoria: "Transferência",
-  pago: transferenciaPagoInicial,
-
-  profileId: destinoId as any,
-  contaId: destinoId as any,
-  qualConta: destinoId as any,
-
-  transferId: tid as any,
-  transferFromId: origemId as any,
-  transferToId: destinoId as any,
-  contraParte: origemNome as any,
-
-  // pra filtro/UI
-  contaOrigemId: origemId as any,
-  contaDestinoId: destinoId as any,
+        // pra filtro/UI
+        contaOrigemId: origemId as any,
+        contaDestinoId: destinoId as any,
       } as any;
 
-const criadas = await salvarNoSupabase([saida, entrada]);
-setTransacoes((prev) => [...prev, ...(criadas as any)]);
+      // entrada (positiva) no destino
+      const entrada: Transaction = {
+        id: newId("tx"),
+        tipo: "receita" as any,
+        descricao: descFinal,
+        valor: Math.abs(valorNum),
+        data: formData,
+        categoria: "Transferência",
+        pago: transferenciaPagoInicial,
+
+        profileId: destinoId as any,
+        contaId: destinoId as any,
+        qualConta: destinoId as any,
+
+        transferId: tid as any,
+        transferFromId: origemId as any,
+        transferToId: destinoId as any,
+        contraParte: origemNome as any,
+
+        // pra filtro/UI
+        contaOrigemId: origemId as any,
+        contaDestinoId: destinoId as any,
+      } as any;
+
+      const criadas = await salvarNoSupabase([saida, entrada]);
+      setTransacoes((prev) => [...prev, ...(criadas as any)]);
 
       // ✅ resetar campos do formulário (transfer)
       setFormDesc("");
@@ -9990,7 +10205,10 @@ const expensePanelContent = (
     formCat={formCat}
     setFormCat={setFormCat}
     removerCategoria={removerCategoria}
-    onOpenCategoriaModal={() => setShowModalCategoria(true)}
+    onOpenCategoriaModal={(tipo?: "despesa" | "receita") => {
+      setModalCategoriaTargetTipo(tipo ?? null);
+      setShowModalCategoria(true);
+    }}
     formMetodo={formMetodo}
     setFormMetodo={setFormMetodo}
     profiles={profiles}
@@ -10064,7 +10282,10 @@ const incomePanelContent = (
     formCat={formCat}
     setFormCat={setFormCat}
     removerCategoria={removerCategoria}
-    onOpenCategoriaModal={() => setShowModalCategoria(true)}
+    onOpenCategoriaModal={(tipo?: "despesa" | "receita") => {
+      setModalCategoriaTargetTipo(tipo ?? null);
+      setShowModalCategoria(true);
+    }}
     formMetodo={formMetodo}
     setFormMetodo={setFormMetodo}
     profiles={profiles}
@@ -10137,8 +10358,15 @@ const transferPanelContent = (
     categorias={categorias}
     formCat={formCat}
     setFormCat={setFormCat}
+    formCatTransferenciaOrigem={formCatTransferenciaOrigem}
+    setFormCatTransferenciaOrigem={setFormCatTransferenciaOrigem}
+    formCatTransferenciaDestino={formCatTransferenciaDestino}
+    setFormCatTransferenciaDestino={setFormCatTransferenciaDestino}
     removerCategoria={removerCategoria}
-    onOpenCategoriaModal={() => setShowModalCategoria(true)}
+    onOpenCategoriaModal={(tipo?: "despesa" | "receita") => {
+      setModalCategoriaTargetTipo(tipo ?? null);
+      setShowModalCategoria(true);
+    }}
     formMetodo={formMetodo}
     setFormMetodo={setFormMetodo}
     profiles={profiles}
@@ -10213,7 +10441,10 @@ const cardsPanelContent = (
     formCat={formCat}
     setFormCat={setFormCat}
     removerCategoria={removerCategoria}
-    onOpenCategoriaModal={() => setShowModalCategoria(true)}
+    onOpenCategoriaModal={(tipo?: "despesa" | "receita") => {
+      setModalCategoriaTargetTipo(tipo ?? null);
+      setShowModalCategoria(true);
+    }}
     formMetodo={formMetodo}
     setFormMetodo={setFormMetodo}
     profiles={profiles}
@@ -14922,7 +15153,10 @@ setIsCreditCardStatementImportOpen(false);
   onEditRowDescription={handleUpdateStatementImportRowDescription}
   onChangeRowCategory={handleUpdateStatementImportRowCategory}
   removerCategoria={removerCategoria}
-  onOpenCategoriaModal={() => setShowModalCategoria(true)}
+  onOpenCategoriaModal={(tipo?: "despesa" | "receita") => {
+    setModalCategoriaTargetTipo(tipo ?? null);
+    setShowModalCategoria(true);
+  }}
   onChangeRowTag={handleUpdateStatementImportRowTag}
   onRemoveTag={removeCCTag}
   onOpenTagModal={() => setShowModalTag(true)}

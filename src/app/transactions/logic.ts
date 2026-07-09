@@ -83,6 +83,9 @@ export const formatContaLabelById = (accountId: string, contas: any[]) => {
 export const mergeTransfers = (list: Transaction[]) => {
   const safeList = (Array.isArray(list) ? list : []).filter(Boolean) as any[];
 
+  const isPfPjMovement = (x: any) =>
+    String(x?.payload?.movementKind ?? "").trim() === "pf_pj";
+
   const normTid = (v: any) => String(v ?? "").trim().replace(/^tr_+/g, "");
   const getTid = (x: any) => normTid(x?.transferId ?? x?.transferID ?? x?.transfer_id);
 
@@ -102,6 +105,12 @@ export const mergeTransfers = (list: Transaction[]) => {
     seen.add(tid);
 
     const group = safeList.filter((x) => x && getTid(x) === tid);
+
+    // PF/PJ vinculado nunca deve virar transferência comum mesclada.
+    if (group.some((x) => isPfPjMovement(x))) {
+      out.push(...(group as Transaction[]));
+      continue;
+    }
 
         // ✅ se não tiver as DUAS pernas, não mescla
     const hasDespesa = group.some((x) => String((x as any).tipo) === "despesa");

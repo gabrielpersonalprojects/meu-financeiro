@@ -12,10 +12,31 @@ export type ProjectionRow = {
 export type ProjectionMode = "acumulado" | "mensal";
 type PerfilView = "geral" | "pf" | "pj";
 
+const normalizeTransferText = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const isPfPjMovement = (t: any) =>
+  String(t?.payload?.movementKind ?? "").trim() === "pf_pj";
+
 const isTransfer = (t: any) => {
-  const tipo = String(t?.tipo ?? "").toLowerCase();
-  const categoria = String(t?.categoria ?? "").toLowerCase();
-  const desc = String(t?.descricao ?? "").toLowerCase();
+  if (isPfPjMovement(t)) return false;
+
+  const tipo = normalizeTransferText(t?.tipo);
+  const categoria = normalizeTransferText(t?.categoria);
+  const desc = normalizeTransferText(t?.descricao);
+
+  const hasTransferId = Boolean(
+    t?.transferId ??
+      t?.transferID ??
+      t?.transfer_id ??
+      t?.payload?.transferId ??
+      t?.payload?.transferID ??
+      t?.payload?.transfer_id
+  );
 
   return (
     // se existir um tipo específico
@@ -28,7 +49,7 @@ const isTransfer = (t: any) => {
 
     // marcadores comuns (se existirem no seu modelo)
     Boolean(t?.isTransfer) ||
-    Boolean(t?.transferId) ||
+    hasTransferId ||
     Boolean(t?.transferenciaId) ||
     (t?.origem && t?.destino) ||
 

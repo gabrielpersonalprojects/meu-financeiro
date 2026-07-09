@@ -21,17 +21,35 @@ const safeNumber = (v: any) => {
 
 const normFc = (v: any) => String(v ?? "").trim().toLowerCase();
 
+const normalizeTransferText = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const isPfPjMovement = (t: any) =>
+  String(t?.payload?.movementKind ?? "").trim() === "pf_pj";
+
 const isTransfer = (t: any) => {
   if (!t) return false;
+  if (isPfPjMovement(t)) return false;
 
   // itens "mesclados" (display only) geralmente começam com tr_
   const idStr = String(t.id ?? "");
   if (idStr.startsWith("tr_")) return true;
 
-  const cat = String(t.categoria ?? "").toLowerCase();
-  const tipo = String(t.tipo ?? "").toLowerCase();
+  const cat = normalizeTransferText(t.categoria);
+  const tipo = normalizeTransferText(t.tipo);
 
-  const hasTid = Boolean(t.transferId ?? t.transferID ?? t.transfer_id);
+  const hasTid = Boolean(
+    t.transferId ??
+      t.transferID ??
+      t.transfer_id ??
+      t?.payload?.transferId ??
+      t?.payload?.transferID ??
+      t?.payload?.transfer_id
+  );
   if (hasTid) return true;
 
   if (cat.includes("transfer")) return true;

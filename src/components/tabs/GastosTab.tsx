@@ -53,6 +53,11 @@ const filteredData = useMemo(() => {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
 
+  const isTransferCategoryLabel = (value: any) => {
+    const normalized = norm(value);
+    return normalized === "transferencia";
+  };
+
   const baseData =
     fonteView === "cartoes"
       ? spendingByCardData ?? []
@@ -60,7 +65,7 @@ const filteredData = useMemo(() => {
 
   return baseData.filter((entry: any) => {
     const name = norm(entry?.name);
-    if (fonteView === "geral" && name.includes("transfer")) return false;
+    if (fonteView === "geral" && isTransferCategoryLabel(name)) return false;
     return true;
   });
 }, [fonteView, spendingByCategoryData, spendingByCardData]);

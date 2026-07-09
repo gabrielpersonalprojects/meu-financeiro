@@ -8,6 +8,34 @@ export type LancamentoFiltro = TransactionType | "todos";
 export type MergeTransfersFn = (list: Transaction[]) => Transaction[];
 export type PassarFiltroContaFn = (t: Transaction) => boolean;
 
+const normalizeTransferText = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const isPfPjMovement = (t: any) =>
+  String(t?.payload?.movementKind ?? "").trim() === "pf_pj";
+
+const isRealTransfer = (t: any) => {
+  if (isPfPjMovement(t)) return false;
+
+  const categoriaNorm = normalizeTransferText(t?.categoria);
+  const tipoNorm = normalizeTransferText(t?.tipo);
+
+  const hasTransferId = Boolean(
+    t?.transferId ??
+      t?.transferID ??
+      t?.transfer_id ??
+      t?.payload?.transferId ??
+      t?.payload?.transferID ??
+      t?.payload?.transfer_id
+  );
+
+  return hasTransferId || categoriaNorm === "transferencia" || tipoNorm === "transferencia";
+};
+
 export const buildFilteredTransactions = (
   transacoes: Transaction[],
   params: {
@@ -55,13 +83,8 @@ export const buildFilteredTransactions = (
 
 if (filtroLancamento !== "todos") {
   list = list.filter((t: any) => {
-    const categoriaNorm = normalizeText(t?.categoria);
     const tipoNorm = normalizeText(t?.tipo);
-
-    const isTransferencia =
-      !!t?.transferId ||
-      categoriaNorm === "transferencia" ||
-      tipoNorm === "transferencia";
+    const isTransferencia = isRealTransfer(t);
 
     if (filtroLancamento === "transferencia") {
       return isTransferencia;
@@ -135,13 +158,8 @@ export const buildFilteredTransactionsByYear = (
   // filtra tipo por último (pra não atrapalhar merge/filtro)
 if (filtroLancamento !== "todos") {
   list = list.filter((t: any) => {
-    const categoriaNorm = normalizeText(t?.categoria);
     const tipoNorm = normalizeText(t?.tipo);
-
-    const isTransferencia =
-      !!t?.transferId ||
-      categoriaNorm === "transferencia" ||
-      tipoNorm === "transferencia";
+    const isTransferencia = isRealTransfer(t);
 
     if (filtroLancamento === "transferencia") {
       return isTransferencia;

@@ -8040,6 +8040,13 @@ const removerCategoria = async (
 
 const userId = session?.user?.id;
 
+const transferCategoryAccountId =
+  formTipo === "transferencia"
+    ? tipo === "despesa"
+      ? formContaOrigem
+      : formContaDestino
+    : formQualCartao;
+
 const profileIdResolved = String(
   formTipo === "cartao_credito"
     ? (
@@ -8053,7 +8060,7 @@ const profileIdResolved = String(
       )
     : (
 profiles.find(
-  (p: any) => String(p?.id ?? "") === String(formQualCartao ?? "")
+  (p: any) => String(p?.id ?? "") === String(transferCategoryAccountId ?? "")
 )?.perfilConta ??
 activeProfileId ??
 ""
@@ -8068,7 +8075,12 @@ if (!userId) {
 }
 
 if (!profileIdResolved) {
-  toastCompact("Selecione uma conta antes de remover categoria.", "info");
+  if (formTipo === "transferencia") {
+    const sideLabel = tipo === "despesa" ? "origem" : "destino";
+    toastCompact(`Selecione a conta de ${sideLabel} antes de remover categoria.`, "info");
+  } else {
+    toastCompact("Selecione uma conta antes de remover categoria.", "info");
+  }
   return;
 }
 
@@ -8447,6 +8459,7 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
         const categoriaEntrada =
           String(formCatTransferenciaDestino ?? "").trim() || "Movimento PF/PJ";
         const isRecorrentePfPj = prazoMode === "com_prazo" || prazoMode === "sem_prazo";
+        const tipoGastoPfPj = isRecorrentePfPj ? "fixo" : "Variável";
 
         if (!isRecorrentePfPj) {
           const linkedMovementId = newId("mov");
@@ -8463,11 +8476,11 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
             profileId: origemId,
             contaId: origemId,
             qualConta: origemId,
-            tipoGasto: "Variável",
+            tipoGasto: tipoGastoPfPj,
 
             payload: {
               movementKind: "pf_pj",
-              tipoGasto: "Variável",
+              tipoGasto: tipoGastoPfPj,
               linkedMovementId,
               linkedMovementDirection: "saida",
               originAccountId: origemId,
@@ -8489,11 +8502,11 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
             profileId: destinoId,
             contaId: destinoId,
             qualConta: destinoId,
-            tipoGasto: "Variável",
+            tipoGasto: tipoGastoPfPj,
 
             payload: {
               movementKind: "pf_pj",
-              tipoGasto: "Variável",
+              tipoGasto: tipoGastoPfPj,
               linkedMovementId,
               linkedMovementDirection: "entrada",
               originAccountId: origemId,
@@ -8574,12 +8587,12 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
             profileId: origemId,
             contaId: origemId,
             qualConta: origemId,
-            tipoGasto: "Variável",
+            tipoGasto: tipoGastoPfPj,
             isRecorrente: true,
             recorrenciaId: recurrenceId,
             payload: {
               movementKind: "pf_pj",
-              tipoGasto: "Variável",
+              tipoGasto: tipoGastoPfPj,
               linkedMovementId,
               linkedMovementDirection: "saida",
               originAccountId: origemId,
@@ -8602,12 +8615,12 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
             profileId: destinoId,
             contaId: destinoId,
             qualConta: destinoId,
-            tipoGasto: "Variável",
+            tipoGasto: tipoGastoPfPj,
             isRecorrente: true,
             recorrenciaId: recurrenceId,
             payload: {
               movementKind: "pf_pj",
-              tipoGasto: "Variável",
+              tipoGasto: tipoGastoPfPj,
               linkedMovementId,
               linkedMovementDirection: "entrada",
               originAccountId: origemId,
@@ -14833,9 +14846,20 @@ stats={stats}
             <h3 className="text-2xl font-black mb-6 text-slate-800 dark:text-white">Nova Categoria</h3>
             <p className="text-xs font-bold text-slate-400 uppercase mb-4">
               Adicionando para:{" "}
-              <span className={formTipo === "receita" ? "text-emerald-600" : "text-rose-600"}>
-                {formTipo === "receita" ? "Entradas" : "Saídas"}
-              </span>
+              {(() => {
+                const targetTipo =
+                  formTipo === "transferencia"
+                    ? modalCategoriaTargetTipo ?? "despesa"
+                    : formTipo === "receita"
+                    ? "receita"
+                    : "despesa";
+
+                return (
+                  <span className={targetTipo === "receita" ? "text-emerald-600" : "text-rose-600"}>
+                    {targetTipo === "receita" ? "Entradas" : "Saídas"}
+                  </span>
+                );
+              })()}
             </p>
             <input
               type="text"

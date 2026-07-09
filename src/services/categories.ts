@@ -9,6 +9,29 @@ export type UserCategoryRow = {
   created_at?: string;
 };
 
+export class UserCategoryNotFoundError extends Error {
+  userId: string;
+  profileId: string;
+  tipo: "receita" | "despesa";
+  nome: string;
+
+  constructor(params: {
+    userId: string;
+    profileId: string;
+    tipo: "receita" | "despesa";
+    nome: string;
+  }) {
+    super(
+      `Categoria não encontrada para remoção. userId=${params.userId} profileId=${params.profileId} tipo=${params.tipo} nome=${params.nome}`
+    );
+    this.name = "UserCategoryNotFoundError";
+    this.userId = params.userId;
+    this.profileId = params.profileId;
+    this.tipo = params.tipo;
+    this.nome = params.nome;
+  }
+}
+
 export async function fetchUserCategories(userId: string, profileId?: string) {
   let query = supabase
     .from("user_categories")
@@ -77,9 +100,12 @@ export async function deleteUserCategory(params: {
   if (error) throw error;
 
   if (!data || data.length === 0) {
-    throw new Error(
-      `Nenhuma categoria foi removida. userId=${params.userId} profileId=${profileId} tipo=${params.tipo} nome=${nome}`
-    );
+    throw new UserCategoryNotFoundError({
+      userId: params.userId,
+      profileId,
+      tipo: params.tipo,
+      nome,
+    });
   }
 
   return data;

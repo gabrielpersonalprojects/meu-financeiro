@@ -61,6 +61,7 @@ import {
   fetchUserCategories,
   insertUserCategory,
   deleteUserCategory,
+  UserCategoryNotFoundError,
 } from "./services/categories";
 import {
   fetchUserTags,
@@ -8069,12 +8070,33 @@ activeProfileId ??
   .trim()
   .toLowerCase();
 
+const currentAccountId = String(transferCategoryAccountId ?? "").trim();
+const currentCardProfile = String(
+  creditCards.find(
+    (c: any) =>
+      String(c?.id ?? "") === String(selectedCreditCardId ?? formQualCartao ?? "")
+  )?.perfil ?? ""
+)
+  .trim()
+  .toLowerCase();
+
+const profileIdCandidates = Array.from(
+  new Set(
+    [
+      profileIdResolved,
+      currentAccountId,
+      formTipo === "cartao_credito" ? currentCardProfile : "",
+      String(activeProfileId ?? "").trim(),
+    ].filter(Boolean)
+  )
+);
+
 if (!userId) {
   toastCompact("Sessão inválida para remover categoria.", "error");
   return;
 }
 
-if (!profileIdResolved) {
+if (profileIdCandidates.length === 0) {
   if (formTipo === "transferencia") {
     const sideLabel = tipo === "despesa" ? "origem" : "destino";
     toastCompact(`Selecione a conta de ${sideLabel} antes de remover categoria.`, "info");
@@ -8106,12 +8128,40 @@ if (!confirmou) {
 }
 
   try {
-await deleteUserCategory({
-  userId,
-  profileId: profileIdResolved,
-  tipo,
-  nome: nomeAlvo,
-});
+let removeu = false;
+let ultimoErro: unknown = null;
+
+for (const profileIdCandidate of profileIdCandidates) {
+  try {
+    await deleteUserCategory({
+      userId,
+      profileId: profileIdCandidate,
+      tipo,
+      nome: nomeAlvo,
+    });
+    removeu = true;
+    break;
+  } catch (err) {
+    if (err instanceof UserCategoryNotFoundError) {
+      ultimoErro = err;
+      continue;
+    }
+
+    throw err;
+  }
+}
+
+if (!removeu) {
+  throw (
+    ultimoErro ??
+    new UserCategoryNotFoundError({
+      userId: String(userId),
+      profileId: profileIdCandidates[0] ?? "",
+      tipo,
+      nome: nomeAlvo,
+    })
+  );
+}
 
     setCategorias((prev: Categories) => {
       const lista = [...(prev[tipo] ?? [])].filter(
@@ -8125,9 +8175,26 @@ await deleteUserCategory({
       setFormCat("");
     }
 
+    if (tipo === "despesa" && String(formCatTransferenciaOrigem ?? "").trim().toLowerCase() === nomeAlvo.toLowerCase()) {
+      setFormCatTransferenciaOrigem("");
+    }
+
+    if (tipo === "receita" && String(formCatTransferenciaDestino ?? "").trim().toLowerCase() === nomeAlvo.toLowerCase()) {
+      setFormCatTransferenciaDestino("");
+    }
+
     toastCompact("Categoria removida.", "success");
   } catch (err) {
     console.error("ERRO AO REMOVER CATEGORIA:", err);
+
+    if (err instanceof UserCategoryNotFoundError) {
+      toastCompact(
+        "Categoria não encontrada neste perfil/conta. Ela pode ter sido criada em um escopo antigo.",
+        "error"
+      );
+      return;
+    }
+
     toastCompact("Erro ao remover categoria do banco.", "error");
   }
 };

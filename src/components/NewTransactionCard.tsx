@@ -670,11 +670,26 @@ const ccCategoryOptions = despesaCategoryOptions;
         </div>
 
 {formTipo === "transferencia" && (
-  <div className="mt-2 px-3 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 flex justify-center">
-    <p className="text-[12px] leading-snug text-slate-500 dark:text-slate-400 text-center">
-      <span className="font-bold text-slate-700 dark:text-slate-200">Atenção:</span>{" "}
-      o valor transferido não será calculado como receita ou despesa, apenas como transferência entre suas contas cadastradas.
+  <div className="mt-2 rounded-2xl border border-violet-500/15 bg-violet-50/80 px-3.5 py-3 text-left shadow-sm dark:border-violet-400/15 dark:bg-violet-950/20">
+    <p className="mb-2 text-[12px] font-extrabold uppercase tracking-[0.12em] text-violet-700 dark:text-violet-200">
+      Como a transferência será tratada
     </p>
+
+    <div className="space-y-1.5 text-[10px] leading-snug text-slate-600 dark:text-slate-300">
+      <p>
+        <span className="font-bold text-slate-800 dark:text-slate-100">
+          Mesmo perfil, como PF → PF ou PJ → PJ:
+        </span>{" "}
+        movimenta saldo entre contas cadastradas e não entra como receita ou despesa.
+      </p>
+
+      <p>
+        <span className="font-bold text-slate-800 dark:text-slate-100">
+          Perfis diferentes, como PJ → PF ou PF → PJ:
+        </span>{" "}
+        gera uma saída na origem e uma entrada no destino, contabilizando como despesa e receita.
+      </p>
+    </div>
   </div>
 )}
 

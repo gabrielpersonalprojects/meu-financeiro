@@ -11106,6 +11106,44 @@ const resumoPanelContent = (
 </div>
     ) : (
       <div className="space-y-4">
+        {cartoesAtrasadosLista.length > 0 && (
+          <section className="rounded-[26px] border border-rose-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-rose-400/15 dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+<div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                  Cartões
+                </div>
+<h3 className="mt-1 text-[15px] font-semibold text-rose-600 dark:text-rose-300">
+                  Em atraso
+                </h3>
+              </div>
+
+              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+                {cartoesAtrasadosLista.length}
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-2.5">
+              {cartoesAtrasadosLista.map((item) => (
+                <button
+                  key={`cartao_atraso_${item.cartaoId}_${item.ciclo}`}
+                  type="button"
+                  onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
+                  className={resumoItemClass}
+                >
+                  <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
+                    {item.label} — {String(item.ciclo).slice(5, 7)}/{String(item.ciclo).slice(0, 4)}
+                  </span>
+
+<span className={resumoActionButtonClass}>
+  Acessar fatura
+</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {despesasVencendoHojeLista.length > 0 && (
           <section className="rounded-[26px] border border-slate-200/80 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center justify-between gap-3">
@@ -11428,64 +11466,24 @@ className={resumoItemClass}             >
             </div>
           </section>
         )}
-
-
-
-        {cartoesAtrasadosLista.length > 0 && (
-          <section className="rounded-[26px] border border-rose-200/70 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-rose-400/15 dark:bg-slate-900">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-<div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
-                  Cartões
-                </div>
-<h3 className="mt-1 text-[15px] font-semibold text-rose-600 dark:text-rose-300">
-                  Em atraso
-                </h3>
-              </div>
-
-              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
-                {cartoesAtrasadosLista.length}
-              </span>
-            </div>
-
-            <div className="mt-4 space-y-2.5">
-              {cartoesAtrasadosLista.map((item) => (
-                <button
-                  key={`cartao_atraso_${item.cartaoId}_${item.ciclo}`}
-                  type="button"
-                  onClick={() => abrirFaturaPeloResumo(item.cartaoId, item.ciclo)}
-                  className={resumoItemClass}
-                >
-                  <span className="text-[13px] font-semibold text-slate-900 dark:text-white">
-                    {item.label} — {String(item.ciclo).slice(5, 7)}/{String(item.ciclo).slice(0, 4)}
-                  </span>
-
-<span className={resumoActionButtonClass}>
-  Acessar fatura
-</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
       </div>
     )}
                     {proximosVencimentosLista.length > 0 && (
-  <section className="rounded-[26px] border border-slate-200/80 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-900">
+                      <section className="rounded-[26px] border border-slate-200/60 bg-white/95 px-4 py-4 shadow-[0_8px_22px_rgba(15,23,42,0.035)] dark:border-white/10 dark:bg-slate-900/95">
     <div className="flex items-center justify-between gap-3">
       <div>
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
           Despesas
         </div>
-        <h3 className="mt-1 text-[15px] font-semibold text-slate-900 dark:text-white">
+        <h3 className="mt-1 text-[15px] font-semibold text-slate-700 dark:text-slate-200">
           Próximos vencimentos
         </h3>
-        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
           Nos próximos {proximosVencimentosDias} dias
         </p>
       </div>
 
-      <span className="rounded-full border border-slate-200/70 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+      <span className="rounded-full border border-slate-200/50 bg-slate-50/70 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
         {proximosVencimentosLista.length}
       </span>
     </div>
@@ -11494,7 +11492,7 @@ className={resumoItemClass}             >
       {proximosVencimentosLista.map((t: any) => (
 <div
   key={`proximo_vencimento_${String(t?.id ?? "")}`}
-  className={resumoItemStaticClass}
+  className="group flex items-center justify-between gap-3 rounded-2xl border border-slate-200/50 bg-slate-50/45 px-3 py-3 opacity-65 transition-all duration-200 hover:opacity-100 hover:border-slate-200/70 hover:bg-slate-50/80 dark:border-white/10 dark:bg-white/[0.02] dark:hover:bg-white/[0.05]"
 >
   <div className="min-w-0 pr-3">
     <div className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
@@ -11506,7 +11504,7 @@ className={resumoItemClass}             >
       {getResumoDespesaMeta(t) ? ` • ${getResumoDespesaMeta(t)}` : ""}
     </div>
 
-    <div className="mt-1 text-[13px] font-semibold text-rose-600 dark:text-rose-300">
+    <div className="mt-1 text-[13px] font-semibold text-slate-700 dark:text-slate-200">
       {formatResumoBRL(Math.abs(Number(t?.valor ?? 0)))}
     </div>
   </div>
@@ -11515,7 +11513,7 @@ className={resumoItemClass}             >
     type="button"
     onClick={() => togglePago(t)}
     disabled={isTogglePagoLocked(t)}
-    className={resumoActionButtonClass}
+    className="shrink-0 rounded-xl border border-slate-200/80 bg-white/80 px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/15 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/[0.08] dark:hover:text-slate-100"
   >
     {isTogglePagoLocked(t) ? "Pagando." : "Pagar"}
   </button>

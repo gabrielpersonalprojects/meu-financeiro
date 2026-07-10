@@ -22,11 +22,14 @@ A Nimble pode:
 
 - consultar contexto financeiro do usuario;
 - listar receitas e despesas pendentes;
+- listar pendencias de transferencia interna e movimento PF/PJ para baixa confirmada;
 - consultar faturas de cartao pagaveis;
 - consultar resumo financeiro;
 - consultar projecao financeira;
 - consultar analise de gastos;
+- criar transferencia interna ou movimento PF/PJ com confirmacao explicita;
 - baixar despesa ou receita comum com confirmacao explicita;
+- baixar transferencia interna ou movimento PF/PJ pendente com confirmacao explicita;
 - pagar fatura fechada ou atrasada com confirmacao explicita.
 
 A Nimble nao deve interpretar nem executar alteracoes livres. A API exposta neste contrato e deliberadamente restrita para evitar edicao, exclusao, desfazer baixa ou alteracoes de valor, data, categoria e conta pelo WhatsApp.
@@ -89,6 +92,7 @@ Somente depois disso a Nimble deve chamar a API com:
 
 Actions que exigem `confirmed:true`:
 
+- `create_transfer`
 - `settle_transaction`
 - `pay_credit_card_invoice`
 
@@ -216,13 +220,18 @@ curl -X GET "https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=context&what
 
 ## 8. GET pending_transactions
 
-Uso: listar receitas/despesas pendentes para a Nimble perguntar se o usuario quer baixar.
+Uso: listar pendencias para a Nimble perguntar se o usuario quer baixar.
 
 Nao inclui:
 
-- transferencia;
 - compra de cartao;
 - fatura de cartao.
+
+Inclui quando existirem:
+
+- receita/despesa comum;
+- transferencia interna pendente;
+- movimento PF/PJ pendente.
 
 Baixa deve usar `settle_transaction`.
 
@@ -236,6 +245,12 @@ Parametros opcionais:
 
 - `type=receita|despesa`
 - `account_id=<ACCOUNT_ID>`
+- `from_account_id=<ACCOUNT_ID>`
+- `to_account_id=<ACCOUNT_ID>`
+- `movement_kind=common|internal_transfer|pf_pj`
+- `description=<TEXTO>`
+- `date=YYYY-MM-DD`
+- `amount=<VALOR>`
 - `limit=1..100`
 
 ### PowerShell
@@ -278,12 +293,28 @@ curl -X GET "https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=pending_tran
       "account_label": "Nubank PF",
       "profile": "PF",
       "status": "due_today",
+      "movement_kind": "common",
+      "linked_movement_id": null,
+      "transfer_id": null,
+      "linked_group_id": null,
+      "from_account_id": null,
+      "to_account_id": null,
+      "recurrence_id": null,
+      "settle_affects_linked_legs": false,
+      "linked_legs_count": null,
       "settle_confirmation_message": "Confirma marcar a despesa Condominio de R$ 460,00 como paga?",
       "paid": false
     }
   ]
 }
 ```
+
+Campos importantes para transferencias:
+
+- `movement_kind=common`: receita/despesa comum.
+- `movement_kind=internal_transfer`: transferencia PF->PF ou PJ->PJ, vinculada por `transfer_id`.
+- `movement_kind=pf_pj`: movimento PF->PJ ou PJ->PF, vinculado por `linked_movement_id`.
+- `settle_affects_linked_legs=true`: a baixa afetara duas pernas vinculadas.
 
 `status` pode ser:
 
@@ -293,7 +324,7 @@ curl -X GET "https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=pending_tran
 
 ## 9. POST settle_transaction
 
-Uso: baixar uma despesa ou receita comum como paga/recebida.
+Uso: baixar uma pendencia existente como paga/recebida.
 
 ### URL
 
@@ -360,16 +391,83 @@ curl -X POST "https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=settle_tran
 
 ### Regras
 
-- Aceita apenas receita/despesa comum.
+- Aceita receita/despesa comum.
+- Aceita movimento PF/PJ pendente.
+- Aceita transferencia interna pendente.
 - Nao aceita cartao.
-- Nao aceita transferencia.
 - Nao aceita fatura.
 - Nao aceita `amount`, `account_id`, `category`, `tag`, `date`, `paid`, `new_value`, `new_date`, `undo`, `delete`, `cancel`.
 - Nao altera valor, data, categoria ou conta.
 - Atualiza `pago=true`.
 - Adiciona auditoria no `payload`.
+- Se a pendencia for PF/PJ, baixa as duas pernas vinculadas por `linkedMovementId`.
+- Se a pendencia for transferencia interna, baixa o grupo vinculado por `transferId`.
 - Se ja estiver paga, retorna `TRANSACTION_ALREADY_SETTLED`.
 - Desfazer baixa nao existe via API.
+
+### Retorno relevante em transferencias
+
+Quando a baixa afetar um grupo vinculado, a resposta inclui:
+
+- `settlement.movement_kind=common|internal_transfer|pf_pj`
+- `settlement.settled_count`
+- `settlement.linked_count`
+- `settlement.affected_transaction_ids`
+- `transactions[]` com as pernas efetivamente baixadas
+
+## 9A. POST create_transfer
+
+Uso: criar uma nova transferencia interna ou um novo movimento PF/PJ somente apos confirmacao explicita do usuario.
+
+### URL
+
+```text
+POST /api/v1/whatsapp?action=create_transfer
+```
+
+### Body
+
+```json
+{
+  "whatsapp_phone": "41991029434",
+  "provider_message_id": "<PROVIDER_MESSAGE_ID>",
+  "confirmed": true,
+  "description": "Pró-labore julho",
+  "amount": 3000,
+  "date": "2026-07-10",
+  "paid": false,
+  "from_account_id": "<ACCOUNT_ID_PJ>",
+  "to_account_id": "<ACCOUNT_ID_PF>"
+}
+```
+
+### Regras recentes de transferencia
+
+- PF->PF ou PJ->PJ = transferencia interna.
+- Transferencia interna nao conta como receita/despesa para resumo, projecao e analise.
+- Transferencia interna usa `transferId` para vincular as pernas.
+- PF->PJ ou PJ->PF = movimento financeiro PF/PJ.
+- Movimento PF/PJ cria duas pernas vinculadas:
+  - despesa na conta de origem;
+  - receita na conta de destino.
+- Movimento PF/PJ usa `payload.movementKind = "pf_pj"`.
+- Movimento PF/PJ usa `linkedMovementId` para vincular as duas pernas.
+- Se recorrente PF/PJ, a projecao trata as ocorrencias como fixas/mensais conforme o modelo do app web.
+
+### Duplicidade e busca de pendencias
+
+Antes de criar a transferencia, a API busca pendencias compativeis.
+
+Se encontrar uma pendencia compativel:
+
+- nao cria duplicado automaticamente;
+- retorna `409 PENDING_TRANSFER_MATCH_FOUND`;
+- devolve `candidates[]` para a Nimble perguntar ao usuario se ele quer baixar a pendencia existente.
+
+So deve haver criacao nova quando:
+
+- nao existir pendencia compativel; ou
+- o fluxo operacional da Nimble confirmar explicitamente que deseja criar uma nova transferencia.
 
 ## 10. GET payable_invoices
 
@@ -588,6 +686,8 @@ Importante:
 
 - `balances.total_cash_balance` = saldo bancario estimado das contas consultadas.
 - `dashboard_summary.current_balance` = saldo liquido mensal do periodo/escopo.
+- Movimento PF/PJ entra como receita/despesa normal no resumo.
+- Transferencia interna continua fora do saldo liquido mensal de receitas/despesas.
 - A Nimble nao deve chamar `total_cash_balance` simplesmente de "saldo atual" sem explicar o contexto.
 
 ## 13. GET financial_projection
@@ -667,6 +767,12 @@ curl -X GET "https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=financial_pr
 }
 ```
 
+Importante:
+
+- `include_transfers=false` continua excluindo transferencia interna comum.
+- Movimento PF/PJ nao e tratado como transferencia comum na projecao.
+- Movimento PF/PJ recorrente entra como receita/despesa fixa mensal conforme o modelo do app web.
+
 ## 14. GET financial_analytics
 
 Uso: responder perguntas como:
@@ -730,6 +836,8 @@ Regras de interpretacao:
 - `source=general` segue a aba Analise > Geral.
 - `source=credit_cards` segue a aba Analise > Cartoes.
 - `source=all` retorna as duas fontes separadas.
+- Movimento PF/PJ entra nas categorias de receita/despesa correspondentes.
+- Transferencia interna nao deve contaminar categorias de gasto/receita.
 - `combined_expenses_total` nao deve ser chamado de "total gasto" sem explicar que combina fontes.
 
 ## 15. Fluxos Recomendados Para a Nimble
@@ -743,6 +851,28 @@ Nimble:
 2. Identifica o item correto.
 3. Pergunta: "Confirma marcar Condominio como pago?"
 4. Chama settle_transaction com confirmed:true.
+```
+
+### A2) Baixar Transferencia ou Movimento PF/PJ
+
+```text
+Usuario: Paga o pró-labore deste mês.
+Nimble:
+1. Chama pending_transactions com filtros de descricao/valor/data/origem/destino quando disponiveis.
+2. Identifica se a pendencia e internal_transfer ou pf_pj.
+3. Pergunta ao usuario se deseja baixar a pendencia encontrada.
+4. Chama settle_transaction com confirmed:true.
+5. A API baixa o grupo por transferId ou linkedMovementId, conforme o caso.
+```
+
+### A3) Criar Nova Transferencia
+
+```text
+Usuario: Lance uma transferencia da PJ para PF.
+Nimble:
+1. Chama create_transfer apenas depois de confirmar os dados com o usuario.
+2. Se existir pendencia compativel, a API responde PENDING_TRANSFER_MATCH_FOUND.
+3. A Nimble deve priorizar a baixa da pendencia existente antes de pedir criacao nova.
 ```
 
 ### B) Pagar Fatura
@@ -782,6 +912,10 @@ Nimble chama financial_analytics com source=credit_cards.
 
 A Nimble nao pode, por esta API:
 
+- editar transferencia;
+- excluir transferencia;
+- editar recorrencia;
+- excluir recorrencia;
 - editar lancamento;
 - excluir lancamento;
 - desfazer baixa;
@@ -813,6 +947,7 @@ Codigos usuais/esperados nas actions deste contrato:
 | `IDEMPOTENCY_KEY_REQUIRED` | POST sem `X-Idempotency-Key`. |
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | Mesma chave com payload diferente. |
 | `CONFIRMATION_REQUIRED` | Mutacao sensivel sem `confirmed:true`. |
+| `PENDING_TRANSFER_MATCH_FOUND` | A API encontrou pendencia compativel e bloqueou criacao duplicada. |
 | `TRANSACTION_NOT_FOUND` | Transacao nao encontrada para o usuario. |
 | `TRANSACTION_ALREADY_SETTLED` | Transacao ja esta paga/recebida. |
 | `TRANSACTION_TYPE_NOT_SETTLEABLE` | Tipo de transacao nao baixavel. |
@@ -852,6 +987,8 @@ Codigos usuais/esperados nas actions deste contrato:
 - Nimble nunca envia `user_id`.
 - Mutations sempre ocorrem apos confirmacao explicita do usuario.
 - Mutations sempre enviam `confirmed:true`.
+- Nimble usa `whatsapp_phone` para identificar o usuario em todas as actions.
+- `create_transfer` deve primeiro tentar evitar duplicidade por busca de pendencias compativeis.
 - POSTs sempre enviam `X-Idempotency-Key`.
 - POSTs sempre enviam `provider_message_id`.
 - Testes de erro realizados:
@@ -871,7 +1008,6 @@ As actions abaixo podem existir no roteador por legado ou uso interno, mas nao f
 - `create_transaction`
 - `create_installments`
 - `create_fixed`
-- `create_transfer`
 - `create_credit_card_purchase`
 - `create_credit_card_installments`
 
@@ -881,3 +1017,7 @@ Actions antigas bloqueadas/depreciadas:
 - `mark_unpaid`: retorna `ACTION_NOT_SUPPORTED`.
 
 Essas actions nao devem ser usadas pela Nimble sem nova liberacao formal do FluxMoney.
+
+Excecao recente:
+
+- `create_transfer` passou a fazer parte do contrato operacional da Nimble para transferencia interna e movimento PF/PJ, sempre com `confirmed:true` e respeitando a busca previa por pendencias compativeis.

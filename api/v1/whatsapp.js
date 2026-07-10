@@ -540,18 +540,83 @@ function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function getTransactionPayload(row) {
+  return row?.payload && typeof row.payload === "object" ? row.payload : {};
+}
+
+function getMovementKind(row) {
+  return String(row?.payload?.movementKind ?? row?.movementKind ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function getLinkedMovementId(row) {
+  return String(row?.payload?.linkedMovementId ?? row?.linkedMovementId ?? "").trim();
+}
+
+function getTransferId(row) {
+  return String(
+    row?.payload?.transferId ??
+      row?.transferId ??
+      row?.transfer_id ??
+      row?.payload?.transfer_id ??
+      ""
+  ).trim();
+}
+
+function getMovementRecurrenceId(row) {
+  return String(
+    row?.payload?.recorrenciaId ??
+      row?.payload?.recurrenceId ??
+      row?.recorrenciaId ??
+      row?.recurrenceId ??
+      ""
+  ).trim();
+}
+
+function isPfPjMovement(row) {
+  return getMovementKind(row) === "pf_pj";
+}
+
+function getMovementAccountIds(row) {
+  const payload = getTransactionPayload(row);
+  const fromAccountId = String(
+    row?.transfer_from_id ??
+      row?.conta_origem_id ??
+      payload?.originAccountId ??
+      payload?.conta_origem_id ??
+      payload?.contaOrigemId ??
+      ""
+  ).trim();
+  const toAccountId = String(
+    row?.transfer_to_id ??
+      row?.conta_destino_id ??
+      payload?.destinationAccountId ??
+      payload?.conta_destino_id ??
+      payload?.contaDestinoId ??
+      ""
+  ).trim();
+
+  return { fromAccountId, toAccountId };
+}
+
 function isTransferTransaction(row) {
+  if (isPfPjMovement(row)) return false;
+
   const type = normalizeText(row?.tipo);
   const category = normalizeText(row?.categoria);
-  const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
+  const transferId = getTransferId(row);
+  const movementAccounts = getMovementAccountIds(row);
 
   return (
     type === "transferencia" ||
+    type === "transferência" ||
     category === "transferencia" ||
+    category === "transferência" ||
     category.includes("transfer") ||
-    Boolean(String(payload?.transferId ?? "").trim()) ||
-    Boolean(String(row?.transfer_from_id ?? "").trim()) ||
-    Boolean(String(row?.transfer_to_id ?? "").trim())
+    Boolean(transferId) ||
+    Boolean(movementAccounts.fromAccountId) ||
+    Boolean(movementAccounts.toAccountId)
   );
 }
 
@@ -968,22 +1033,7 @@ function isProjectionInvoicePayment(row) {
 }
 
 function isProjectionTransfer(row) {
-  const type = normalizeText(row?.tipo);
-  const category = normalizeText(row?.categoria);
-  const description = normalizeText(row?.descricao);
-
-  return (
-    type === "transferencia" ||
-    category === "transferencia" ||
-    category.includes("transfer") ||
-    Boolean(String(row?.payload?.transferId ?? "").trim()) ||
-    Boolean(String(row?.payload?.transferenciaId ?? "").trim()) ||
-    Boolean(String(row?.transfer_from_id ?? "").trim()) ||
-    Boolean(String(row?.transfer_to_id ?? "").trim()) ||
-    Boolean(String(row?.conta_origem_id ?? "").trim()) ||
-    Boolean(String(row?.conta_destino_id ?? "").trim()) ||
-    description.includes("transfer")
-  );
+  return isTransferTransaction(row);
 }
 
 function mapSummaryTransactionItem(row, accountsById, status) {
@@ -1717,9 +1767,26 @@ async function handlePendingTransactions(req, res, supabase) {
   const limit = parseLimit(req.query?.limit);
   const type = String(req.query?.type ?? "").trim();
   const accountId = String(req.query?.account_id ?? "").trim();
+  const fromAccountId = String(req.query?.from_account_id ?? "").trim();
+  const toAccountId = String(req.query?.to_account_id ?? "").trim();
+  const movementKindFilter = String(req.query?.movement_kind ?? "")
+    .trim()
+    .toLowerCase();
+  const descriptionFilter = String(req.query?.description ?? req.query?.q ?? "").trim();
+  const dateFilter = String(req.query?.date ?? "").trim();
+  const amountFilterRaw = String(req.query?.amount ?? "").trim();
+  const amountFilter = amountFilterRaw ? Number(amountFilterRaw) : null;
+
+  if (dateFilter) {
+    parseIsoDate(dateFilter, "INVALID_DATE_FILTER", "date");
+  }
+  if (amountFilterRaw && (!Number.isFinite(amountFilter) || amountFilter <= 0)) {
+    throw new ApiError(400, "INVALID_AMOUNT_FILTER", "amount must be greater than zero.");
+  }
 
   const pendingRows = await fetchAllTransactionsForUser(supabase, user.user_id, {
-    select: "id, tipo, valor, data, descricao, categoria, tag, conta_id, qual_conta, pago, payload",
+    select:
+      "id, tipo, valor, data, descricao, categoria, tag, conta_id, qual_conta, pago, payload, transfer_from_id, transfer_to_id, conta_origem_id, conta_destino_id",
     build: (query) => {
       let pendingQuery = query
         .eq("pago", false)
@@ -1739,7 +1806,30 @@ async function handlePendingTransactions(req, res, supabase) {
     },
   });
 
-  const data = pendingRows.slice(0, limit);
+  const filteredRows = pendingRows.filter((row) => {
+    const movementKind = isPfPjMovement(row)
+      ? "pf_pj"
+      : isTransferTransaction(row)
+      ? "internal_transfer"
+      : "common";
+    const descriptionNorm = normalizeText(row?.descricao);
+    const filterNorm = normalizeText(descriptionFilter);
+    const { fromAccountId: movementFrom, toAccountId: movementTo } =
+      getMovementAccountIds(row);
+
+    if (movementKindFilter && movementKind !== movementKindFilter) return false;
+    if (fromAccountId && movementFrom !== fromAccountId) return false;
+    if (toAccountId && movementTo !== toAccountId) return false;
+    if (dateFilter && String(row?.data ?? "") !== dateFilter) return false;
+    if (amountFilter != null && toCents(Math.abs(Number(row?.valor || 0))) !== toCents(amountFilter)) {
+      return false;
+    }
+    if (filterNorm && !descriptionNorm.includes(filterNorm)) return false;
+
+    return true;
+  });
+
+  const data = filteredRows.slice(0, limit);
 
   const accountIds = Array.from(
     new Set(
@@ -1790,6 +1880,26 @@ async function handlePendingTransactions(req, res, supabase) {
           : "";
         const actionText = type === "receita" ? "recebida" : "paga";
         const typeText = type === "receita" ? "receita" : "despesa";
+        const movementKind = isPfPjMovement(row)
+          ? "pf_pj"
+          : isTransferTransaction(row)
+          ? "internal_transfer"
+          : "common";
+        const linkedMovementId = getLinkedMovementId(row);
+        const transferId = getTransferId(row);
+        const movementAccounts = getMovementAccountIds(row);
+        const recurrenceId = getMovementRecurrenceId(row);
+        const linkedGroupId =
+          movementKind === "pf_pj"
+            ? linkedMovementId
+            : movementKind === "internal_transfer"
+            ? transferId
+            : "";
+        const linkedLegsCount = data.filter(
+          (item) =>
+            buildMovementGroupKey(item) === buildMovementGroupKey(row) &&
+            buildMovementGroupKey(item).startsWith("pfpj:")
+        ).length;
 
         return {
           id: row.id,
@@ -1805,6 +1915,17 @@ async function handlePendingTransactions(req, res, supabase) {
           account_label: accountLabel || null,
           profile: profile || null,
           status: getPendingStatus(row.data),
+          movement_kind: movementKind,
+          linked_movement_id: linkedMovementId || null,
+          transfer_id: transferId || null,
+          linked_group_id: linkedGroupId || null,
+          from_account_id: movementAccounts.fromAccountId || null,
+          to_account_id: movementAccounts.toAccountId || null,
+          recurrence_id: recurrenceId || null,
+          settle_affects_linked_legs:
+            movementKind === "pf_pj" || movementKind === "internal_transfer",
+          linked_legs_count:
+            movementKind === "pf_pj" ? Math.max(1, linkedLegsCount) : null,
           settle_confirmation_message: `Confirma marcar a ${typeText} ${description || "lanÃ§amento"} de ${formatMoneyPtBr(
             absoluteAmount
           )} como ${actionText}?`,
@@ -2731,8 +2852,7 @@ async function handleFinancialAnalytics(req, res, supabase) {
       if (!date.startsWith(period)) continue;
 
       const category = getAnalyticsGeneralCategory(transaction);
-      const categoryNorm = normalizeText(category);
-      if (categoryNorm.includes("transfer")) continue;
+      if (isTransferTransaction(transaction)) continue;
 
       if (profileFilter) {
         const transactionProfile = getAnalyticsProfileFromTransaction(
@@ -2778,8 +2898,7 @@ async function handleFinancialAnalytics(req, res, supabase) {
       if (transactionPeriod !== period) continue;
 
       const category = getAnalyticsCategory(transaction);
-      const categoryNorm = normalizeText(category);
-      if (categoryNorm.includes("transfer")) continue;
+      if (isTransferTransaction(transaction)) continue;
 
       addAnalyticsGroupValue(creditCardGrouped, category, transaction.valor);
     }
@@ -3037,6 +3156,11 @@ async function handleCreateCreditCardTag(req, res, action) {
 
 async function handleCreateTransaction(req, res, action) {
   await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    ensureMutationConfirmed(
+      body,
+      "Confirme com o usuário antes de criar um novo lançamento."
+    );
+
     const type = normalizeTransactionType(body.type);
     const description = requireString(
       body.description,
@@ -3150,6 +3274,122 @@ async function handleMarkUnpaid(req, res, action) {
   });
 }
 
+function ensureMutationConfirmed(body, message) {
+  if (body?.confirmed !== true) {
+    throw new ApiError(
+      400,
+      "CONFIRMATION_REQUIRED",
+      message ||
+        "Confirme com o usuário antes de executar esta ação financeira."
+    );
+  }
+}
+
+function normalizeTransferRecurrenceMode(value) {
+  const mode = String(value ?? "").trim().toLowerCase();
+  if (!mode) return "single";
+  if (mode === "single") return "single";
+  if (mode === "com_prazo") return "com_prazo";
+  if (mode === "sem_prazo") return "sem_prazo";
+
+  throw new ApiError(
+    400,
+    "INVALID_DEADLINE_MODE",
+    "deadline_mode must be single, sem_prazo or com_prazo."
+  );
+}
+
+function buildMovementGroupKey(row) {
+  if (isPfPjMovement(row)) {
+    const linkedMovementId = getLinkedMovementId(row);
+    if (linkedMovementId) return `pfpj:${linkedMovementId}`;
+  }
+
+  const transferId = getTransferId(row);
+  if (transferId) return `transfer:${transferId}`;
+
+  return `tx:${String(row?.id ?? "").trim()}`;
+}
+
+function mapPendingMovementCandidate(groupRows) {
+  if (!Array.isArray(groupRows) || groupRows.length === 0) return null;
+
+  const sorted = [...groupRows].sort((a, b) => {
+    const dateA = String(a?.data ?? "");
+    const dateB = String(b?.data ?? "");
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
+  });
+  const first = sorted[0];
+  const amount = Math.max(
+    ...sorted.map((row) => Math.abs(Number(row?.valor || 0))),
+    0
+  );
+  const description = String(first?.descricao ?? "").trim();
+  const { fromAccountId, toAccountId } = getMovementAccountIds(first);
+  const movementKind = isPfPjMovement(first)
+    ? "pf_pj"
+    : isTransferTransaction(first)
+    ? "internal_transfer"
+    : "common";
+
+  return {
+    key: buildMovementGroupKey(first),
+    movement_kind: movementKind,
+    date: String(first?.data ?? ""),
+    description,
+    amount,
+    from_account_id: fromAccountId || null,
+    to_account_id: toAccountId || null,
+    transaction_ids: sorted
+      .map((row) => String(row?.id ?? "").trim())
+      .filter(Boolean),
+  };
+}
+
+function isCompatiblePendingCandidate(candidate, expected) {
+  if (!candidate) return false;
+  if (!expected) return true;
+
+  const amountMatches =
+    expected.amountAbs == null ||
+    toCents(candidate.amount) === toCents(expected.amountAbs);
+  if (!amountMatches) return false;
+
+  if (expected.date && String(candidate.date ?? "") !== String(expected.date)) {
+    return false;
+  }
+
+  if (
+    expected.fromAccountId &&
+    String(candidate.from_account_id ?? "") !== String(expected.fromAccountId)
+  ) {
+    return false;
+  }
+
+  if (
+    expected.toAccountId &&
+    String(candidate.to_account_id ?? "") !== String(expected.toAccountId)
+  ) {
+    return false;
+  }
+
+  if (expected.description) {
+    const candidateDescription = normalizeText(candidate.description);
+    const expectedDescription = normalizeText(expected.description);
+    if (
+      expectedDescription &&
+      candidateDescription &&
+      !candidateDescription.includes(expectedDescription) &&
+      !expectedDescription.includes(candidateDescription)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 const UNSUPPORTED_SETTLEMENT_FIELDS = [
   "amount",
   "account_id",
@@ -3202,22 +3442,6 @@ function ensureSettleableTransaction(transaction) {
     );
   }
 
-  const hasTransferSignal =
-    type === "transferencia" ||
-    category === "transferencia" ||
-    category.includes("transfer") ||
-    String(payload?.transferId ?? "").trim() ||
-    String(transaction?.transfer_from_id ?? "").trim() ||
-    String(transaction?.transfer_to_id ?? "").trim();
-
-  if (hasTransferSignal) {
-    throw new ApiError(
-      400,
-      "TRANSFER_NOT_SETTLEABLE_VIA_API",
-      "TransferÃªncias nÃ£o podem ser baixadas por esta action."
-    );
-  }
-
   const isInvoicePayment =
     category === "cartao de credito" ||
     /^fatura\s*:/.test(description) ||
@@ -3238,9 +3462,61 @@ function ensureSettleableTransaction(transaction) {
     throw new ApiError(
       400,
       "UNSUPPORTED_TRANSACTION_TYPE",
-      "Esta action aceita apenas receitas e despesas comuns."
+      "Esta action aceita apenas receitas e despesas."
     );
   }
+}
+
+async function resolveSettlementGroupRows(supabase, userId, transaction) {
+  const transactionId = String(transaction?.id ?? "").trim();
+  const linkedMovementId = getLinkedMovementId(transaction);
+  const transferId = getTransferId(transaction);
+  const transactionDate = String(transaction?.data ?? "").trim();
+
+  if (!linkedMovementId && !transferId) {
+    return [transaction];
+  }
+
+  const rows = await fetchAllTransactionsForUser(supabase, userId, {
+    select:
+      "id, tipo, valor, data, descricao, categoria, conta_id, qual_conta, pago, payload, transfer_from_id, transfer_to_id, conta_origem_id, conta_destino_id",
+    build: (query) =>
+      query
+        .in("tipo", ["receita", "despesa"])
+        .order("data", { ascending: true })
+        .order("id", { ascending: true }),
+  });
+
+  let related = [];
+
+  if (isPfPjMovement(transaction) && linkedMovementId) {
+    related = rows.filter(
+      (row) =>
+        isPfPjMovement(row) &&
+        String(getLinkedMovementId(row)) === String(linkedMovementId)
+    );
+  } else if (transferId) {
+    related = rows.filter((row) => {
+      if (String(getTransferId(row)) !== String(transferId)) return false;
+      if (transactionDate) return String(row?.data ?? "") === transactionDate;
+      return true;
+    });
+
+    if (related.length === 0) {
+      related = rows.filter(
+        (row) => String(getTransferId(row)) === String(transferId)
+      );
+    }
+  }
+
+  const byId = new Map(
+    related
+      .concat(transaction)
+      .filter(Boolean)
+      .map((row) => [String(row.id), row])
+  );
+
+  return Array.from(byId.values());
 }
 
 async function handleSettleTransaction(req, res, action) {
@@ -3250,14 +3526,10 @@ async function handleSettleTransaction(req, res, action) {
     action,
     async ({ body, providerMessageId, supabase, user }) => {
       rejectUnsupportedSettlementFields(body);
-
-      if (body.confirmed !== true) {
-        throw new ApiError(
-          400,
-          "CONFIRMATION_REQUIRED",
-          "Confirme com o usuÃ¡rio antes de marcar esta transaÃ§Ã£o como paga ou recebida."
-        );
-      }
+      ensureMutationConfirmed(
+        body,
+        "Confirme com o usuÃ¡rio antes de marcar esta transaÃ§Ã£o como paga ou recebida."
+      );
 
       const transactionId = requireString(
         body.transaction_id,
@@ -3306,39 +3578,61 @@ async function handleSettleTransaction(req, res, action) {
         );
       }
 
-      if (transaction.pago === true) {
+      const relatedRows = await resolveSettlementGroupRows(
+        supabase,
+        user.user_id,
+        transaction
+      );
+      const rowsToSettle = relatedRows.filter((row) => !isPaidValue(row?.pago));
+
+      if (rowsToSettle.length === 0) {
         throw new ApiError(
           409,
           "TRANSACTION_ALREADY_SETTLED",
-          "Esta transaÃ§Ã£o jÃ¡ estÃ¡ marcada como paga ou recebida."
+          "Esta transaÃ§Ã£o e os lanÃ§amentos vinculados jÃ¡ estÃ£o marcados como pagos/recebidos."
         );
       }
 
-      const payload =
-        transaction.payload && typeof transaction.payload === "object"
-          ? { ...transaction.payload }
-          : {};
+      const notes = String(body.notes ?? "").trim();
+      const updatedRows = [];
 
-      payload.settledAt = settlementDate;
-      payload.settlementNotes = String(body.notes ?? "").trim();
-      payload.settledBy = "whatsapp_api";
-      payload.providerMessageId = providerMessageId;
+      for (const row of rowsToSettle) {
+        const payload =
+          row.payload && typeof row.payload === "object"
+            ? { ...row.payload }
+            : {};
 
-      const { data: updated, error } = await supabase
-        .from("transactions")
-        .update({
-          pago: true,
-          payload,
-        })
-        .eq("id", transaction.id)
-        .eq("user_id", user.user_id)
-        .select("id, tipo, descricao, valor, data, conta_id, qual_conta, pago, payload")
-        .single();
+        payload.settledAt = settlementDate;
+        payload.settlementNotes = notes;
+        payload.settledBy = "whatsapp_api";
+        payload.providerMessageId = providerMessageId;
 
-      if (error) throw error;
+        const { data: updated, error } = await supabase
+          .from("transactions")
+          .update({
+            pago: true,
+            payload,
+          })
+          .eq("id", row.id)
+          .eq("user_id", user.user_id)
+          .select("id, tipo, descricao, valor, data, conta_id, qual_conta, pago, payload")
+          .single();
 
-      const type = String(updated.tipo ?? "").trim().toLowerCase();
-      const description = updated.descricao || "lanÃ§amento";
+        if (error) throw error;
+        updatedRows.push(updated);
+      }
+
+      const primary =
+        updatedRows.find((row) => String(row.id) === String(transaction.id)) ||
+        transaction;
+      const type = String(primary.tipo ?? "").trim().toLowerCase();
+      const description = primary.descricao || "lanÃ§amento";
+      const movementKind = isPfPjMovement(transaction)
+        ? "pf_pj"
+        : getTransferId(transaction)
+        ? "internal_transfer"
+        : "common";
+      const linkedAffectedCount = relatedRows.length;
 
       return {
         statusCode: 200,
@@ -3347,15 +3641,31 @@ async function handleSettleTransaction(req, res, action) {
           status: "settled",
           summary: `${typeLabel(type)} ${description} marcada como ${settledVerb(type)}.`,
           transaction: {
-            id: updated.id,
+            id: primary.id,
             type,
             description,
-            amount: Number(updated.valor || 0),
-            date: updated.data,
-            account_id: updated.conta_id || updated.qual_conta || null,
+            amount: Number(primary.valor || 0),
+            date: primary.data,
+            account_id: primary.conta_id || primary.qual_conta || null,
             paid: true,
-            settled_at: updated.payload?.settledAt || settlementDate,
+            settled_at: primary.payload?.settledAt || settlementDate,
           },
+          settlement: {
+            movement_kind: movementKind,
+            settled_count: updatedRows.length,
+            linked_count: linkedAffectedCount,
+            affected_transaction_ids: updatedRows.map((row) => row.id),
+          },
+          transactions: updatedRows.map((row) => ({
+            id: row.id,
+            type: String(row.tipo ?? "").trim().toLowerCase(),
+            description: row.descricao || "",
+            amount: Number(row.valor || 0),
+            date: row.data,
+            account_id: row.conta_id || row.qual_conta || null,
+            paid: true,
+            settled_at: row.payload?.settledAt || settlementDate,
+          })),
         },
       };
     }
@@ -3364,6 +3674,11 @@ async function handleSettleTransaction(req, res, action) {
 
 async function handleCreateInstallments(req, res, action) {
   await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    ensureMutationConfirmed(
+      body,
+      "Confirme com o usuário antes de criar um lançamento parcelado."
+    );
+
     const type = normalizeTransactionType(body.type);
     const description = requireString(
       body.description,
@@ -3460,6 +3775,11 @@ async function handleCreateInstallments(req, res, action) {
 
 async function handleCreateFixed(req, res, action) {
   await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    ensureMutationConfirmed(
+      body,
+      "Confirme com o usuário antes de criar um lançamento recorrente."
+    );
+
     const type = normalizeTransactionType(body.type);
     const description = requireString(
       body.description,
@@ -3583,8 +3903,56 @@ async function handleCreateFixed(req, res, action) {
   });
 }
 
+async function findCompatiblePendingTransferCandidates(supabase, userId, criteria) {
+  const rows = await fetchAllTransactionsForUser(supabase, userId, {
+    select:
+      "id, tipo, valor, data, descricao, categoria, pago, payload, transfer_from_id, transfer_to_id, conta_origem_id, conta_destino_id",
+    build: (query) =>
+      query
+        .eq("pago", false)
+        .in("tipo", ["receita", "despesa"])
+        .order("data", { ascending: true })
+        .order("id", { ascending: true }),
+  });
+
+  const transferLikeRows = rows.filter(
+    (row) => isPfPjMovement(row) || isTransferTransaction(row)
+  );
+  const grouped = new Map();
+
+  for (const row of transferLikeRows) {
+    const key = buildMovementGroupKey(row);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  }
+
+  const candidates = Array.from(grouped.values())
+    .map((groupRows) => mapPendingMovementCandidate(groupRows))
+    .filter(Boolean)
+    .filter((candidate) =>
+      isCompatiblePendingCandidate(candidate, {
+        description: criteria?.description,
+        amountAbs: criteria?.amountAbs,
+        date: criteria?.date,
+        fromAccountId: criteria?.fromAccountId,
+        toAccountId: criteria?.toAccountId,
+      })
+    )
+    .sort((a, b) =>
+      String(a.date).localeCompare(String(b.date)) ||
+      String(a.description).localeCompare(String(b.description))
+    );
+
+  return candidates;
+}
+
 async function handleCreateTransfer(req, res, action) {
   await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    ensureMutationConfirmed(
+      body,
+      "Confirme com o usuário antes de criar um lançamento de transferência/movimento PF/PJ."
+    );
+
     const description = requireString(
       body.description,
       "DESCRIPTION_REQUIRED",
@@ -3604,6 +3972,9 @@ async function handleCreateTransfer(req, res, action) {
       "TO_ACCOUNT_ID_REQUIRED",
       "to_account_id is required."
     );
+    const recurrenceMode = normalizeTransferRecurrenceMode(body.deadline_mode);
+    const allowCreateDespitePending =
+      body.create_new_confirmed === true || body.force_create === true;
 
     if (sameAccountId(fromAccountId, toAccountId)) {
       throw new ApiError(
@@ -3626,12 +3997,269 @@ async function handleCreateTransfer(req, res, action) {
       );
     }
 
-    const transferId =
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `tr_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    if (!allowCreateDespitePending) {
+      const candidates = await findCompatiblePendingTransferCandidates(
+        supabase,
+        user.user_id,
+        {
+          description,
+          amountAbs,
+          date,
+          fromAccountId: fromAccount.id,
+          toAccountId: toAccount.id,
+        }
+      );
+
+      if (candidates.length > 0) {
+        throw new ApiError(
+          409,
+          "PENDING_TRANSFER_MATCH_FOUND",
+          "Existe movimentação pendente compatível. Confirme a baixa da pendência antes de criar uma nova.",
+          {
+            status: "pending_match_found",
+            candidates,
+            next_step:
+              "Use settle_transaction para baixar a pendência, ou envie create_new_confirmed:true para criar mesmo assim.",
+          }
+        );
+      }
+    }
+
+    const fromProfile = getAccountProfileId(fromAccount);
+    const toProfile = getAccountProfileId(toAccount);
+    const isCrossProfile = fromProfile !== toProfile;
     const createdAt = Date.now();
     const effectivePaid = date <= todayIso() ? paid : false;
+
+    const buildRef = (prefix) =>
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? `${prefix}_${crypto.randomUUID()}`
+        : `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    if (!isCrossProfile && recurrenceMode !== "single") {
+      throw new ApiError(
+        400,
+        "INTERNAL_TRANSFER_RECURRENCE_NOT_SUPPORTED",
+        "Transferência interna entre contas do mesmo perfil deve ser avulsa (deadline_mode=single)."
+      );
+    }
+
+    if (isCrossProfile) {
+      const fromCategoryProvided =
+        body.from_category ?? body.category_from ?? body.category_origin;
+      const toCategoryProvided =
+        body.to_category ?? body.category_to ?? body.category_destination;
+      const fromCategory =
+        (await validateCategoryIfProvided({
+          supabase,
+          userId: user.user_id,
+          profileId: fromProfile,
+          type: "despesa",
+          category: fromCategoryProvided,
+        })) || "Movimento PF/PJ";
+      const toCategory =
+        (await validateCategoryIfProvided({
+          supabase,
+          userId: user.user_id,
+          profileId: toProfile,
+          type: "receita",
+          category: toCategoryProvided,
+        })) || "Movimento PF/PJ";
+      const originProfileKind = fromProfile.toUpperCase();
+      const destinationProfileKind = toProfile.toUpperCase();
+
+      const createPfPjLegsForDate = ({ currentDate, index, recurrenceId, recurrencePayload }) => {
+        const linkedMovementId = buildRef("mov");
+        const paidCurrent = index === 0 ? effectivePaid : false;
+        const isRecurring = Boolean(recurrenceId);
+        const spendingType = isRecurring ? "fixo" : "Variável";
+
+        const basePayload = {
+          metodoPagamento: "",
+          tipoGasto: spendingType,
+          recorrenciaId: recurrenceId || "",
+          isRecorrente: isRecurring,
+          recurrenceKind: "",
+          recurrenceWindowMonths: null,
+          recurrenceOriginDate: "",
+          recurrenceWindowStart: "",
+          recurrenceWindowEnd: "",
+          recurrenceStatus: "",
+          recurrenceRenewalDecision: "",
+          recurrenceDismissedAt: "",
+          recurrenceCanceledAt: "",
+          recurrenceLastActionAt: "",
+          transferId: "",
+          observacoes: notes,
+          parcelaAtual: null,
+          totalParcelas: null,
+          qualCartao: "",
+          movementKind: "pf_pj",
+          linkedMovementId,
+          originAccountId: fromAccount.id,
+          destinationAccountId: toAccount.id,
+          originProfileKind,
+          destinationProfileKind,
+        };
+
+        return [
+          {
+            user_id: user.user_id,
+            tipo: "despesa",
+            valor: -Math.abs(amountAbs),
+            data: currentDate,
+            descricao: description,
+            categoria: fromCategory,
+            tag: "",
+            pago: paidCurrent,
+            conta_id: fromAccount.id,
+            conta_origem_id: fromAccount.id,
+            conta_destino_id: toAccount.id,
+            cartao_id: null,
+            transfer_from_id: fromAccount.id,
+            transfer_to_id: toAccount.id,
+            qual_conta: fromAccount.id,
+            criado_em: createdAt + index * 2,
+            payload: {
+              ...basePayload,
+              linkedMovementDirection: "saida",
+              contraParte: toAccount.id,
+              ...(recurrencePayload || {}),
+            },
+          },
+          {
+            user_id: user.user_id,
+            tipo: "receita",
+            valor: Math.abs(amountAbs),
+            data: currentDate,
+            descricao: description,
+            categoria: toCategory,
+            tag: "",
+            pago: paidCurrent,
+            conta_id: toAccount.id,
+            conta_origem_id: fromAccount.id,
+            conta_destino_id: toAccount.id,
+            cartao_id: null,
+            transfer_from_id: fromAccount.id,
+            transfer_to_id: toAccount.id,
+            qual_conta: toAccount.id,
+            criado_em: createdAt + index * 2 + 1,
+            payload: {
+              ...basePayload,
+              linkedMovementDirection: "entrada",
+              contraParte: fromAccount.id,
+              ...(recurrencePayload || {}),
+            },
+          },
+        ];
+      };
+
+      if (recurrenceMode === "single") {
+        const rows = createPfPjLegsForDate({
+          currentDate: date,
+          index: 0,
+          recurrenceId: "",
+          recurrencePayload: null,
+        });
+
+        const { data: created, error } = await supabase
+          .from("transactions")
+          .insert(rows)
+          .select("*");
+
+        if (error) throw error;
+
+        return {
+          statusCode: 201,
+          body: {
+            ok: true,
+            status: "created",
+            summary: `Movimento PF/PJ ${description} lançado com sucesso.`,
+            transfer_group: {
+              movement_kind: "pf_pj",
+              from_account_id: fromAccount.id,
+              to_account_id: toAccount.id,
+              amount: amountAbs,
+              paid: effectivePaid,
+              recurring: false,
+            },
+            transactions: (created ?? []).map(mapTransactionResponse),
+          },
+        };
+      }
+
+      let months = SEM_PRAZO_MONTHS;
+      let recurrencePayload = null;
+      let endDate = "";
+
+      if (recurrenceMode === "com_prazo") {
+        endDate = parseIsoDate(body.end_date, "INVALID_END_DATE", "end_date");
+        if (endDate < date) {
+          throw new ApiError(
+            400,
+            "INVALID_END_DATE",
+            "end_date cannot be before date."
+          );
+        }
+        months = countMonthsInclusive(date, endDate);
+      } else {
+        recurrencePayload = buildSemPrazoMeta(date, SEM_PRAZO_MONTHS);
+      }
+
+      if (months > MAX_FIXED_MONTHS) {
+        throw new ApiError(
+          400,
+          "FIXED_MONTHS_LIMIT_EXCEEDED",
+          `fixed transactions can generate at most ${MAX_FIXED_MONTHS} months.`
+        );
+      }
+
+      const recurrenceId = `rec_${createdAt}`;
+      const rows = [];
+
+      for (let index = 0; index < months; index += 1) {
+        const currentDate = addMonthsLikeUi(date, index);
+        rows.push(
+          ...createPfPjLegsForDate({
+            currentDate,
+            index,
+            recurrenceId,
+            recurrencePayload,
+          })
+        );
+      }
+
+      const { data: created, error } = await supabase
+        .from("transactions")
+        .insert(rows)
+        .select("*");
+
+      if (error) throw error;
+
+      return {
+        statusCode: 201,
+        body: {
+          ok: true,
+          status: "created",
+          summary: `Movimento PF/PJ recorrente ${description} lançado com sucesso.`,
+          transfer_group: {
+            movement_kind: "pf_pj",
+            from_account_id: fromAccount.id,
+            to_account_id: toAccount.id,
+            amount: amountAbs,
+            paid_first_occurrence: effectivePaid,
+            recurring: true,
+            recurrence_mode: recurrenceMode,
+            recurrence_id: recurrenceId,
+            months,
+            end_date: recurrenceMode === "com_prazo" ? endDate : null,
+          },
+          transactions: (created ?? []).map(mapTransactionResponse),
+        },
+      };
+    }
+
+    const transferId = buildRef("tr");
 
     const basePayload = {
       metodoPagamento: "",
@@ -3715,6 +4343,7 @@ async function handleCreateTransfer(req, res, action) {
         status: "created",
         summary: `TransferÃªncia ${description} lanÃ§ada com sucesso.`,
         transfer_group: {
+          movement_kind: "internal_transfer",
           transfer_id: transferId,
           from_account_id: fromAccount.id,
           to_account_id: toAccount.id,
@@ -3729,6 +4358,11 @@ async function handleCreateTransfer(req, res, action) {
 
 async function handleCreateCreditCardPurchase(req, res, action) {
   await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    ensureMutationConfirmed(
+      body,
+      "Confirme com o usuário antes de lançar uma compra no cartão."
+    );
+
     if (body.account_id !== undefined) {
       throw new ApiError(
         400,
@@ -3862,6 +4496,11 @@ async function handleCreateCreditCardPurchase(req, res, action) {
 
 async function handleCreateCreditCardInstallments(req, res, action) {
   await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    ensureMutationConfirmed(
+      body,
+      "Confirme com o usuário antes de lançar uma compra parcelada no cartão."
+    );
+
     if (body.account_id !== undefined) {
       throw new ApiError(
         400,

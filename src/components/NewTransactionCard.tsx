@@ -13,7 +13,7 @@ import { toastCompact } from "../services/toast";
 type PrazoMode = "com_prazo" | "sem_prazo" | null;
 
 type Props = {
- onboardingStep?: "loading" | "nome" | "conta" | "ok";
+ onboardingStep?: "loading" | "nome" | "conta" | "whatsapp" | "ok";
   openAddCreditCardModal: () => void;
     onOpenStatementImport?: () => void;
   // tipo

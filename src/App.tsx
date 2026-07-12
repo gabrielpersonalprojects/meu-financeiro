@@ -166,14 +166,21 @@ import {
 import SidebarShell, { type SidebarPanelKey } from "./components/layout/SidebarShell";
 
 import {
+  assertWhatsappAvailableForUser,
+  clearUserWhatsappOnboardingData,
   getUserFavoriteAccount,
   getUserHiddenAccounts,
   getUserAccountOrder,
   getUserContactInfo,
+  isWhatsappAlreadyLinkedError,
+  type OnboardingWhatsappStatus,
   setUserFavoriteAccount,
   setUserHiddenAccounts,
   setUserAccountOrder,
+  setOnboardingWhatsappStatus,
   setUserWhatsapp,
+  setUserWhatsappAndOnboardingStatus,
+  WHATSAPP_ALREADY_LINKED_MESSAGE,
 } from "./services/userAccess";
 
 import {
@@ -185,6 +192,11 @@ import StatementImportPreviewModal from "./components/import/StatementImportPrev
 import HelpTutorialContent from "./components/help/HelpTutorialContent";
 
 import { normalizeCreditTransactionCardRefs } from "./app/credit/logic/cardRefs";
+import {
+  formatWhatsappForDisplay,
+  isValidBrazilWhatsapp,
+  normalizeWhatsappForStorage,
+} from "./utils/whatsapp";
 
 import {
   buildInvoicePayment,
@@ -1366,6 +1378,10 @@ useEffect(() => {
 const [userWhatsapp, setUserWhatsappState] = useState("");
 const [settingsWhatsapp, setSettingsWhatsapp] = useState("");
 const [settingsWhatsappSaving, setSettingsWhatsappSaving] = useState(false);
+const [onboardingWhatsappStatus, setOnboardingWhatsappStatusState] =
+  useState<OnboardingWhatsappStatus | null>(null);
+const [onboardingWhatsapp, setOnboardingWhatsapp] = useState("");
+const [onboardingWhatsappSaving, setOnboardingWhatsappSaving] = useState(false);
 
 const [settingsNewEmail, setSettingsNewEmail] = useState("");
 const [settingsEmailSaving, setSettingsEmailSaving] = useState(false);
@@ -1406,31 +1422,114 @@ const handleSaveSettingsWhatsapp = async () => {
   if (settingsWhatsappSaving) return;
 
   const userId = String(session?.user?.id ?? "").trim();
-  const whatsapp = String(settingsWhatsapp ?? "").trim();
+  const whatsappRaw = String(settingsWhatsapp ?? "").trim();
+  const whatsapp = normalizeWhatsappForStorage(whatsappRaw);
 
   if (!userId) {
     toastCompact("Sessão inválida para salvar WhatsApp.", "error");
     return;
   }
 
+  if (!isValidBrazilWhatsapp(whatsappRaw)) {
+    toastCompact("Informe um WhatsApp válido com DDD.", "error");
+    return;
+  }
+
   setSettingsWhatsappSaving(true);
 
   try {
+    await assertWhatsappAvailableForUser(userId, whatsapp);
     await setUserWhatsapp(userId, whatsapp);
 
     setUserWhatsappState(whatsapp);
-    setSettingsWhatsapp(whatsapp);
+    setSettingsWhatsapp(formatWhatsappForDisplay(whatsapp));
     setSupportForm((prev) => ({
       ...prev,
-      whatsapp,
+      whatsapp: formatWhatsappForDisplay(whatsapp),
     }));
 
     toastCompact("WhatsApp atualizado com sucesso.", "success");
   } catch (err) {
     console.error("ERRO AO SALVAR WHATSAPP DO USUARIO:", err);
-    toastCompact("Não foi possível salvar o WhatsApp.", "error");
+    if (isWhatsappAlreadyLinkedError(err)) {
+      toastCompact(WHATSAPP_ALREADY_LINKED_MESSAGE, "error");
+    } else {
+      toastCompact("Não foi possível salvar o WhatsApp.", "error");
+    }
   } finally {
     setSettingsWhatsappSaving(false);
+  }
+};
+
+const handleSaveOnboardingWhatsapp = async () => {
+  if (onboardingWhatsappSaving) return;
+
+  const userId = String(session?.user?.id ?? "").trim();
+  const rawWhatsapp = String(onboardingWhatsapp ?? "").trim();
+
+  if (!userId) {
+    toastCompact("Sessão inválida para concluir onboarding.", "error");
+    return;
+  }
+
+  if (!isValidBrazilWhatsapp(rawWhatsapp)) {
+    toastCompact("Informe um WhatsApp válido com DDD.", "error");
+    return;
+  }
+
+  const whatsapp = normalizeWhatsappForStorage(rawWhatsapp);
+
+  setOnboardingWhatsappSaving(true);
+
+  try {
+    await assertWhatsappAvailableForUser(userId, whatsapp);
+    await setUserWhatsappAndOnboardingStatus(userId, whatsapp, "done");
+
+    setOnboardingWhatsappStatusState("done");
+    setUserWhatsappState(whatsapp);
+    setOnboardingWhatsapp(formatWhatsappForDisplay(whatsapp));
+    setSettingsWhatsapp(formatWhatsappForDisplay(whatsapp));
+    setSupportForm((prev) => ({
+      ...prev,
+      whatsapp: formatWhatsappForDisplay(whatsapp),
+    }));
+
+    toastCompact("Onboarding concluído com sucesso.", "success");
+    setOnboardingView("panel");
+  } catch (err) {
+    console.error("ERRO AO SALVAR WHATSAPP NO ONBOARDING:", err);
+    if (isWhatsappAlreadyLinkedError(err)) {
+      toastCompact(WHATSAPP_ALREADY_LINKED_MESSAGE, "error");
+    } else {
+      toastCompact("Não foi possível salvar o WhatsApp. Tente novamente.", "error");
+    }
+  } finally {
+    setOnboardingWhatsappSaving(false);
+  }
+};
+
+const handleSkipOnboardingWhatsapp = async () => {
+  if (onboardingWhatsappSaving) return;
+
+  const userId = String(session?.user?.id ?? "").trim();
+
+  if (!userId) {
+    toastCompact("Sessão inválida para concluir onboarding.", "error");
+    return;
+  }
+
+  setOnboardingWhatsappSaving(true);
+
+  try {
+    await setOnboardingWhatsappStatus(userId, "skipped");
+    setOnboardingWhatsappStatusState("skipped");
+    toastCompact("Onboarding concluído com sucesso.", "success");
+    setOnboardingView("panel");
+  } catch (err) {
+    console.error("ERRO AO PULAR ETAPA DE WHATSAPP:", err);
+    toastCompact("Não foi possível concluir agora. Tente novamente.", "error");
+  } finally {
+    setOnboardingWhatsappSaving(false);
   }
 };
 
@@ -1666,7 +1765,7 @@ if (arquivo && arquivo.size > 3 * 1024 * 1024) {
 setSupportForm({
   nome: "",
   email: String(session?.user?.email ?? "").trim(),
-  whatsapp: String(userWhatsapp ?? "").trim(),
+  whatsapp: formatWhatsappForDisplay(userWhatsapp),
   mensagem: "",
   arquivo: null,
 });
@@ -2002,12 +2101,15 @@ setTransacoes(appTransactionsFromDb as any);
     );
 
     const whatsappFromDb = String(userContactInfo?.whatsappNumber ?? "").trim();
+    const whatsappMasked = formatWhatsappForDisplay(whatsappFromDb);
 
 setUserWhatsappState(whatsappFromDb);
-setSettingsWhatsapp(whatsappFromDb);
+setSettingsWhatsapp(whatsappMasked);
+setOnboardingWhatsapp(whatsappMasked);
+setOnboardingWhatsappStatusState(userContactInfo?.onboardingWhatsappStatus ?? null);
 setSupportForm((prev) => ({
   ...prev,
-  whatsapp: whatsappFromDb,
+  whatsapp: whatsappMasked,
 }));
 
   } catch (err) {
@@ -2177,6 +2279,8 @@ setCategorias(CATEGORIAS_PADRAO);
 setCcTags([]);
 setUserWhatsappState("");
 setSettingsWhatsapp("");
+setOnboardingWhatsapp("");
+setOnboardingWhatsappStatusState(null);
 setSettingsNewEmail("");
 setSettingsAccessOpen(false);
 setSettingsPasswordOpen(false);
@@ -3647,6 +3751,25 @@ if (!session?.user?.id) {
 
 setIsSavingAccount(true);
 try {
+  const isOnboardingPrimeiraConta =
+    !editingProfileId &&
+    (profiles ?? []).length === 0 &&
+    String(confirmedDisplayName ?? "").trim().length > 0;
+
+  if (isOnboardingPrimeiraConta) {
+    try {
+      await setOnboardingWhatsappStatus(session.user.id, "pending");
+      setOnboardingWhatsappStatusState("pending");
+    } catch (pendingErr) {
+      console.error("ERRO AO PREPARAR ETAPA DE WHATSAPP:", pendingErr);
+      toastCompact(
+        "Não foi possível preparar a etapa de WhatsApp. Tente novamente.",
+        "error"
+      );
+      return;
+    }
+  }
+
   const novo = await createAccountAndReturnProfile({
     user_id: session.user.id,
     banco,
@@ -3660,6 +3783,9 @@ try {
 
   setProfiles((prev) => [...prev, novo as any]);
   setIsAddAccountOpen(false);
+  if (isOnboardingPrimeiraConta) {
+    setOnboardingView("panel");
+  }
   toastCompact("Conta adicionada.", "success");
 } catch (err) {
   console.error("ERRO AO CRIAR CONTA NO SUPABASE:", err);
@@ -5228,16 +5354,63 @@ const [ccNome, setCcNome] = useState("");
 const nomePreenchido = String(confirmedDisplayName ?? "").trim().length > 0;
 const temContas = Array.isArray(profiles) && profiles.length > 0;
 const contasCarregando = !accountsLoaded;
+const onboardingWhatsappPendente =
+  onboardingWhatsappStatus === "pending" && temContas;
 
 const onboardingStep = contasCarregando
   ? "loading"
+  : onboardingWhatsappPendente
+  ? "whatsapp"
   : !temContas
   ? !nomePreenchido
     ? "nome"
     : "conta"
   : "ok";
 
-const appBloqueado = !contasCarregando && !temContas;
+const appBloqueado = !contasCarregando && (!temContas || onboardingWhatsappPendente);
+
+type OnboardingView = "panel" | "nome" | "conta" | "whatsapp";
+
+const [onboardingView, setOnboardingView] = useState<OnboardingView>("panel");
+
+const onboardingNomeDone = nomePreenchido;
+const onboardingContaDone = temContas;
+const onboardingWhatsappDone =
+  onboardingWhatsappStatus === "done" || onboardingWhatsappStatus === "skipped";
+
+const onboardingNextRequiredStage: Exclude<OnboardingView, "panel"> | null =
+  onboardingStep === "nome"
+    ? "nome"
+    : onboardingStep === "conta"
+    ? "conta"
+    : onboardingStep === "whatsapp"
+    ? "whatsapp"
+    : null;
+
+const canOpenContaStage = onboardingNomeDone;
+const canOpenWhatsappStage = onboardingNomeDone && onboardingContaDone;
+
+const handleSaveOnboardingName = async () => {
+  const nome = String(displayName ?? "").trim();
+
+  if (!nome) {
+    toastCompact("Digite seu nome para continuar.", "info");
+    return;
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    data: { display_name: nome },
+  });
+
+  if (error) {
+    toastCompact("Erro ao salvar nome.", "error");
+    return;
+  }
+
+  setConfirmedDisplayName(nome);
+  setIsEditingDisplayName(false);
+  setOnboardingView("panel");
+};
 
 const [ccEmissor, setCcEmissor] = useState("");
 const [ccCategoria, setCcCategoria] = useState("");
@@ -5987,7 +6160,19 @@ const executarLimpezaTotal = async () => {
   setIsClearing(true);
 
   try {
-    // 1) limpa tabelas auxiliares primeiro
+    // 1) limpa dados de WhatsApp/onboarding do user_access
+    try {
+      await clearUserWhatsappOnboardingData(userId);
+    } catch (whatsappResetError) {
+      console.error("RESET WHATSAPP ERROR:", whatsappResetError);
+      toastCompact(
+        "Não foi possível limpar os dados de WhatsApp do onboarding.",
+        "error"
+      );
+      return;
+    }
+
+    // 2) limpa tabelas auxiliares primeiro
     const { error: errManual } = await supabase
       .from("invoice_manual_status")
       .delete()
@@ -6009,7 +6194,7 @@ const executarLimpezaTotal = async () => {
 
     if (errInstallments) throw errInstallments;
 
-    // 2) limpa transações
+    // 3) limpa transações
     const { error: errTransactions } = await supabase
       .from("transactions")
       .delete()
@@ -6017,7 +6202,7 @@ const executarLimpezaTotal = async () => {
 
     if (errTransactions) throw errTransactions;
 
-    // 3) limpa cartões
+    // 4) limpa cartões
     const { error: errCards } = await supabase
       .from("credit_cards")
       .delete()
@@ -6025,7 +6210,7 @@ const executarLimpezaTotal = async () => {
 
     if (errCards) throw errCards;
 
-    // 4) limpa contas
+    // 5) limpa contas
     const { error: errAccounts } = await supabase
       .from("accounts")
       .delete()
@@ -6033,7 +6218,7 @@ const executarLimpezaTotal = async () => {
 
     if (errAccounts) throw errAccounts;
 
-    // 5) limpa categorias customizadas
+    // 6) limpa categorias customizadas
     const { error: errCategories } = await supabase
       .from("user_categories")
       .delete()
@@ -6041,7 +6226,7 @@ const executarLimpezaTotal = async () => {
 
     if (errCategories) throw errCategories;
 
-    // 6) limpa tags customizadas
+    // 7) limpa tags customizadas
     const { error: errTags } = await supabase
       .from("user_tags")
       .delete()
@@ -6049,7 +6234,7 @@ const executarLimpezaTotal = async () => {
 
     if (errTags) throw errTags;
 
-    // 7) limpa display_name salvo no auth
+    // 8) limpa display_name salvo no auth
     const { error: errAuthUser } = await supabase.auth.updateUser({
       data: {
         ...session?.user?.user_metadata,
@@ -6059,10 +6244,10 @@ const executarLimpezaTotal = async () => {
 
     if (errAuthUser) throw errAuthUser;
 
-await setUserFavoriteAccount(userId, null);
-setFavoriteAccountId(null);
+  await setUserFavoriteAccount(userId, null);
+  setFavoriteAccountId(null);
 
-    // 8) limpa estados em memória
+  // 9) limpa estados em memória
     setTransacoes([]);
     setPagamentosFatura([]);
     setParcelamentosFatura([]);
@@ -6076,13 +6261,22 @@ setFavoriteAccountId(null);
     setDisplayName("");
     setConfirmedDisplayName("");
     setIsEditingDisplayName(true);
+    setUserWhatsappState("");
+    setSettingsWhatsapp("");
+    setOnboardingWhatsapp("");
+    setOnboardingWhatsappStatusState(null);
+    setOnboardingView("panel");
+    setSupportForm((prev) => ({
+      ...prev,
+      whatsapp: "",
+    }));
 
     setSelectedCreditCardId("");
     setActiveProfileId("");
     setEditingTransaction(null);
     setDeletingTransaction(null);
 
-    // 9) limpa storage local
+    // 10) limpa storage local
     const storagePrefixes = ["meu-financeiro", "fluxmoney", "mf_"];
 
     for (const key of Object.keys(localStorage)) {
@@ -6105,9 +6299,6 @@ setFavoriteAccountId(null);
     localStorage.removeItem("meu-financeiro-tags");
 
     toastCompact("Dados apagados com sucesso.", "success");
-
-    // reload limpo
-    window.location.href = window.location.origin + window.location.pathname;
   } catch (e) {
     console.error("RESET ERROR:", e);
     toastCompact("Erro ao limpar os dados do app.", "error");
@@ -11688,97 +11879,168 @@ return (
           <h2 className="mt-4 text-[34px] font-bold leading-[1.02] tracking-[-0.04em] text-slate-900 dark:text-white md:text-[40px]">
             {onboardingStep === "nome"
               ? "Bem-vindo ao FluxMoney"
-              : "Agora vamos criar sua primeira conta"}
+              : onboardingStep === "conta"
+              ? "Agora vamos criar sua primeira conta"
+              : "Conecte seu WhatsApp"}
           </h2>
 
           <p className="mt-4 max-w-[470px] text-[14px] leading-7 text-slate-600 dark:text-slate-300">
             {onboardingStep === "nome"
               ? "Antes de começar, confirme como você quer ser chamado. Depois disso, vamos criar sua primeira conta para liberar os lançamentos e o restante do app."
-              : "Perfeito. Agora cadastre sua primeira conta para liberar os lançamentos e continuar usando o FluxMoney."}
+              : onboardingStep === "conta"
+              ? "Perfeito. Agora cadastre sua primeira conta para liberar os lançamentos e continuar usando o FluxMoney."
+              : "Informe o número que você usará para conversar com o assistente financeiro do FluxMoney. Você poderá cadastrar ou alterar esse número depois nas configurações."}
           </p>
         </div>
 
         <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#40009c] text-lg text-white shadow-sm">
-          {onboardingStep === "nome" ? "👋" : "🏦"}
+          {onboardingStep === "nome"
+            ? "👋"
+            : onboardingStep === "conta"
+            ? "🏦"
+            : "📱"}
         </div>
       </div>
 
-{onboardingStep === "nome" && (
-  <>
-    <div className="mt-6 grid gap-3 md:grid-cols-2">
-      <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-slate-900">
+{onboardingView === "panel" && (
+  <div className="mt-6 grid gap-3 md:grid-cols-3">
+    <button
+      type="button"
+      onClick={() => setOnboardingView("nome")}
+      className={`group relative rounded-[20px] border px-4 py-4 text-left transition ${
+        onboardingNomeDone
+          ? "border-emerald-200/80 bg-emerald-50/70 dark:border-emerald-400/20 dark:bg-emerald-500/10"
+          : onboardingNextRequiredStage === "nome"
+          ? "border-violet-300 bg-violet-50/70 shadow-[0_8px_28px_rgba(64,0,156,0.14)] dark:border-violet-300/40 dark:bg-violet-500/10 motion-safe:animate-pulse motion-reduce:animate-none"
+          : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-[14px] font-semibold text-slate-900 dark:text-white">1. Defina seu nome</h3>
+        {onboardingNomeDone && (
+          <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-emerald-500/15 px-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+            ✓
+          </span>
+        )}
+      </div>
+      <p className="mt-1.5 text-[13px] leading-6 text-slate-500 dark:text-slate-400">
+        Escolha como o FluxMoney deve te chamar dentro do app.
+      </p>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        if (!canOpenContaStage) return;
+        setOnboardingView("conta");
+      }}
+      disabled={!canOpenContaStage}
+      className={`group relative rounded-[20px] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-70 ${
+        onboardingContaDone
+          ? "border-emerald-200/80 bg-emerald-50/70 dark:border-emerald-400/20 dark:bg-emerald-500/10"
+          : onboardingNextRequiredStage === "conta"
+          ? "border-violet-300 bg-violet-50/70 shadow-[0_8px_28px_rgba(64,0,156,0.14)] dark:border-violet-300/40 dark:bg-violet-500/10 motion-safe:animate-pulse motion-reduce:animate-none"
+          : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-[14px] font-semibold text-slate-900 dark:text-white">2. Cadastre sua primeira conta</h3>
+        {onboardingContaDone && (
+          <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-emerald-500/15 px-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+            ✓
+          </span>
+        )}
+      </div>
+      <p className="mt-1.5 text-[13px] leading-6 text-slate-500 dark:text-slate-400">
+        Depois disso, seus lançamentos e demais áreas ficam liberados.
+      </p>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        if (!canOpenWhatsappStage) return;
+        setOnboardingView("whatsapp");
+      }}
+      disabled={!canOpenWhatsappStage}
+      className={`group relative rounded-[20px] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-70 ${
+        onboardingWhatsappDone
+          ? "border-emerald-200/80 bg-emerald-50/70 dark:border-emerald-400/20 dark:bg-emerald-500/10"
+          : onboardingNextRequiredStage === "whatsapp"
+          ? "border-violet-300 bg-violet-50/70 shadow-[0_8px_28px_rgba(64,0,156,0.14)] dark:border-violet-300/40 dark:bg-violet-500/10 motion-safe:animate-pulse motion-reduce:animate-none"
+          : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
         <h3 className="text-[14px] font-semibold text-slate-900 dark:text-white">
-          1. Defina seu nome
+          3. Conecte seu WhatsApp (opcional)
         </h3>
-        <p className="mt-1.5 text-[13px] leading-6 text-slate-500 dark:text-slate-400">
-          Escolha como o FluxMoney deve te chamar dentro do app.
-        </p>
+        {onboardingWhatsappDone && (
+          <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-emerald-500/15 px-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+            ✓
+          </span>
+        )}
+      </div>
+      <p className="mt-1.5 text-[13px] leading-6 text-slate-500 dark:text-slate-400">
+        Você pode salvar agora ou fazer isso depois nas configurações.
+      </p>
+    </button>
+  </div>
+)}
+
+{onboardingView === "nome" && (
+  <div className="mt-6">
+    <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-slate-900">
+      <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white">Defina seu nome</h3>
+
+      <p className="mt-2 max-w-[500px] text-[13px] leading-6 text-slate-500 dark:text-slate-400">
+        Antes de continuar, confirme como você quer ser chamado dentro do FluxMoney.
+      </p>
+
+      <div className="mt-4">
+        <label className="block text-[14px] font-semibold text-slate-700 dark:text-slate-200">
+          Como você quer ser chamado?
+        </label>
+
+        <input
+          type="text"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Digite seu nome"
+          className="mt-3 h-[48px] w-full max-w-[280px] rounded-2xl border border-violet-200 bg-white px-4 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#40009c] focus:ring-4 focus:ring-[#40009c]/10 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
+        />
       </div>
 
-      <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-slate-900">
-        <h3 className="text-[14px] font-semibold text-slate-900 dark:text-white">
-          2. Cadastre sua primeira conta
-        </h3>
-        <p className="mt-1.5 text-[13px] leading-6 text-slate-500 dark:text-slate-400">
-          Depois disso, seus lançamentos e demais áreas ficam liberados.
-        </p>
-      </div>
-    </div>
-
-    <div className="mt-6">
-      <label className="block text-[14px] font-semibold text-slate-700 dark:text-slate-200">
-        Como você quer ser chamado?
-      </label>
-
-      <input
-        type="text"
-        value={displayName}
-        onChange={(e) => setDisplayName(e.target.value)}
-        placeholder="Digite seu nome"
-        className="mt-3 h-[48px] w-full max-w-[280px] rounded-2xl border border-violet-200 bg-white px-4 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#40009c] focus:ring-4 focus:ring-[#40009c]/10 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
-      />
-
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mt-5 flex flex-wrap items-center justify-start gap-2.5">
         <button
           type="button"
-          onClick={async () => {
-            const nome = String(displayName ?? "").trim();
-
-            if (!nome) {
-              toastCompact("Digite seu nome para continuar.", "info");
-              return;
-            }
-
-            const { error } = await supabase.auth.updateUser({
-              data: { display_name: nome },
-            });
-
-            if (error) {
-              toastCompact("Erro ao salvar nome.", "error");
-              return;
-            }
-
-            setConfirmedDisplayName(nome);
-            setIsEditingDisplayName(false);
-          }}
-          className="inline-flex h-10 items-center justify-center rounded-2xl bg-[#40009c] px-4 text-sm font-semibold text-white transition hover:brightness-110"
+          onClick={handleSaveOnboardingName}
+          className="inline-flex h-9 min-w-[148px] items-center justify-center rounded-2xl bg-[#40009c] px-3.5 text-[13px] font-semibold text-white transition hover:brightness-110 sm:min-w-[156px]"
         >
           Salvar nome
         </button>
 
-<button
-  type="button"
-  onClick={handleOnboardingLater}
-          className="inline-flex h-10 items-center justify-center rounded-2xl px-2 text-sm font-medium text-slate-400 transition hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+        <button
+          type="button"
+          onClick={() => setOnboardingView("panel")}
+          className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+        >
+          Voltar para etapas
+        </button>
+
+        <button
+          type="button"
+          onClick={handleOnboardingLater}
+          className="inline-flex h-8 min-w-[148px] items-center justify-center rounded-2xl px-3 text-[13px] font-medium text-slate-400 transition hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 sm:min-w-[156px]"
         >
           Cadastrar mais tarde
         </button>
       </div>
     </div>
-  </>
+  </div>
 )}
 
-{onboardingStep === "conta" && (
+{onboardingView === "conta" && (
   <div className="mt-6">
     <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-slate-900">
       <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white">
@@ -11792,30 +12054,6 @@ return (
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
         <button
           type="button"
-          onClick={async () => {
-            const nomeAtual = String(confirmedDisplayName ?? displayName ?? "").trim();
-
-            setDisplayName(nomeAtual);
-            setConfirmedDisplayName("");
-            setIsEditingDisplayName(true);
-
-            const { error } = await supabase.auth.updateUser({
-              data: { display_name: "" },
-            });
-
-            if (error) {
-              toastCompact("Não foi possível voltar para editar o nome.", "error");
-              return;
-            }
-
-          }}
-          className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
-        >
-          Voltar e editar nome
-        </button>
-
-        <button
-          type="button"
           onClick={() => {
             openAddAccountModal();
           }}
@@ -11823,15 +12061,64 @@ return (
         >
           Cadastrar primeira conta
         </button>
+
+        <button
+          type="button"
+          onClick={() => setOnboardingView("panel")}
+          className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+        >
+          Voltar para etapas
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{onboardingView === "whatsapp" && (
+  <div className="mt-6">
+    <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-slate-900">
+      <div className="mt-4">
+        <label className="block text-[14px] font-semibold text-slate-700 dark:text-slate-200">
+          WhatsApp com DDD
+        </label>
+
+        <input
+          type="tel"
+          value={onboardingWhatsapp}
+          onChange={(e) =>
+            setOnboardingWhatsapp(formatWhatsappForDisplay(e.target.value))
+          }
+          placeholder="(41) 99999-9999"
+          className="mt-3 h-[48px] w-full max-w-[280px] rounded-2xl border border-violet-200 bg-white px-4 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#40009c] focus:ring-4 focus:ring-[#40009c]/10 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
+        />
       </div>
 
-      <div className="mt-5 border-t border-slate-200 pt-4 dark:border-white/10">
-<button
-  type="button"
-  onClick={handleOnboardingLater}
-          className="inline-flex h-9 items-center justify-center rounded-xl px-1 text-[13px] font-medium text-slate-400 transition hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          onClick={handleSaveOnboardingWhatsapp}
+          disabled={onboardingWhatsappSaving}
+          className="inline-flex h-10 items-center justify-center rounded-2xl bg-[#40009c] px-4 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Cadastrar mais tarde
+          {onboardingWhatsappSaving ? "Salvando..." : "Salvar e começar"}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleSkipOnboardingWhatsapp}
+          disabled={onboardingWhatsappSaving}
+          className="inline-flex h-10 items-center justify-center rounded-2xl px-2 text-sm font-medium text-slate-400 transition hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-500 dark:hover:text-slate-300"
+        >
+          Fazer isso depois
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setOnboardingView("panel")}
+          disabled={onboardingWhatsappSaving}
+          className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+        >
+          Voltar para etapas
         </button>
       </div>
     </div>
@@ -14239,7 +14526,7 @@ stats={stats}
         </p>
         <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
           {String(userWhatsapp ?? "").trim()
-            ? String(userWhatsapp ?? "").trim()
+            ? formatWhatsappForDisplay(userWhatsapp)
             : "Cadastrar ou alterar número"}
         </p>
       </div>
@@ -14263,7 +14550,9 @@ stats={stats}
           <input
             type="tel"
             value={settingsWhatsapp}
-            onChange={(e) => setSettingsWhatsapp(e.target.value)}
+            onChange={(e) =>
+              setSettingsWhatsapp(formatWhatsappForDisplay(e.target.value))
+            }
             placeholder="(00) 00000-0000"
             className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-900 outline-none transition focus:border-[#40009c] focus:ring-4 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-100 dark:focus:ring-violet-950/40"
           />

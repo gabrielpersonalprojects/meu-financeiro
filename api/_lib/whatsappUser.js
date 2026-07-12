@@ -1,7 +1,49 @@
 const { ApiError } = require("./http");
 
+const BRAZIL_COUNTRY_CODE = "55";
+
+function onlyDigits(value) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function getBrazilLocalDigits(digits) {
+  if (digits.startsWith(BRAZIL_COUNTRY_CODE) && (digits.length === 12 || digits.length === 13)) {
+    return digits.slice(2);
+  }
+
+  if (digits.length === 10 || digits.length === 11) {
+    return digits;
+  }
+
+  return "";
+}
+
+function toCanonicalBrazilPhone(value) {
+  const digits = onlyDigits(value);
+  const localDigits = getBrazilLocalDigits(digits);
+
+  if (!localDigits) return digits;
+
+  return `${BRAZIL_COUNTRY_CODE}${localDigits}`;
+}
+
+function toEquivalentDigits(value) {
+  const digits = onlyDigits(value);
+  if (!digits) return [];
+
+  const variants = new Set([digits]);
+  const localDigits = getBrazilLocalDigits(digits);
+
+  if (localDigits) {
+    variants.add(localDigits);
+    variants.add(`${BRAZIL_COUNTRY_CODE}${localDigits}`);
+  }
+
+  return Array.from(variants);
+}
+
 function normalizeWhatsappPhone(phone) {
-  const digits = String(phone ?? "").replace(/\D/g, "");
+  const digits = onlyDigits(phone);
 
   if (!digits || digits.length < 10 || digits.length > 15) {
     throw new ApiError(
@@ -11,15 +53,16 @@ function normalizeWhatsappPhone(phone) {
     );
   }
 
-  return digits;
+  return toCanonicalBrazilPhone(digits);
 }
 
 function normalizeStoredPhone(phone) {
-  return String(phone ?? "").replace(/\D/g, "");
+  return onlyDigits(phone);
 }
 
 async function resolveWhatsappUser(supabase, whatsappPhone) {
   const normalizedPhone = normalizeWhatsappPhone(whatsappPhone);
+  const inputVariants = new Set(toEquivalentDigits(normalizedPhone));
 
   const { data, error } = await supabase
     .from("user_access")
@@ -29,7 +72,13 @@ async function resolveWhatsappUser(supabase, whatsappPhone) {
   if (error) throw error;
 
   const matches = (data ?? []).filter(
-    (row) => normalizeStoredPhone(row?.whatsapp_number) === normalizedPhone
+    (row) => {
+      const storedPhone = normalizeStoredPhone(row?.whatsapp_number);
+      if (!storedPhone) return false;
+
+      const storedVariants = toEquivalentDigits(storedPhone);
+      return storedVariants.some((item) => inputVariants.has(item));
+    }
   );
 
   if (matches.length === 0) {

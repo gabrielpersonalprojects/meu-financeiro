@@ -47,6 +47,9 @@ Regras obrigatorias:
 - O token deve ficar apenas no backend/configuracao segura da Nimble.
 - O token nao deve aparecer em prompt, mensagem ao usuario final, log publico ou documento operacional aberto.
 - A Nimble deve sempre enviar `whatsapp_phone`.
+- Formato canonico recomendado para `whatsapp_phone`: `55 + DDD + numero`, somente digitos.
+  Exemplo: `5541999999999`.
+- Compatibilidade legada: a API ainda trata numeros equivalentes com e sem prefixo `55`.
 - A API resolve o usuario internamente por `user_access.whatsapp_number`.
 - A Nimble nunca deve enviar `user_id`.
 - Se `user_id` vier em query ou body, a API rejeita com `USER_ID_NOT_ACCEPTED`.
@@ -55,6 +58,12 @@ Regras obrigatorias:
 - POSTs sao mutacoes sensiveis e exigem idempotencia.
 
 ## 3. Headers Padrao
+
+## 3.1 Formato do whatsapp_phone
+
+- Canonico: `55 + DDD + numero`, somente digitos.
+- Exemplo canonico: `5541999999999`.
+- A API aceita temporariamente equivalencia com numeros legados sem `55` para nao quebrar cadastros anteriores.
 
 ### GET
 
@@ -156,7 +165,7 @@ Retorna:
 ### URL
 
 ```text
-GET /api/v1/whatsapp?action=context&whatsapp_phone=41991029434
+GET /api/v1/whatsapp?action=context&whatsapp_phone=5541991029434
 ```
 
 ### PowerShell
@@ -168,14 +177,14 @@ $headers = @{
 
 Invoke-RestMethod `
   -Method GET `
-  -Uri "https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=context&whatsapp_phone=41991029434" `
+  -Uri "https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=context&whatsapp_phone=5541991029434" `
   -Headers $headers
 ```
 
 ### cURL
 
 ```bash
-curl -X GET "https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=context&whatsapp_phone=41991029434" \
+curl -X GET "https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=context&whatsapp_phone=5541991029434" \
   -H "Authorization: Bearer <SUPPLIER_API_TOKEN>"
 ```
 
@@ -186,7 +195,7 @@ curl -X GET "https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=context&what
   "ok": true,
   "user": {
     "user_id": "...",
-    "whatsapp_phone_normalized": "41991029434"
+    "whatsapp_phone_normalized": "5541991029434"
   },
   "accounts": [
     {

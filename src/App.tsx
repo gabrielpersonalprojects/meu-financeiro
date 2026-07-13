@@ -168,6 +168,7 @@ import SidebarShell, { type SidebarPanelKey } from "./components/layout/SidebarS
 import {
   assertWhatsappAvailableForUser,
   clearUserWhatsappOnboardingData,
+  clearUserWhatsappFromSettings,
   getUserFavoriteAccount,
   getUserHiddenAccounts,
   getUserAccountOrder,
@@ -1423,10 +1424,55 @@ const handleSaveSettingsWhatsapp = async () => {
 
   const userId = String(session?.user?.id ?? "").trim();
   const whatsappRaw = String(settingsWhatsapp ?? "").trim();
+  const hasCurrentWhatsapp = String(userWhatsapp ?? "").trim().length > 0;
   const whatsapp = normalizeWhatsappForStorage(whatsappRaw);
 
   if (!userId) {
     toastCompact("Sessão inválida para salvar WhatsApp.", "error");
+    return;
+  }
+
+  if (!whatsappRaw) {
+    if (!hasCurrentWhatsapp) {
+      toastCompact("Não há WhatsApp vinculado para remover.", "info");
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Remover WhatsApp",
+      message:
+        "Tem certeza que deseja remover o WhatsApp vinculado a esta conta? Você poderá cadastrar outro número depois.",
+      confirmText: "Remover",
+      cancelText: "Cancelar",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      setSettingsWhatsapp(formatWhatsappForDisplay(userWhatsapp));
+      return;
+    }
+
+    setSettingsWhatsappSaving(true);
+
+    try {
+      await clearUserWhatsappFromSettings(userId);
+
+      setUserWhatsappState("");
+      setSettingsWhatsapp("");
+      setSupportForm((prev) => ({
+        ...prev,
+        whatsapp: "",
+      }));
+
+      toastCompact("WhatsApp removido com sucesso.", "success");
+    } catch (err) {
+      console.error("ERRO AO REMOVER WHATSAPP DO USUARIO:", err);
+      toastCompact("Não foi possível remover o WhatsApp.", "error");
+      setSettingsWhatsapp(formatWhatsappForDisplay(userWhatsapp));
+    } finally {
+      setSettingsWhatsappSaving(false);
+    }
+
     return;
   }
 
@@ -6048,6 +6094,45 @@ const [ccIsParceladoMode, setCcIsParceladoMode] = useState<boolean | null>(null)
 
   const isReceitaOuDespesa = formTipo === "receita" || formTipo === "despesa";
 
+const getLaunchContextAccountId = () => {
+  const selectedAccountId = normalizeFiltroContaValue(filtroConta);
+
+  if (!selectedAccountId || selectedAccountId === "todas") {
+    return "";
+  }
+
+  const accountExists = (profiles ?? []).some(
+    (profile: any) => String(profile?.id ?? "").trim() === selectedAccountId
+  );
+
+  if (!accountExists) {
+    return "";
+  }
+
+  if (hiddenAccountIdsSet.has(selectedAccountId)) {
+    return "";
+  }
+
+  return selectedAccountId;
+};
+
+const syncLaunchAccountFromContext = (
+  tipo: "despesa" | "receita" | "transferencia"
+) => {
+  const contextAccountId = getLaunchContextAccountId();
+
+  if (!contextAccountId) {
+    return;
+  }
+
+  if (tipo === "transferencia") {
+    setFormContaOrigem(contextAccountId);
+    return;
+  }
+
+  setFormQualCartao(contextAccountId);
+};
+
 useEffect(() => {
   setFormCat("");
   setPrazoMode(null);
@@ -6066,8 +6151,13 @@ useEffect(() => {
   }
 
   if (formTipo === "transferencia") {
-    setFormContaOrigem(activeProfileId);
+    const contextAccountId = getLaunchContextAccountId();
+    setFormContaOrigem(contextAccountId || activeProfileId);
     setFormContaDestino("");
+  }
+
+  if (formTipo === "despesa" || formTipo === "receita") {
+    syncLaunchAccountFromContext(formTipo);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [formTipo]);
@@ -10786,16 +10876,19 @@ if (panel === "settings") {
 }
 
   if (panel === "despesa") {
+    syncLaunchAccountFromContext("despesa");
     setFormTipo("despesa");
     return;
   }
 
   if (panel === "receita") {
+    syncLaunchAccountFromContext("receita");
     setFormTipo("receita");
     return;
   }
 
   if (panel === "transferencia") {
+    syncLaunchAccountFromContext("transferencia");
     setFormTipo("transferencia");
     return;
   }
@@ -14240,15 +14333,15 @@ stats={stats}
     </div>
   </div>
       {settingsOpen && (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-[90] bg-slate-900/60 backdrop-blur-sm"
-            onClick={() => setSettingsOpen(false)}
-            aria-label="Fechar configurações"
-          />
-          <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
-<div className="max-h-[88vh] w-full max-w-xl overflow-y-auto bg-white/90 dark:bg-slate-900/85 rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200/70 dark:border-slate-700/60 backdrop-blur">              <div className="flex items-center justify-between mb-6">
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setSettingsOpen(false);
+            }
+          }}
+        >
+<div className="flux-help-modal-scroll max-h-[88vh] w-full max-w-xl overflow-y-auto bg-white/90 dark:bg-slate-900/85 rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200/70 dark:border-slate-700/60 backdrop-blur">              <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white">Configurações</h3>
                 <button
                   type="button"
@@ -14594,7 +14687,6 @@ stats={stats}
               </div>
             </div>
           </div>
-        </>
       )}
 
             {/* RESET APP MODAL (digitado) */}

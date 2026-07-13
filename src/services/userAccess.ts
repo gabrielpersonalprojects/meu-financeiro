@@ -297,6 +297,62 @@ export async function clearUserWhatsappOnboardingData(userId: string) {
   }
 }
 
+export async function clearUserWhatsappFromSettings(userId: string) {
+  const cleanUserId = String(userId ?? "").trim();
+
+  if (!cleanUserId) {
+    throw new Error("Usuário inválido para remover WhatsApp.");
+  }
+
+  const { data: updatedRows, error: updateError } = await supabase
+    .from("user_access")
+    .update({
+      whatsapp_number: null,
+      whatsapp_number_normalized: null,
+      whatsapp_updated_at: null,
+    })
+    .eq("user_id", cleanUserId)
+    .select(
+      "user_id, whatsapp_number, whatsapp_number_normalized, whatsapp_updated_at"
+    );
+
+  const updatedCount = Array.isArray(updatedRows) ? updatedRows.length : 0;
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  if (updatedCount !== 1) {
+    throw new Error(
+      `Remoção de WhatsApp não atualizou 1 linha em user_access (linhas afetadas: ${updatedCount}).`
+    );
+  }
+
+  const { data: confirmationRow, error: confirmationError } = await supabase
+    .from("user_access")
+    .select("whatsapp_number, whatsapp_number_normalized, whatsapp_updated_at")
+    .eq("user_id", cleanUserId)
+    .maybeSingle();
+
+  if (confirmationError) {
+    throw confirmationError;
+  }
+
+  if (!confirmationRow) {
+    throw new Error("Linha de user_access não encontrada após remover WhatsApp.");
+  }
+
+  const hasWhatsappNumber =
+    String(confirmationRow?.whatsapp_number ?? "").trim().length > 0;
+  const hasWhatsappNumberNormalized =
+    String(confirmationRow?.whatsapp_number_normalized ?? "").trim().length > 0;
+  const hasWhatsappUpdatedAt = !!confirmationRow?.whatsapp_updated_at;
+
+  if (hasWhatsappNumber || hasWhatsappNumberNormalized || hasWhatsappUpdatedAt) {
+    throw new Error("A remoção de WhatsApp não foi confirmada no banco.");
+  }
+}
+
 export async function assertWhatsappAvailableForUser(
   userId: string,
   whatsappNumber: string

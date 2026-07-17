@@ -108,6 +108,13 @@ import { useTransacoesFiltradasMes } from "./app/transactions/useTransacoesFiltr
 import { useStatsMes } from "./app/transactions/useStatsMes";
 import { useProjection12Months } from "./app/transactions/useProjection12Months";
 import { togglePagoById, applyEditToTransactions } from "./app/transactions/useTransactionActions";
+import {
+  buildSemPrazoAlerts,
+  buildSemPrazoRenewalWindow,
+  getRecurrenceIdFromTransaction,
+  isSemPrazoRecurrenceTransaction,
+  type SemPrazoAlertItem,
+} from "./app/transactions/semPrazoAlerts";
 import CustomDropdown from "./components/CustomDropdown";
 import CustomDateInput from "./components/CustomDateInput";
 import { useCallback } from "react";
@@ -2782,16 +2789,11 @@ const handleDispensarRecorrenciaEncerrada = async (recorrenciaId: string) => {
 
   try {
     const relacionadas = (transacoes ?? []).filter((tx: any) => {
-      const payload = (tx as any)?.payload ?? tx ?? {};
-      const recurrenceIdTx = String(
-        (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
-      ).trim();
-
-      const meta = getSemPrazoMetaFromPayload(payload);
+      const recurrenceIdTx = getRecurrenceIdFromTransaction(tx);
 
       return (
         recurrenceIdTx === recurrenceIdSafe &&
-        meta.recurrenceKind === "sem_prazo"
+        isSemPrazoRecurrenceTransaction(tx)
       );
     });
 
@@ -2824,15 +2826,11 @@ const handleDispensarRecorrenciaEncerrada = async (recorrenciaId: string) => {
     setTransacoes((prev) =>
       (prev ?? []).map((tx: any) => {
         const payload = (tx as any)?.payload ?? tx ?? {};
-        const recurrenceIdTx = String(
-          (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
-        ).trim();
-
-        const meta = getSemPrazoMetaFromPayload(payload);
+        const recurrenceIdTx = getRecurrenceIdFromTransaction(tx);
 
         if (
           recurrenceIdTx !== recurrenceIdSafe ||
-          meta.recurrenceKind !== "sem_prazo"
+          !isSemPrazoRecurrenceTransaction(tx)
         ) {
           return tx;
         }
@@ -2874,16 +2872,11 @@ const handleCancelarRenovacaoSemPrazo = async (recorrenciaId: string) => {
 
   try {
     const relacionadas = (transacoes ?? []).filter((tx: any) => {
-      const payload = (tx as any)?.payload ?? tx ?? {};
-      const recurrenceIdTx = String(
-        (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
-      ).trim();
-
-      const meta = getSemPrazoMetaFromPayload(payload);
+      const recurrenceIdTx = getRecurrenceIdFromTransaction(tx);
 
       return (
         recurrenceIdTx === recurrenceIdSafe &&
-        meta.recurrenceKind === "sem_prazo"
+        isSemPrazoRecurrenceTransaction(tx)
       );
     });
 
@@ -2917,15 +2910,11 @@ const handleCancelarRenovacaoSemPrazo = async (recorrenciaId: string) => {
     setTransacoes((prev) =>
       (prev ?? []).map((tx: any) => {
         const payload = (tx as any)?.payload ?? tx ?? {};
-        const recurrenceIdTx = String(
-          (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
-        ).trim();
-
-        const meta = getSemPrazoMetaFromPayload(payload);
+        const recurrenceIdTx = getRecurrenceIdFromTransaction(tx);
 
         if (
           recurrenceIdTx !== recurrenceIdSafe ||
-          meta.recurrenceKind !== "sem_prazo"
+          !isSemPrazoRecurrenceTransaction(tx)
         ) {
           return tx;
         }
@@ -2968,16 +2957,11 @@ const handleRenovarRecorrenciaSemPrazo = async (recorrenciaId: string) => {
 
   try {
     const relacionadas = (transacoes ?? []).filter((tx: any) => {
-      const payload = (tx as any)?.payload ?? tx ?? {};
-      const recurrenceIdTx = String(
-        (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
-      ).trim();
-
-      const meta = getSemPrazoMetaFromPayload(payload);
+      const recurrenceIdTx = getRecurrenceIdFromTransaction(tx);
 
       return (
         recurrenceIdTx === recurrenceIdSafe &&
-        meta.recurrenceKind === "sem_prazo"
+        isSemPrazoRecurrenceTransaction(tx)
       );
     });
 
@@ -3007,19 +2991,15 @@ const handleRenovarRecorrenciaSemPrazo = async (recorrenciaId: string) => {
     const payloadUltima = (ultima as any)?.payload ?? {};
     const metaUltima = getSemPrazoMetaFromPayload(payloadUltima);
 
-    const datasExistentes = new Set(
-      relacionadas
-        .map((tx: any) => String((tx as any)?.data ?? "").trim())
-        .filter((value: string) => isIsoDate(value))
-    );
-
     const novasTransacoes: any[] = [];
 
-    const novoWindowStart = addMonthsToIsoDate(ultimaData, 1);
-    const novoWindowEnd = addMonthsToIsoDate(
-      ultimaData,
-      SEM_PRAZO_MESES
-    );
+    const renewalWindow = buildSemPrazoRenewalWindow({
+      relatedTransactions: relacionadas,
+      months: SEM_PRAZO_MESES,
+    });
+
+    const novoWindowStart = renewalWindow.windowStart;
+    const novoWindowEnd = renewalWindow.windowEnd;
 
     if (!isIsoDate(novoWindowStart) || !isIsoDate(novoWindowEnd)) {
       toastCompact("Não foi possível calcular a nova janela.", "error");
@@ -3028,10 +3008,8 @@ const handleRenovarRecorrenciaSemPrazo = async (recorrenciaId: string) => {
 
     const renewedAt = new Date().toISOString();
 
-    for (let i = 1; i <= SEM_PRAZO_MESES; i++) {
-      const novaData = addMonthsToIsoDate(ultimaData, i);
-      if (!isIsoDate(novaData)) continue;
-      if (datasExistentes.has(novaData)) continue;
+    renewalWindow.datesToCreate.forEach((novaData: string, index: number) => {
+      const i = index + 1;
 
       novasTransacoes.push({
         ...ultima,
@@ -3086,7 +3064,7 @@ const handleRenovarRecorrenciaSemPrazo = async (recorrenciaId: string) => {
           recurrenceLastActionAt: renewedAt,
         }),
       });
-    }
+    });
 
     if (!novasTransacoes.length) {
       toastCompact("Essa recorrência já foi renovada.", "info");
@@ -3140,15 +3118,11 @@ try {
     setTransacoes((prev) => {
       const atualizadas = (prev ?? []).map((tx: any) => {
         const payload = (tx as any)?.payload ?? tx ?? {};
-        const recurrenceIdTx = String(
-          (tx as any)?.recorrenciaId ?? payload?.recorrenciaId ?? ""
-        ).trim();
-
-        const meta = getSemPrazoMetaFromPayload(payload);
+        const recurrenceIdTx = getRecurrenceIdFromTransaction(tx);
 
         if (
           recurrenceIdTx !== recurrenceIdSafe ||
-          meta.recurrenceKind !== "sem_prazo"
+          !isSemPrazoRecurrenceTransaction(tx)
         ) {
           return tx;
         }
@@ -4103,6 +4077,7 @@ const [showProfileMenu, setShowProfileMenu] = useState(false);
   // --- Edit/Delete ---
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [isSavingEditingTransaction, setIsSavingEditingTransaction] = useState(false);
   const [editValueInput, setEditValueInput] = useState("");
   const [editDescInput, setEditDescInput] = useState("");
   const [applyToAllRelated, setApplyToAllRelated] = useState(false);
@@ -4555,19 +4530,19 @@ const cardsResumoCartoesOptions = useMemo(() => {
   return [
     { value: "todos", label: "Todos os cartões" },
     ...(activeCreditCards ?? []).map((card: any) => {
-      const nome = String(
+      const instituicao = String(
         card?.emissor ??
-          card?.name ??
           card?.bankText ??
-          card?.categoria ??
+          card?.issuer ??
           "Cartão"
       ).trim();
 
-      const categoria = String(card?.categoria ?? "").trim();
+      const perfil =
+        String(card?.perfil ?? "").trim().toLowerCase() === "pj" ? "PJ" : "PF";
 
       return {
         value: String(card?.id ?? "").trim(),
-        label: categoria ? `${nome} ${categoria}` : nome,
+        label: `${instituicao}\u00A0·\u00A0${perfil}`,
       };
     }),
   ];
@@ -7002,115 +6977,68 @@ const projection12Months = useProjection12Months({
   mode: projectionMode,
 });
 
-type SemPrazoAlertItem = {
-  recorrenciaId: string;
-  descricao: string;
-  valor: number;
-  ultimaData: string;
-  diasRestantes: number;
-  kind: "acao" | "encerrada";
-  recurrenceRenewalDecision: SemPrazoDecision;
-  recurrenceDismissedAt?: string;
-  recurrenceCanceledAt?: string;
-};
-
 const semPrazoAlerts = useMemo<SemPrazoAlertItem[]>(() => {
-  const grupos = new Map<string, Transaction[]>();
+  const resolveProfileForSemPrazoAlert = (tx: any): "PF" | "PJ" | "" => {
+    const payload = tx?.payload && typeof tx.payload === "object" ? tx.payload : {};
 
-  (transacoes ?? []).forEach((tx: any) => {
-    const payload = (tx as any)?.payload ?? tx ?? {};
-    const meta = getSemPrazoMetaFromPayload(payload);
+    const movementKind = String(payload?.movementKind ?? tx?.movementKind ?? "")
+      .trim()
+      .toLowerCase();
 
-    if (meta.recurrenceKind !== "sem_prazo") return;
+    if (movementKind === "pf_pj") {
+      const direction = String(
+        payload?.linkedMovementDirection ?? tx?.linkedMovementDirection ?? ""
+      )
+        .trim()
+        .toLowerCase();
 
-    const recorrenciaId = String(
-      (tx as any)?.recorrenciaId ??
-        payload?.recorrenciaId ??
+      if (direction === "entrada") {
+        return String(payload?.destinationProfileKind ?? "").trim().toUpperCase() === "PJ"
+          ? "PJ"
+          : "PF";
+      }
+
+      return String(payload?.originProfileKind ?? "").trim().toUpperCase() === "PJ"
+        ? "PJ"
+        : "PF";
+    }
+
+    if (String(tx?.tipo ?? "").trim().toLowerCase() === "cartao_credito") {
+      const cardRefId = String(getCreditTransactionCardRef(tx)).trim();
+      const card = (activeCreditCards ?? []).find(
+        (item: any) => String(item?.id ?? "").trim() === cardRefId
+      );
+
+      if (!card) return "";
+
+      return String(card?.perfil ?? "").trim().toLowerCase() === "pj" ? "PJ" : "PF";
+    }
+
+    const contaId = String(
+      tx?.profileId ??
+        tx?.contaId ??
+        tx?.qualConta ??
+        tx?.payload?.contaId ??
         ""
     ).trim();
 
-    if (!recorrenciaId) return;
-
-    const atual = grupos.get(recorrenciaId) ?? [];
-    atual.push(tx);
-    grupos.set(recorrenciaId, atual);
-  });
-
-  const resultado: SemPrazoAlertItem[] = [];
-
-  grupos.forEach((items, recorrenciaId) => {
-    const ordenadas = [...items].sort((a: any, b: any) =>
-      String((a as any)?.data ?? "").localeCompare(String((b as any)?.data ?? ""))
+    const conta = (profiles ?? []).find(
+      (item: any) => String(item?.id ?? "").trim() === contaId
     );
 
-    const ultima = ordenadas[ordenadas.length - 1];
-    if (!ultima) return;
+    if (!conta) return "";
 
-    const payload = (ultima as any)?.payload ?? ultima ?? {};
-    const meta = getSemPrazoMetaFromPayload(payload);
+    return String(conta?.perfilConta ?? "").trim().toUpperCase() === "PJ" ? "PJ" : "PF";
+  };
 
-    const ultimaData = String(
-      meta.recurrenceWindowEnd ??
-        (ultima as any)?.data ??
-        ""
-    ).trim();
-
-    if (!isIsoDate(ultimaData)) return;
-
-    const recurrenceDismissedAt = String(meta.recurrenceDismissedAt ?? "").trim();
-    if (recurrenceDismissedAt) return;
-
-    const recurrenceRenewalDecision: SemPrazoDecision =
-      meta.recurrenceRenewalDecision === "cancelada" ? "cancelada" : "pendente";
-
-    const recurrenceCanceledAt = String(meta.recurrenceCanceledAt ?? "").trim();
-
-    const diasRestantes = diffDaysFromToday(ultimaData);
-
-    const descricaoBase = String((ultima as any)?.descricao ?? "").trim() || "Transação sem prazo";
-    const valorBase = Math.abs(Number((ultima as any)?.valor ?? 0)) || 0;
-
-    if (diasRestantes < 0) {
-      resultado.push({
-        recorrenciaId,
-        descricao: descricaoBase,
-        valor: valorBase,
-        ultimaData,
-        diasRestantes,
-        kind: "encerrada",
-        recurrenceRenewalDecision,
-        recurrenceDismissedAt,
-        recurrenceCanceledAt,
-      });
-      return;
-    }
-
-if (
-  diasRestantes <= SEM_PRAZO_ALERTA_DIAS &&
-  recurrenceRenewalDecision !== "cancelada"
-) {
-  resultado.push({
-    recorrenciaId,
-    descricao: descricaoBase,
-    valor: valorBase,
-    ultimaData,
-    diasRestantes,
-    kind: "acao",
-    recurrenceRenewalDecision,
-    recurrenceDismissedAt,
-    recurrenceCanceledAt,
+  return buildSemPrazoAlerts({
+    transactions: transacoes ?? [],
+    todayIsoDate: getHojeLocal(),
+    alertDays: SEM_PRAZO_ALERTA_DIAS,
+    profileFilter: resumoPerfilView,
+    resolveProfileForTransaction: resolveProfileForSemPrazoAlert,
   });
-}
-  });
-
-  return resultado.sort((a, b) => {
-    if (a.kind !== b.kind) {
-      return a.kind === "acao" ? -1 : 1;
-    }
-
-    return a.diasRestantes - b.diasRestantes;
-  });
-}, [transacoes]);
+}, [transacoes, activeCreditCards, profiles, resumoPerfilView]);
 
 const semPrazoActionAlerts = useMemo(
   () => semPrazoAlerts.filter((item) => item.kind === "acao"),
@@ -7339,7 +7267,9 @@ useEffect(() => {
 }, [editingTransaction]);
 
 const salvarEdicao = async () => {
-  if (!editingTransaction) return;
+  if (!editingTransaction || isSavingEditingTransaction) return;
+
+  setIsSavingEditingTransaction(true);
 
   try {
 const novoValorAbs = extrairValorMoeda(editValueInput);
@@ -7616,6 +7546,82 @@ return {
 const userId = session?.user?.id;
 if (!userId) return;
 
+const pickDefinedValue = (nextValue: any, previousValue: any) => {
+  if (nextValue === undefined || nextValue === null) return previousValue;
+  if (typeof nextValue === "string" && nextValue.trim() === "") return previousValue;
+  return nextValue;
+};
+
+const buildPayloadForEditUpdate = (tx: any) => {
+  const existingPayload =
+    tx?.payload && typeof tx.payload === "object" ? tx.payload : {};
+
+  return {
+    ...existingPayload,
+    metodoPagamento: pickDefinedValue(
+      tx?.metodoPagamento,
+      existingPayload?.metodoPagamento
+    ),
+    tipoGasto: pickDefinedValue(tx?.tipoGasto, existingPayload?.tipoGasto),
+    recorrenciaId: pickDefinedValue(
+      tx?.recorrenciaId,
+      existingPayload?.recorrenciaId
+    ),
+    isRecorrente:
+      typeof tx?.isRecorrente === "boolean"
+        ? tx.isRecorrente
+        : existingPayload?.isRecorrente,
+    contraParte: pickDefinedValue(tx?.contraParte, existingPayload?.contraParte),
+    transferId: pickDefinedValue(tx?.transferId, existingPayload?.transferId),
+    observacoes: pickDefinedValue(tx?.observacoes, existingPayload?.observacoes),
+    parcelaAtual:
+      tx?.parcelaAtual !== undefined && tx?.parcelaAtual !== null
+        ? tx.parcelaAtual
+        : existingPayload?.parcelaAtual,
+    totalParcelas:
+      tx?.totalParcelas !== undefined && tx?.totalParcelas !== null
+        ? tx.totalParcelas
+        : existingPayload?.totalParcelas,
+    qualCartao: pickDefinedValue(tx?.qualCartao, existingPayload?.qualCartao),
+    origemLancamento: pickDefinedValue(
+      tx?.origemLancamento,
+      existingPayload?.origemLancamento
+    ),
+    parcelamentoFaturaId: pickDefinedValue(
+      tx?.parcelamentoFaturaId,
+      existingPayload?.parcelamentoFaturaId
+    ),
+    faturaOrigemCicloKey: pickDefinedValue(
+      tx?.faturaOrigemCicloKey,
+      existingPayload?.faturaOrigemCicloKey
+    ),
+    externalRowHash: pickDefinedValue(
+      tx?.payload?.externalRowHash,
+      existingPayload?.externalRowHash
+    ),
+    planningType: pickDefinedValue(
+      tx?.payload?.planningType,
+      existingPayload?.planningType
+    ),
+    planningEndDate:
+      tx?.payload?.planningEndDate !== undefined
+        ? tx.payload.planningEndDate
+        : existingPayload?.planningEndDate,
+    installmentCurrent:
+      tx?.payload?.installmentCurrent !== undefined
+        ? tx.payload.installmentCurrent
+        : existingPayload?.installmentCurrent,
+    installmentTotal:
+      tx?.payload?.installmentTotal !== undefined
+        ? tx.payload.installmentTotal
+        : existingPayload?.installmentTotal,
+    importSource: pickDefinedValue(
+      tx?.payload?.importSource,
+      existingPayload?.importSource
+    ),
+  };
+};
+
     await Promise.all(
       idsParaAtualizar.map(async (id) => {
         const tx = mapaEditadas.get(id);
@@ -7631,40 +7637,7 @@ if (!userId) return;
               : String(tx.categoria?.nome ?? ""),
           tag: String(tx.tag ?? ""),
           pago: !!tx.pago,
-payload: {
-  metodoPagamento: tx.metodoPagamento ?? "",
-  tipoGasto: tx.tipoGasto ?? "",
-  recorrenciaId: tx.recorrenciaId ?? "",
-  isRecorrente: !!tx.isRecorrente,
-
-  recurrenceKind: tx.recurrenceKind ?? "",
-  recurrenceWindowMonths: tx.recurrenceWindowMonths ?? null,
-  recurrenceOriginDate: tx.recurrenceOriginDate ?? "",
-  recurrenceWindowStart: tx.recurrenceWindowStart ?? "",
-  recurrenceWindowEnd: tx.recurrenceWindowEnd ?? "",
-  recurrenceStatus: tx.recurrenceStatus ?? "",
-  recurrenceRenewalDecision: tx.recurrenceRenewalDecision ?? "",
-  recurrenceDismissedAt: tx.recurrenceDismissedAt ?? "",
-  recurrenceCanceledAt: tx.recurrenceCanceledAt ?? "",
-  recurrenceLastActionAt: tx.recurrenceLastActionAt ?? "",
-
-  contraParte: tx.contraParte ?? "",
-  transferId: tx.transferId ?? "",
-  observacoes: tx.observacoes ?? "",
-  parcelaAtual: tx.parcelaAtual ?? null,
-  totalParcelas: tx.totalParcelas ?? null,
-  qualCartao: String(tx.qualCartao ?? ""),
-  origemLancamento: tx.origemLancamento ?? "",
-  parcelamentoFaturaId: tx.parcelamentoFaturaId ?? "",
-  faturaOrigemCicloKey: tx.faturaOrigemCicloKey ?? "",
-
-  externalRowHash: String(tx?.payload?.externalRowHash ?? "").trim(),
-  planningType: tx?.payload?.planningType ?? "",
-  planningEndDate: tx?.payload?.planningEndDate ?? null,
-  installmentCurrent: tx?.payload?.installmentCurrent ?? null,
-  installmentTotal: tx?.payload?.installmentTotal ?? null,
-  importSource: tx?.payload?.importSource ?? "",
-},
+          payload: buildPayloadForEditUpdate(tx),
         });
       })
     );
@@ -7716,6 +7689,8 @@ for (const cardId of cardIdsToTouch) {
   } catch (err) {
     console.error("ERRO AO SALVAR EDICAO:", err);
     toastCompact("Erro ao salvar edição no banco.", "error");
+  } finally {
+    setIsSavingEditingTransaction(false);
   }
 };
 
@@ -11246,7 +11221,10 @@ const semPrazoResumoAlertsContent =
             {formatSemPrazoDiasRestantes(item.diasRestantes)}
           </p>
           <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-            Última ocorrência em {formatarData(item.ultimaData)}
+            {item.tipoLabel}{item.perfilLabel ? ` • ${item.perfilLabel}` : ""}
+          </p>
+          <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+            Ciclo atual termina em {formatarData(item.ultimaData)}
           </p>
         </div>
 
@@ -11298,9 +11276,11 @@ const semPrazoResumoAlertsContent =
 
           {semPrazoEndedAlerts.map((item) => {
   const recorrenciaId = String(item.recorrenciaId ?? "").trim();
+  const isRenewingSemPrazo =
+    semPrazoRenewInFlightRef.current.has(recorrenciaId);
   const isDismissingSemPrazo =
     semPrazoDismissInFlightRef.current.has(recorrenciaId);
-const isEndedSemPrazoBusy = isDismissingSemPrazo;
+const isEndedSemPrazoBusy = isDismissingSemPrazo || isRenewingSemPrazo;
 
   return (
             <div
@@ -11315,6 +11295,9 @@ const isEndedSemPrazoBusy = isDismissingSemPrazo;
                   <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-300">
                     {formatSemPrazoEncerradaEm(item.ultimaData)}
                   </p>
+                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                    {item.tipoLabel}{item.perfilLabel ? ` • ${item.perfilLabel}` : ""}
+                  </p>
                 </div>
 
                 <div className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-amber-700 shadow-sm dark:bg-white/10 dark:text-amber-300">
@@ -11323,13 +11306,24 @@ const isEndedSemPrazoBusy = isDismissingSemPrazo;
               </div>
 
               <div
-  className={`mt-3 flex justify-end ${
+  className={`mt-3 flex flex-wrap justify-end gap-2 ${
     isEndedSemPrazoBusy ? "pointer-events-none" : ""
   }`}
 >
 <button
   type="button"
-  disabled={isDismissingSemPrazo}
+  disabled={isRenewingSemPrazo || isDismissingSemPrazo}
+  onClick={() => handleRenovarRecorrenciaSemPrazo(recorrenciaId)}
+  className="rounded-xl px-3 py-2 text-[12px] font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 hover:opacity-95"
+  style={{
+    background: "linear-gradient(135deg, #220055 0%, #4600ac 100%)",
+  }}
+>
+  {isRenewingSemPrazo ? "Renovando..." : "Renovar 12 meses"}
+</button>
+<button
+  type="button"
+  disabled={isDismissingSemPrazo || isRenewingSemPrazo}
   onClick={() => handleDispensarRecorrenciaEncerrada(recorrenciaId)}
   className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:disabled:hover:bg-slate-900"
 >
@@ -12615,7 +12609,7 @@ onClick={() => {
     }}
     className="w-full"
     renderValue={(value) => (
-      <span className="font-semibold text-slate-700 dark:text-slate-100">
+      <span className="inline-flex items-center whitespace-nowrap font-semibold text-slate-700 dark:text-slate-100">
         {String(value ?? "Todos os cartões")}
       </span>
     )}
@@ -14774,10 +14768,17 @@ stats={stats}
   <div
     className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 py-3"
     onMouseDown={(e) => {
-      if (e.target === e.currentTarget) setEditingTransaction(null);
+      if (isSavingEditingTransaction) return;
+      if (e.target === e.currentTarget) {
+        setEditingTransaction(null);
+        setEditTagInput("");
+      }
     }}
     onKeyDown={(e) => {
-      if (e.key === "Escape") setEditingTransaction(null);
+      if (e.key === "Escape" && !isSavingEditingTransaction) {
+        setEditingTransaction(null);
+        setEditTagInput("");
+      }
     }}
     tabIndex={-1}
   >
@@ -14798,8 +14799,16 @@ stats={stats}
             value={editDescInput}
             onChange={(e) => setEditDescInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") salvarEdicao();
-              if (e.key === "Escape") setEditingTransaction(null);
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (!isSavingEditingTransaction) {
+                  salvarEdicao();
+                }
+              }
+              if (e.key === "Escape" && !isSavingEditingTransaction) {
+                setEditingTransaction(null);
+                setEditTagInput("");
+              }
             }}
             className={inputModalClass}
           />
@@ -14823,8 +14832,16 @@ stats={stats}
               setEditValueInput(digitsOnly(text));
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") salvarEdicao();
-              if (e.key === "Escape") setEditingTransaction(null);
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (!isSavingEditingTransaction) {
+                  salvarEdicao();
+                }
+              }
+              if (e.key === "Escape" && !isSavingEditingTransaction) {
+                setEditingTransaction(null);
+                setEditTagInput("");
+              }
 
               if (e.ctrlKey || e.metaKey) return;
               const allowed = [
@@ -15037,20 +15054,32 @@ stats={stats}
 
       <div className="px-5 py-4 border-t border-slate-200/70 dark:border-white/10 flex gap-3">
         <button
+          type="button"
+          disabled={isSavingEditingTransaction}
           onClick={() => {
+  if (isSavingEditingTransaction) return;
   setEditingTransaction(null);
   setEditTagInput("");
 }}
-          className="flex-1 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
+          className="flex-1 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Cancelar
         </button>
 
         <button
+          type="button"
+          disabled={isSavingEditingTransaction}
           onClick={salvarEdicao}
-          className="flex-1 h-12 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition-all hover:bg-indigo-700"
+          className="flex-1 h-12 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Salvar Alteração
+          {isSavingEditingTransaction ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-white" />
+              Editando...
+            </span>
+          ) : (
+            "Salvar Alteração"
+          )}
         </button>
       </div>
     </div>

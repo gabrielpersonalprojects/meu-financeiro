@@ -156,6 +156,89 @@ const isVariavelVisual =
 const isPfPjMovement =
   String((t as any)?.payload?.movementKind ?? "").trim() === "pf_pj";
 
+const normalizeAccountId = (value: any) => String(value ?? "").trim().replace(/^acc_/, "");
+
+const findProfileById = (accountId: any) => {
+  const id = normalizeAccountId(accountId);
+  if (!id) return null;
+
+  return (
+    (profiles ?? []).find(
+      (profile: any) => normalizeAccountId(profile?.id) === id
+    ) ?? null
+  );
+};
+
+const formatPerfilLabel = (value: any) =>
+  String(value ?? "").trim().toUpperCase() === "PJ" ? "PJ" : "PF";
+
+const formatTipoContaLabel = (value: any) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  if (/^conta\b/i.test(raw)) {
+    return raw.replace(/^conta\s*/i, "C/ ").replace(/\s+/g, " ").trim();
+  }
+
+  return raw;
+};
+
+const getPfPjRouteLabel = () => {
+  if (!isPfPjMovement) return "";
+
+  const payload =
+    (t as any)?.payload && typeof (t as any).payload === "object"
+      ? (t as any).payload
+      : {};
+
+  const originAccountId = String(
+    payload?.originAccountId ??
+      (t as any)?.originAccountId ??
+      (t as any)?.contaOrigemId ??
+      (t as any)?.transferFromId ??
+      ""
+  ).trim();
+
+  const destinationAccountId = String(
+    payload?.destinationAccountId ??
+      (t as any)?.destinationAccountId ??
+      (t as any)?.contaDestinoId ??
+      (t as any)?.transferToId ??
+      ""
+  ).trim();
+
+  const originProfile = findProfileById(originAccountId);
+  const destinationProfile = findProfileById(destinationAccountId);
+
+  const originInstituicao = String(
+    originProfile?.name ?? originProfile?.banco ?? "Origem"
+  ).trim();
+  const destinationInstituicao = String(
+    destinationProfile?.name ?? destinationProfile?.banco ?? "Destino"
+  ).trim();
+
+  const originPerfil = formatPerfilLabel(
+    payload?.originProfileKind ?? originProfile?.perfilConta ?? "PF"
+  );
+  const destinationPerfil = formatPerfilLabel(
+    payload?.destinationProfileKind ?? destinationProfile?.perfilConta ?? "PF"
+  );
+
+  const originTipo = formatTipoContaLabel(originProfile?.tipoConta ?? "");
+  const destinationTipo = formatTipoContaLabel(destinationProfile?.tipoConta ?? "");
+
+  const originLabel = `${originInstituicao} ${originPerfil}${
+    originTipo ? ` · ${originTipo}` : ""
+  }`;
+  const destinationLabel = `${destinationInstituicao} ${destinationPerfil}${
+    destinationTipo ? ` · ${destinationTipo}` : ""
+  }`;
+
+  return `${originLabel} -> ${destinationLabel}`;
+};
+
+const pfPjRouteLabel = getPfPjRouteLabel();
+
 const linkedMovementDirection = String(
   (t as any)?.payload?.linkedMovementDirection ??
     (t as any)?.linkedMovementDirection ??
@@ -356,6 +439,12 @@ title={
   {descricaoSemParcela || descricaoRaw}
 </p>
     </div>
+
+    {isPfPjMovement && pfPjRouteLabel ? (
+      <p className="mt-1.5 text-[12px] font-semibold leading-relaxed text-slate-600 dark:text-slate-300 break-words">
+        {pfPjRouteLabel}
+      </p>
+    ) : null}
   </div>
 </div>
 
@@ -425,7 +514,7 @@ title={
     const refParaExibir =
       (t as any).tipo === "cartao_credito" ? cartaoRef || contaRef : contaRef || cartaoRef;
 
-    if (!refParaExibir || isTransacaoFatura) return null;
+    if (!refParaExibir || isTransacaoFatura || isPfPjMovement) return null;
 
     const info = getContaPartsById(refParaExibir, profiles);
 

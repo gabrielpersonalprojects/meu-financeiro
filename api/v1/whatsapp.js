@@ -42,6 +42,7 @@ const {
   requireOwnedCommonTransaction,
   validateCategoryIfProvided,
 } = require("../_lib/transactionsCommon");
+const { resolvePendingTransaction } = require("../_lib/transactionResolver");
 
 const BASE_ROUTE = "/api/v1/whatsapp";
 
@@ -1933,6 +1934,121 @@ async function handlePendingTransactions(req, res, supabase) {
         };
       })(),
     })),
+  });
+}
+
+async function handleResolveTransaction(req, res, supabase) {
+  requireMethod(req, "POST");
+  const body = await parseJson(req);
+  rejectUserIdFromSupplier(body);
+
+  const whatsappPhone = requireString(
+    body.whatsapp_phone,
+    "WHATSAPP_PHONE_REQUIRED",
+    "whatsapp_phone is required."
+  );
+  const description = requireString(
+    body.description,
+    "DESCRIPTION_REQUIRED",
+    "description is required."
+  );
+
+  const amount =
+    body.amount === undefined || String(body.amount ?? "").trim() === ""
+      ? null
+      : parsePositiveAmount(body.amount);
+  const date =
+    body.date === undefined || String(body.date ?? "").trim() === ""
+      ? ""
+      : parseIsoDate(body.date, "INVALID_DATE_FILTER", "date");
+  const type =
+    body.type === undefined || String(body.type ?? "").trim() === ""
+      ? ""
+      : normalizeTransactionType(body.type);
+  const profileId =
+    body.profile_id === undefined || String(body.profile_id ?? "").trim() === ""
+      ? ""
+      : normalizeProfileId(body.profile_id);
+
+  const user = await resolveWhatsappUser(supabase, whatsappPhone);
+  const pendingRows = await fetchAllTransactionsForUser(supabase, user.user_id, {
+    select:
+      "id, tipo, valor, data, descricao, categoria, conta_id, qual_conta, pago, payload, transfer_from_id, transfer_to_id, conta_origem_id, conta_destino_id",
+    build: (query) => {
+      let pendingQuery = query
+        .eq("pago", false)
+        .in("tipo", ["receita", "despesa"])
+        .order("data", { ascending: true })
+        .order("id", { ascending: true });
+
+      if (type) {
+        pendingQuery = pendingQuery.eq("tipo", type);
+      }
+
+      if (date) {
+        pendingQuery = pendingQuery.eq("data", date);
+      }
+
+      return pendingQuery;
+    },
+  });
+
+  const accountIds = Array.from(
+    new Set(
+      pendingRows
+        .map((row) => String(row?.conta_id ?? row?.qual_conta ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  let accounts = [];
+  if (accountIds.length > 0) {
+    const { data: accountRows, error: accountsError } = await supabase
+      .from("accounts")
+      .select("id, name, banco, tipo_conta, perfil_conta")
+      .eq("user_id", user.user_id)
+      .in("id", accountIds);
+
+    if (accountsError) throw accountsError;
+    accounts = accountRows ?? [];
+  }
+
+  const resolution = resolvePendingTransaction({
+    rows: pendingRows,
+    accounts,
+    description,
+    amount,
+    date,
+    type,
+    profileId,
+  });
+
+  if (resolution.status === "not_found") {
+    throw new ApiError(
+      404,
+      "TRANSACTION_NOT_FOUND",
+      "Nenhum lançamento pendente correspondente foi encontrado."
+    );
+  }
+
+  if (resolution.status === "multiple_matches") {
+    return json(res, 200, {
+      ok: true,
+      status: "multiple_matches",
+      selection_required: true,
+      message:
+        "Encontrei mais de um lançamento pendente. Qual deles você deseja baixar?",
+      match_strategy: resolution.match_strategy,
+      matches: resolution.candidates,
+    });
+  }
+
+  return json(res, 200, {
+    ok: true,
+    status: "selected",
+    selection_required: false,
+    match_strategy: resolution.match_strategy,
+    selected_transaction: resolution.selected_transaction,
   });
 }
 
@@ -4934,6 +5050,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "pending_transactions") {
     return handlePendingTransactions(req, res, getSupabaseAdmin());
+  }
+  if (action === "resolve_transaction") {
+    return handleResolveTransaction(req, res, getSupabaseAdmin());
   }
   if (action === "payable_invoices") {
     return handlePayableInvoices(req, res, getSupabaseAdmin());

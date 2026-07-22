@@ -337,13 +337,13 @@ function buildTransactionSummary(type, description) {
 
 function buildInstallmentsSummary(type, description, installments) {
   const label = type === "receita" ? "Receita" : "Despesa";
-  return `${label} ${description} parcelada em ${installments}x lanÃ§ada com sucesso.`;
+  return `${label} ${description} parcelada em ${installments}x lançada com sucesso.`;
 }
 
 function buildFixedSummary(type, description, deadlineMode) {
   const label = type === "receita" ? "Receita" : "Despesa";
   const modeLabel = deadlineMode === "sem_prazo" ? "sem prazo" : "com prazo";
-  return `${label} ${description} fixa ${modeLabel} lanÃ§ada com sucesso.`;
+  return `${label} ${description} fixa ${modeLabel} lançada com sucesso.`;
 }
 
 function mapTransactionResponse(row) {

@@ -11,6 +11,9 @@ class ApiError extends Error {
 }
 
 function json(res, statusCode, body) {
+  if (typeof res?.setHeader === "function") {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+  }
   res.status(statusCode).json(body);
 }
 

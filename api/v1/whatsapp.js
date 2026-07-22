@@ -1,4 +1,4 @@
-﻿const crypto = require("crypto");
+const crypto = require("crypto");
 const { getSupabaseAdmin } = require("../_lib/supabaseAdmin");
 const {
   ApiError,
@@ -310,7 +310,7 @@ function toCents(value) {
 }
 
 function buildInvoicePaymentTransactionDescription(card) {
-  const issuer = String(card?.bank_text ?? card?.titular ?? card?.emissor ?? "").trim() || "CartÃƒÂ£o";
+  const issuer = String(card?.bank_text ?? card?.titular ?? card?.emissor ?? "").trim() || "Cartão";
   const category = String(card?.categoria ?? "").trim();
   return category ? `Fatura: ${issuer} ${category}` : `Fatura: ${issuer}`;
 }
@@ -353,11 +353,11 @@ function buildInvoicePaymentGuidance(status, remainingAmount) {
     return {
       can_pay_via_api: true,
       api_payment_type: "full_only",
-      payment_message: `Esta fatura pode ser paga pela API somente pelo valor total Ã  vista de ${formatted}. Para continuar, escolha de qual conta bancÃ¡ria o pagamento deve sair.`,
+      payment_message: `Esta fatura pode ser paga pela API somente pelo valor total à vista de ${formatted}. Para continuar, escolha de qual conta bancária o pagamento deve sair.`,
       panel_required_reason: null,
       payment_account_required: true,
       account_selection_message:
-        "Para pagar esta fatura pela API, escolha de qual conta bancÃ¡ria o pagamento deve sair.",
+        "Para pagar esta fatura pela API, escolha de qual conta bancária o pagamento deve sair.",
     };
   }
 
@@ -365,7 +365,7 @@ function buildInvoicePaymentGuidance(status, remainingAmount) {
     return {
       can_pay_via_api: false,
       api_payment_type: "full_only",
-      payment_message: `Esta fatura ainda estÃ¡ em aberto. O valor gasto atÃ© agora Ã© ${formatted}. Para pagamento parcial ou antecipado, acesse o painel FluxMoney.`,
+      payment_message: `Esta fatura ainda está em aberto. O valor gasto até agora é ${formatted}. Para pagamento parcial ou antecipado, acesse o painel FluxMoney.`,
       panel_required_reason: "invoice_still_open",
       payment_account_required: false,
       account_selection_message: null,
@@ -377,7 +377,7 @@ function buildInvoicePaymentGuidance(status, remainingAmount) {
       can_pay_via_api: false,
       api_payment_type: "full_only",
       payment_message:
-        "Esta fatura ainda Ã© futura. Para consultar ou gerenciar detalhes, acesse o painel FluxMoney.",
+        "Esta fatura ainda é futura. Para consultar ou gerenciar detalhes, acesse o painel FluxMoney.",
       panel_required_reason: "future_invoice",
       payment_account_required: false,
       account_selection_message: null,
@@ -387,7 +387,7 @@ function buildInvoicePaymentGuidance(status, remainingAmount) {
   return {
     can_pay_via_api: false,
     api_payment_type: "full_only",
-    payment_message: "Esta fatura nÃ£o possui saldo pendente para pagamento.",
+    payment_message: "Esta fatura não possui saldo pendente para pagamento.",
     panel_required_reason: "no_pending_amount",
     payment_account_required: false,
     account_selection_message: null,
@@ -412,13 +412,13 @@ function normalizeCreditSpendingType(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-  if (!raw || raw === "variavel" || raw === "normal") return "VariÃ¡vel";
+  if (!raw || raw === "variavel" || raw === "normal") return "Variável";
   if (raw === "fixo") return "Fixo";
 
   throw new ApiError(
     400,
     "INVALID_SPENDING_TYPE",
-    "spending_type must be variavel, variÃ¡vel, fixo, or omitted."
+    "spending_type must be variavel, variável, fixo, or omitted."
   );
 }
 
@@ -1926,7 +1926,7 @@ async function handlePendingTransactions(req, res, supabase) {
             movementKind === "pf_pj" || movementKind === "internal_transfer",
           linked_legs_count:
             movementKind === "pf_pj" ? Math.max(1, linkedLegsCount) : null,
-          settle_confirmation_message: `Confirma marcar a ${typeText} ${description || "lanÃ§amento"} de ${formatMoneyPtBr(
+          settle_confirmation_message: `Confirma marcar a ${typeText} ${description || "lançamento"} de ${formatMoneyPtBr(
             absoluteAmount
           )} como ${actionText}?`,
           paid: Boolean(row.pago),
@@ -3413,7 +3413,7 @@ function rejectUnsupportedSettlementFields(body) {
     throw new ApiError(
       400,
       "UNSUPPORTED_SETTLEMENT_FIELD",
-      "Pela API, a baixa nÃ£o altera valor, conta, data ou categoria. Para editar, acesse o painel FluxMoney."
+      "Pela API, a baixa não altera valor, conta, data ou categoria. Para editar, acesse o painel FluxMoney."
     );
   }
 }
@@ -3438,7 +3438,7 @@ function ensureSettleableTransaction(transaction) {
     throw new ApiError(
       400,
       "CREDIT_CARD_NOT_SETTLEABLE_VIA_API",
-      "Compras no cartÃ£o de crÃ©dito nÃ£o podem ser baixadas por esta action."
+      "Compras no cartão de crédito não podem ser baixadas por esta action."
     );
   }
 
@@ -3454,7 +3454,7 @@ function ensureSettleableTransaction(transaction) {
     throw new ApiError(
       400,
       "UNSUPPORTED_TRANSACTION_TYPE",
-      "Pagamentos de fatura nÃ£o podem ser baixados por esta action."
+      "Pagamentos de fatura não podem ser baixados por esta action."
     );
   }
 
@@ -3528,7 +3528,7 @@ async function handleSettleTransaction(req, res, action) {
       rejectUnsupportedSettlementFields(body);
       ensureMutationConfirmed(
         body,
-        "Confirme com o usuÃ¡rio antes de marcar esta transaÃ§Ã£o como paga ou recebida."
+        "Confirme com o usuário antes de marcar esta transação como paga ou recebida."
       );
 
       const transactionId = requireString(
@@ -3574,7 +3574,7 @@ async function handleSettleTransaction(req, res, action) {
         throw new ApiError(
           400,
           "TRANSACTION_ACCOUNT_REQUIRED",
-          "Esta transaÃ§Ã£o nÃ£o possui conta bancÃ¡ria vinculada. Corrija pelo painel FluxMoney antes de baixar pela API."
+          "Esta transação não possui conta bancária vinculada. Corrija pelo painel FluxMoney antes de baixar pela API."
         );
       }
 
@@ -3589,7 +3589,7 @@ async function handleSettleTransaction(req, res, action) {
         throw new ApiError(
           409,
           "TRANSACTION_ALREADY_SETTLED",
-          "Esta transaÃ§Ã£o e os lanÃ§amentos vinculados jÃ¡ estÃ£o marcados como pagos/recebidos."
+          "Esta transação e os lançamentos vinculados já estão marcados como pagos/recebidos."
         );
       }
 
@@ -3626,7 +3626,7 @@ async function handleSettleTransaction(req, res, action) {
         updatedRows.find((row) => String(row.id) === String(transaction.id)) ||
         transaction;
       const type = String(primary.tipo ?? "").trim().toLowerCase();
-      const description = primary.descricao || "lanÃ§amento";
+      const description = primary.descricao || "lançamento";
       const movementKind = isPfPjMovement(transaction)
         ? "pf_pj"
         : getTransferId(transaction)
@@ -4289,7 +4289,7 @@ async function handleCreateTransfer(req, res, action) {
       valor: -Math.abs(amountAbs),
       data: date,
       descricao: description,
-      categoria: "TransferÃªncia",
+      categoria: "Transferência",
       tag: "",
       pago: effectivePaid,
       conta_id: fromAccount.id,
@@ -4312,7 +4312,7 @@ async function handleCreateTransfer(req, res, action) {
       valor: Math.abs(amountAbs),
       data: date,
       descricao: description,
-      categoria: "TransferÃªncia",
+      categoria: "Transferência",
       tag: "",
       pago: effectivePaid,
       conta_id: toAccount.id,
@@ -4341,7 +4341,7 @@ async function handleCreateTransfer(req, res, action) {
       body: {
         ok: true,
         status: "created",
-        summary: `TransferÃªncia ${description} lanÃ§ada com sucesso.`,
+        summary: `Transferência ${description} lançada com sucesso.`,
         transfer_group: {
           movement_kind: "internal_transfer",
           transfer_id: transferId,
@@ -4476,7 +4476,7 @@ async function handleCreateCreditCardPurchase(req, res, action) {
       body: {
         ok: true,
         status: "created",
-        summary: `Compra ${description} lanÃ§ada no cartÃ£o com sucesso.`,
+        summary: `Compra ${description} lançada no cartão com sucesso.`,
         transaction: {
           id: created.id,
           type: created.tipo,
@@ -4614,7 +4614,7 @@ async function handleCreateCreditCardInstallments(req, res, action) {
       body: {
         ok: true,
         status: "created",
-        summary: `Compra ${description} parcelada em ${installments}x lanÃ§ada no cartÃ£o com sucesso.`,
+        summary: `Compra ${description} parcelada em ${installments}x lançada no cartão com sucesso.`,
         installment_group: {
           installments,
           total_amount: amountAbs,
@@ -4666,7 +4666,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       throw new ApiError(
         400,
         "PAYMENT_ACCOUNT_REQUIRED",
-        "Para pagar a fatura, informe de qual conta bancÃƒÂ¡ria o valor deve sair."
+        "Para pagar a fatura, informe de qual conta bancária o valor deve sair."
       );
     }
 
@@ -4746,7 +4746,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
         throw new ApiError(
           400,
           "FULL_PAYMENT_ONLY",
-          "Pela API, sÃƒÂ³ ÃƒÂ© permitido pagar o valor total da fatura. Para pagamento parcial, acesse o painel FluxMoney."
+          "Pela API, só é permitido pagar o valor total da fatura. Para pagamento parcial, acesse o painel FluxMoney."
         );
       }
     }
@@ -4755,7 +4755,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       throw new ApiError(
         400,
         "INVOICE_ALREADY_PAID",
-        "Esta fatura nÃƒÂ£o possui saldo pendente para pagamento."
+        "Esta fatura não possui saldo pendente para pagamento."
       );
     }
 
@@ -4763,7 +4763,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       throw new ApiError(
         400,
         "INVOICE_NOT_PAYABLE_VIA_API",
-        "Esta fatura ainda nÃƒÂ£o estÃƒÂ¡ fechada. Pela API, o pagamento ÃƒÂ© permitido apenas para fatura fechada/atrasada e pelo valor total. Para consultar ou pagar parcialmente, acesse o painel FluxMoney.",
+        "Esta fatura ainda não está fechada. Pela API, o pagamento é permitido apenas para fatura fechada/atrasada e pelo valor total. Para consultar ou pagar parcialmente, acesse o painel FluxMoney.",
         {
           current_amount: invoiceAmount,
           remaining_amount: remainingAmount,
@@ -4788,7 +4788,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
           valor: -Math.abs(remainingAmount),
           data: paymentDate,
           descricao: description,
-          categoria: "CartÃƒÂ£o de CrÃƒÂ©dito",
+          categoria: "Cartão de Crédito",
           tag: "",
           pago: true,
           conta_id: accountId,
@@ -4893,7 +4893,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       throw new ApiError(
         500,
         "INVOICE_PAYMENT_FAILED",
-        "NÃƒÂ£o foi possÃƒÂ­vel registrar o pagamento da fatura com seguranÃƒÂ§a. Nenhuma despesa solta foi mantida."
+        "Não foi possível registrar o pagamento da fatura com segurança. Nenhuma despesa solta foi mantida."
       );
     }
 
@@ -4902,7 +4902,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       body: {
         ok: true,
         status: "created",
-        summary: `Fatura ${card.nome || card.bank_text || "do cartÃƒÂ£o"} paga com sucesso.`,
+        summary: `Fatura ${card.nome || card.bank_text || "do cartão"} paga com sucesso.`,
         payment: {
           id: createdPayment.id,
           credit_card_id: creditCardId,

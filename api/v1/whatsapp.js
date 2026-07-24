@@ -74,6 +74,7 @@ function mapCreditCard(row) {
     name: row.nome || "",
     issuer: row.bank_text || row.titular || "",
     category: row.categoria || "",
+    profile_type: getCreditCardProfileId(row).toUpperCase(),
     closing_day: Number(row.dia_fechamento || 1),
     due_day: Number(row.dia_vencimento || 10),
     is_active: row.is_active !== false,
@@ -424,11 +425,19 @@ function normalizeCreditSpendingType(value) {
 }
 
 function getCreditCardProfileId(card) {
-  return String(card?.brand ?? card?.perfil ?? "")
+  const raw = String(
+    card?.perfil ??
+      card?.perfil_cartao ??
+      card?.perfilCartao ??
+      card?.categoria ??
+      card?.category ??
+      card?.brand ??
+      ""
+  )
     .trim()
-    .toLowerCase() === "pj"
-    ? "pj"
-    : "pf";
+    .toLowerCase();
+
+  return raw === "pj" ? "pj" : "pf";
 }
 
 function getCreditCardAccountId(card) {
@@ -826,6 +835,47 @@ function parseProjectionBoolean(value, defaultValue, code, name) {
   throw new ApiError(400, code, `${name} must be true or false.`);
 }
 
+function firstQueryValue(query, ...names) {
+  for (const name of names) {
+    const value = query?.[name];
+    if (value !== undefined && String(value ?? "").trim() !== "") {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function hasQueryValue(query, ...names) {
+  return names.some(
+    (name) =>
+      Object.prototype.hasOwnProperty.call(query ?? {}, name) &&
+      String(query?.[name] ?? "").trim() !== ""
+  );
+}
+
+function requireExplicitQueryFilters(query, filters, action) {
+  const missing = filters
+    .filter((filter) => !hasQueryValue(query, ...(filter.aliases || [filter.name])))
+    .map((filter) => filter.name);
+
+  if (missing.length > 0) {
+    throw new ApiError(
+      400,
+      "FILTER_REQUIRED",
+      `${action} requires explicit filters: ${missing.join(", ")}.`,
+      {
+        action,
+        missing_filters: missing,
+        required_filters: filters.map((filter) => ({
+          name: filter.name,
+          aliases: filter.aliases || [filter.name],
+          allowed_values: filter.allowed_values || null,
+        })),
+      }
+    );
+  }
+}
+
 function addMonthsToPeriod(period, offset) {
   const [year, month] = String(period).split("-").map(Number);
   const date = new Date(year, month - 1 + Number(offset || 0), 1, 12, 0, 0, 0);
@@ -867,7 +917,15 @@ function normalizeProjectionAccountProfile(account) {
 }
 
 function normalizeProjectionCardProfile(card) {
-  const raw = String(card?.perfil ?? card?.brand ?? "")
+  const raw = String(
+    card?.perfil ??
+      card?.perfil_cartao ??
+      card?.perfilCartao ??
+      card?.categoria ??
+      card?.category ??
+      card?.brand ??
+      ""
+  )
     .trim()
     .toUpperCase();
 
@@ -1314,18 +1372,31 @@ function normalizeAnalyticsPeriod(value, todayIsoValue) {
 }
 
 function normalizeAnalyticsSource(value) {
-  const raw = String(value ?? "").trim().toLowerCase();
+  const raw = normalizeText(value);
   if (!raw) return "all";
 
-  if (raw !== "general" && raw !== "credit_cards" && raw !== "all") {
-    throw new ApiError(
-      400,
-      "ANALYTICS_SOURCE_INVALID",
-      "source must be general, credit_cards, or all."
-    );
+  if (["general", "geral", "accounts", "account", "contas", "conta"].includes(raw)) {
+    return "general";
   }
+  if (
+    [
+      "credit_cards",
+      "credit_card",
+      "cards",
+      "card",
+      "cartoes",
+      "cartao",
+    ].includes(raw)
+  ) {
+    return "credit_cards";
+  }
+  if (["all", "todos", "todas"].includes(raw)) return "all";
 
-  return raw;
+  throw new ApiError(
+    400,
+    "ANALYTICS_SOURCE_INVALID",
+    "source must be general, credit_cards, or all."
+  );
 }
 
 function normalizeAnalyticsLimit(value) {
@@ -1468,7 +1539,7 @@ function mapAnalyticsCreditCardToApp(row) {
     gradientFrom: row?.gradient_from ?? "#220055",
     gradientTo: row?.gradient_to ?? "#4600ac",
     categoria: row?.categoria ?? "",
-    perfil: String(row?.brand ?? "pf").toLowerCase() === "pj" ? "pj" : "pf",
+    perfil: getCreditCardProfileId(row),
     createdAt: row?.created_at ?? "",
     updatedAt: row?.updated_at ?? "",
   };
@@ -1696,6 +1767,625 @@ async function validateCreditCardTagIfProvided({ supabase, userId, tag }) {
   return found.nome || cleanTag;
 }
 
+function normalizeTransactionListSource(value) {
+  const raw = normalizeText(value);
+  if (!raw || ["all", "todos", "todas"].includes(raw)) return "all";
+  if (
+    ["accounts", "account", "general", "geral", "contas", "conta"].includes(raw)
+  ) {
+    return "accounts";
+  }
+  if (
+    [
+      "credit_cards",
+      "credit_card",
+      "cards",
+      "card",
+      "cartoes",
+      "cartao",
+    ].includes(raw)
+  ) {
+    return "credit_cards";
+  }
+
+  throw new ApiError(
+    400,
+    "TRANSACTION_SOURCE_INVALID",
+    "source must be accounts, credit_cards, or all."
+  );
+}
+
+function normalizeTransactionListType(value) {
+  const raw = normalizeText(value);
+  if (!raw || ["all", "todos", "todas"].includes(raw)) return "all";
+  if (raw === "receita" || raw === "receitas") return "receita";
+  if (raw === "despesa" || raw === "despesas") return "despesa";
+  if (
+    ["transferencia", "transferencias", "transfer", "transfers"].includes(raw)
+  ) {
+    return "transferencia";
+  }
+  if (
+    [
+      "cartao_credito",
+      "cartao",
+      "cartoes",
+      "credit_card",
+      "credit_cards",
+    ].includes(raw)
+  ) {
+    return "cartao_credito";
+  }
+
+  throw new ApiError(
+    400,
+    "TRANSACTION_TYPE_FILTER_INVALID",
+    "type must be receita, despesa, transferencia, cartao_credito, or all."
+  );
+}
+
+function normalizeTransactionListStatus(value) {
+  const raw = normalizeText(value);
+  if (!raw || ["all", "todos", "todas"].includes(raw)) return "all";
+  if (["paid", "pago", "paga", "recebido", "recebida"].includes(raw)) {
+    return "paid";
+  }
+  if (["pending", "pendente", "pendentes"].includes(raw)) return "pending";
+  if (["overdue", "atrasado", "atrasada", "atrasados", "atrasadas"].includes(raw)) {
+    return "overdue";
+  }
+  if (["due_today", "hoje", "vence_hoje", "vencendo_hoje"].includes(raw)) {
+    return "due_today";
+  }
+  if (["future", "futuro", "futura", "futuros", "futuras"].includes(raw)) {
+    return "future";
+  }
+
+  throw new ApiError(
+    400,
+    "TRANSACTION_STATUS_FILTER_INVALID",
+    "status must be paid, pending, overdue, due_today, future, or all."
+  );
+}
+
+function normalizeTransactionListSpendingType(value) {
+  const raw = normalizeText(value);
+  if (!raw || ["all", "todos", "todas"].includes(raw)) return "all";
+  if (["variavel", "variable"].includes(raw)) return "variavel";
+  if (["fixo", "fixed", "recorrente"].includes(raw)) return "fixo";
+  if (["parcelado", "installment", "installments"].includes(raw)) {
+    return "parcelado";
+  }
+  if (["normal", "comum"].includes(raw)) return "normal";
+
+  throw new ApiError(
+    400,
+    "SPENDING_TYPE_FILTER_INVALID",
+    "spending_type must be variavel, fixo, parcelado, normal, or all."
+  );
+}
+
+function normalizeTransactionListSort(value) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "date_desc";
+
+  const allowed = new Set([
+    "date_desc",
+    "date_asc",
+    "amount_desc",
+    "amount_asc",
+    "created_desc",
+    "created_asc",
+  ]);
+  if (!allowed.has(raw)) {
+    throw new ApiError(
+      400,
+      "TRANSACTION_SORT_INVALID",
+      "sort must be date_desc, date_asc, amount_desc, amount_asc, created_desc, or created_asc."
+    );
+  }
+  return raw;
+}
+
+function normalizeTransactionListPage(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 1;
+  const page = Number(raw);
+  if (!Number.isInteger(page) || page < 1) {
+    throw new ApiError(400, "PAGE_INVALID", "page must be an integer greater than zero.");
+  }
+  return page;
+}
+
+function normalizeTransactionListLimit(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 50;
+  const limit = Number(raw);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new ApiError(
+      400,
+      "LIMIT_INVALID",
+      "limit must be an integer between 1 and 100."
+    );
+  }
+  return limit;
+}
+
+function parseOptionalTransactionBoolean(value, name) {
+  if (value === undefined || String(value ?? "").trim() === "") return null;
+  return parseProjectionBoolean(
+    value,
+    false,
+    `${String(name).toUpperCase()}_INVALID`,
+    name
+  );
+}
+
+function normalizeOptionalTransactionDate(value, code, name) {
+  if (value === undefined || String(value ?? "").trim() === "") return null;
+  return parseIsoDate(value, code, name);
+}
+
+function getTransactionListStatus(row, today) {
+  if (isPaidValue(row?.pago)) return "paid";
+  const date = String(row?.data ?? "").trim();
+  if (date < today) return "overdue";
+  if (date === today) return "due_today";
+  return "future";
+}
+
+function getTransactionListSpendingType(row) {
+  const payload = getTransactionPayload(row);
+  const totalInstallments = Number(
+    payload?.totalParcelas ??
+      payload?.total_installments ??
+      row?.totalParcelas ??
+      row?.total_installments ??
+      0
+  );
+  if (totalInstallments > 1) return "parcelado";
+
+  const raw = normalizeText(row?.tipoGasto ?? payload?.tipoGasto);
+  if (raw === "fixo") return "fixo";
+  if (raw === "variavel") return "variavel";
+  if (raw === "normal") return "normal";
+  return "";
+}
+
+function compareTransactionListRows(left, right, sort) {
+  const leftDate = String(left?.data ?? "");
+  const rightDate = String(right?.data ?? "");
+  const leftAmount = Math.abs(Number(left?.valor || 0));
+  const rightAmount = Math.abs(Number(right?.valor || 0));
+  const leftCreated = Number(left?.criado_em || left?.created_at || 0);
+  const rightCreated = Number(right?.criado_em || right?.created_at || 0);
+
+  if (sort === "date_asc") {
+    return leftDate.localeCompare(rightDate) || String(left?.id).localeCompare(String(right?.id));
+  }
+  if (sort === "amount_desc") {
+    return rightAmount - leftAmount || rightDate.localeCompare(leftDate);
+  }
+  if (sort === "amount_asc") {
+    return leftAmount - rightAmount || rightDate.localeCompare(leftDate);
+  }
+  if (sort === "created_desc") {
+    return rightCreated - leftCreated || rightDate.localeCompare(leftDate);
+  }
+  if (sort === "created_asc") {
+    return leftCreated - rightCreated || leftDate.localeCompare(rightDate);
+  }
+  return rightDate.localeCompare(leftDate) || String(right?.id).localeCompare(String(left?.id));
+}
+
+async function handleListTransactions(req, res, supabase) {
+  requireMethod(req, "GET");
+  rejectUserIdFromSupplier(req.query || {});
+
+  const user = await resolveGetUser(supabase, req);
+  const query = req.query || {};
+  const today = getSaoPauloTodayIso();
+  const strictFilters = parseProjectionBoolean(
+    firstQueryValue(query, "strict_filters", "filtros_estritos"),
+    true,
+    "STRICT_FILTERS_INVALID",
+    "strict_filters"
+  );
+
+  if (strictFilters) {
+    requireExplicitQueryFilters(
+      query,
+      [
+        {
+          name: "profile",
+          aliases: ["profile", "perfil"],
+          allowed_values: ["PF", "PJ", "all"],
+        },
+        {
+          name: "source",
+          aliases: ["source", "fonte"],
+          allowed_values: ["accounts", "credit_cards", "all"],
+        },
+      ],
+      "list_transactions"
+    );
+
+    if (
+      !hasQueryValue(
+        query,
+        "period",
+        "periodo",
+        "date_from",
+        "data_inicio",
+        "date_to",
+        "data_fim"
+      )
+    ) {
+      throw new ApiError(
+        400,
+        "FILTER_REQUIRED",
+        "list_transactions requires period or an explicit date range.",
+        {
+          action: "list_transactions",
+          missing_filters: ["period_or_date_range"],
+          allowed_values: {
+            period: "YYYY-MM",
+            date_from: "YYYY-MM-DD",
+            date_to: "YYYY-MM-DD",
+          },
+        }
+      );
+    }
+  }
+
+  const profile = normalizeProjectionProfile(
+    firstQueryValue(query, "profile", "perfil")
+  );
+  const source = normalizeTransactionListSource(
+    firstQueryValue(query, "source", "fonte")
+  );
+  const type = normalizeTransactionListType(
+    firstQueryValue(query, "type", "tipo")
+  );
+  const status = normalizeTransactionListStatus(
+    firstQueryValue(query, "status", "situacao")
+  );
+  const spendingType = normalizeTransactionListSpendingType(
+    firstQueryValue(query, "spending_type", "tipo_gasto")
+  );
+  const periodValue = firstQueryValue(query, "period", "periodo");
+  const period = periodValue
+    ? normalizeAnalyticsPeriod(periodValue, today)
+    : null;
+  const dateFrom = normalizeOptionalTransactionDate(
+    firstQueryValue(query, "date_from", "data_inicio"),
+    "DATE_FROM_INVALID",
+    "date_from"
+  );
+  const dateTo = normalizeOptionalTransactionDate(
+    firstQueryValue(query, "date_to", "data_fim"),
+    "DATE_TO_INVALID",
+    "date_to"
+  );
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    throw new ApiError(
+      400,
+      "DATE_RANGE_INVALID",
+      "date_from cannot be after date_to."
+    );
+  }
+
+  const accountFilter = parseProjectionIdFilters(
+    query,
+    "account_id",
+    "account_ids",
+    "ACCOUNT_FILTER_CONFLICT",
+    "ACCOUNT_IDS_INVALID"
+  );
+  const creditCardFilter = parseProjectionIdFilters(
+    query,
+    "credit_card_id",
+    "credit_card_ids",
+    "CREDIT_CARD_FILTER_CONFLICT",
+    "CREDIT_CARD_IDS_INVALID"
+  );
+  const category = String(firstQueryValue(query, "category", "categoria") ?? "").trim();
+  const tag = String(firstQueryValue(query, "tag") ?? "").trim();
+  const description = String(
+    firstQueryValue(query, "description", "descricao", "q", "busca") ?? ""
+  ).trim();
+  const paid = parseOptionalTransactionBoolean(
+    firstQueryValue(query, "paid", "pago"),
+    "paid"
+  );
+  const includeTransfers = parseProjectionBoolean(
+    firstQueryValue(query, "include_transfers", "incluir_transferencias"),
+    type === "transferencia",
+    "INCLUDE_TRANSFERS_INVALID",
+    "include_transfers"
+  );
+  const page = normalizeTransactionListPage(firstQueryValue(query, "page", "pagina"));
+  const limit = normalizeTransactionListLimit(firstQueryValue(query, "limit", "limite"));
+  const sort = normalizeTransactionListSort(firstQueryValue(query, "sort", "ordenacao"));
+
+  if (source === "accounts" && type === "cartao_credito") {
+    throw new ApiError(
+      400,
+      "FILTER_CONFLICT",
+      "source=accounts cannot be combined with type=cartao_credito."
+    );
+  }
+  if (source === "credit_cards" && type === "transferencia") {
+    throw new ApiError(
+      400,
+      "FILTER_CONFLICT",
+      "source=credit_cards cannot be combined with type=transferencia."
+    );
+  }
+  if (source === "credit_cards" && accountFilter.ids.length > 0) {
+    throw new ApiError(
+      400,
+      "FILTER_CONFLICT",
+      "source=credit_cards cannot be combined with account_id/account_ids."
+    );
+  }
+  if (source === "accounts" && creditCardFilter.ids.length > 0) {
+    throw new ApiError(
+      400,
+      "FILTER_CONFLICT",
+      "source=accounts cannot be combined with credit_card_id/credit_card_ids."
+    );
+  }
+  if (accountFilter.ids.length > 0 && creditCardFilter.ids.length > 0) {
+    throw new ApiError(
+      400,
+      "FILTER_CONFLICT",
+      "account_id/account_ids and credit_card_id/credit_card_ids cannot be combined."
+    );
+  }
+
+  const [accountsResult, cardsResult, transactionRows] = await Promise.all([
+    supabase
+      .from("accounts")
+      .select("*")
+      .eq("user_id", user.user_id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("credit_cards")
+      .select("*")
+      .eq("user_id", user.user_id)
+      .order("created_at", { ascending: true }),
+    fetchAllTransactionsForUser(supabase, user.user_id, {
+      build: (builder) =>
+        builder.order("data", { ascending: false }).order("id", { ascending: false }),
+    }),
+  ]);
+
+  for (const result of [accountsResult, cardsResult]) {
+    if (result.error) throw result.error;
+  }
+
+  const accounts = accountsResult.data ?? [];
+  const cards = cardsResult.data ?? [];
+  const accountsById = new Map(accounts.map((account) => [String(account.id), account]));
+  const cardsById = new Map(cards.map((card) => [String(card.id), card]));
+  const requestedAccountSet = new Set(accountFilter.ids.map((id) => String(id)));
+  const requestedCardSet = new Set(creditCardFilter.ids.map((id) => String(id)));
+  const profileFilter = profile === "PF" || profile === "PJ" ? profile : null;
+
+  for (const accountId of requestedAccountSet) {
+    if (!accountsById.has(accountId)) {
+      throw new ApiError(
+        404,
+        "ACCOUNT_NOT_FOUND",
+        "account_id was not found for this user."
+      );
+    }
+  }
+  for (const cardId of requestedCardSet) {
+    if (!cardsById.has(cardId)) {
+      throw new ApiError(
+        404,
+        "CREDIT_CARD_NOT_FOUND",
+        "credit_card_id was not found for this user."
+      );
+    }
+  }
+
+  const filtered = (transactionRows ?? [])
+    .filter((row) => {
+      const rowType = String(row?.tipo ?? "").trim().toLowerCase();
+      const isCard = rowType === "cartao_credito";
+      const isTransfer = isTransferTransaction(row);
+      const accountId = getProjectionTransactionAccountId(row);
+      const account = accountId ? accountsById.get(accountId) : null;
+      const cardId = getProjectionCreditCardId(row, cardsById);
+      const card = cardId ? cardsById.get(cardId) : null;
+      const rowProfile = isCard
+        ? card
+          ? normalizeProjectionCardProfile(card)
+          : ""
+        : account
+        ? normalizeProjectionAccountProfile(account)
+        : "";
+
+      if (source === "accounts" && isCard) return false;
+      if (source === "credit_cards" && !isCard) return false;
+      if (profileFilter && rowProfile !== profileFilter) return false;
+      if (
+        requestedAccountSet.size > 0 &&
+        (isCard || !requestedAccountSet.has(accountId))
+      ) {
+        return false;
+      }
+      if (
+        requestedCardSet.size > 0 &&
+        (!isCard || !requestedCardSet.has(cardId))
+      ) {
+        return false;
+      }
+
+      if (type === "receita" && (rowType !== "receita" || isTransfer)) return false;
+      if (
+        type === "despesa" &&
+        (isTransfer || (rowType !== "despesa" && !isCard))
+      ) {
+        return false;
+      }
+      if (type === "transferencia" && !isTransfer) return false;
+      if (type === "cartao_credito" && !isCard) return false;
+      if (!includeTransfers && isTransfer) return false;
+
+      const transactionPeriod = getProjectionTransactionPeriod(row, cardsById);
+      if (period && transactionPeriod !== period) return false;
+      const date = String(row?.data ?? "").trim();
+      if (dateFrom && date < dateFrom) return false;
+      if (dateTo && date > dateTo) return false;
+
+      if (
+        category &&
+        normalizeText(row?.categoria) !== normalizeText(category)
+      ) {
+        return false;
+      }
+      if (tag && normalizeText(row?.tag) !== normalizeText(tag)) return false;
+      if (
+        description &&
+        !normalizeText(row?.descricao).includes(normalizeText(description))
+      ) {
+        return false;
+      }
+      if (paid !== null && isPaidValue(row?.pago) !== paid) return false;
+
+      const rowStatus = getTransactionListStatus(row, today);
+      if (status === "pending" && rowStatus === "paid") return false;
+      if (status !== "all" && status !== "pending" && rowStatus !== status) {
+        return false;
+      }
+
+      const rowSpendingType = getTransactionListSpendingType(row);
+      if (spendingType !== "all" && rowSpendingType !== spendingType) {
+        return false;
+      }
+
+      return true;
+    })
+    .sort((left, right) => compareTransactionListRows(left, right, sort));
+
+  const totalItems = filtered.length;
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / limit);
+  const offset = (page - 1) * limit;
+  const pageRows = filtered.slice(offset, offset + limit);
+  const totals = filtered.reduce(
+    (acc, row) => {
+      const rowType = String(row?.tipo ?? "").trim().toLowerCase();
+      const amount = Math.abs(Number(row?.valor || 0));
+      if (rowType === "receita") acc.income += amount;
+      if (rowType === "despesa" || rowType === "cartao_credito") {
+        acc.expenses += amount;
+      }
+      return acc;
+    },
+    { income: 0, expenses: 0 }
+  );
+
+  const transactions = pageRows.map((row) => {
+    const rowType = String(row?.tipo ?? "").trim().toLowerCase();
+    const isCard = rowType === "cartao_credito";
+    const accountId = getProjectionTransactionAccountId(row);
+    const account = accountId ? accountsById.get(accountId) : null;
+    const cardId = getProjectionCreditCardId(row, cardsById);
+    const card = cardId ? cardsById.get(cardId) : null;
+    const payload = getTransactionPayload(row);
+    const movementKind = isPfPjMovement(row)
+      ? "pf_pj"
+      : isTransferTransaction(row)
+      ? "internal_transfer"
+      : "common";
+
+    return {
+      id: row.id,
+      transaction_id: row.id,
+      source: isCard ? "credit_cards" : "accounts",
+      type: rowType,
+      movement_kind: movementKind,
+      amount: Number(row?.valor || 0),
+      absolute_amount: Math.abs(Number(row?.valor || 0)),
+      date: row?.data || null,
+      description: row?.descricao || "",
+      category: row?.categoria || "",
+      tag: row?.tag || "",
+      paid: isPaidValue(row?.pago),
+      status: getTransactionListStatus(row, today),
+      spending_type: getTransactionListSpendingType(row) || null,
+      account_id: accountId || null,
+      account_label: account ? makeAccountLabel(account) : null,
+      credit_card_id: cardId || null,
+      credit_card_label: card
+        ? String(card?.nome || card?.bank_text || card?.titular || "Cartão").trim()
+        : null,
+      profile: isCard
+        ? card
+          ? normalizeProjectionCardProfile(card) || null
+          : null
+        : account
+        ? normalizeProjectionAccountProfile(account) || null
+        : null,
+      invoice_month: isCard
+        ? getProjectionTransactionPeriod(row, cardsById) || null
+        : null,
+      installment: Number(payload?.parcelaAtual || 0) || null,
+      total_installments: Number(payload?.totalParcelas || 0) || null,
+      recurrence_id: getMovementRecurrenceId(row) || null,
+      linked_movement_id: getLinkedMovementId(row) || null,
+      transfer_id: getTransferId(row) || null,
+    };
+  });
+
+  json(res, 200, {
+    ok: true,
+    action: "list_transactions",
+    scope: {
+      strict_filters: strictFilters,
+      profile,
+      source,
+      type,
+      period,
+      date_from: dateFrom,
+      date_to: dateTo,
+      account_ids: accountFilter.ids,
+      credit_card_ids: creditCardFilter.ids,
+      category: category || null,
+      tag: tag || null,
+      paid,
+      status,
+      spending_type: spendingType,
+      description: description || null,
+      include_transfers: includeTransfers,
+      sort,
+      is_global:
+        profile === "all" &&
+        source === "all" &&
+        accountFilter.ids.length === 0 &&
+        creditCardFilter.ids.length === 0,
+    },
+    pagination: {
+      page,
+      limit,
+      total_items: totalItems,
+      total_pages: totalPages,
+      has_next_page: totalPages > 0 && page < totalPages,
+      has_previous_page: page > 1,
+    },
+    totals: {
+      income: roundMoney(totals.income),
+      expenses: roundMoney(totals.expenses),
+      net: roundMoney(totals.income - totals.expenses),
+    },
+    transactions,
+  });
+}
+
 async function handleContext(req, res, supabase) {
   requireMethod(req, "GET");
   rejectUserIdFromSupplier(req.query || {});
@@ -1755,6 +2445,32 @@ async function handleContext(req, res, supabase) {
       public_contract_language: "en",
       transaction_types: ["receita", "despesa", "transferencia", "cartao_credito"],
       category_types: ["receita", "despesa"],
+      read_actions: [
+        "context",
+        "list_transactions",
+        "pending_transactions",
+        "payable_invoices",
+        "financial_summary",
+        "financial_projection",
+        "financial_analytics",
+      ],
+      list_transaction_sources: ["accounts", "credit_cards", "all"],
+      list_transaction_statuses: [
+        "paid",
+        "pending",
+        "overdue",
+        "due_today",
+        "future",
+        "all",
+      ],
+      list_transaction_spending_types: [
+        "variavel",
+        "fixo",
+        "parcelado",
+        "normal",
+        "all",
+      ],
+      filtered_actions_require_explicit_scope: true,
       user_id_from_supplier_body: "not_accepted",
       invoice_ref_format: "credit_card_id:YYYY-MM",
     },
@@ -2051,6 +2767,7 @@ async function handleResolveTransaction(req, res, supabase) {
     selected_transaction: resolution.selected_transaction,
   });
 }
+
 
 async function getCreditInvoiceSummaries(
   supabase,
@@ -2590,11 +3307,45 @@ async function handleFinancialProjection(req, res, supabase) {
   rejectUserIdFromSupplier(req.query || {});
 
   const user = await resolveGetUser(supabase, req);
+  const strictFilters = parseProjectionBoolean(
+    firstQueryValue(req.query, "strict_filters", "filtros_estritos"),
+    true,
+    "STRICT_FILTERS_INVALID",
+    "strict_filters"
+  );
+  if (strictFilters) {
+    requireExplicitQueryFilters(
+      req.query || {},
+      [
+        {
+          name: "profile",
+          aliases: ["profile", "perfil"],
+          allowed_values: ["PF", "PJ", "all"],
+        },
+        {
+          name: "months",
+          aliases: ["months", "meses"],
+          allowed_values: ["1..24"],
+        },
+      ],
+      "financial_projection"
+    );
+  }
+
   const today = getSaoPauloTodayIso();
-  const months = normalizeProjectionMonths(req.query?.months);
-  const startPeriod = normalizeProjectionStartPeriod(req.query?.start_period, today);
-  const mode = normalizeProjectionMode(req.query?.mode);
-  const profile = normalizeProjectionProfile(req.query?.profile);
+  const months = normalizeProjectionMonths(
+    firstQueryValue(req.query, "months", "meses")
+  );
+  const startPeriod = normalizeProjectionStartPeriod(
+    firstQueryValue(req.query, "start_period", "periodo_inicial"),
+    today
+  );
+  const mode = normalizeProjectionMode(
+    firstQueryValue(req.query, "mode", "modo")
+  );
+  const profile = normalizeProjectionProfile(
+    firstQueryValue(req.query, "profile", "perfil")
+  );
   const accountFilter = parseProjectionIdFilters(
     req.query || {},
     "account_id",
@@ -2610,13 +3361,13 @@ async function handleFinancialProjection(req, res, supabase) {
     "CREDIT_CARD_IDS_INVALID"
   );
   const includeCreditCards = parseProjectionBoolean(
-    req.query?.include_credit_cards,
+    firstQueryValue(req.query, "include_credit_cards", "incluir_cartoes"),
     true,
     "INCLUDE_CREDIT_CARDS_INVALID",
     "include_credit_cards"
   );
   const includeTransfers = parseProjectionBoolean(
-    req.query?.include_transfers,
+    firstQueryValue(req.query, "include_transfers", "incluir_transferencias"),
     false,
     "INCLUDE_TRANSFERS_INVALID",
     "include_transfers"
@@ -2807,6 +3558,7 @@ async function handleFinancialProjection(req, res, supabase) {
       credit_card_labels: creditCardLabels,
       include_credit_cards: includeCreditCards,
       include_transfers: includeTransfers,
+      strict_filters: strictFilters,
       is_global: !profileFilter && !hasAccountFilter && !hasCardFilter,
       notes,
     },
@@ -2858,11 +3610,45 @@ async function handleFinancialAnalytics(req, res, supabase) {
   rejectUserIdFromSupplier(req.query || {});
 
   const user = await resolveGetUser(supabase, req);
+  const strictFilters = parseProjectionBoolean(
+    firstQueryValue(req.query, "strict_filters", "filtros_estritos"),
+    true,
+    "STRICT_FILTERS_INVALID",
+    "strict_filters"
+  );
+  if (strictFilters) {
+    requireExplicitQueryFilters(
+      req.query || {},
+      [
+        {
+          name: "profile",
+          aliases: ["profile", "perfil"],
+          allowed_values: ["PF", "PJ", "all"],
+        },
+        {
+          name: "source",
+          aliases: ["source", "fonte"],
+          allowed_values: ["general", "credit_cards", "all"],
+        },
+      ],
+      "financial_analytics"
+    );
+  }
+
   const today = getSaoPauloTodayIso();
-  const period = normalizeAnalyticsPeriod(req.query?.period, today);
-  const profile = normalizeProjectionProfile(req.query?.profile);
-  const source = normalizeAnalyticsSource(req.query?.source);
-  const limit = normalizeAnalyticsLimit(req.query?.limit);
+  const period = normalizeAnalyticsPeriod(
+    firstQueryValue(req.query, "period", "periodo"),
+    today
+  );
+  const profile = normalizeProjectionProfile(
+    firstQueryValue(req.query, "profile", "perfil")
+  );
+  const source = normalizeAnalyticsSource(
+    firstQueryValue(req.query, "source", "fonte")
+  );
+  const limit = normalizeAnalyticsLimit(
+    firstQueryValue(req.query, "limit", "limite")
+  );
   const accountFilter = parseProjectionIdFilters(
     req.query || {},
     "account_id",
@@ -3062,6 +3848,7 @@ async function handleFinancialAnalytics(req, res, supabase) {
       account_labels: hasAccountFilter || profileFilter ? accountLabels : [],
       credit_card_ids: hasCardFilter ? creditCardFilter.ids : [],
       credit_card_labels: hasCardFilter || profileFilter ? creditCardLabels : [],
+      strict_filters: strictFilters,
       is_global: !profileFilter && !hasAccountFilter && !hasCardFilter,
       notes,
     },
@@ -5047,6 +5834,9 @@ module.exports = withApi(async function handler(req, res) {
 
   if (action === "context") {
     return handleContext(req, res, getSupabaseAdmin());
+  }
+  if (action === "list_transactions") {
+    return handleListTransactions(req, res, getSupabaseAdmin());
   }
   if (action === "pending_transactions") {
     return handlePendingTransactions(req, res, getSupabaseAdmin());

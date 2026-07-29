@@ -9,6 +9,7 @@ import { formatarMoeda, formatarData } from "../../utils/formatters";
 import { getContaBadge, getContaLabel } from "../../domain";
 import { asId } from "../../utils/asId";
 import { getContaPartsById } from "../../app/transactions/logic";
+import { getTransactionAccountScopeIds } from "../../app/transactions/transactionAccountScope";
 
 import {
   ArrowUpRight,
@@ -338,20 +339,8 @@ const getFilteredTransactions = useMemo(() => {
     return !filtroMes || data.startsWith(filtroMes);
   };
 
-  const getRefsConta = (t: any) => {
-    return [
-      t?.contaId,
-      t?.profileId,
-      t?.qualConta,
-      t?.payload?.contaId,
-      t?.contaOrigemId,
-      t?.contaDestinoId,
-      t?.transferFromId,
-      t?.transferToId,
-    ]
-      .map((value) => String(value ?? "").trim())
-      .filter(Boolean);
-  };
+  const getRefsConta = (t: any) =>
+    getTransactionAccountScopeIds(t);
 
   const matchesConta = (t: any) => {
     const refsConta = getRefsConta(t);
@@ -429,18 +418,7 @@ const searchableTransactionsBase = useMemo(() => {
 
     if (!contaFiltro || contaFiltro.toLowerCase() === "todas") return true;
 
-    const refsConta = [
-      t?.contaId,
-      t?.profileId,
-      t?.qualConta,
-      t?.payload?.contaId,
-      t?.contaOrigemId,
-      t?.contaDestinoId,
-      t?.transferFromId,
-      t?.transferToId,
-    ]
-      .map((value) => String(value ?? "").trim())
-      .filter(Boolean);
+    const refsConta = getTransactionAccountScopeIds(t);
 
     return refsConta.includes(contaFiltro);
   });

@@ -137,6 +137,10 @@ import { Archive, BookOpen, Headphones, HelpCircle, Home, LogOut, Menu, Moon, Pa
 } from "./app/constants";
 
 import { asId } from "./utils/asId";
+import {
+  getPfPjLegAccountIds,
+  isPfPjMovementTransaction,
+} from "./app/transactions/transactionAccountScope";
 
 
 // ...
@@ -6401,6 +6405,12 @@ const passaFiltroConta = useCallback((t: any) => {
 
   if (!alvo || alvo === "todas") return true;
 
+  // Movimentos PF/PJ possuem duas pernas vinculadas. Cada perna deve pertencer
+  // apenas à sua própria conta: despesa na origem e receita no destino.
+  if (isPfPjMovementTransaction(t)) {
+    return getPfPjLegAccountIds(t).includes(alvo);
+  }
+
   const tipo = String(t?.tipo ?? "").trim().toLowerCase();
   const categoria = String(t?.categoria ?? "").trim().toLowerCase();
   const isTransferencia =
@@ -6457,6 +6467,7 @@ const passaFiltroConta = useCallback((t: any) => {
   return ids.includes(alvo);
 }, [filtroConta]);
 
+
 const passaFiltroContasVisiveisEmTodas = useCallback(
   (t: any) => {
     if (!shouldShowAccountEyes) return true;
@@ -6473,7 +6484,10 @@ const passaFiltroContasVisiveisEmTodas = useCallback(
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
 
+    const isPfPjMovement = isPfPjMovementTransaction(t);
+
     const isTransferencia =
+      isPfPjMovement ||
       tipo === "transferencia" ||
       categoriaNorm === "transferencia" ||
       Boolean(t?.transferId) ||
@@ -6481,7 +6495,9 @@ const passaFiltroContasVisiveisEmTodas = useCallback(
       Boolean(payload?.transferId) ||
       Boolean(payload?.transfer_id);
 
-    const idsDaLinha = isTransferencia
+    const idsDaLinha = isPfPjMovement
+      ? getPfPjLegAccountIds(t)
+      : isTransferencia
       ? tipo === "receita"
         ? [
             t?.contaDestinoId,
@@ -6627,42 +6643,44 @@ const { getFilteredTransactions, getFilteredTransactionsAno, anoRef } =
 const payload =
   t?.payload && typeof t.payload === "object" ? t.payload : {};
 
-const idsRelacionados = [
-  t?.profileId,
-  t?.profile_id,
-  t?.contaId,
-  t?.conta_id,
-  t?.qualConta,
-  t?.qual_conta,
-  t?.qualCartao,
-  t?.qual_cartao,
+const idsRelacionados = isPfPjMovementTransaction(t)
+  ? getPfPjLegAccountIds(t)
+  : [
+      t?.profileId,
+      t?.profile_id,
+      t?.contaId,
+      t?.conta_id,
+      t?.qualConta,
+      t?.qual_conta,
+      t?.qualCartao,
+      t?.qual_cartao,
 
-  t?.contaOrigemId,
-  t?.conta_origem_id,
-  t?.contaDestinoId,
-  t?.conta_destino_id,
-  t?.transferFromId,
-  t?.transfer_from_id,
-  t?.transferToId,
-  t?.transfer_to_id,
+      t?.contaOrigemId,
+      t?.conta_origem_id,
+      t?.contaDestinoId,
+      t?.conta_destino_id,
+      t?.transferFromId,
+      t?.transfer_from_id,
+      t?.transferToId,
+      t?.transfer_to_id,
 
-  payload?.profileId,
-  payload?.profile_id,
-  payload?.contaId,
-  payload?.conta_id,
-  payload?.qualConta,
-  payload?.qual_conta,
-  payload?.contaOrigemId,
-  payload?.conta_origem_id,
-  payload?.contaDestinoId,
-  payload?.conta_destino_id,
-  payload?.transferFromId,
-  payload?.transfer_from_id,
-  payload?.transferToId,
-  payload?.transfer_to_id,
-]
-  .map(asId)
-  .filter(Boolean);
+      payload?.profileId,
+      payload?.profile_id,
+      payload?.contaId,
+      payload?.conta_id,
+      payload?.qualConta,
+      payload?.qual_conta,
+      payload?.contaOrigemId,
+      payload?.conta_origem_id,
+      payload?.contaDestinoId,
+      payload?.conta_destino_id,
+      payload?.transferFromId,
+      payload?.transfer_from_id,
+      payload?.transferToId,
+      payload?.transfer_to_id,
+    ]
+      .map(asId)
+      .filter(Boolean);
 
       if (idsRelacionados.length === 0) return false;
 

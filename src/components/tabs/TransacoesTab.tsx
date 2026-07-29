@@ -339,16 +339,41 @@ const getFilteredTransactions = useMemo(() => {
   };
 
   const getRefsConta = (t: any) => {
-    return [
-      t?.contaId,
-      t?.profileId,
-      t?.qualConta,
-      t?.payload?.contaId,
-      t?.contaOrigemId,
-      t?.contaDestinoId,
-      t?.transferFromId,
-      t?.transferToId,
-    ]
+    const payload =
+      t?.payload && typeof t.payload === "object" ? t.payload : {};
+
+    const movementKind = String(
+      payload?.movementKind ??
+        payload?.movement_kind ??
+        t?.movementKind ??
+        t?.movement_kind ??
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const refs =
+      movementKind === "pf_pj"
+        ? [
+            t?.contaId,
+            t?.profileId,
+            t?.qualConta,
+            payload?.contaId,
+            payload?.profileId,
+            payload?.qualConta,
+          ]
+        : [
+            t?.contaId,
+            t?.profileId,
+            t?.qualConta,
+            payload?.contaId,
+            t?.contaOrigemId,
+            t?.contaDestinoId,
+            t?.transferFromId,
+            t?.transferToId,
+          ];
+
+    return refs
       .map((value) => String(value ?? "").trim())
       .filter(Boolean);
   };
@@ -429,20 +454,44 @@ const searchableTransactionsBase = useMemo(() => {
 
     if (!contaFiltro || contaFiltro.toLowerCase() === "todas") return true;
 
-    const refsConta = [
-      t?.contaId,
-      t?.profileId,
-      t?.qualConta,
-      t?.payload?.contaId,
-      t?.contaOrigemId,
-      t?.contaDestinoId,
-      t?.transferFromId,
-      t?.transferToId,
-    ]
-      .map((value) => String(value ?? "").trim())
-      .filter(Boolean);
+    const payload =
+      t?.payload && typeof t.payload === "object" ? t.payload : {};
 
-    return refsConta.includes(contaFiltro);
+    const movementKind = String(
+      payload?.movementKind ??
+        payload?.movement_kind ??
+        t?.movementKind ??
+        t?.movement_kind ??
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const refsConta =
+      movementKind === "pf_pj"
+        ? [
+            t?.contaId,
+            t?.profileId,
+            t?.qualConta,
+            payload?.contaId,
+            payload?.profileId,
+            payload?.qualConta,
+          ]
+        : [
+            t?.contaId,
+            t?.profileId,
+            t?.qualConta,
+            payload?.contaId,
+            t?.contaOrigemId,
+            t?.contaDestinoId,
+            t?.transferFromId,
+            t?.transferToId,
+          ];
+
+    return refsConta
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .includes(contaFiltro);
   });
 }, [transactions, filtroMes, filtroConta]);
 

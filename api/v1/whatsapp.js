@@ -21,6 +21,7 @@ const {
 const {
   addMonthsLikeUi,
   buildFixedSummary,
+  buildInstallmentPlanningFields,
   buildInstallmentsSummary,
   buildSemPrazoMeta,
   buildTransactionSummary,
@@ -4631,9 +4632,12 @@ async function handleCreateInstallments(req, res, action) {
       criado_em: createdAt + index,
       payload: {
         metodoPagamento: paymentMethod,
-        tipoGasto: type === "despesa" ? "fixo" : "",
-        recorrenciaId,
-        isRecorrente: false,
+        ...buildInstallmentPlanningFields(
+          type,
+          index + 1,
+          installments,
+          recorrenciaId
+        ),
         recurrenceKind: "",
         recurrenceWindowMonths: null,
         recurrenceOriginDate: "",
@@ -5476,9 +5480,12 @@ async function handleCreateCreditCardInstallments(req, res, action) {
         criado_em: createdAt + index,
         payload: {
           metodoPagamento: "",
-          tipoGasto: "fixo",
-          recorrenciaId,
-          isRecorrente: false,
+          ...buildInstallmentPlanningFields(
+            "despesa",
+            installmentNumber,
+            installments,
+            recorrenciaId
+          ),
           recurrenceKind: "",
           recurrenceWindowMonths: null,
           recurrenceOriginDate: "",
@@ -5492,8 +5499,6 @@ async function handleCreateCreditCardInstallments(req, res, action) {
           contraParte: "",
           transferId: "",
           observacoes: notes,
-          parcelaAtual: installmentNumber,
-          totalParcelas: installments,
           cartaoId: creditCardId,
           qualCartao: creditCardId,
           targetId: creditCardId,

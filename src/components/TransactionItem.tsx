@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CreditCardIcon, EditIcon, TrashIcon } from "./LucideIcons";
 import { ArrowLeftRight } from "lucide-react";
+import { isVariableTransactionSpendingType } from "../app/transactions/badgeLogic";
 
 type ContaParts = {
   banco?: string;
@@ -149,7 +150,7 @@ const isVariavelVisual =
   !isParceladoVisual &&
   !isMensalVisual &&
   (
-    tipoGastoNorm === "variavel" ||
+    isVariableTransactionSpendingType(tipoGastoNorm) ||
     isReceitaAvulsaVisual
   );
 

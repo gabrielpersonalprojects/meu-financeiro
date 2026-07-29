@@ -167,7 +167,7 @@ function normalizeSpendingType(value, type) {
     .replace(/[\u0300-\u036f]/g, "");
 
   if (!raw) {
-    return type === "despesa" ? "normal" : "";
+    return type === "despesa" ? "variável" : "";
   }
 
   if (raw === "parcelado") {
@@ -178,8 +178,8 @@ function normalizeSpendingType(value, type) {
     );
   }
 
-  if (raw === "variavel" || raw === "normal") {
-    return raw === "variavel" ? "variável" : "normal";
+  if (raw === "variavel" || raw === "normal" || raw === "comum") {
+    return "variável";
   }
 
   if (raw === "fixo") {
@@ -191,6 +191,16 @@ function normalizeSpendingType(value, type) {
     "INVALID_SPENDING_TYPE",
     "spending_type must be variavel, variável, fixo, or omitted."
   );
+}
+
+function buildInstallmentPlanningFields(type, current, total, recurrenceId) {
+  return {
+    tipoGasto: type === "despesa" ? "fixo" : "",
+    recorrenciaId: String(recurrenceId ?? "").trim(),
+    isRecorrente: false,
+    parcelaAtual: Number(current),
+    totalParcelas: Number(total),
+  };
 }
 
 function getAccountProfileId(account) {
@@ -365,6 +375,7 @@ module.exports = {
   SEM_PRAZO_MONTHS,
   addMonthsLikeUi,
   buildFixedSummary,
+  buildInstallmentPlanningFields,
   buildInstallmentsSummary,
   buildSemPrazoMeta,
   buildTransactionSummary,

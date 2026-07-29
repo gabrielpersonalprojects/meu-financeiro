@@ -17,6 +17,8 @@ const { normalizeCatalogName } = require("../_lib/catalogNames");
 const {
   requireIdempotencyKey,
   runIdempotentCommand,
+  validateIdempotencyIdentifiers,
+  validateStoredTransactionReplay,
 } = require("../_lib/idempotency");
 const {
   addMonthsLikeUi,
@@ -3898,6 +3900,13 @@ async function resolvePostContext(req, action) {
     "PROVIDER_MESSAGE_ID_REQUIRED",
     "provider_message_id is required."
   );
+
+  validateIdempotencyIdentifiers({
+    providerMessageId,
+    idempotencyKey,
+    action,
+  });
+
   const supabase = getSupabaseAdmin();
   const user = await resolveWhatsappUser(supabase, whatsappPhone);
 
@@ -3909,6 +3918,32 @@ async function resolvePostContext(req, action) {
     supabase,
     user,
   };
+}
+
+function assertTransferInsertResult(created, expectedCount) {
+  const rows = Array.isArray(created) ? created : [];
+  const ids = rows
+    .map((row) => String(row?.id ?? "").trim())
+    .filter(Boolean);
+
+  if (
+    rows.length !== expectedCount ||
+    ids.length !== expectedCount ||
+    new Set(ids).size !== expectedCount
+  ) {
+    throw new ApiError(
+      500,
+      "TRANSFER_PERSISTENCE_VERIFICATION_FAILED",
+      "The transfer insert did not return all expected persisted transaction rows.",
+      {
+        expected_rows: expectedCount,
+        returned_rows: rows.length,
+        returned_ids: ids,
+      }
+    );
+  }
+
+  return rows;
 }
 
 async function runPostCommand(req, res, action, execute) {
@@ -3923,6 +3958,16 @@ async function runPostCommand(req, res, action, execute) {
     route,
     requestBody: body,
     execute: () => execute({ body, providerMessageId, supabase, user }),
+    validateReplay:
+      action === "create_transfer"
+        ? ({ body: storedBody }) =>
+            validateStoredTransactionReplay({
+              supabase,
+              userId: user.user_id,
+              responseBody: storedBody,
+              operation: "create_transfer",
+            })
+        : undefined,
   });
 
   json(res, result.statusCode, {
@@ -5075,6 +5120,7 @@ async function handleCreateTransfer(req, res, action) {
           .select("*");
 
         if (error) throw error;
+        const verifiedCreated = assertTransferInsertResult(created, rows.length);
 
         return {
           statusCode: 201,
@@ -5090,7 +5136,7 @@ async function handleCreateTransfer(req, res, action) {
               paid: effectivePaid,
               recurring: false,
             },
-            transactions: (created ?? []).map(mapTransactionResponse),
+            transactions: verifiedCreated.map(mapTransactionResponse),
           },
         };
       }
@@ -5142,6 +5188,7 @@ async function handleCreateTransfer(req, res, action) {
         .select("*");
 
       if (error) throw error;
+      const verifiedCreated = assertTransferInsertResult(created, rows.length);
 
       return {
         statusCode: 201,
@@ -5161,7 +5208,7 @@ async function handleCreateTransfer(req, res, action) {
             months,
             end_date: recurrenceMode === "com_prazo" ? endDate : null,
           },
-          transactions: (created ?? []).map(mapTransactionResponse),
+          transactions: verifiedCreated.map(mapTransactionResponse),
         },
       };
     }
@@ -5242,6 +5289,7 @@ async function handleCreateTransfer(req, res, action) {
       .select("*");
 
     if (error) throw error;
+    const verifiedCreated = assertTransferInsertResult(created, 2);
 
     return {
       statusCode: 201,
@@ -5257,7 +5305,7 @@ async function handleCreateTransfer(req, res, action) {
           amount: amountAbs,
           paid: effectivePaid,
         },
-        transactions: (created ?? []).map(mapTransactionResponse),
+        transactions: verifiedCreated.map(mapTransactionResponse),
       },
     };
   });

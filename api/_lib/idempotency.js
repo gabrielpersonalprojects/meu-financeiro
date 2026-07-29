@@ -5,6 +5,84 @@ const IDEMPOTENCY_TABLE = "whatsapp_idempotency_keys";
 const PROCESSING_STATUS_CODE = 102;
 const PROCESSING_STATE = "processing";
 
+const MIN_IDENTIFIER_LENGTH = 8;
+const MAX_IDENTIFIER_LENGTH = 512;
+const WEAK_IDENTIFIER_VALUES = new Set([
+  "sim",
+  "nao",
+  "no",
+  "yes",
+  "ok",
+  "okay",
+  "pode",
+  "confirmo",
+  "confirmado",
+  "confirmar",
+  "prosseguir",
+  "continuar",
+  "podeconfirmar",
+]);
+
+function normalizeLooseIdentifier(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function validateIdentifier(value, { code, field, action }) {
+  const cleaned = String(value ?? "").trim();
+  const normalized = normalizeLooseIdentifier(cleaned);
+
+  if (
+    cleaned.length < MIN_IDENTIFIER_LENGTH ||
+    cleaned.length > MAX_IDENTIFIER_LENGTH ||
+    WEAK_IDENTIFIER_VALUES.has(normalized)
+  ) {
+    throw new ApiError(
+      400,
+      code,
+      `${field} must be a real unique message identifier, not the user's confirmation text.`,
+      {
+        field,
+        action,
+        received_value: cleaned || null,
+        recommended_format:
+          field === "X-Idempotency-Key"
+            ? `nimble:<provider_message_id>:${action || "action"}`
+            : "Use the actual inbound WhatsApp/provider message id (for example, a wamid or Nimble event id).",
+      }
+    );
+  }
+
+  return cleaned;
+}
+
+function validateIdempotencyIdentifiers({
+  providerMessageId,
+  idempotencyKey,
+  action,
+}) {
+  const provider = validateIdentifier(providerMessageId, {
+    code: "PROVIDER_MESSAGE_ID_INVALID",
+    field: "provider_message_id",
+    action,
+  });
+
+  const key = validateIdentifier(idempotencyKey, {
+    code: "IDEMPOTENCY_KEY_INVALID",
+    field: "X-Idempotency-Key",
+    action,
+  });
+
+  return {
+    providerMessageId: provider,
+    idempotencyKey: key,
+  };
+}
+
 function stableStringify(value) {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);
@@ -54,6 +132,81 @@ function isProcessingRow(row) {
   );
 }
 
+function getStoredTransactionIds(responseBody) {
+  const rows = Array.isArray(responseBody?.transactions)
+    ? responseBody.transactions
+    : [];
+
+  return Array.from(
+    new Set(
+      rows
+        .map((row) => String(row?.id ?? row?.transaction_id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+async function validateStoredTransactionReplay({
+  supabase,
+  userId,
+  responseBody,
+  operation = "financial operation",
+}) {
+  const transactionIds = getStoredTransactionIds(responseBody);
+
+  if (transactionIds.length === 0) {
+    throw new ApiError(
+      409,
+      "IDEMPOTENCY_REPLAY_RESOURCE_MISSING",
+      `The stored ${operation} response no longer points to valid transactions. Send a new provider_message_id and a new X-Idempotency-Key.`,
+      {
+        missing_transaction_ids: [],
+        next_step:
+          "Create a new user intent using the actual provider message id and a new idempotency key.",
+      }
+    );
+  }
+
+  const { data: rows, error } = await supabase
+    .from("transactions")
+    .select("id")
+    .eq("user_id", userId)
+    .in("id", transactionIds);
+
+  if (error) {
+    throw new ApiError(
+      503,
+      "IDEMPOTENCY_REPLAY_VALIDATION_UNAVAILABLE",
+      `The API could not validate the stored ${operation} before replaying it. Retry later with the same key.`,
+      {
+        database_code: error?.code ?? null,
+      }
+    );
+  }
+
+  const existingIds = new Set(
+    (rows ?? []).map((row) => String(row?.id ?? "").trim()).filter(Boolean)
+  );
+  const missingIds = transactionIds.filter((id) => !existingIds.has(id));
+
+  if (missingIds.length > 0) {
+    throw new ApiError(
+      409,
+      "IDEMPOTENCY_REPLAY_RESOURCE_MISSING",
+      `This idempotency key points to ${operation} transactions that no longer exist. The API will not return a false created response.`,
+      {
+        missing_transaction_ids: missingIds,
+        next_step:
+          "Send a new provider_message_id and a new X-Idempotency-Key to create the operation intentionally.",
+      }
+    );
+  }
+
+  return {
+    transactionIds,
+  };
+}
+
 function storeUnavailable(message) {
   return new ApiError(500, "IDEMPOTENCY_STORE_UNAVAILABLE", message);
 }
@@ -76,7 +229,7 @@ async function fetchStoredCommand({ supabase, userId, idempotencyKey, route }) {
   return rows?.[0] ?? null;
 }
 
-function replayStoredCommand(existing, requestHash) {
+async function replayStoredCommand(existing, requestHash, validateReplay) {
   if (String(existing?.request_hash ?? "") !== requestHash) {
     throw new ApiError(
       409,
@@ -93,11 +246,21 @@ function replayStoredCommand(existing, requestHash) {
     );
   }
 
-  return {
+  const replay = {
     statusCode: Number(existing?.status_code ?? 200),
     body: existing?.response_body ?? {},
     replayed: true,
   };
+
+  if (typeof validateReplay === "function") {
+    await validateReplay({
+      statusCode: replay.statusCode,
+      body: replay.body,
+      existing,
+    });
+  }
+
+  return replay;
 }
 
 async function reserveCommand({
@@ -224,6 +387,7 @@ async function runIdempotentCommand({
   route,
   requestBody,
   execute,
+  validateReplay = undefined,
 }) {
   const requestHash = hashPayload(requestBody);
 
@@ -235,7 +399,7 @@ async function runIdempotentCommand({
   });
 
   if (existing) {
-    return replayStoredCommand(existing, requestHash);
+    return replayStoredCommand(existing, requestHash, validateReplay);
   }
 
   // Reserve the unique key BEFORE executing the financial mutation. This
@@ -260,7 +424,7 @@ async function runIdempotentCommand({
       });
 
       if (concurrent) {
-        return replayStoredCommand(concurrent, requestHash);
+        return replayStoredCommand(concurrent, requestHash, validateReplay);
       }
     }
 
@@ -319,4 +483,6 @@ module.exports = {
   hashPayload,
   requireIdempotencyKey,
   runIdempotentCommand,
+  validateIdempotencyIdentifiers,
+  validateStoredTransactionReplay,
 };

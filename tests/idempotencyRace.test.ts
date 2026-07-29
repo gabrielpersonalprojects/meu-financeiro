@@ -1,6 +1,10 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
-import { runIdempotentCommand } from "../api/_lib/idempotency";
+import {
+  runIdempotentCommand,
+  validateIdempotencyIdentifiers,
+  validateStoredTransactionReplay,
+} from "../api/_lib/idempotency";
 
 type Row = Record<string, any>;
 
@@ -268,4 +272,139 @@ test("final response persistence retries without re-executing mutation", async (
   assert.equal(result.statusCode, 201);
   assert.equal(supabase.store.updateCalls, 2);
   assert.equal(supabase.store.upsertCalls, 1);
+});
+
+
+test("weak confirmation text cannot be used as provider message id or idempotency key", () => {
+  assert.throws(
+    () =>
+      validateIdempotencyIdentifiers({
+        providerMessageId: "Sim",
+        idempotencyKey: "Sim",
+        action: "create_transfer",
+      }),
+    (error: any) => error.code === "PROVIDER_MESSAGE_ID_INVALID"
+  );
+
+  assert.throws(
+    () =>
+      validateIdempotencyIdentifiers({
+        providerMessageId: "wamid.HBgLMESSAGE123456789",
+        idempotencyKey: "Pode",
+        action: "create_transfer",
+      }),
+    (error: any) => error.code === "IDEMPOTENCY_KEY_INVALID"
+  );
+});
+
+test("real provider message ids and strong idempotency keys are accepted", () => {
+  const providerMessageId = "wamid.HBgLMESSAGE123456789";
+  const idempotencyKey = `nimble:${providerMessageId}:create_transfer`;
+
+  assert.deepEqual(
+    validateIdempotencyIdentifiers({
+      providerMessageId,
+      idempotencyKey,
+      action: "create_transfer",
+    }),
+    { providerMessageId, idempotencyKey }
+  );
+});
+
+test("replay validator can block a stale stored success without re-executing", async () => {
+  const supabase = fakeSupabase();
+  let calls = 0;
+
+  await runIdempotentCommand({
+    ...base,
+    supabase,
+    execute: async () => {
+      calls += 1;
+      return {
+        statusCode: 201,
+        body: { ok: true, transactions: [{ id: "deleted-transaction" }] },
+      };
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      runIdempotentCommand({
+        ...base,
+        supabase,
+        execute: async () => {
+          calls += 1;
+          return { statusCode: 201, body: { ok: true } };
+        },
+        validateReplay: (async () => {
+          const error: any = new Error("missing resource");
+          error.code = "IDEMPOTENCY_REPLAY_RESOURCE_MISSING";
+          throw error;
+        }) as any,
+      }),
+    (error: any) => error.code === "IDEMPOTENCY_REPLAY_RESOURCE_MISSING"
+  );
+
+  assert.equal(calls, 1);
+});
+
+
+test("stored transfer replay succeeds only while all transaction ids still exist", async () => {
+  const existingIds = new Set(["tx-out", "tx-in"]);
+  const supabase = {
+    from(table: string) {
+      assert.equal(table, "transactions");
+      return {
+        select() { return this; },
+        eq() { return this; },
+        async in(_column: string, ids: string[]) {
+          return {
+            data: ids.filter((id) => existingIds.has(id)).map((id) => ({ id })),
+            error: null,
+          };
+        },
+      };
+    },
+  };
+
+  const result = await validateStoredTransactionReplay({
+    supabase,
+    userId: base.userId,
+    operation: "create_transfer",
+    responseBody: {
+      transactions: [{ id: "tx-out" }, { id: "tx-in" }],
+    },
+  });
+
+  assert.deepEqual(result.transactionIds, ["tx-out", "tx-in"]);
+});
+
+test("stored transfer replay returns 409 when any transaction was deleted", async () => {
+  const supabase = {
+    from() {
+      return {
+        select() { return this; },
+        eq() { return this; },
+        async in() {
+          return { data: [{ id: "tx-out" }], error: null };
+        },
+      };
+    },
+  };
+
+  await assert.rejects(
+    () =>
+      validateStoredTransactionReplay({
+        supabase,
+        userId: base.userId,
+        operation: "create_transfer",
+        responseBody: {
+          transactions: [{ id: "tx-out" }, { id: "tx-in" }],
+        },
+      }),
+    (error: any) =>
+      error.code === "IDEMPOTENCY_REPLAY_RESOURCE_MISSING" &&
+      error.statusCode === 409 &&
+      error.details?.missing_transaction_ids?.[0] === "tx-in"
+  );
 });

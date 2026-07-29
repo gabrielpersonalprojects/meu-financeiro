@@ -330,8 +330,91 @@ const matchesFiltroTipoGasto = (t: any) => {
 };
 
 const getFilteredTransactions = useMemo(() => {
-  return Array.isArray(itemsFiltrados) ? itemsFiltrados : [];
-}, [itemsFiltrados]);
+  const contaFiltro = String(filtroConta ?? "").trim();
+  const categoriaFiltro = String(filtroCategoria ?? "").trim();
+
+  const matchesMes = (t: any) => {
+    const data = String(t?.data ?? "").trim();
+    return !filtroMes || data.startsWith(filtroMes);
+  };
+
+  const getRefsConta = (t: any) => {
+    return [
+      t?.contaId,
+      t?.profileId,
+      t?.qualConta,
+      t?.payload?.contaId,
+      t?.contaOrigemId,
+      t?.contaDestinoId,
+      t?.transferFromId,
+      t?.transferToId,
+    ]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean);
+  };
+
+  const matchesConta = (t: any) => {
+    const refsConta = getRefsConta(t);
+
+    if (!contaFiltro || contaFiltro.toLowerCase() === "todas") {
+      if (hiddenAccountIdsSet.size === 0) return true;
+
+      return !refsConta.some((id) => hiddenAccountIdsSet.has(id));
+    }
+
+    return refsConta.includes(contaFiltro);
+  };
+
+  const matchesCategoria = (t: any) => {
+    if (!categoriaFiltro) return true;
+
+    return (
+      String(t?.categoria ?? "").trim().toLowerCase() ===
+      categoriaFiltro.toLowerCase()
+    );
+  };
+
+  return (transactions || []).filter((t: any) => {
+    const tipo = String(t?.tipo ?? "").toLowerCase();
+
+    if (tipo === "cartao_credito") return false;
+    if (!matchesMes(t)) return false;
+    if (!matchesConta(t)) return false;
+
+    const isTransferencia =
+      tipo === "transferencia" ||
+      Boolean(t?.transferId) ||
+      Boolean(t?.transferenciaId) ||
+      Boolean(t?.transfer_id) ||
+      Boolean(t?.transferencia_id);
+
+    if (filtroLancamento === "transferencia") {
+      return isTransferencia;
+    }
+
+    if (isTransferencia) {
+      return false;
+    }
+
+    if (filtroLancamento === "receita") {
+      return tipo === "receita" && matchesCategoria(t);
+    }
+
+    if (filtroLancamento === "despesa") {
+      return tipo === "despesa" && matchesCategoria(t) && matchesFiltroTipoGasto(t);
+    }
+
+    return true;
+  });
+}, [
+  transactions,
+  filtroMes,
+  filtroConta,
+  filtroCategoria,
+  filtroLancamento,
+  filtroTipoGasto,
+  hiddenAccountIdsSet,
+]);
 
 const searchableTransactionsBase = useMemo(() => {
   const contaFiltro = String(filtroConta ?? "").trim();
@@ -346,40 +429,20 @@ const searchableTransactionsBase = useMemo(() => {
 
     if (!contaFiltro || contaFiltro.toLowerCase() === "todas") return true;
 
-    const payload =
-      t?.payload && typeof t.payload === "object" ? t.payload : {};
-
-    const movementKind = String(
-      payload?.movementKind ?? payload?.movement_kind ?? ""
-    )
-      .trim()
-      .toLowerCase();
-
-    const refsConta =
-      movementKind === "pf_pj"
-        ? [
-            t?.contaId,
-            t?.profileId,
-            t?.qualConta,
-            payload?.contaId,
-            payload?.profileId,
-            payload?.qualConta,
-          ]
-        : [
-            t?.contaId,
-            t?.profileId,
-            t?.qualConta,
-            payload?.contaId,
-            t?.contaOrigemId,
-            t?.contaDestinoId,
-            t?.transferFromId,
-            t?.transferToId,
-          ];
-
-    return refsConta
+    const refsConta = [
+      t?.contaId,
+      t?.profileId,
+      t?.qualConta,
+      t?.payload?.contaId,
+      t?.contaOrigemId,
+      t?.contaDestinoId,
+      t?.transferFromId,
+      t?.transferToId,
+    ]
       .map((value) => String(value ?? "").trim())
-      .filter(Boolean)
-      .includes(contaFiltro);
+      .filter(Boolean);
+
+    return refsConta.includes(contaFiltro);
   });
 }, [transactions, filtroMes, filtroConta]);
 

@@ -8844,8 +8844,7 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
 
           setFormDesc("");
           setFormValor("0,00");
-          setFormContaOrigem("");
-          setFormContaDestino("");
+          // Mantém origem e destino selecionados para o próximo lançamento.
           setFormCat("");
           setFormCatTransferenciaOrigem("");
           setFormCatTransferenciaDestino("");
@@ -8961,8 +8960,7 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
 
         setFormDesc("");
         setFormValor("0,00");
-        setFormContaOrigem("");
-        setFormContaDestino("");
+        // Mantém origem e destino selecionados para o próximo lançamento.
         setFormCat("");
         setFormCatTransferenciaOrigem("");
         setFormCatTransferenciaDestino("");
@@ -9036,8 +9034,7 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
       // ✅ resetar campos do formulário (transfer)
       setFormDesc("");
       setFormValor("0,00");
-      setFormContaOrigem("");
-      setFormContaDestino("");
+      // Mantém origem e destino selecionados para o próximo lançamento.
 
       toastCompact("Transferência registrada.", "success");
       return;
@@ -9525,7 +9522,9 @@ setFormDesc("");
 setFormValor("");
 setFormData(getHojeLocal());
 setFormMetodo("");
-setFormQualCartao("");
+setFormQualCartao(
+  formTipo === "receita" || formTipo === "despesa" ? contaLancadaId : ""
+);
 setFormTipoGasto("");
 setFormCat("");
 setFormPago(formTipo === "receita" ? false : true);
@@ -15415,15 +15414,16 @@ stats={stats}
   </div>
 )}
 
-        {accountPickerOpen && (
-  <>
+        {accountPickerOpen && typeof document !== "undefined"
+  ? createPortal(
+      <>
     <button
       type="button"
-      className="fixed inset-0 z-[80] bg-slate-900/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[10200] bg-slate-900/60 backdrop-blur-sm"
       onClick={() => setAccountPickerOpen(null)}
       aria-label="Fechar seleção de conta"
     />
-    <div className="fixed inset-0 z-[85] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[10210] flex items-center justify-center p-4">
       <div className="w-full max-w-sm rounded-3xl border border-slate-200/70 dark:border-slate-700/60 bg-white/90 dark:bg-slate-900/85 backdrop-blur shadow-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div>
@@ -15521,8 +15521,10 @@ stats={stats}
         </div>
       </div>
     </div>
-  </>
-)}
+      </>,
+      document.body
+    )
+  : null}
 
 {/* ===== Modal: Adicionar Conta ===== */}
 {isAddAccountOpen && (

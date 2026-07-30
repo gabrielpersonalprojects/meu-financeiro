@@ -452,21 +452,17 @@ tr:last-child td {
   font-size: 8.5px;
   line-height: 1;
   font-weight: 900;
-  border: 1px solid;
+  border: 1px solid transparent;
   vertical-align: middle;
   white-space: nowrap;
 }
 
 .info-badge-parcelado {
-  border-color: #fecdd3;
-  background: #fff1f2;
-  color: #be123c;
+      color: #be123c;
 }
 
 .info-badge-fixo {
-  border-color: #e2e8f0;
-  background: #f1f5f9;
-  color: #475569;
+      color: #475569;
 }
 
         .footer {

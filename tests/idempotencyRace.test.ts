@@ -408,3 +408,61 @@ test("stored transfer replay returns 409 when any transaction was deleted", asyn
       error.details?.missing_transaction_ids?.[0] === "tx-in"
   );
 });
+// OPTIONAL_PROVIDER_IDEMPOTENCY_TESTS
+test("accepts an independent idempotency key without provider_message_id", () => {
+  const idempotencyKey =
+    "nimble:7b63e5c5-271a-49f3-a037-a7f67ce27d31:create_transfer";
+
+  assert.deepEqual(
+    validateIdempotencyIdentifiers({
+      providerMessageId: undefined,
+      idempotencyKey,
+      action: "create_transfer",
+    }),
+    {
+      providerMessageId: null,
+      idempotencyKey,
+    }
+  );
+});
+
+test("still rejects confirmation text as an independent idempotency key", () => {
+  assert.throws(
+    () =>
+      validateIdempotencyIdentifiers({
+        providerMessageId: undefined,
+        idempotencyKey: "Sim",
+        action: "create_transfer",
+      }),
+    (error: any) =>
+      error.code === "IDEMPOTENCY_KEY_INVALID" &&
+      error.statusCode === 400
+  );
+});
+
+test("replays the same command without provider_message_id", async () => {
+  const supabase = fakeSupabase();
+  let calls = 0;
+
+  const command = {
+    ...base,
+    supabase,
+    providerMessageId: null,
+    idempotencyKey:
+      "nimble:9d4186e9-492f-444e-94c3-4fd2555ac32b:create_transfer",
+    execute: async () => {
+      calls += 1;
+      return {
+        statusCode: 201,
+        body: { ok: true, status: "created" },
+      };
+    },
+  };
+
+  const first = await runIdempotentCommand(command);
+  const replay = await runIdempotentCommand(command);
+
+  assert.equal(first.replayed, false);
+  assert.equal(replay.replayed, true);
+  assert.equal(calls, 1);
+});

@@ -3895,11 +3895,10 @@ async function resolvePostContext(req, action) {
     "WHATSAPP_PHONE_REQUIRED",
     "whatsapp_phone is required."
   );
-  const providerMessageId = requireString(
-    body.provider_message_id,
-    "PROVIDER_MESSAGE_ID_REQUIRED",
-    "provider_message_id is required."
-  );
+  const providerMessageId =
+    String(body.provider_message_id ?? "").trim() || null;
+
+
 
   validateIdempotencyIdentifiers({
     providerMessageId,

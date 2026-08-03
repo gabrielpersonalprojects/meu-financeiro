@@ -4120,11 +4120,27 @@ async function handleCreateTransaction(req, res, action) {
     const notes = String(body.notes ?? "").trim();
 
     const account = await requireOwnedAccount(supabase, user.user_id, body.account_id);
+    if (process.env.VERCEL_ENV === "preview") {
+      console.log(`[whatsapp-category-debug] ${JSON.stringify({
+        stage: "create_transaction:before-category-validation",
+        action: "create_transaction",
+        userIdPresent: Boolean(String(user.user_id ?? "").trim()),
+        rawType: body.type,
+        normalizedType: type,
+        rawCategory: body.category,
+        normalizedCategory: String(body.category ?? "").trim()
+          ? normalizeCatalogName(body.category)
+          : "",
+        argumentFormat: "object",
+        argumentOrder: ["supabase", "userId", "type", "category", "action"],
+      })}`);
+    }
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
       type,
       category: body.category,
+      action: "create_transaction",
     });
 
     const signedAmount = type === "receita" ? amountAbs : -amountAbs;

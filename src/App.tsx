@@ -107,6 +107,15 @@ import { limparFiltros } from "./app/transactions/filter";
 import { useTransacoesFiltradasMes } from "./app/transactions/useTransacoesFiltradasMes";
 import { useStatsMes } from "./app/transactions/useStatsMes";
 import { useProjection12Months } from "./app/transactions/useProjection12Months";
+import {
+  EMPTY_PROJECTION_PREFERENCES,
+  filterTransactionsForProjection,
+  loadProjectionPreferences,
+  sanitizeProjectionPreferences,
+  saveProjectionPreferences,
+  type ProjectionPreferences,
+  type ProjectionProfile,
+} from "./app/transactions/projectionPreferences";
 import { togglePagoById, applyEditToTransactions } from "./app/transactions/useTransactionActions";
 import {
   buildSemPrazoAlerts,
@@ -1337,8 +1346,10 @@ const [parcelamentosFatura, setParcelamentosFatura] = useState<ParcelamentoFatur
 const [faturasStatusManual, setFaturasStatusManual] = useState<FaturaStatusManualApp[]>([]);
   
   const [projectionMode, setProjectionMode] = useState<"acumulado" | "mensal">("acumulado");
-  const [selectedProjectionProfileIds, setSelectedProjectionProfileIds] = useState<string[]>([]);
-const [selectedProjectionCreditCardIds, setSelectedProjectionCreditCardIds] = useState<string[]>([]);
+  const [projectionPreferencesByProfile, setProjectionPreferencesByProfile] = useState<Record<ProjectionProfile, ProjectionPreferences>>({
+    pf: { ...EMPTY_PROJECTION_PREFERENCES },
+    pj: { ...EMPTY_PROJECTION_PREFERENCES },
+  });
 
   const ui = useUI();
  
@@ -6923,21 +6934,79 @@ const transacoesAnoProjecao = useMemo(() => {
   );
 }, [transactions, anoBaseProjecao]);
 
+useEffect(() => {
+  const userId = String(session?.user?.id ?? "").trim();
+  setProjectionPreferencesByProfile({
+    pf: loadProjectionPreferences(userId, "pf"),
+    pj: loadProjectionPreferences(userId, "pj"),
+  });
+}, [session?.user?.id]);
+
+const effectiveProjectionPreferencesByProfile = useMemo(() => ({
+  pf: sanitizeProjectionPreferences({
+    preferences: projectionPreferencesByProfile.pf,
+    profile: "pf",
+    profiles,
+    creditCards: activeCreditCards,
+    transactions: transacoes,
+  }),
+  pj: sanitizeProjectionPreferences({
+    preferences: projectionPreferencesByProfile.pj,
+    profile: "pj",
+    profiles,
+    creditCards: activeCreditCards,
+    transactions: transacoes,
+  }),
+}), [projectionPreferencesByProfile, profiles, activeCreditCards, transacoes]);
+
+const transacoesConsideradasNaProjecao = useMemo(() =>
+  filterTransactionsForProjection({
+    transactions: transacoes,
+    profile: projecaoPerfilView,
+    profiles,
+    creditCards: activeCreditCards,
+    preferences: projecaoPerfilView === "geral"
+      ? EMPTY_PROJECTION_PREFERENCES
+      : effectiveProjectionPreferencesByProfile[projecaoPerfilView],
+  }),
+[transacoes, projecaoPerfilView, profiles, activeCreditCards, effectiveProjectionPreferencesByProfile]);
+
+const handleApplyProjectionPreferences = (
+  profile: ProjectionProfile,
+  preferences: ProjectionPreferences
+) => {
+  const sanitized = sanitizeProjectionPreferences({
+    preferences,
+    profile,
+    profiles,
+    creditCards: activeCreditCards,
+    transactions: transacoes,
+  });
+  saveProjectionPreferences(String(session?.user?.id ?? ""), profile, sanitized);
+  setProjectionPreferencesByProfile((current) => ({ ...current, [profile]: sanitized }));
+};
+
+const handleClearProjectionPreferences = (profile: ProjectionProfile) => {
+  saveProjectionPreferences(
+    String(session?.user?.id ?? ""),
+    profile,
+    EMPTY_PROJECTION_PREFERENCES
+  );
+  setProjectionPreferencesByProfile((current) => ({
+    ...current,
+    [profile]: { ...EMPTY_PROJECTION_PREFERENCES },
+  }));
+};
+
 // --- Saldo inicial pra projeção (respeita seleção de contas da Projeção) ---
 const saldoInicialProjecao = useMemo(() => {
   if (!Array.isArray(profiles) || profiles.length === 0) return 0;
 
-  const selectedIdsSet = new Set(
-    (selectedProjectionProfileIds ?? [])
-      .map((id) => String(id ?? "").trim())
-      .filter(Boolean)
+  const excludedAccountIds = new Set(
+    projecaoPerfilView === "geral"
+      ? []
+      : effectiveProjectionPreferencesByProfile[projecaoPerfilView].excludedAccountIds
   );
-
-  // Se PF/PJ estiver ativo e nenhuma conta estiver marcada,
-  // o saldo inicial precisa ser zero.
-  if (projecaoPerfilView !== "geral" && selectedIdsSet.size === 0) {
-    return 0;
-  }
 
   const toReais = (p: any) => {
     if (p?.initialBalanceCents != null) {
@@ -6966,15 +7035,13 @@ const saldoInicialProjecao = useMemo(() => {
     if (projecaoPerfilView === "pf" && perfil !== "pf") return false;
     if (projecaoPerfilView === "pj" && perfil !== "pj") return false;
 
-    if (projecaoPerfilView !== "geral") {
-      return !!id && selectedIdsSet.has(id);
-    }
+    if (projecaoPerfilView !== "geral" && excludedAccountIds.has(id)) return false;
 
     return true;
   });
 
   return filteredProfiles.reduce((sum: number, p: any) => sum + toReais(p), 0);
-}, [profiles, projecaoPerfilView, selectedProjectionProfileIds]);
+}, [profiles, projecaoPerfilView, effectiveProjectionPreferencesByProfile]);
 
 
 // --- Projeção ---
@@ -6991,14 +7058,12 @@ const getMesAnoExtenso = useCallback((mesAno: string) => {
 }, []);
 
 const projection12Months = useProjection12Months({
-  transactions: transacoes,
+  transactions: transacoesConsideradasNaProjecao,
   getMesAnoExtenso,
   saldoInicialBase: saldoInicialProjecao,
-  perfilView: projecaoPerfilView,
+  perfilView: "geral",
   profiles,
   creditCards: activeCreditCards,
-  selectedProfileIds: selectedProjectionProfileIds,
-  selectedCreditCardIds: selectedProjectionCreditCardIds,
   mode: projectionMode,
 });
 
@@ -14043,10 +14108,10 @@ stats={stats}
   setPerfilView={setProjecaoPerfilView}
   profiles={profiles}
   creditCards={activeCreditCards}
-  selectedProfileIds={selectedProjectionProfileIds}
-  selectedCreditCardIds={selectedProjectionCreditCardIds}
-  setSelectedProfileIds={setSelectedProjectionProfileIds}
-  setSelectedCreditCardIds={setSelectedProjectionCreditCardIds}
+  transactions={transacoes}
+  preferencesByProfile={effectiveProjectionPreferencesByProfile}
+  onApplyPreferences={handleApplyProjectionPreferences}
+  onClearPreferences={handleClearProjectionPreferences}
 />
 </div>
   </div>

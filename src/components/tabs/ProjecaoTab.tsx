@@ -1,9 +1,16 @@
-import { formatarMoeda } from "../../utils/formatters";
 import { RotateCcw } from "lucide-react";
-import { useMemo } from "react";
+import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { Profile } from "../../app/types";
+import type { Profile, Transaction } from "../../app/types";
 import type { ProjectionMode, ProjectionRow } from "../../app/transactions/projection";
+import {
+  getProjectionPreferencesSummary,
+  isProjectionPreferencesActive,
+  type ProjectionPreferences,
+  type ProjectionProfile,
+} from "../../app/transactions/projectionPreferences";
+import { formatarMoeda } from "../../utils/formatters";
+import ProjectionConfigModal from "../projection/ProjectionConfigModal";
 
 type Props = {
   projection12Months: ProjectionRow[];
@@ -14,412 +21,103 @@ type Props = {
   setPerfilView: Dispatch<SetStateAction<"geral" | "pf" | "pj">>;
   profiles: Profile[];
   creditCards: any[];
-  selectedProfileIds: string[];
-  selectedCreditCardIds: string[];
-  setSelectedProfileIds: Dispatch<SetStateAction<string[]>>;
-  setSelectedCreditCardIds: Dispatch<SetStateAction<string[]>>;
+  transactions: Transaction[];
+  preferencesByProfile: Record<ProjectionProfile, ProjectionPreferences>;
+  onApplyPreferences: (profile: ProjectionProfile, preferences: ProjectionPreferences) => void;
+  onClearPreferences: (profile: ProjectionProfile) => void;
 };
-
 
 export default function ProjecaoTab({
   projection12Months,
   projectionMode,
   setProjectionMode,
-  saldoInicial,
   perfilView,
   setPerfilView,
   profiles,
   creditCards,
-  selectedProfileIds,
-  selectedCreditCardIds,
-  setSelectedProfileIds,
-  setSelectedCreditCardIds,
+  transactions,
+  preferencesByProfile,
+  onApplyPreferences,
+  onClearPreferences,
 }: Props) {
-
-  const lastColTitle =
-    projectionMode === "acumulado" ? "Saldo projetado" : "Resultado do mês";
-
-    const perfilLabel =
-  perfilView === "pf" ? "PF" : perfilView === "pj" ? "PJ" : "geral";
-
-const contasDoPerfil = useMemo(() => {
-  if (perfilView === "geral") return [];
-
-  return (profiles ?? []).filter((p: any) => {
-    const perfil = String(
-      (p as any)?.perfilConta ??
-        (p as any)?.perfil ??
-        (p as any)?.brand ??
-        ""
-    )
-      .trim()
-      .toLowerCase();
-
-    return perfil === perfilView;
-  });
-}, [profiles, perfilView]);
-
-const cartoesDoPerfil = useMemo(() => {
-  if (perfilView === "geral") return [];
-
-  return (creditCards ?? []).filter((c: any) => {
-    const perfil = String((c as any)?.perfil ?? (c as any)?.brand ?? "")
-      .trim()
-      .toLowerCase();
-
-    return perfil === perfilView;
-  });
-}, [creditCards, perfilView]);
-
-const todosPerfisMarcados =
-  perfilView !== "geral" &&
-  contasDoPerfil.every((p: any) =>
-    selectedProfileIds.includes(String((p as any)?.id ?? ""))
-  ) &&
-  cartoesDoPerfil.every((c: any) =>
-    selectedCreditCardIds.includes(String((c as any)?.id ?? ""))
+  const [configProfile, setConfigProfile] = useState<ProjectionProfile | null>(null);
+  const activePreferences = perfilView === "geral" ? null : preferencesByProfile[perfilView];
+  const summary = activePreferences ? getProjectionPreferencesSummary(activePreferences) : null;
+  const lastColTitle = projectionMode === "acumulado" ? "Saldo projetado" : "Resultado do mês";
+  const profileButton = (profile: "geral" | ProjectionProfile, label: string) => (
+    <button
+      type="button"
+      onClick={() => {
+        setPerfilView(profile);
+        if (profile !== "geral") setConfigProfile(profile);
+      }}
+      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
+        perfilView === profile
+          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+      }`}
+    >
+      {label}
+    </button>
   );
-
-const toggleConta = (id: string) => {
-  const cleanId = String(id ?? "").trim();
-  if (!cleanId) return;
-
-  setSelectedProfileIds((prev) =>
-    prev.includes(cleanId)
-      ? prev.filter((item) => item !== cleanId)
-      : [...prev, cleanId]
-  );
-};
-
-const toggleCartao = (id: string) => {
-  const cleanId = String(id ?? "").trim();
-  if (!cleanId) return;
-
-  setSelectedCreditCardIds((prev) =>
-    prev.includes(cleanId)
-      ? prev.filter((item) => item !== cleanId)
-      : [...prev, cleanId]
-  );
-};
-
-const handleToggleAll = () => {
-  if (perfilView === "geral") return;
-
-  if (todosPerfisMarcados) {
-    setSelectedProfileIds([]);
-    setSelectedCreditCardIds([]);
-    return;
-  }
-
-  setSelectedProfileIds(
-    contasDoPerfil
-      .map((p: any) => String((p as any)?.id ?? ""))
-      .filter(Boolean)
-  );
-
-  setSelectedCreditCardIds(
-    cartoesDoPerfil
-      .map((c: any) => String((c as any)?.id ?? ""))
-      .filter(Boolean)
-  );
-};
 
   return (
-    <div className="animate-in fade-in py-4 overflow-x-auto no-scrollbar">
-      <div className="flex flex-col items-center gap-2 mb-10">
-        <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight text-center">
-          Projeção{" "}
-          <span className="text-indigo-600 dark:text-indigo-400">Anual</span>
+    <div className="animate-in fade-in overflow-x-auto py-4 no-scrollbar">
+      <div className="mb-10 flex flex-col items-center gap-2">
+        <h3 className="text-center text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+          Projeção <span className="text-indigo-600 dark:text-indigo-400">Anual</span>
         </h3>
-        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.4em]">
+        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 dark:text-slate-500">
           Estimativa para os próximos 12 meses
         </p>
 
-        {/* MODO DA PROJEÇÃO (abaixo do título/subtítulo) */}
-<div className="mt-3 flex flex-wrap items-center justify-center gap-3">
-  <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
-    <button
-      type="button"
-      onClick={() => setProjectionMode("acumulado")}
-      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
-        projectionMode === "acumulado"
-          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
-      }`}
-    >
-      Acumulado
-    </button>
-
-    <button
-      type="button"
-      onClick={() => setProjectionMode("mensal")}
-      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
-        projectionMode === "mensal"
-          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
-      }`}
-    >
-      Mensal
-    </button>
-  </div>
-
-  <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
-    <button
-      type="button"
-      onClick={() => {
-  setPerfilView("geral");
-  setSelectedProfileIds([]);
-  setSelectedCreditCardIds([]);
-}}
-      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
-        perfilView === "geral"
-          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
-      }`}
-    >
-      Geral
-    </button>
-
-    <button
-      type="button"
-     onClick={() => {
-  setPerfilView("pf");
-  setSelectedProfileIds(
-    (profiles ?? [])
-      .filter((p: any) =>
-        String((p as any)?.perfilConta ?? (p as any)?.perfil ?? (p as any)?.brand ?? "")
-          .trim()
-          .toLowerCase() === "pf"
-      )
-      .map((p: any) => String((p as any)?.id ?? ""))
-      .filter(Boolean)
-  );
-  setSelectedCreditCardIds(
-    (creditCards ?? [])
-      .filter((c: any) =>
-        String((c as any)?.perfil ?? (c as any)?.brand ?? "")
-          .trim()
-          .toLowerCase() === "pf"
-      )
-      .map((c: any) => String((c as any)?.id ?? ""))
-      .filter(Boolean)
-  );
-}}
-      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
-        perfilView === "pf"
-          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
-      }`}
-    >
-      PF
-    </button>
-
-    <button
-      type="button"
-      onClick={() => {
-  setPerfilView("pj");
-  setSelectedProfileIds(
-    (profiles ?? [])
-      .filter((p: any) =>
-        String((p as any)?.perfilConta ?? (p as any)?.perfil ?? (p as any)?.brand ?? "")
-          .trim()
-          .toLowerCase() === "pj"
-      )
-      .map((p: any) => String((p as any)?.id ?? ""))
-      .filter(Boolean)
-  );
-  setSelectedCreditCardIds(
-    (creditCards ?? [])
-      .filter((c: any) =>
-        String((c as any)?.perfil ?? (c as any)?.brand ?? "")
-          .trim()
-          .toLowerCase() === "pj"
-      )
-      .map((c: any) => String((c as any)?.id ?? ""))
-      .filter(Boolean)
-  );
-}}
-      className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
-        perfilView === "pj"
-          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
-      }`}
-    >
-      PJ
-    </button>
-  </div>
-<button
-  type="button"
-onClick={() => {
-  setProjectionMode("acumulado");
-  setPerfilView("geral");
-  setSelectedProfileIds([]);
-  setSelectedCreditCardIds([]);
-}}
-  title="Voltar ao padrão"
-  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-[1.06] hover:text-[#4600ac] dark:hover:text-violet-300 active:scale-[0.97]"
->
-  <RotateCcw className="h-5 w-5" strokeWidth={2.2} />
-</button>
-</div>
-
-{projectionMode === "acumulado" && (
-  <p className="mt-1 text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">
-    No acumulado, o saldo inicial calcula-se no Saldo Projetado.
-  </p>
-)}
-
-{perfilView !== "geral" && (
-  <>
-<div className="mt-3 w-full rounded-[2rem] border border-violet-100/80 bg-white p-4 shadow-[0_10px_28px_rgba(34,0,85,0.04)] dark:border-violet-400/10 dark:bg-[#0f0a1f]/80">
-  <div className="grid gap-4 md:grid-cols-2">
-        <div className="min-w-0">
-          <p className="mb-2 text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
-            Contas
-          </p>
-<div className="-mx-4 overflow-x-auto px-4 pb-1 no-scrollbar md:mx-0 md:overflow-visible md:px-0 md:pb-0">
-  <div className="flex w-max min-w-full flex-nowrap gap-2 md:w-full md:flex-wrap">
-    {contasDoPerfil.map((conta: any) => {
-              const id = String((conta as any)?.id ?? "");
-              const ativo = selectedProfileIds.includes(id);
-              const nome = String(
-                (conta as any)?.name ?? (conta as any)?.banco ?? "Conta"
-              ).trim();
-
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => toggleConta(id)}
-                  className={`shrink-0 rounded-2xl px-3 py-2 text-sm font-semibold transition ${
-                    ativo
-                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                  }`}
-                >
-                  {nome}
-                </button>
-              );
-            })}
-  </div>
-</div>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+          <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
+            {(["acumulado", "mensal"] as const).map((mode) => (
+              <button key={mode} type="button" onClick={() => setProjectionMode(mode)} className={`rounded-xl px-3 py-1.5 text-sm font-semibold capitalize transition ${projectionMode === mode ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"}`}>{mode}</button>
+            ))}
+          </div>
+          <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
+            {profileButton("geral", "Geral")}{profileButton("pf", "PF")}{profileButton("pj", "PJ")}
+          </div>
+          <button type="button" onClick={() => { setProjectionMode("acumulado"); setPerfilView("geral"); }} title="Voltar ao padrão" className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-500 transition-all hover:scale-[1.06] hover:text-[#4600ac] active:scale-[0.97] dark:text-slate-400 dark:hover:text-violet-300"><RotateCcw className="h-5 w-5" strokeWidth={2.2} /></button>
         </div>
 
-       <div className="min-w-0 md:pl-6">
-          <p className="mb-2 text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
-            Cartões
-          </p>
+        {projectionMode === "acumulado" && <p className="mt-1 text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">No acumulado, o saldo inicial calcula-se no Saldo Projetado.</p>}
 
-<div className="-mx-4 overflow-x-auto px-4 pb-1 no-scrollbar md:mx-0 md:overflow-visible md:px-0 md:pb-0">
-  <div className="flex w-max min-w-full flex-nowrap items-start gap-2 md:w-full md:flex-wrap">
-    {cartoesDoPerfil.map((cartao: any) => {
-              const id = String((cartao as any)?.id ?? "");
-              const ativo = selectedCreditCardIds.includes(id);
-const nome = String(
-  (cartao as any)?.emissor ??
-    (cartao as any)?.bankText ??
-    (cartao as any)?.name ??
-    (cartao as any)?.nome ??
-    "Cartão"
-).trim();
+        {activePreferences && summary && isProjectionPreferencesActive(activePreferences) && (
+          <div className="mt-3 flex w-full flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50/70 p-4 text-left dark:border-violet-400/20 dark:bg-violet-500/10 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="text-sm font-black text-violet-800 dark:text-violet-200">Projeção personalizada</p><p className="mt-0.5 text-xs font-semibold text-violet-700/80 dark:text-violet-300/80">{summary.accounts} contas, {summary.cards} cartões e {summary.transactions} lançamentos excluídos.</p></div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setConfigProfile(perfilView as ProjectionProfile)} className="rounded-xl bg-[#4600ac] px-3 py-2 text-xs font-bold text-white">Ajustar filtros</button>
+              <button type="button" onClick={() => { if (window.confirm("Limpar a configuração personalizada desta projeção?")) onClearPreferences(perfilView as ProjectionProfile); }} className="rounded-xl border border-violet-200 px-3 py-2 text-xs font-bold text-violet-800 dark:border-violet-400/20 dark:text-violet-200">Limpar</button>
+            </div>
+          </div>
+        )}
+      </div>
 
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => toggleCartao(id)}
-                  className={`inline-flex min-w-[88px] shrink-0 justify-center rounded-2xl px-3 py-2 text-sm font-semibold transition ${
-                    ativo
-                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                  }`}
-                >
-                  {nome}
-                </button>
-              );
+      <div className="min-w-[800px] rounded-[2rem] border border-violet-100/80 bg-white p-4 shadow-[0_10px_28px_rgba(34,0,85,0.04)] dark:border-violet-400/10 dark:bg-[#0f0a1f]/80">
+        <table className="w-full border-separate border-spacing-y-2 text-left">
+          <thead><tr className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-400 dark:text-violet-300/70"><th className="px-6 py-4">Mês / Ano</th><th className="px-6 py-4">Receitas</th><th className="px-6 py-4">Despesas Fixas</th><th className="px-6 py-4">Variáveis + Cartões</th><th className="px-6 py-4 text-right">{lastColTitle}</th></tr></thead>
+          <tbody>
+            {projection12Months.map((row, idx) => {
+              const receitas = Number(row.receitas) || 0;
+              const fixas = Number(row.fixas) || 0;
+              const variaveis = Number(row.variaveis) || 0;
+              const valorFinal = projectionMode === "acumulado" ? Number(row.saldo) || 0 : receitas - (fixas + variaveis);
+              return <tr key={idx} className="group transition-all duration-300">
+                <td className="rounded-l-2xl border-y border-l border-violet-100/70 bg-violet-50/55 px-6 py-5 text-sm font-black text-slate-800 group-hover:bg-violet-50 dark:border-violet-400/10 dark:bg-white/[0.03] dark:text-white dark:group-hover:bg-violet-500/[0.07]">{row.mesAno}</td>
+                <td className="border-y border-violet-100/70 bg-violet-50/55 px-6 py-5 text-sm font-bold text-violet-700 group-hover:bg-violet-50 dark:border-violet-400/10 dark:bg-white/[0.03] dark:text-violet-300 dark:group-hover:bg-violet-500/[0.07]">{formatarMoeda(receitas)}</td>
+                <td className="border-y border-violet-100/70 bg-violet-50/55 px-6 py-5 text-sm font-bold text-slate-700 group-hover:bg-violet-50 dark:border-violet-400/10 dark:bg-white/[0.03] dark:text-slate-300 dark:group-hover:bg-violet-500/[0.07]">{formatarMoeda(fixas)}</td>
+                <td className="border-y border-violet-100/70 bg-violet-50/55 px-6 py-5 text-sm font-bold text-violet-500 group-hover:bg-violet-50 dark:border-violet-400/10 dark:bg-white/[0.03] dark:text-violet-400 dark:group-hover:bg-violet-500/[0.07]">{formatarMoeda(variaveis)}</td>
+                <td className="rounded-r-2xl border-y border-r border-violet-100/70 bg-violet-50/55 px-6 py-5 text-right group-hover:bg-violet-50 dark:border-violet-400/10 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07]"><span className="inline-flex min-w-[132px] items-center justify-center rounded-full bg-gradient-to-r from-[#220055] to-[#4600ac] px-4 py-1.5 text-sm font-black text-white shadow-[0_4px_10px_rgba(70,0,172,0.12)]">{formatarMoeda(valorFinal)}</span></td>
+              </tr>;
             })}
-  </div>
-</div>
-        </div>
-      </div>
-    </div>
-
-<div className="mt-2 flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
-    <p className="text-[12px] font-semibold text-slate-500 dark:text-slate-300 md:text-[13px]">
-        Escolha quais contas e cartões entram na projeção.
-      </p>
-
-      <button
-        type="button"
-        onClick={handleToggleAll}
-       className="inline-flex w-fit rounded-2xl border border-[#4600ac]/20 bg-gradient-to-r from-[#220055] to-[#4600ac] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_10px_rgba(70,0,172,0.12)] transition hover:brightness-110 active:scale-[0.98]"
-      >
-        {todosPerfisMarcados ? "Desmarcar tudo" : "Marcar tudo"}
-      </button>
-    </div>
-  </>
-)}
+          </tbody>
+        </table>
       </div>
 
-<div className="min-w-[800px] rounded-[2rem] border border-violet-100/80 bg-white p-4 shadow-[0_10px_28px_rgba(34,0,85,0.04)] dark:border-violet-400/10 dark:bg-[#0f0a1f]/80">
-  <table className="w-full text-left border-separate border-spacing-y-2">
-<thead>
-  <tr className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-400 dark:text-violet-300/70">
-    <th className="px-6 py-4">Mês / Ano</th>
-    <th className="px-6 py-4">Receitas</th>
-    <th className="px-6 py-4">Despesas Fixas</th>
-    <th className="px-6 py-4">Variáveis + Cartões</th>
-    <th className="px-6 py-4 text-right">{lastColTitle}</th>
-  </tr>
-</thead>
-
-    <tbody>
-      {projection12Months.map((row, idx) => {
-        const receitas = Number(row.receitas) || 0;
-        const fixas = Number(row.fixas) || 0;
-        const variaveis = Number(row.variaveis) || 0;
-
-        const resultadoMes = receitas - (fixas + variaveis);
-
-        const valorFinal =
-          projectionMode === "acumulado"
-            ? Number(row.saldo) || 0
-            : resultadoMes;
-
-        return (
-          <tr
-            key={idx}
-            className="group transition-all duration-300"
-          >
-            <td className="px-6 py-5 text-sm font-black text-slate-800 dark:text-white rounded-l-2xl bg-violet-50/55 group-hover:bg-violet-50 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07] border-y border-l border-violet-100/70 dark:border-violet-400/10">
-              {row.mesAno}
-            </td>
-
-            <td className="px-6 py-5 text-sm font-bold text-violet-700 dark:text-violet-300 bg-violet-50/55 group-hover:bg-violet-50 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07] border-y border-violet-100/70 dark:border-violet-400/10">
-              {formatarMoeda(receitas)}
-            </td>
-
-            <td className="px-6 py-5 text-sm font-bold text-slate-700 dark:text-slate-300 bg-violet-50/55 group-hover:bg-violet-50 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07] border-y border-violet-100/70 dark:border-violet-400/10">
-              {formatarMoeda(fixas)}
-            </td>
-
-            <td className="px-6 py-5 text-sm font-bold text-violet-500 dark:text-violet-400 bg-violet-50/55 group-hover:bg-violet-50 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07] border-y border-violet-100/70 dark:border-violet-400/10">
-              {formatarMoeda(variaveis)}
-            </td>
-
-            <td className="px-6 py-5 text-right rounded-r-2xl bg-violet-50/55 group-hover:bg-violet-50 dark:bg-white/[0.03] dark:group-hover:bg-violet-500/[0.07] border-y border-r border-violet-100/70 dark:border-violet-400/10">
-              <span
-className="inline-flex min-w-[132px] items-center justify-center rounded-full px-4 py-1.5 text-sm font-black text-white transition-all bg-gradient-to-r from-[#220055] to-[#4600ac] shadow-[0_4px_10px_rgba(70,0,172,0.12)]"
-              >
-                {formatarMoeda(valorFinal)}
-              </span>
-            </td>
-          </tr>
-        );
-      })}
-    </tbody>
-  </table>
-</div>
+      {configProfile && <ProjectionConfigModal key={configProfile} profile={configProfile} profiles={profiles} creditCards={creditCards} transactions={transactions} initialPreferences={preferencesByProfile[configProfile]} onCancel={() => setConfigProfile(null)} onClear={() => { onClearPreferences(configProfile); setConfigProfile(null); }} onApply={(preferences) => { onApplyPreferences(configProfile, preferences); setConfigProfile(null); }} />}
     </div>
   );
 }

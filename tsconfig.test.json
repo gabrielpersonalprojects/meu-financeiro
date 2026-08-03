@@ -10,6 +10,6 @@
     "rootDir": ".",
     "outDir": "dist-test"
   },
-  "include": ["src/app/transactions/semPrazoAlerts.ts", "tests/**/*.ts"],
+  "include": ["src/app/transactions/semPrazoAlerts.ts", "src/app/credit/cardsResumoFiltering.ts", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist", "dist-test"]
 }

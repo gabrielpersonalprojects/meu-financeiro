@@ -127,6 +127,10 @@ import {
   sumCreditTransactionsAbs,
 } from "./app/credit/logic/creditTransactions";
 import { printCardsResumoPdfReport } from "./app/credit/reports/cardsResumoPdfReport";
+import {
+  matchesCardsResumoFilters,
+  summarizeFilteredCardsResumo,
+} from "./app/credit/cardsResumoFiltering";
 import { Archive, BookOpen, Headphones, HelpCircle, Home, LogOut, Menu, Moon, Paperclip, Send, Sun, Pencil, PencilLine, Star, Trash2, X, Search, Printer } from "lucide-react";import {
   STORAGE_KEYS,
   PROFILE_KEYS,
@@ -4609,19 +4613,6 @@ const cartaoNome = String(
 const cartaoCategoria = String(cardAny?.categoria ?? "").trim();
 const cartaoPerfil = String(cardAny?.perfil ?? cardAny?.brand ?? "").trim();
 
-const okMes =
-  !String(cardsResumoMes ?? "").trim() ||
-  mesVencimentoFatura === cardsResumoMes;
-
-const okCartao =
-  cardsResumoCartao === "todos" || cartaoId === cardsResumoCartao;
-
-    const okCategoria =
-      cardsResumoCategoria === "todas" || categoria === cardsResumoCategoria;
-
-    const okTag =
-      cardsResumoTag === "todas" || tag === cardsResumoTag;
-
     const okBusca =
       !termo ||
       normalizeResumoSearchText(
@@ -4638,7 +4629,21 @@ const okCartao =
         ].join(" ")
       ).includes(termo);
 
-    return okMes && okCartao && okCategoria && okTag && okBusca;
+    return matchesCardsResumoFilters(
+      {
+        month: mesVencimentoFatura,
+        cardId: cartaoId,
+        category: categoria,
+        tag,
+        searchMatches: okBusca,
+      },
+      {
+        month: String(cardsResumoMes ?? "").trim(),
+        cardId: cardsResumoCartao,
+        category: cardsResumoCategoria,
+        tag: cardsResumoTag,
+      }
+    );
   });
 }, [
   allCreditCardTransactions,
@@ -4715,6 +4720,12 @@ const cardsResumoAgrupado = useMemo(() => {
 
   const getTxCardIdResumo = (tx: any) =>
     String(getCreditTransactionCardRef(tx)).trim();
+
+  const filteredSummary = summarizeFilteredCardsResumo(
+    cardsResumoFiltradas,
+    getTxCardIdResumo,
+    (tx: any) => Number(tx?.valor ?? 0)
+  );
 
   const getPriorityInvoiceForCard = (card: any) => {
     const cardId = String(card?.id ?? "").trim();
@@ -4825,9 +4836,8 @@ const cardsResumoAgrupado = useMemo(() => {
     return pendingInvoices[0] ?? null;
   };
 
-  for (const tx of cardsResumoFiltradas) {
-    const cartaoId = getCreditTransactionCardRef(tx);
-    if (!cartaoId) continue;
+  for (const [cartaoId, filteredGroup] of filteredSummary.groups) {
+    const tx = filteredGroup.items[0];
 
     const card = (creditCards ?? []).find(
       (c: any) => String(c?.id ?? "").trim() === cartaoId
@@ -4854,8 +4864,8 @@ const cardsResumoAgrupado = useMemo(() => {
       itens: [],
     };
 
-    atual.total += Math.abs(Number(tx?.valor ?? 0));
-    atual.itens.push(tx);
+    atual.total = filteredGroup.total;
+    atual.itens = [...filteredGroup.items];
 
     mapa.set(cartaoId, atual);
   }
@@ -4867,28 +4877,25 @@ const cardsResumoAgrupado = useMemo(() => {
     const priorityInvoice = getPriorityInvoiceForCard(card);
 
     if (priorityInvoice) {
-      grupo.displayTotal = priorityInvoice.remaining;
       grupo.displayStatus = priorityInvoice.isOverdue ? "overdue" : "closed";
       grupo.displayDueLabel = `${String(priorityInvoice.dueDate.getDate()).padStart(2, "0")}/${String(
         priorityInvoice.dueDate.getMonth() + 1
       ).padStart(2, "0")}`;
-      grupo.displayItems = priorityInvoice.items;
-    } else {
-      grupo.displayTotal = grupo.total;
-      grupo.displayStatus = "filtered";
-      grupo.displayDueLabel = "";
-      grupo.displayItems = grupo.itens;
     }
+
+    grupo.displayTotal = grupo.total;
+    grupo.displayItems = grupo.itens;
   }
 
   return Array.from(mapa.values()).sort((a, b) => b.displayTotal - a.displayTotal);
 }, [cardsResumoFiltradas, creditCards, allCreditCardTransactions, pagamentosFatura, faturasStatusManual]);
 
 const cardsResumoTotalGeral = useMemo(() => {
-  return cardsResumoFiltradas.reduce(
-    (acc: number, tx: any) => acc + Math.abs(Number(tx?.valor ?? 0)),
-    0
-  );
+  return summarizeFilteredCardsResumo(
+    cardsResumoFiltradas,
+    (tx: any) => String(getCreditTransactionCardRef(tx)).trim(),
+    (tx: any) => Number(tx?.valor ?? 0)
+  ).total;
 }, [cardsResumoFiltradas]);
 
 const handlePrintCardsResumo = () => {

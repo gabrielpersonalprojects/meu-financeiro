@@ -136,7 +136,7 @@ export default function ProjectionConfigModal({
           <button type="button" onClick={onCancel} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10" aria-label="Fechar"><X className="h-5 w-5" /></button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6">
+        <div data-projection-config-scroll className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6 [scrollbar-width:thin] [scrollbar-color:rgba(64,0,156,0.55)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#40009c]/55 hover:[&::-webkit-scrollbar-thumb]:bg-[#40009c]/80">
           {([[
             "Contas", accounts, "excludedAccountIds", "Selecionar todas"
           ], [

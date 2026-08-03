@@ -1,16 +1,18 @@
 import { RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Profile, Transaction } from "../../app/types";
 import type { ProjectionMode, ProjectionRow } from "../../app/transactions/projection";
 import {
   getProjectionPreferencesSummary,
+  formatProjectionPreferencesMessage,
   isProjectionPreferencesActive,
   type ProjectionPreferences,
   type ProjectionProfile,
 } from "../../app/transactions/projectionPreferences";
 import { formatarMoeda } from "../../utils/formatters";
 import ProjectionConfigModal from "../projection/ProjectionConfigModal";
+import { confirm } from "../../services/confirm";
 
 type Props = {
   projection12Months: ProjectionRow[];
@@ -41,15 +43,54 @@ export default function ProjecaoTab({
   onClearPreferences,
 }: Props) {
   const [configProfile, setConfigProfile] = useState<ProjectionProfile | null>(null);
+  const clearPendingRef = useRef(false);
+  const configTriggerRef = useRef<HTMLButtonElement | null>(null);
   const activePreferences = perfilView === "geral" ? null : preferencesByProfile[perfilView];
   const summary = activePreferences ? getProjectionPreferencesSummary(activePreferences) : null;
+  const summaryMessage = summary ? formatProjectionPreferencesMessage(summary) : null;
   const lastColTitle = projectionMode === "acumulado" ? "Saldo projetado" : "Resultado do mês";
+  const closeConfig = () => {
+    setConfigProfile(null);
+    window.requestAnimationFrame(() => configTriggerRef.current?.focus());
+  };
+  const openConfig = (profile: ProjectionProfile, trigger: HTMLButtonElement) => {
+    configTriggerRef.current = trigger;
+    setConfigProfile(profile);
+  };
+  const requestClearPreferences = async (profile: ProjectionProfile) => {
+    if (clearPendingRef.current) return;
+    clearPendingRef.current = true;
+    try {
+      const accepted = await confirm({
+        title: "Limpar configuração da projeção?",
+        message: "Todas as contas, cartões e lançamentos voltarão a participar dos cálculos deste perfil.",
+        confirmText: "Limpar configuração",
+        cancelText: "Cancelar",
+        tone: "danger",
+      });
+      if (!accepted) return;
+      onClearPreferences(profile);
+      closeConfig();
+    } finally {
+      clearPendingRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (!configProfile) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !clearPendingRef.current) closeConfig();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [configProfile]);
+
   const profileButton = (profile: "geral" | ProjectionProfile, label: string) => (
     <button
       type="button"
-      onClick={() => {
+      onClick={(event) => {
         setPerfilView(profile);
-        if (profile !== "geral") setConfigProfile(profile);
+        if (profile !== "geral") openConfig(profile, event.currentTarget);
       }}
       className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
         perfilView === profile
@@ -85,12 +126,12 @@ export default function ProjecaoTab({
 
         {projectionMode === "acumulado" && <p className="mt-1 text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">No acumulado, o saldo inicial calcula-se no Saldo Projetado.</p>}
 
-        {activePreferences && summary && isProjectionPreferencesActive(activePreferences) && (
+        {activePreferences && summaryMessage && isProjectionPreferencesActive(activePreferences) && (
           <div className="mt-3 flex w-full flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50/70 p-4 text-left dark:border-violet-400/20 dark:bg-violet-500/10 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-sm font-black text-violet-800 dark:text-violet-200">Projeção personalizada</p><p className="mt-0.5 text-xs font-semibold text-violet-700/80 dark:text-violet-300/80">{summary.accounts} contas, {summary.cards} cartões e {summary.transactions} lançamentos excluídos.</p></div>
+            <div><p className="text-sm font-black text-violet-800 dark:text-violet-200">Projeção personalizada</p><p className="mt-0.5 text-xs font-semibold text-violet-700/80 dark:text-violet-300/80">{summaryMessage}</p></div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setConfigProfile(perfilView as ProjectionProfile)} className="rounded-xl bg-[#4600ac] px-3 py-2 text-xs font-bold text-white">Ajustar filtros</button>
-              <button type="button" onClick={() => { if (window.confirm("Limpar a configuração personalizada desta projeção?")) onClearPreferences(perfilView as ProjectionProfile); }} className="rounded-xl border border-violet-200 px-3 py-2 text-xs font-bold text-violet-800 dark:border-violet-400/20 dark:text-violet-200">Limpar</button>
+              <button type="button" onClick={(event) => openConfig(perfilView as ProjectionProfile, event.currentTarget)} className="rounded-xl bg-[#4600ac] px-3 py-2 text-xs font-bold text-white">Ajustar filtros</button>
+              <button type="button" onClick={() => void requestClearPreferences(perfilView as ProjectionProfile)} className="rounded-xl border border-violet-200 px-3 py-2 text-xs font-bold text-violet-800 dark:border-violet-400/20 dark:text-violet-200">Limpar</button>
             </div>
           </div>
         )}
@@ -117,7 +158,7 @@ export default function ProjecaoTab({
         </table>
       </div>
 
-      {configProfile && <ProjectionConfigModal key={configProfile} profile={configProfile} profiles={profiles} creditCards={creditCards} transactions={transactions} initialPreferences={preferencesByProfile[configProfile]} onCancel={() => setConfigProfile(null)} onClear={() => { onClearPreferences(configProfile); setConfigProfile(null); }} onApply={(preferences) => { onApplyPreferences(configProfile, preferences); setConfigProfile(null); }} />}
+      {configProfile && <ProjectionConfigModal key={configProfile} profile={configProfile} profiles={profiles} creditCards={creditCards} transactions={transactions} initialPreferences={preferencesByProfile[configProfile]} onCancel={closeConfig} onClear={() => void requestClearPreferences(configProfile)} onApply={(preferences) => { onApplyPreferences(configProfile, preferences); closeConfig(); }} />}
     </div>
   );
 }

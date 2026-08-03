@@ -52,6 +52,36 @@ export const getProjectionPreferencesSummary = (value: ProjectionPreferences) =>
   transactions: value.excludedTransactionIds.length + value.excludedGroupIds.length,
 });
 
+export const formatProjectionPreferencesMessage = (summary: {
+  accounts: number;
+  cards: number;
+  transactions: number;
+}): string | null => {
+  const parts = [
+    summary.accounts > 0
+      ? `${summary.accounts} ${summary.accounts === 1 ? "conta" : "contas"}`
+      : "",
+    summary.cards > 0
+      ? `${summary.cards} ${summary.cards === 1 ? "cartão" : "cartões"}`
+      : "",
+    summary.transactions > 0
+      ? `${summary.transactions} ${summary.transactions === 1 ? "lançamento" : "lançamentos"}`
+      : "",
+  ].filter(Boolean);
+
+  if (!parts.length) return null;
+  const subject = parts.length === 1
+    ? parts[0]
+    : `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}`;
+  const onlyAccounts = parts.length === 1 && summary.accounts > 0;
+  const participle = onlyAccounts
+    ? summary.accounts === 1 ? "excluída" : "excluídas"
+    : parts.length === 1 && summary.cards + summary.transactions === 1
+      ? "excluído"
+      : "excluídos";
+  return `${subject} ${participle} da projeção.`;
+};
+
 const storageKey = (userId: string, profile: ProjectionProfile) =>
   `fluxmoney:projection-preferences:v1:${String(userId).trim()}:${profile}`;
 

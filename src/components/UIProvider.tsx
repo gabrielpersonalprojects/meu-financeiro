@@ -19,6 +19,7 @@ type ConfirmOptions = {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  tone?: "default" | "danger";
 };
 
 type UIContextValue = {
@@ -93,6 +94,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
       message: options.message,
       confirmText: options.confirmText ?? "Confirmar",
       cancelText: options.cancelText ?? "Cancelar",
+      tone: options.tone ?? "default",
     });
 
     setConfirmOpen(true);

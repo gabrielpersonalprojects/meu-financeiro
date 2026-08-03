@@ -1,8 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import {
   EMPTY_PROJECTION_PREFERENCES,
   filterTransactionsForProjection,
+  formatProjectionPreferencesMessage,
   getProjectionPreferencesSummary,
   getProjectionTransactionGroupKey,
   isProjectionPreferencesActive,
@@ -104,4 +107,69 @@ test("cancelar e fonte unica permanecem responsabilidades sem efeito colateral",
   assert.equal(listSource, totalsSource);
   assert.equal(totalsSource, chartSource);
   assert.equal(draft.excludedCardIds.length, 1);
+});
+
+test("texto do aviso omite zeros e respeita singular e plural", () => {
+  assert.equal(formatProjectionPreferencesMessage({ accounts: 1, cards: 0, transactions: 0 }), "1 conta excluída da projeção.");
+  assert.equal(formatProjectionPreferencesMessage({ accounts: 2, cards: 0, transactions: 0 }), "2 contas excluídas da projeção.");
+  assert.equal(formatProjectionPreferencesMessage({ accounts: 0, cards: 1, transactions: 0 }), "1 cartão excluído da projeção.");
+  assert.equal(formatProjectionPreferencesMessage({ accounts: 0, cards: 2, transactions: 0 }), "2 cartões excluídos da projeção.");
+  assert.equal(formatProjectionPreferencesMessage({ accounts: 0, cards: 0, transactions: 1 }), "1 lançamento excluído da projeção.");
+  assert.equal(formatProjectionPreferencesMessage({ accounts: 0, cards: 0, transactions: 2 }), "2 lançamentos excluídos da projeção.");
+});
+
+test("texto do aviso combina dois ou tres tipos naturalmente", () => {
+  assert.equal(formatProjectionPreferencesMessage({ accounts: 1, cards: 0, transactions: 2 }), "1 conta e 2 lançamentos excluídos da projeção.");
+  assert.equal(formatProjectionPreferencesMessage({ accounts: 1, cards: 2, transactions: 3 }), "1 conta, 2 cartões e 3 lançamentos excluídos da projeção.");
+  assert.equal(formatProjectionPreferencesMessage({ accounts: 0, cards: 0, transactions: 0 }), null);
+});
+
+test("IDs orfaos nao aparecem no texto do aviso", () => {
+  const sanitized = sanitizeProjectionPreferences({ preferences: normalizeProjectionPreferences({ excludedAccountIds: ["missing"], excludedCardIds: ["missing"], excludedTransactionIds: ["missing"] }), profile: "pf", profiles, creditCards: cards, transactions });
+  assert.equal(formatProjectionPreferencesMessage(getProjectionPreferencesSummary(sanitized)), null);
+});
+
+const readProjectionUi = () => ({
+  tab: readFileSync(path.join(process.cwd(), "src", "components", "tabs", "ProjecaoTab.tsx"), "utf8"),
+  modal: readFileSync(path.join(process.cwd(), "src", "components", "projection", "ProjectionConfigModal.tsx"), "utf8"),
+});
+
+test("limpeza usa confirmacao interna e uma unica funcao compartilhada", () => {
+  const { tab } = readProjectionUi();
+  assert.doesNotMatch(tab, /window\.confirm|window\.alert|\balert\(/);
+  assert.match(tab, /await confirm\(\{/);
+  assert.match(tab, /const requestClearPreferences = async/);
+  assert.equal((tab.match(/void requestClearPreferences\(/g) ?? []).length, 2);
+  assert.match(tab, /clearPendingRef\.current/);
+  assert.match(tab, /onClearPreferences\(profile\)/);
+});
+
+test("confirmacao da limpeza possui textos e tom destrutivo corretos", () => {
+  const { tab } = readProjectionUi();
+  assert.match(tab, /Limpar configuração da projeção\?/);
+  assert.match(tab, /Todas as contas, cartões e lançamentos voltarão a participar dos cálculos deste perfil\./);
+  assert.match(tab, /confirmText:\s*"Limpar configuração"/);
+  assert.match(tab, /cancelText:\s*"Cancelar"/);
+  assert.match(tab, /tone:\s*"danger"/);
+});
+
+test("modal limita scrollbar ao conteudo e mantem header e footer fora dele", () => {
+  const { modal } = readProjectionUi();
+  const headerIndex = modal.indexOf("Configurar projeção");
+  const scrollIndex = modal.indexOf("data-projection-config-scroll");
+  const footerIndex = modal.indexOf(">Cancelar</button>");
+  assert.ok(headerIndex >= 0 && headerIndex < scrollIndex);
+  assert.ok(footerIndex > scrollIndex);
+  assert.match(modal, /\[scrollbar-width:thin\]/);
+  assert.match(modal, /\[scrollbar-color:rgba\(64,0,156,0\.55\)_transparent\]/);
+  assert.match(modal, /\[&::\-webkit-scrollbar\]:w-1\.5/);
+  assert.match(modal, /dark:bg-slate-900/);
+});
+
+test("modal preserva acessibilidade, Escape e retorno de foco", () => {
+  const { tab, modal } = readProjectionUi();
+  assert.match(modal, /role="dialog"/);
+  assert.match(modal, /aria-modal="true"/);
+  assert.match(tab, /event\.key === "Escape" && !clearPendingRef\.current/);
+  assert.match(tab, /configTriggerRef\.current\?\.focus\(\)/);
 });

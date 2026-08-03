@@ -15,6 +15,7 @@ export type ConfirmOptions = {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  tone?: "default" | "danger";
 };
 
 function ToastItem({ message, type }: { message: string; type: ToastType }) {
@@ -83,7 +84,12 @@ export function UIOverlays({
               {confirmOpts.cancelText ?? "Cancelar"}
             </button>
 
-            <button className="ui-btn ui-btn-primary" onClick={() => onCloseConfirm(true)}>
+            <button
+              className={confirmOpts.tone === "danger"
+                ? "ui-btn border border-rose-600 bg-rose-600 text-white hover:border-rose-700 hover:bg-rose-700 dark:border-rose-500 dark:bg-rose-600 dark:hover:border-rose-400 dark:hover:bg-rose-500"
+                : "ui-btn ui-btn-primary"}
+              onClick={() => onCloseConfirm(true)}
+            >
               {confirmOpts.confirmText ?? "OK"}
             </button>
           </div>

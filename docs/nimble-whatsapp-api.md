@@ -284,7 +284,6 @@ Exemplo de resposta:
   "categories": [
     {
       "id": "<CATEGORY_ID>",
-      "profile_id": "pf",
       "type": "despesa",
       "name": "Moradia"
     }
@@ -306,7 +305,7 @@ Regras para a Nimble:
 
 - usar `accounts[].id`, nunca o nome, nos campos `account_id`;
 - usar `credit_cards[].id` em `credit_card_id`;
-- categoria deve corresponder ao perfil e ao tipo do lançamento;
+- categoria deve corresponder ao tipo do lançamento; categorias são globais por usuário e não possuem escopo PF/PJ;
 - o body das criações recebe o nome da categoria/tag, não o ID;
 - não usar nem armazenar `user_id`, mesmo que uma versão do backend ainda o exponha na resposta.
 
@@ -334,14 +333,14 @@ Campos:
 
 | Campo | Obrigatório | Regra |
 |---|---:|---|
-| `profile_id` | Sim | `pf` ou `pj`. |
+| `profile_id` | Sim | Campo legado do payload (`pf` ou `pj`); não limita a disponibilidade da categoria. |
 | `type` | Sim | `receita` ou `despesa`. |
 | `name` | Sim | Nome não vazio. |
 
 Comportamento:
 
 - categoria nova: HTTP `201`, `status:"created"`;
-- categoria já existente no mesmo perfil/tipo: HTTP `200`, `status:"already_exists"`;
+- categoria já existente para o mesmo usuário/tipo: HTTP `200`, `status:"already_exists"`;
 - a operação é idempotente;
 - depois da criação, usar `category.name` no lançamento financeiro.
 
@@ -556,7 +555,7 @@ Campos:
 | `amount` | Sim | Valor positivo. |
 | `date` | Sim | `YYYY-MM-DD`. |
 | `credit_card_id` | Sim | ID retornado por `context`. |
-| `category` | Não | Deve existir como categoria de despesa no perfil do cartão. |
+| `category` | Não | Deve existir como categoria de despesa do usuário; categorias não são separadas por perfil PF/PJ. |
 | `tag` | Não | Deve existir em `credit_card_tags`. |
 | `spending_type` | Não | `variavel`, `variável`, `normal` ou `fixo`. |
 | `paid` | Não | Se omitido, assume `false`. |

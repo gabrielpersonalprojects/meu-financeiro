@@ -15,6 +15,11 @@ const {
 const { resolveWhatsappUser } = require("../_lib/whatsappUser");
 const { normalizeCatalogName } = require("../_lib/catalogNames");
 const {
+  buildContextCategories,
+  resolveAvailableCategories,
+  resolveCategoryByName,
+} = require("../_lib/categories");
+const {
   requireIdempotencyKey,
   runIdempotentCommand,
   validateIdempotencyIdentifiers,
@@ -2394,7 +2399,7 @@ async function handleContext(req, res, supabase) {
   rejectUserIdFromSupplier(req.query || {});
   const user = await resolveGetUser(supabase, req);
 
-  const [accountsResult, cardsResult, categoriesResult, tagsResult] =
+  const [accountsResult, cardsResult, tagsResult, ...categoryGroups] =
     await Promise.all([
       supabase
         .from("accounts")
@@ -2407,18 +2412,20 @@ async function handleContext(req, res, supabase) {
         .eq("user_id", user.user_id)
         .order("created_at", { ascending: false }),
       supabase
-        .from("user_categories")
-        .select("id, profile_id, tipo, nome")
-        .eq("user_id", user.user_id)
-        .order("nome", { ascending: true }),
-      supabase
         .from("user_tags")
         .select("id, nome")
         .eq("user_id", user.user_id)
         .order("nome", { ascending: true }),
+      ...["receita", "despesa"].map((type) =>
+        resolveAvailableCategories({
+          supabase,
+          userId: user.user_id,
+          type,
+        })
+      ),
     ]);
 
-  for (const result of [accountsResult, cardsResult, categoriesResult, tagsResult]) {
+  for (const result of [accountsResult, cardsResult, tagsResult]) {
     if (result.error) throw result.error;
   }
 
@@ -2430,12 +2437,7 @@ async function handleContext(req, res, supabase) {
     },
     accounts: (accountsResult.data ?? []).map(mapAccount),
     credit_cards: (cardsResult.data ?? []).map(mapCreditCard),
-    categories: (categoriesResult.data ?? []).map((row) => ({
-      id: row.id,
-      profile_id: String(row.profile_id ?? "").trim().toLowerCase(),
-      type: row.tipo,
-      name: row.nome,
-    })),
+    categories: buildContextCategories(categoryGroups),
     profiles: [
       { id: "pf", label: "PF" },
       { id: "pj", label: "PJ" },
@@ -3984,30 +3986,25 @@ async function handleCreateCategory(req, res, action) {
     const normalizedName = normalizeCatalogName(body.name);
     const profileId = normalizeProfileId(body.profile_id);
 
-    const { data: existingRows, error: existingError } = await supabase
-      .from("user_categories")
-      .select("id, profile_id, tipo, nome, normalized_name")
-      .eq("user_id", user.user_id)
-      .eq("profile_id", profileId)
-      .eq("tipo", type)
-      .eq("normalized_name", normalizedName)
-      .limit(1);
-    if (existingError) throw existingError;
+    const availableCategory = await resolveCategoryByName({
+      supabase,
+      userId: user.user_id,
+      type,
+      category: name,
+    });
 
-    const existing = existingRows?.[0] ?? null;
-
-    if (existing) {
+    if (availableCategory) {
       return {
         statusCode: 200,
         body: {
           ok: true,
           status: "already_exists",
           category: {
-            id: existing.id,
+            id: availableCategory.id,
             profile_id: profileId,
-            type: existing.tipo,
-            name: existing.nome,
-            normalized_name: existing.normalized_name || normalizedName,
+            type,
+            name: availableCategory.name,
+            normalized_name: availableCategory.normalized_name,
           },
         },
       };
@@ -4123,11 +4120,9 @@ async function handleCreateTransaction(req, res, action) {
     const notes = String(body.notes ?? "").trim();
 
     const account = await requireOwnedAccount(supabase, user.user_id, body.account_id);
-    const profileId = getAccountProfileId(account);
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
-      profileId,
       type,
       category: body.category,
     });
@@ -4641,11 +4636,9 @@ async function handleCreateInstallments(req, res, action) {
     const notes = String(body.notes ?? "").trim();
 
     const account = await requireOwnedAccount(supabase, user.user_id, body.account_id);
-    const profileId = getAccountProfileId(account);
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
-      profileId,
       type,
       category: body.category,
     });
@@ -4770,11 +4763,9 @@ async function handleCreateFixed(req, res, action) {
     }
 
     const account = await requireOwnedAccount(supabase, user.user_id, body.account_id);
-    const profileId = getAccountProfileId(account);
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
-      profileId,
       type,
       category: body.category,
     });
@@ -5004,7 +4995,6 @@ async function handleCreateTransfer(req, res, action) {
         (await validateCategoryIfProvided({
           supabase,
           userId: user.user_id,
-          profileId: fromProfile,
           type: "despesa",
           category: fromCategoryProvided,
         })) || "Movimento PF/PJ";
@@ -5012,7 +5002,6 @@ async function handleCreateTransfer(req, res, action) {
         (await validateCategoryIfProvided({
           supabase,
           userId: user.user_id,
-          profileId: toProfile,
           type: "receita",
           category: toCategoryProvided,
         })) || "Movimento PF/PJ";
@@ -5350,11 +5339,9 @@ async function handleCreateCreditCardPurchase(req, res, action) {
       body.credit_card_id
     );
     const creditCardId = String(card.id);
-    const profileId = getCreditCardProfileId(card);
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
-      profileId,
       type: "despesa",
       category: body.category,
     });
@@ -5480,11 +5467,9 @@ async function handleCreateCreditCardInstallments(req, res, action) {
       body.credit_card_id
     );
     const creditCardId = String(card.id);
-    const profileId = getCreditCardProfileId(card);
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
-      profileId,
       type: "despesa",
       category: body.category,
     });

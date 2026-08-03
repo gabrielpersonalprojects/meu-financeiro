@@ -1,5 +1,5 @@
 const { ApiError } = require("./http");
-const { normalizeCatalogName } = require("./catalogNames");
+const { resolveCategoryByName } = require("./categories");
 
 const COMMON_TYPES = new Set(["receita", "despesa"]);
 const SEM_PRAZO_MONTHS = 12;
@@ -241,37 +241,28 @@ async function requireOwnedAccount(supabase, userId, accountId) {
 async function validateCategoryIfProvided({
   supabase,
   userId,
-  profileId,
   type,
   category,
 }) {
   const cleanCategory = String(category ?? "").trim();
   if (!cleanCategory) return "";
 
-  const normalizedName = normalizeCatalogName(cleanCategory);
-
-  const { data, error } = await supabase
-    .from("user_categories")
-    .select("id, nome, normalized_name")
-    .eq("user_id", userId)
-    .eq("profile_id", profileId)
-    .eq("tipo", type)
-    .eq("normalized_name", normalizedName)
-    .limit(1);
-
-  if (error) throw error;
-
-  const found = data?.[0] ?? null;
+  const found = await resolveCategoryByName({
+    supabase,
+    userId,
+    type,
+    category: cleanCategory,
+  });
 
   if (!found) {
     throw new ApiError(
       400,
       "CATEGORY_NOT_FOUND",
-      "category does not exist for this user, profile, and type."
+      "category does not exist for this user and type."
     );
   }
 
-  return found.nome || cleanCategory;
+  return found.name;
 }
 
 function isBlockedTransaction(row) {

@@ -381,6 +381,8 @@ const valor = escapeHtml(
           overflow: hidden;
           margin-bottom: 16px;
           background: #ffffff;
+          break-inside: avoid-page;
+          page-break-inside: avoid;
         }
 
         .card-group-header {
@@ -390,6 +392,10 @@ const valor = escapeHtml(
           background: #f8fafc;
           padding: 14px;
           border-bottom: 1px solid #e2e8f0;
+          break-inside: avoid-page;
+          page-break-inside: avoid;
+          break-after: avoid-page;
+          page-break-after: avoid;
         }
 
         .card-group-header h2 {
@@ -408,10 +414,17 @@ const valor = escapeHtml(
 table {
   width: 100%;
   border-collapse: collapse;
+  break-inside: auto;
+  page-break-inside: auto;
+}
+
+tbody {
+  break-inside: auto;
+  page-break-inside: auto;
 }
 
 tr {
-  break-inside: avoid;
+  break-inside: avoid-page;
   page-break-inside: avoid;
 }
 
@@ -608,7 +621,7 @@ tr:last-child td {
         },
         pagebreak: {
           mode: ["css", "legacy"],
-          avoid: ["tr", "td", ".card-group-header", ".summary", ".filters"],
+          avoid: [".card-group", ".card-group-header", "tr", ".summary", ".filters"],
         },
       } as any;
 

@@ -1,5 +1,6 @@
 const nativeCategories = require("../../shared/nativeCategories.json");
 const { normalizeCatalogName } = require("./catalogNames");
+const { ApiError } = require("./http");
 
 const CATEGORY_TYPES = new Set(["receita", "despesa"]);
 
@@ -63,6 +64,28 @@ async function resolveCategoryByName(options) {
   return categories.find((item) => item.normalized_name === normalizedName) ?? null;
 }
 
+async function validateCategoryIfProvided({ supabase, userId, type, category }) {
+  const cleanCategory = String(category ?? "").trim();
+  if (!cleanCategory) return "";
+
+  const found = await resolveCategoryByName({
+    supabase,
+    userId,
+    type,
+    category: cleanCategory,
+  });
+
+  if (!found) {
+    throw new ApiError(
+      400,
+      "CATEGORY_NOT_FOUND",
+      "category does not exist for this user and type."
+    );
+  }
+
+  return found.name;
+}
+
 function buildContextCategories(categoryGroups) {
   return categoryGroups.flat().map((category) => ({
     id: category.id,
@@ -75,4 +98,5 @@ module.exports = {
   buildContextCategories,
   resolveAvailableCategories,
   resolveCategoryByName,
+  validateCategoryIfProvided,
 };

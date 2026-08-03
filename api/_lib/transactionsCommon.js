@@ -1,5 +1,4 @@
 const { ApiError } = require("./http");
-const { resolveCategoryByName } = require("./categories");
 
 const COMMON_TYPES = new Set(["receita", "despesa"]);
 const SEM_PRAZO_MONTHS = 12;
@@ -238,33 +237,6 @@ async function requireOwnedAccount(supabase, userId, accountId) {
   return data;
 }
 
-async function validateCategoryIfProvided({
-  supabase,
-  userId,
-  type,
-  category,
-}) {
-  const cleanCategory = String(category ?? "").trim();
-  if (!cleanCategory) return "";
-
-  const found = await resolveCategoryByName({
-    supabase,
-    userId,
-    type,
-    category: cleanCategory,
-  });
-
-  if (!found) {
-    throw new ApiError(
-      400,
-      "CATEGORY_NOT_FOUND",
-      "category does not exist for this user and type."
-    );
-  }
-
-  return found.name;
-}
-
 function isBlockedTransaction(row) {
   const type = String(row?.tipo ?? "").trim().toLowerCase();
   const category = String(row?.categoria ?? "")
@@ -384,5 +356,4 @@ module.exports = {
   parsePositiveAmount,
   requireOwnedAccount,
   requireOwnedCommonTransaction,
-  validateCategoryIfProvided,
 };

@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import {
   buildContextCategories,
   resolveAvailableCategories,
+  validateCategoryIfProvided,
 } from "../api/_lib/categories";
-import { validateCategoryIfProvided } from "../api/_lib/transactionsCommon";
 
 type Category = {
   id: string;
@@ -130,10 +130,11 @@ test("contexto preserva perfil apenas nas entidades que possuem perfil", () => {
 
 test("contexto e todas as criações de conta e cartão usam o resolvedor central", () => {
   const apiSource = readFileSync("api/v1/whatsapp.js", "utf8");
-  const creationSource = readFileSync("api/_lib/transactionsCommon.js", "utf8");
+  const categorySource = readFileSync("api/_lib/categories.js", "utf8");
   assert.match(apiSource, /buildContextCategories\(categoryGroups\)/);
   assert.equal((apiSource.match(/validateCategoryIfProvided\(\{/g) ?? []).length, 7);
-  assert.match(creationSource, /resolveCategoryByName/);
+  assert.match(categorySource, /async function validateCategoryIfProvided/);
+  assert.match(categorySource, /const found = await resolveCategoryByName/);
   for (const action of ["handleCreateTransaction", "handleCreateCreditCardPurchase", "handleCreateCreditCardInstallments"]) {
     const start = apiSource.indexOf(`async function ${action}`);
     assert.notEqual(start, -1, action);

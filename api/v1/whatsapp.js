@@ -18,6 +18,7 @@ const {
   buildContextCategories,
   resolveAvailableCategories,
   resolveCategoryByName,
+  validateCategoryIfProvided,
 } = require("../_lib/categories");
 const {
   requireIdempotencyKey,
@@ -48,7 +49,6 @@ const {
   requireOwnedAccount,
   SEM_PRAZO_MONTHS,
   requireOwnedCommonTransaction,
-  validateCategoryIfProvided,
 } = require("../_lib/transactionsCommon");
 const { resolvePendingTransaction } = require("../_lib/transactionResolver");
 

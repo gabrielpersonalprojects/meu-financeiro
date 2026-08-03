@@ -21,7 +21,6 @@ type Props = {
   initialPreferences: ProjectionPreferences;
   onCancel: () => void;
   onApply: (preferences: ProjectionPreferences) => void;
-  onClear: () => void;
 };
 
 const profileOf = (entity: any) =>
@@ -44,7 +43,6 @@ export default function ProjectionConfigModal({
   initialPreferences,
   onCancel,
   onApply,
-  onClear,
 }: Props) {
   const [draft, setDraft] = useState(() => normalizeProjectionPreferences(initialPreferences));
   const [search, setSearch] = useState("");
@@ -199,7 +197,6 @@ export default function ProjectionConfigModal({
 
         <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-4 py-3 dark:border-white/10 sm:px-6">
           <button type="button" onClick={onCancel} className="h-10 rounded-xl px-4 text-sm font-bold text-slate-600 dark:text-slate-300">Cancelar</button>
-          <button type="button" onClick={onClear} className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-700 dark:border-white/10 dark:text-slate-200">Limpar filtros</button>
           <button type="button" onClick={() => onApply(draft)} className="h-10 rounded-xl bg-[#4600ac] px-5 text-sm font-bold text-white">Aplicar</button>
         </div>
       </div>

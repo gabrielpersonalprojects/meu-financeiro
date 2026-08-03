@@ -139,9 +139,26 @@ test("limpeza usa confirmacao interna e uma unica funcao compartilhada", () => {
   assert.doesNotMatch(tab, /window\.confirm|window\.alert|\balert\(/);
   assert.match(tab, /await confirm\(\{/);
   assert.match(tab, /const requestClearPreferences = async/);
-  assert.equal((tab.match(/void requestClearPreferences\(/g) ?? []).length, 2);
+  assert.equal((tab.match(/void requestClearPreferences\(/g) ?? []).length, 1);
   assert.match(tab, /clearPendingRef\.current/);
   assert.match(tab, /onClearPreferences\(profile\)/);
+});
+
+test("modal de configuracao possui somente Cancelar e Aplicar", () => {
+  const { modal, tab } = readProjectionUi();
+  const footer = modal.slice(modal.indexOf('className="flex flex-wrap justify-end gap-2'));
+  assert.match(footer, />Cancelar<\/button>/);
+  assert.match(footer, />Aplicar<\/button>/);
+  assert.equal((footer.match(/<button/g) ?? []).length, 2);
+  assert.doesNotMatch(modal, /Limpar filtros|\bonClear\b/);
+  assert.equal((tab.match(/>Limpar<\/button>/g) ?? []).length, 1);
+});
+
+test("limpeza externa restaura foco ao cancelar e nunca convive com modal de configuracao", () => {
+  const { tab } = readProjectionUi();
+  assert.match(tab, /clearTriggerRef\.current = event\.currentTarget/);
+  assert.match(tab, /clearTriggerRef\.current\?\.focus\(\)/);
+  assert.doesNotMatch(tab, /ProjectionConfigModal[\s\S]*requestClearPreferences\(configProfile\)/);
 });
 
 test("confirmacao da limpeza possui textos e tom destrutivo corretos", () => {

@@ -45,6 +45,7 @@ export default function ProjecaoTab({
   const [configProfile, setConfigProfile] = useState<ProjectionProfile | null>(null);
   const clearPendingRef = useRef(false);
   const configTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const clearTriggerRef = useRef<HTMLButtonElement | null>(null);
   const activePreferences = perfilView === "geral" ? null : preferencesByProfile[perfilView];
   const summary = activePreferences ? getProjectionPreferencesSummary(activePreferences) : null;
   const summaryMessage = summary ? formatProjectionPreferencesMessage(summary) : null;
@@ -73,6 +74,7 @@ export default function ProjecaoTab({
       closeConfig();
     } finally {
       clearPendingRef.current = false;
+      window.requestAnimationFrame(() => clearTriggerRef.current?.focus());
     }
   };
 
@@ -131,7 +133,7 @@ export default function ProjecaoTab({
             <div><p className="text-sm font-black text-violet-800 dark:text-violet-200">Projeção personalizada</p><p className="mt-0.5 text-xs font-semibold text-violet-700/80 dark:text-violet-300/80">{summaryMessage}</p></div>
             <div className="flex gap-2">
               <button type="button" onClick={(event) => openConfig(perfilView as ProjectionProfile, event.currentTarget)} className="rounded-xl bg-[#4600ac] px-3 py-2 text-xs font-bold text-white">Ajustar filtros</button>
-              <button type="button" onClick={() => void requestClearPreferences(perfilView as ProjectionProfile)} className="rounded-xl border border-violet-200 px-3 py-2 text-xs font-bold text-violet-800 dark:border-violet-400/20 dark:text-violet-200">Limpar</button>
+              <button type="button" onClick={(event) => { clearTriggerRef.current = event.currentTarget; void requestClearPreferences(perfilView as ProjectionProfile); }} className="rounded-xl border border-violet-200 px-3 py-2 text-xs font-bold text-violet-800 dark:border-violet-400/20 dark:text-violet-200">Limpar</button>
             </div>
           </div>
         )}
@@ -158,7 +160,7 @@ export default function ProjecaoTab({
         </table>
       </div>
 
-      {configProfile && <ProjectionConfigModal key={configProfile} profile={configProfile} profiles={profiles} creditCards={creditCards} transactions={transactions} initialPreferences={preferencesByProfile[configProfile]} onCancel={closeConfig} onClear={() => void requestClearPreferences(configProfile)} onApply={(preferences) => { onApplyPreferences(configProfile, preferences); closeConfig(); }} />}
+      {configProfile && <ProjectionConfigModal key={configProfile} profile={configProfile} profiles={profiles} creditCards={creditCards} transactions={transactions} initialPreferences={preferencesByProfile[configProfile]} onCancel={closeConfig} onApply={(preferences) => { onApplyPreferences(configProfile, preferences); closeConfig(); }} />}
     </div>
   );
 }

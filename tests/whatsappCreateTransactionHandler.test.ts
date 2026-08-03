@@ -145,4 +145,3 @@ test("handler real aceita personalizada histórica e rejeita inexistente ou rece
   assert.equal(wrongType.statusCode, 400);
   assert.equal(wrongType.body.error.code, "CATEGORY_NOT_FOUND");
 });
-

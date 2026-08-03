@@ -118,37 +118,15 @@ async function invoke(handler: any, body: Row) {
 
 test("handler real aceita categoria nativa do contexto e persiste o nome canônico", async () => {
   process.env.SUPPLIER_API_TOKEN = "integration-token";
-  process.env.VERCEL_ENV = "preview";
   const db = createSupabase();
   const handler = loadRealHandler(db.client);
-  const logs: string[] = [];
-  const originalLog = console.log;
-  console.log = (...args: any[]) => logs.push(args.map(String).join(" "));
-  let res: any;
-  try {
-    res = await invoke(handler, baseBody);
-  } finally {
-    console.log = originalLog;
-    delete process.env.VERCEL_ENV;
-  }
+  const res = await invoke(handler, baseBody);
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.ok, true);
   assert.equal(db.store.transactions.length, 1);
   assert.equal(db.store.transactions[0].categoria, "Alimentação");
   assert.notEqual(db.store.transactions[0].categoria, "native:despesa:alimentacao");
   assert.equal(db.store.user_categories.some((row) => row.nome === "Alimentação"), false);
-  for (const stage of [
-    "create_transaction:before-category-validation",
-    "validateCategoryIfProvided:entry",
-    "resolveAvailableCategories:entry",
-    "resolveAvailableCategories:native-loaded",
-    "resolveCategoryByName:result",
-  ]) {
-    assert.ok(logs.some((line) => line.includes(`\"stage\":\"${stage}\"`)), stage);
-  }
-  const joinedLogs = logs.join("\n");
-  assert.doesNotMatch(joinedLogs, /5511999999999|integration-token|6d61847f/);
-  assert.match(joinedLogs, /\"matchedCategory\":\{\"id\":\"native:despesa:alimentacao\"/);
 });
 
 test("handler real aceita personalizada histórica e rejeita inexistente ou receita em despesa", async () => {

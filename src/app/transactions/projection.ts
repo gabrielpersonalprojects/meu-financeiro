@@ -22,6 +22,40 @@ const normalizeTransferText = (value: unknown) =>
 const isPfPjMovement = (t: any) =>
   String(t?.payload?.movementKind ?? "").trim() === "pf_pj";
 
+const getProjectionSpendingType = (t: any) => {
+  const candidates = [
+    t?.tipoGasto,
+    t?.tipo_gasto,
+    t?.spendingType,
+    t?.spending_type,
+    t?.payload?.tipoGasto,
+    t?.payload?.tipo_gasto,
+    t?.payload?.spendingType,
+    t?.payload?.spending_type,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = String(candidate ?? "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    if (normalized === "fixo" || normalized === "fixed") return "fixo";
+    if (
+      normalized === "variavel" ||
+      normalized === "variable" ||
+      normalized === "normal" ||
+      normalized === "comum"
+    ) {
+      return "variavel";
+    }
+  }
+
+  // Mantem o fallback vigente do dominio para tipo ausente ou invalido.
+  return "";
+};
+
 const isTransfer = (t: any) => {
   if (isPfPjMovement(t)) return false;
 
@@ -539,10 +573,7 @@ const isPgtoFatura = (t: any) => {
 const fixas = monthTransactions
   .filter((t) => {
     const tipo = String((t as any).tipo ?? "").toLowerCase();
-    const tipoGasto = String((t as any).tipoGasto ?? "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+    const tipoGasto = getProjectionSpendingType(t);
 
     return tipo === "despesa" && tipoGasto === "fixo";
   })
@@ -552,15 +583,7 @@ const variaveis = monthTransactions
   .filter((t) => {
     const tipo = String((t as any).tipo ?? "").trim().toLowerCase();
 
-    const tipoGasto = String(
-      (t as any).tipoGasto ??
-        (t as any).payload?.tipoGasto ??
-        ""
-    )
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+    const tipoGasto = getProjectionSpendingType(t);
 
     const origemLancamento = String(
       (t as any).origemLancamento ??
@@ -574,7 +597,7 @@ const variaveis = monthTransactions
 
     const isDespesaVariavel =
       tipo === "despesa" &&
-      (tipoGasto === "normal" || tipoGasto === "variavel");
+      tipoGasto === "variavel";
 
     const isParcelamentoFatura =
       origemLancamento === "parcelamento_fatura";

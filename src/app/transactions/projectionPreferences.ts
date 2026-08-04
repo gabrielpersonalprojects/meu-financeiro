@@ -104,17 +104,22 @@ export const saveProjectionPreferences = (
   userId: string,
   profile: ProjectionProfile,
   value: ProjectionPreferences,
-  storage: Pick<Storage, "setItem" | "removeItem"> = localStorage
+  storage: Pick<Storage, "setItem"> = localStorage
 ) => {
   const key = storageKey(userId, profile);
   const normalized = normalizeProjectionPreferences(value);
   if (!String(userId ?? "").trim()) return normalized;
-  if (isProjectionPreferencesActive(normalized)) {
-    storage.setItem(key, JSON.stringify(normalized));
-  } else {
-    storage.removeItem(key);
-  }
+  storage.setItem(key, JSON.stringify(normalized));
   return normalized;
+};
+
+export const clearProjectionPreferences = (
+  userId: string,
+  profile: ProjectionProfile,
+  storage: Pick<Storage, "removeItem"> = localStorage
+) => {
+  if (!String(userId ?? "").trim()) return;
+  storage.removeItem(storageKey(userId, profile));
 };
 
 const firstId = (...values: unknown[]) =>

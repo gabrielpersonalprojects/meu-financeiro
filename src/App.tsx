@@ -110,6 +110,7 @@ import { useStatsMes } from "./app/transactions/useStatsMes";
 import { useProjection12Months } from "./app/transactions/useProjection12Months";
 import {
   EMPTY_PROJECTION_PREFERENCES,
+  clearProjectionPreferences,
   filterTransactionsForProjection,
   loadProjectionPreferences,
   sanitizeProjectionPreferences,
@@ -7029,11 +7030,7 @@ const handleApplyProjectionPreferences = (
 };
 
 const handleClearProjectionPreferences = (profile: ProjectionProfile) => {
-  saveProjectionPreferences(
-    String(session?.user?.id ?? ""),
-    profile,
-    EMPTY_PROJECTION_PREFERENCES
-  );
+  clearProjectionPreferences(String(session?.user?.id ?? ""), profile);
   setProjectionPreferencesByProfile((current) => ({
     ...current,
     [profile]: { ...EMPTY_PROJECTION_PREFERENCES },

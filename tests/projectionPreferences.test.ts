@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
   EMPTY_PROJECTION_PREFERENCES,
+  clearProjectionPreferences,
   filterTransactionsForProjection,
   formatProjectionPreferencesMessage,
   getProjectionPreferencesSummary,
@@ -65,7 +66,7 @@ test("nova ocorrencia do grupo excluido continua fora e nova transacao independe
   assert.equal(result.some((item: any) => item.id === "new-single"), true);
 });
 
-test("PF e PJ persistem de forma independente e limpar restaura tudo", () => {
+test("PF e PJ persistem de forma independente e somente a limpeza explicita remove a chave", () => {
   const values = new Map<string, string>();
   const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) };
   saveProjectionPreferences("user-1", "pf", normalizeProjectionPreferences({ excludedAccountIds: ["account-pf"] }), storage);
@@ -73,8 +74,26 @@ test("PF e PJ persistem de forma independente e limpar restaura tudo", () => {
   assert.deepEqual(loadProjectionPreferences("user-1", "pf", storage).excludedAccountIds, ["account-pf"]);
   assert.deepEqual(loadProjectionPreferences("user-1", "pj", storage).excludedCardIds, ["card-pj"]);
   saveProjectionPreferences("user-1", "pf", EMPTY_PROJECTION_PREFERENCES, storage);
+  assert.equal(values.has("fluxmoney:projection-preferences:v1:user-1:pf"), true);
+  clearProjectionPreferences("user-1", "pf", storage);
   assert.equal(isProjectionPreferencesActive(loadProjectionPreferences("user-1", "pf", storage)), false);
+  assert.equal(values.has("fluxmoney:projection-preferences:v1:user-1:pf"), false);
+  assert.equal(values.has("fluxmoney:projection-preferences:v1:user-1:pj"), true);
   assert.equal(filter("pf", EMPTY_PROJECTION_PREFERENCES).length, 5);
+});
+
+test("salvar preferencias vazias nao se confunde com o fluxo destrutivo de limpar", () => {
+  const calls = { set: 0, remove: 0 };
+  const storage = {
+    setItem: () => { calls.set += 1; },
+    removeItem: () => { calls.remove += 1; },
+  };
+
+  saveProjectionPreferences("user-1", "pf", EMPTY_PROJECTION_PREFERENCES, storage);
+  assert.deepEqual(calls, { set: 1, remove: 0 });
+
+  clearProjectionPreferences("user-1", "pf", storage);
+  assert.deepEqual(calls, { set: 1, remove: 1 });
 });
 
 test("preferencias invalidas e IDs orfaos sao higienizados sem quebrar", () => {

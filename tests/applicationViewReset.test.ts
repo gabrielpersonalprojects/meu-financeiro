@@ -85,6 +85,7 @@ test("handler real do Home centraliza resets e não limpa preferências, dados o
   assert.doesNotMatch(handler, /handleLogout|signOut/);
   assert.doesNotMatch(handler, /setTransacoes\(|setProfiles\(|setCreditCards\(/);
   assert.doesNotMatch(handler, /localStorage|location\.reload|window\.location/);
+  assert.doesNotMatch(handler, /saveProjectionPreferences|clearProjectionPreferences/);
 });
 
 test("sinal do Home fecha estados locais sem limpar configuração persistida", () => {

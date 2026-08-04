@@ -43,6 +43,7 @@ type SidebarShellProps = {
   unreadNotificationsCount?: number;
   resumoAlertsCount?: number;
   showGlobalOverlay?: boolean;
+  viewResetSignal?: number;
 };
 
 const menuItems: MenuItem[] = [
@@ -192,6 +193,7 @@ export default function SidebarShell({
   unreadNotificationsCount = 0,
   resumoAlertsCount = 0,
   showGlobalOverlay = false,
+  viewResetSignal = 0,
 }: SidebarShellProps) {
 
   const [isHovered, setIsHovered] = useState(false);
@@ -211,6 +213,10 @@ export default function SidebarShell({
     setIsHovered(false);
     setMobileMenuOpen(false);
   };
+
+  useEffect(() => {
+    closeAll();
+  }, [viewResetSignal]);
 
   useEffect(() => {
     const body = document.body;

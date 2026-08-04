@@ -687,6 +687,14 @@ useEffect(() => {
   setPaginaAtual(1);
   setBuscaTransacoes("");
   setOrganizacaoLista("status");
+  setPrintModalOpen(false);
+  setMostrarValoresResumo(true);
+  setPrintOptions({
+    despesas: true,
+    receitas: true,
+    transferencias: true,
+    incluirResumo: true,
+  });
 }, [resetPaginationSignal]);
 
  const totalPaginas = Math.max(1, Math.ceil(sortedTransactions.length / ITENS_POR_PAGINA));

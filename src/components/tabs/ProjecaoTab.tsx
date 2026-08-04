@@ -27,6 +27,7 @@ type Props = {
   preferencesByProfile: Record<ProjectionProfile, ProjectionPreferences>;
   onApplyPreferences: (profile: ProjectionProfile, preferences: ProjectionPreferences) => void;
   onClearPreferences: (profile: ProjectionProfile) => void;
+  viewResetSignal?: number;
 };
 
 export default function ProjecaoTab({
@@ -41,6 +42,7 @@ export default function ProjecaoTab({
   preferencesByProfile,
   onApplyPreferences,
   onClearPreferences,
+  viewResetSignal = 0,
 }: Props) {
   const [configProfile, setConfigProfile] = useState<ProjectionProfile | null>(null);
   const clearPendingRef = useRef(false);
@@ -86,6 +88,10 @@ export default function ProjecaoTab({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [configProfile]);
+
+  useEffect(() => {
+    setConfigProfile(null);
+  }, [viewResetSignal]);
 
   const profileButton = (profile: "geral" | ProjectionProfile, label: string) => (
     <button

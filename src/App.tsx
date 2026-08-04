@@ -95,6 +95,7 @@ import { insertStatementImportBatch } from "./services/statementImportBatches";
 import { getHojeLocal } from "./domain/date";
 import { AppHeader } from "./components/AppHeader";
 import { AppHeaderNav } from "./components/layout/AppHeaderNav";
+import { runApplicationViewReset } from "./app/navigation/applicationViewReset";
 import { FluxMoneyLogo } from "./components/FluxMoneyLogo";
 import NewTransactionCard from "./components/NewTransactionCard";
 import GastosTab from "./components/tabs/GastosTab";
@@ -1092,6 +1093,7 @@ const semPrazoDismissInFlightRef = useRef<Set<string>>(new Set());
 const [activeTab, setActiveTab] = useState<TabType>("transacoes");
 const [isMobileHeaderMenuOpen, setIsMobileHeaderMenuOpen] = useState(false);
 const [transacoesResetPageSignal, setTransacoesResetPageSignal] = useState(0);
+const [applicationViewResetSignal, setApplicationViewResetSignal] = useState(0);
 
 const handleSetAccountOrder = async (nextIds: string[]) => {
   const userId = String(session?.user?.id ?? "").trim();
@@ -1115,50 +1117,90 @@ const handleSetAccountOrder = async (nextIds: string[]) => {
   }
 };
 
-const handleHomeTransacoesClick = () => {
+const resetApplicationView = () => {
   const favoriteId = String(favoriteAccountId ?? "").trim();
+  const currentMonth = getHojeLocal().substring(0, 7);
 
-  // TRANSAÇÕES
-  setFiltroMesTransacoes(getHojeLocal().substring(0, 7));
- setFiltroLancamento("despesa");
-  setFiltroCategoria("");
-  setFiltroMetodo("");
-  setFiltroTipoGasto("");
-
-  if (favoriteId) {
-    const favoritaExiste = (profiles ?? []).some(
-      (p: any) => String(p?.id ?? "").trim() === favoriteId
-    );
-
-    setFiltroConta(favoritaExiste ? favoriteId : "todas");
-  } else {
-    setFiltroConta("todas");
-  }
-
-  setTransacoesCardsPerfilView("geral");
-  setTransacoesResetPageSignal((prev) => prev + 1);
-
-  // CARTÕES
-  setIsCcExpanded(false);
-  setSelectedCreditCardId("");
-  setCreditCardsPage(1);
-  setIsCardsResumoOpen(false);
-  setCreditJumpMonth("");
-  setFormQualCartao("");
-
-    // ANÁLISE
-  setFiltroMesAnalise(getHojeLocal().substring(0, 7));
-  setAnalisePerfilView("pf");
-  setAnaliseFonteView("geral");
-
-  // PROJEÇÃO
-  setProjectionMode("acumulado");
-  setProjecaoPerfilView("geral");
-  setSelectedProjectionProfileIds([]);
-  setSelectedProjectionCreditCardIds([]);
-
-  // VOLTA PARA HOME / TRANSAÇÕES
-  setActiveTab("transacoes");
+  runApplicationViewReset({
+    closeOverlays: () => {
+      setIsMobileHeaderMenuOpen(false);
+      setApplicationViewResetSignal((prev) => prev + 1);
+      setConfirmState(null);
+      setHelpMenuOpen(false);
+      setHelpModalMode(null);
+      setSettingsOpen(false);
+      setSettingsAccessOpen(false);
+      setSettingsPasswordOpen(false);
+      setSettingsWhatsappOpen(false);
+      setShowProfileMenu(false);
+      setAccountPickerOpen(null);
+      setShowModalMetodo(false);
+      setShowModalCategoria(false);
+      setModalCategoriaTargetTipo(null);
+      setShowModalTag(false);
+      setIsInvoiceModalOpen(false);
+      setIsAccountStatementImportOpen(false);
+      setIsCreditCardStatementImportOpen(false);
+      setStatementImportPreview(null);
+      setIsAddAccountOpen(false);
+      setEditingProfileId(null);
+      setIsAddCardModalOpen(false);
+      setCcDesignOpen(false);
+      setIsEditNameModalOpen(false);
+      setEditingTransaction(null);
+      setDeletingTransaction(null);
+      setResetAppOpen(false);
+      setCheckoutSuccessVisible(false);
+      setBillingReturnVisible(false);
+      setSelectedNotificationId(null);
+    },
+    resetTransactionsView: () => {
+      setFiltroMesTransacoes(currentMonth);
+      setFiltroLancamento("despesa");
+      setFiltroCategoria("");
+      setFiltroMetodo("");
+      setFiltroTipoGasto("");
+      const favoriteExists = favoriteId && (profiles ?? []).some(
+        (profile: any) => String(profile?.id ?? "").trim() === favoriteId
+      );
+      setFiltroConta(favoriteExists ? favoriteId : "todas");
+      setTransacoesCardsPerfilView("geral");
+      setResumoPerfilView("geral");
+      setTransacoesResetPageSignal((prev) => prev + 1);
+    },
+    resetCardsView: () => {
+      setIsCcExpanded(false);
+      setSelectedCreditCardId("");
+      setCreditCardsPage(1);
+      setIsCardsResumoOpen(false);
+      setCreditJumpMonth("");
+      setFormQualCartao("");
+      setCardsResumoMes(currentMonth);
+      setCardsResumoCartao("todos");
+      setCardsResumoCategoria("todas");
+      setCardsResumoTag("todas");
+      setCardsResumoBusca("");
+    },
+    resetAnalysisView: () => {
+      setFiltroMesAnalise(currentMonth);
+      setAnalisePerfilView("geral");
+      setAnaliseFonteView("geral");
+    },
+    resetProjectionView: () => {
+      setProjectionMode("acumulado");
+      setProjecaoPerfilView("geral");
+    },
+    navigateHome: () => {
+      scrollPorAbaRef.current = {
+        transacoes: 0,
+        cartoes: 0,
+        gastos: 0,
+        projecao: 0,
+      };
+      setActiveTab("transacoes");
+      window.scrollTo({ top: 0, behavior: "auto" });
+    },
+  });
 };
 
 const handleHeaderTabChange = (tab: TabType) => {
@@ -12040,6 +12082,7 @@ return (
   unreadNotificationsCount={unreadNotificationsCount}
   resumoAlertsCount={resumoAlertsCount}
   showGlobalOverlay={appBloqueado}
+  viewResetSignal={applicationViewResetSignal}
 >
 
   <div className="min-h-screen pb-10 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
@@ -12502,7 +12545,7 @@ containerStyle={{
     <AppHeaderNav
       activeTab={activeTab}
       onTabChange={handleHeaderTabChange}
-      onHomeClick={handleHomeTransacoesClick}
+      onHomeClick={resetApplicationView}
     />
   </div>
 
@@ -14112,6 +14155,7 @@ stats={stats}
   preferencesByProfile={effectiveProjectionPreferencesByProfile}
   onApplyPreferences={handleApplyProjectionPreferences}
   onClearPreferences={handleClearProjectionPreferences}
+  viewResetSignal={applicationViewResetSignal}
 />
 </div>
   </div>

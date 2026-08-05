@@ -4710,68 +4710,6 @@ const cartaoPerfil = String(cardAny?.perfil ?? cardAny?.brand ?? "").trim();
 ]);
 
 const cardsResumoAgrupado = useMemo(() => {
-  const mapa = new Map<
-    string,
-    {
-      cartaoId: string;
-      cartaoNome: string;
-      cartaoCategoria: string;
-      perfil: "pf" | "pj";
-      total: number;
-      displayTotal: number;
-      displayStatus: "filtered" | "closed" | "overdue";
-      displayDueLabel: string;
-      displayItems: any[];
-      itens: any[];
-    }
-  >();
-
-  const hojeResumoCartoes = new Date(`${getHojeLocal()}T00:00:00`);
-
-  const normalizeCycleKeyLocal = (raw: any, referenceDate?: any): string => {
-    const value = String(raw ?? "").trim();
-    if (/^\d{4}-\d{2}$/.test(value)) return value;
-    if (value.includes("__")) {
-      const parts = value.split("__");
-      const endIso = String(parts[2] ?? "").trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(endIso)) return "";
-      const endDate = new Date(`${endIso}T12:00:00`);
-      if (Number.isNaN(endDate.getTime())) return "";
-
-      let refIso = "";
-      if (typeof referenceDate === "string") {
-        const s = String(referenceDate).trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-          refIso = s;
-        } else if (/^\d{4}-\d{2}$/.test(s)) {
-          refIso = `${s}-01`;
-        }
-      } else if (typeof referenceDate === "number" && Number.isFinite(referenceDate)) {
-        const d = new Date(referenceDate);
-        if (!Number.isNaN(d.getTime())) {
-          refIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        }
-      } else if (referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())) {
-        refIso = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, "0")}-${String(referenceDate.getDate()).padStart(2, "0")}`;
-      }
-
-      if (refIso) {
-        const refDate = new Date(`${refIso}T12:00:00`);
-        if (!Number.isNaN(refDate.getTime())) {
-          const endMonthIndex = endDate.getFullYear() * 12 + endDate.getMonth();
-          const refMonthIndex = refDate.getFullYear() * 12 + refDate.getMonth();
-
-          if (refMonthIndex > endMonthIndex) {
-            endDate.setMonth(endDate.getMonth() + 1);
-          }
-        }
-      }
-
-      return `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}`;
-    }
-    return "";
-  };
-
   const getTxCardIdResumo = (tx: any) =>
     String(getCreditTransactionCardRef(tx)).trim();
 
@@ -4781,118 +4719,7 @@ const cardsResumoAgrupado = useMemo(() => {
     (tx: any) => Number(tx?.valor ?? 0)
   );
 
-  const getPriorityInvoiceForCard = (card: any) => {
-    const cardId = String(card?.id ?? "").trim();
-    if (!cardId) return null;
-
-    const diaFechamento = Math.max(
-      1,
-      Math.min(31, Number(card?.diaFechamento ?? card?.fechamento ?? 1))
-    );
-    const diaVencimento = Math.max(
-      1,
-      Math.min(31, Number(card?.diaVencimento ?? card?.vencimento ?? 10))
-    );
-    const cicloAbertoAtual = getCardCycleMonthFromDate(
-      getHojeLocal(),
-      diaFechamento,
-      diaVencimento
-    );
-
-    const totalsByCycle = new Map<string, { total: number; paid: number; items: any[] }>();
-
-    for (const tx of allCreditCardTransactions ?? []) {
-      if (getTxCardIdResumo(tx) !== cardId) continue;
-
-      const data = String(tx?.data ?? "").trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) continue;
-
-      const ciclo = getCardCycleMonthFromDate(data, diaFechamento, diaVencimento);
-      if (!/^\d{4}-\d{2}$/.test(ciclo)) continue;
-
-      const current = totalsByCycle.get(ciclo) ?? { total: 0, paid: 0, items: [] };
-      current.total += Math.abs(Number(tx?.valor ?? 0));
-      current.items.push(tx);
-      totalsByCycle.set(ciclo, current);
-    }
-
-    for (const payment of pagamentosFatura ?? []) {
-      if (String(payment?.cartaoId ?? "").trim() !== cardId) continue;
-
-      const ciclo = normalizeCycleKeyLocal(
-        payment?.cicloKey,
-        payment?.dataPagamento ?? payment?.criadoEm ?? ""
-      );
-      if (!ciclo) continue;
-
-      const current = totalsByCycle.get(ciclo) ?? { total: 0, paid: 0, items: [] };
-      current.paid += Math.abs(Number(payment?.valor ?? 0));
-      totalsByCycle.set(ciclo, current);
-    }
-
-    const manualStatusByCycle = new Map<string, string>();
-    for (const statusItem of faturasStatusManual ?? []) {
-      if (String(statusItem?.cartaoId ?? "").trim() !== cardId) continue;
-
-      const status = String(statusItem?.statusManual ?? "").trim().toLowerCase();
-      if (!status) continue;
-
-      const ciclo = normalizeCycleKeyLocal(
-        statusItem?.cicloKey,
-        statusItem?.criadoEm ?? ""
-      );
-      if (ciclo) manualStatusByCycle.set(ciclo, status);
-    }
-
-    const pendingInvoices = Array.from(totalsByCycle.entries())
-      .map(([ciclo, info]) => {
-        const manualStatus = String(manualStatusByCycle.get(ciclo) ?? "").toLowerCase();
-        if (manualStatus === "parcelada" || manualStatus === "parcelado") {
-          return null;
-        }
-
-        const total = Math.round(Math.abs(Number(info.total || 0)) * 100) / 100;
-        const paid = Math.round(Math.abs(Number(info.paid || 0)) * 100) / 100;
-        const remaining = Math.round(Math.max(0, total - paid) * 100) / 100;
-        if (remaining <= 0.009) return null;
-        if (String(ciclo) > String(cicloAbertoAtual)) return null;
-
-        const cycleDates = getCardInvoiceCycleDatesFromMonth(
-          ciclo,
-          diaFechamento,
-          diaVencimento
-        );
-        if (!cycleDates) return null;
-        if (cycleDates.cycleEnd.getTime() >= hojeResumoCartoes.getTime()) return null;
-
-        return {
-          ciclo,
-          total,
-          remaining,
-          items: info.items,
-          dueDate: cycleDates.dueDate,
-          isOverdue: cycleDates.dueDate.getTime() < hojeResumoCartoes.getTime(),
-        };
-      })
-      .filter(Boolean)
-      .sort((a: any, b: any) => {
-        if (a.isOverdue !== b.isOverdue) return a.isOverdue ? 1 : -1;
-        return a.dueDate.getTime() - b.dueDate.getTime();
-      }) as Array<{
-        ciclo: string;
-        total: number;
-        remaining: number;
-        items: any[];
-        dueDate: Date;
-        isOverdue: boolean;
-      }>;
-
-    return pendingInvoices[0] ?? null;
-  };
-
-  for (const [cartaoId, filteredGroup] of filteredSummary.groups) {
-    const tx = filteredGroup.items[0];
-
+  return Array.from(filteredSummary.groups, ([cartaoId, filteredGroup]) => {
     const card = (creditCards ?? []).find(
       (c: any) => String(c?.id ?? "").trim() === cartaoId
     );
@@ -4905,44 +4732,16 @@ const cardsResumoAgrupado = useMemo(() => {
     const perfil =
       String(card?.perfil ?? "").trim().toLowerCase() === "pj" ? "pj" : "pf";
 
-    const atual = mapa.get(cartaoId) ?? {
+    return {
       cartaoId,
       cartaoNome,
       cartaoCategoria,
       perfil,
-      total: 0,
-      displayTotal: 0,
-      displayStatus: "filtered",
-      displayDueLabel: "",
-      displayItems: [],
-      itens: [],
+      total: filteredGroup.total,
+      itens: [...filteredGroup.items],
     };
-
-    atual.total = filteredGroup.total;
-    atual.itens = [...filteredGroup.items];
-
-    mapa.set(cartaoId, atual);
-  }
-
-  for (const grupo of mapa.values()) {
-    const card = (creditCards ?? []).find(
-      (c: any) => String(c?.id ?? "").trim() === grupo.cartaoId
-    );
-    const priorityInvoice = getPriorityInvoiceForCard(card);
-
-    if (priorityInvoice) {
-      grupo.displayStatus = priorityInvoice.isOverdue ? "overdue" : "closed";
-      grupo.displayDueLabel = `${String(priorityInvoice.dueDate.getDate()).padStart(2, "0")}/${String(
-        priorityInvoice.dueDate.getMonth() + 1
-      ).padStart(2, "0")}`;
-    }
-
-    grupo.displayTotal = grupo.total;
-    grupo.displayItems = grupo.itens;
-  }
-
-  return Array.from(mapa.values()).sort((a, b) => b.displayTotal - a.displayTotal);
-}, [cardsResumoFiltradas, creditCards, allCreditCardTransactions, pagamentosFatura, faturasStatusManual]);
+  }).sort((a, b) => b.total - a.total);
+}, [cardsResumoFiltradas, creditCards]);
 
 const cardsResumoTotalGeral = useMemo(() => {
   return summarizeFilteredCardsResumo(
@@ -12879,39 +12678,14 @@ onClick={() => {
                   </div>
 
 <div className="w-[170px] text-right">
-  {grupo.displayStatus === "closed" ? (
-    <div className="inline-flex flex-col items-end gap-0.5">
-      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
-        Venc. {grupo.displayDueLabel}
-      </span>
-      <span className="text-[15px] font-black text-violet-700 dark:text-violet-300">
-        Total: {formatarMoeda(grupo.displayTotal)}
-      </span>
-    </div>
-  ) : grupo.displayStatus === "overdue" ? (
-    <div className="inline-flex flex-col items-end gap-0.5">
-      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-rose-600 dark:text-rose-300">
-        Atrasada
-      </span>
-      <span className="text-[15px] font-black text-rose-700 dark:text-rose-300">
-        Total: {formatarMoeda(grupo.displayTotal)}
-      </span>
-    </div>
-  ) : (
-    <div className="inline-flex flex-col items-end gap-0.5">
-      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
-        Em aberto
-      </span>
-      <span className="text-[15px] font-black text-violet-700 dark:text-violet-300">
-        {formatarMoeda(grupo.displayTotal)}
-      </span>
-    </div>
-  )}
+  <span className="text-[15px] font-black text-violet-700 dark:text-violet-300">
+    Total: {formatarMoeda(grupo.total)}
+  </span>
 </div>
                 </div>
 
                 <div className="space-y-2">
-                  {grupo.displayItems.map((item: any) => (
+                  {grupo.itens.map((item: any) => (
 <div
   key={String(item?.id ?? "")}
 className="grid grid-cols-[minmax(0,1fr)_170px] items-center gap-3 rounded-xl bg-white dark:bg-slate-900 px-3 py-2 border border-slate-200/70 dark:border-white/10 shadow-[0_1px_0_rgba(15,23,42,0.02)] dark:shadow-none">

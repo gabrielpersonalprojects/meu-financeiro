@@ -50,6 +50,51 @@ test("grupos, totais e contador usam somente os itens filtrados", () => {
   assert.equal(summary.groups.get("nubank")?.items[0], items[0]);
 });
 
+test("total do cartao soma exatamente os lancamentos visiveis", () => {
+  const visibleItems = [
+    { cardId: "sams-club", value: -36.63 },
+    { cardId: "sams-club", value: -46.82 },
+  ];
+  const summary = summarizeFilteredCardsResumo(
+    visibleItems,
+    (item) => item.cardId,
+    (item) => item.value
+  );
+
+  assert.equal(summary.groups.get("sams-club")?.total, 83.45);
+  assert.equal(summary.total, 83.45);
+  assert.equal(summary.count, 2);
+});
+
+test("filtros nao reintroduzem itens nem o total completo da fatura", () => {
+  const selected = { month: "2026-08", cardId: "todos", category: "Escala Vendas", tag: "Escala Vendas" };
+  const filtered = items.filter((item) => matchesCardsResumoFilters(
+    { ...item, searchMatches: true },
+    selected
+  ));
+  const summary = summarizeFilteredCardsResumo(filtered, (item) => item.cardId, (item) => item.value);
+
+  assert.equal(summary.groups.get("nubank")?.total, 100);
+  assert.notEqual(summary.groups.get("nubank")?.total, 150);
+  assert.equal(summary.groups.has("itau"), false);
+});
+
+test("cabecalho do resumo exibe somente o total filtrado, sem estado de fatura", () => {
+  const source = readFileSync(path.join(process.cwd(), "src", "App.tsx"), "utf8");
+  const grouping = source.slice(
+    source.indexOf("const cardsResumoAgrupado = useMemo"),
+    source.indexOf("const cardsResumoTotalGeral = useMemo")
+  );
+  const header = source.slice(
+    source.indexOf('<div className="w-[170px] text-right">', source.indexOf("cardsResumoAgrupado.map")),
+    source.indexOf('<div className="space-y-2">', source.indexOf("cardsResumoAgrupado.map"))
+  );
+
+  assert.match(header, /Total: \{formatarMoeda\(grupo\.total\)\}/);
+  assert.doesNotMatch(header, /ATRASADA|Atrasada|EM ABERTO|Em aberto|PAGA|Paga|Venc\./);
+  assert.doesNotMatch(grouping, /pagamentosFatura|faturasStatusManual|remaining|dueDate|displayStatus/);
+});
+
 const getCardsResumoPdfSource = () =>
   readFileSync(
     path.join(process.cwd(), "src", "app", "credit", "reports", "cardsResumoPdfReport.ts"),
@@ -70,6 +115,13 @@ test("PDF nao quebra uma linha de lancamento entre paginas", () => {
 
   assert.match(rowCss, /break-inside:\s*avoid-page/);
   assert.match(rowCss, /page-break-inside:\s*avoid/);
+});
+
+test("PDF exibe somente o total filtrado do grupo, sem estado de fatura", () => {
+  const source = getCardsResumoPdfSource();
+
+  assert.match(source, /Total: \$\{escapeHtml\(formatarMoeda\(Number\(grupo\.total \?\? 0\)\)\)\}/);
+  assert.doesNotMatch(source, /ATRASADA|Atrasada|EM ABERTO|Em aberto|PAGA|Paga|saldo pendente|Venc\./);
 });
 
 test("html2pdf usa seletores locais de quebra sem avoid-all", () => {

@@ -219,7 +219,7 @@ const valor = escapeHtml(
             </div>
 
             <div class="group-total">
-              ${escapeHtml(formatarMoeda(Number(grupo.total ?? 0)))}
+              Total: ${escapeHtml(formatarMoeda(Number(grupo.total ?? 0)))}
             </div>
           </div>
 

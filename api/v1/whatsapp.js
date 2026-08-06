@@ -47,6 +47,7 @@ const {
   parseIsoDate,
   parsePositiveAmount,
   requireOwnedAccount,
+  validateAccountId,
   SEM_PRAZO_MONTHS,
   requireOwnedCommonTransaction,
 } = require("../_lib/transactionsCommon");
@@ -671,6 +672,10 @@ function normalizeSummaryProfile(value) {
 function parseSummaryAccountFilters(query) {
   const accountId = String(query?.account_id ?? "").trim();
   const accountIdsRaw = String(query?.account_ids ?? "").trim();
+  const hasAccountIdParam = Object.prototype.hasOwnProperty.call(
+    query ?? {},
+    "account_id"
+  );
   const hasAccountIdsParam = Object.prototype.hasOwnProperty.call(
     query ?? {},
     "account_ids"
@@ -684,8 +689,9 @@ function parseSummaryAccountFilters(query) {
     );
   }
 
-  if (accountId) {
-    return { account_id: accountId, account_ids: [accountId] };
+  if (hasAccountIdParam) {
+    const validAccountId = validateAccountId(accountId);
+    return { account_id: validAccountId, account_ids: [validAccountId] };
   }
 
   if (!accountIdsRaw && !hasAccountIdsParam) {
@@ -705,7 +711,9 @@ function parseSummaryAccountFilters(query) {
     .map((id) => String(id ?? "").trim())
     .filter(Boolean);
 
-  const uniqueAccountIds = Array.from(new Set(accountIds));
+  const uniqueAccountIds = Array.from(
+    new Set(accountIds.map((id) => validateAccountId(id)))
+  );
 
   if (!uniqueAccountIds.length) {
     throw new ApiError(
@@ -791,6 +799,7 @@ function normalizeProjectionProfile(value) {
 function parseProjectionIdFilters(query, singularName, pluralName, conflictCode, invalidCode) {
   const singleId = String(query?.[singularName] ?? "").trim();
   const idsRaw = String(query?.[pluralName] ?? "").trim();
+  const hasSingleParam = Object.prototype.hasOwnProperty.call(query ?? {}, singularName);
   const hasPluralParam = Object.prototype.hasOwnProperty.call(query ?? {}, pluralName);
 
   if (singleId && idsRaw) {
@@ -801,8 +810,11 @@ function parseProjectionIdFilters(query, singularName, pluralName, conflictCode,
     );
   }
 
-  if (singleId) {
-    return { single_id: singleId, ids: [singleId] };
+  if (hasSingleParam) {
+    const validId = singularName === "account_id"
+      ? validateAccountId(singleId)
+      : singleId;
+    return { single_id: validId, ids: [validId] };
   }
 
   if (!idsRaw && !hasPluralParam) {
@@ -821,7 +833,10 @@ function parseProjectionIdFilters(query, singularName, pluralName, conflictCode,
     .split(",")
     .map((id) => String(id ?? "").trim())
     .filter(Boolean);
-  const uniqueIds = Array.from(new Set(ids));
+  const validatedIds = singularName === "account_id"
+    ? ids.map((id) => validateAccountId(id))
+    : ids;
+  const uniqueIds = Array.from(new Set(validatedIds));
 
   if (!uniqueIds.length) {
     throw new ApiError(
@@ -2488,9 +2503,19 @@ async function handlePendingTransactions(req, res, supabase) {
   const user = await resolveGetUser(supabase, req);
   const limit = parseLimit(req.query?.limit);
   const type = String(req.query?.type ?? "").trim();
-  const accountId = String(req.query?.account_id ?? "").trim();
-  const fromAccountId = String(req.query?.from_account_id ?? "").trim();
-  const toAccountId = String(req.query?.to_account_id ?? "").trim();
+  const accountIdRaw = String(req.query?.account_id ?? "").trim();
+  const fromAccountIdRaw = String(req.query?.from_account_id ?? "").trim();
+  const toAccountIdRaw = String(req.query?.to_account_id ?? "").trim();
+  const hasAccountId = Object.prototype.hasOwnProperty.call(req.query ?? {}, "account_id");
+  const hasFromAccountId = Object.prototype.hasOwnProperty.call(req.query ?? {}, "from_account_id");
+  const hasToAccountId = Object.prototype.hasOwnProperty.call(req.query ?? {}, "to_account_id");
+  const accountId = hasAccountId ? validateAccountId(accountIdRaw) : "";
+  const fromAccountId = hasFromAccountId
+    ? validateAccountId(fromAccountIdRaw, { fieldName: "from_account_id" })
+    : "";
+  const toAccountId = hasToAccountId
+    ? validateAccountId(toAccountIdRaw, { fieldName: "to_account_id" })
+    : "";
   const movementKindFilter = String(req.query?.movement_kind ?? "")
     .trim()
     .toLowerCase();
@@ -2505,6 +2530,12 @@ async function handlePendingTransactions(req, res, supabase) {
   if (amountFilterRaw && (!Number.isFinite(amountFilter) || amountFilter <= 0)) {
     throw new ApiError(400, "INVALID_AMOUNT_FILTER", "amount must be greater than zero.");
   }
+
+  await Promise.all(
+    [accountId, fromAccountId, toAccountId]
+      .filter(Boolean)
+      .map((id) => requireOwnedAccount(supabase, user.user_id, id))
+  );
 
   const pendingRows = await fetchAllTransactionsForUser(supabase, user.user_id, {
     select:
@@ -4904,16 +4935,16 @@ async function handleCreateTransfer(req, res, action) {
     const date = parseIsoDate(body.date);
     const paid = parseBoolean(body.paid, "paid");
     const notes = String(body.notes ?? "").trim();
-    const fromAccountId = requireString(
-      body.from_account_id,
-      "FROM_ACCOUNT_ID_REQUIRED",
-      "from_account_id is required."
-    );
-    const toAccountId = requireString(
-      body.to_account_id,
-      "TO_ACCOUNT_ID_REQUIRED",
-      "to_account_id is required."
-    );
+    const fromAccountId = validateAccountId(body.from_account_id, {
+      fieldName: "from_account_id",
+      requiredCode: "FROM_ACCOUNT_ID_REQUIRED",
+      requiredMessage: "from_account_id is required.",
+    });
+    const toAccountId = validateAccountId(body.to_account_id, {
+      fieldName: "to_account_id",
+      requiredCode: "TO_ACCOUNT_ID_REQUIRED",
+      requiredMessage: "to_account_id is required.",
+    });
     const recurrenceMode = normalizeTransferRecurrenceMode(body.deadline_mode);
     const allowCreateDespitePending =
       body.create_new_confirmed === true || body.force_create === true;
@@ -5600,7 +5631,10 @@ async function handlePayCreditCardInvoice(req, res, action) {
       "CICLO_KEY_REQUIRED",
       "ciclo_key is required."
     );
-    const accountId = String(body.account_id ?? "").trim();
+    const accountId = validateAccountId(body.account_id, {
+      requiredCode: "PAYMENT_ACCOUNT_REQUIRED",
+      requiredMessage: "A payment account UUID returned by context is required.",
+    });
 
     if (!accountId) {
       throw new ApiError(

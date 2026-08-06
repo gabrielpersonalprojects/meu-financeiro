@@ -40,6 +40,7 @@ class Query {
 }
 
 function createSupabase() {
+  const calls: string[] = [];
   const store: Record<string, Row[]> = {
     user_access: [{ user_id: "user-1", whatsapp_number: "5511999999999" }],
     accounts: [{
@@ -48,7 +49,15 @@ function createSupabase() {
       name: "Conta Preview",
       banco: "Banco",
       perfil_conta: "pj",
+    }, {
+      id: "ab765f75-1261-4c9a-a11c-bc708e45ea58",
+      user_id: "user-2",
+      name: "Other account",
+      banco: "Bank",
+      perfil_conta: "pf",
     }],
+    credit_cards: [],
+    user_tags: [],
     user_categories: [
       { id: "delivery-real-id", user_id: "user-1", profile_id: "pf", tipo: "despesa", nome: "Delivery" },
     ],
@@ -56,7 +65,11 @@ function createSupabase() {
   };
   return {
     store,
-    client: { from: (table: string) => new Query(table, store) },
+    calls,
+    client: { from: (table: string) => {
+      calls.push(table);
+      return new Query(table, store);
+    } },
   };
 }
 
@@ -144,4 +157,97 @@ test("handler real aceita personalizada histórica e rejeita inexistente ou rece
   const wrongType = await invoke(handler, { ...baseBody, provider_message_id: "preview-message-004", category: "Salário" });
   assert.equal(wrongType.statusCode, 400);
   assert.equal(wrongType.body.error.code, "CATEGORY_NOT_FOUND");
+});
+
+test("real handler rejects non-UUID account_id before querying accounts", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+
+  for (const [accountId, label] of [
+    ["account_nu", "alias"],
+    ["Nu Teste", "account name"],
+    ["6d61847f-12dd-4167-8039", "malformed UUID"],
+  ]) {
+    const db = createSupabase();
+    const handler = loadRealHandler(db.client);
+    const res = await invoke(handler, {
+      ...baseBody,
+      provider_message_id: `invalid-${label}`,
+      account_id: accountId,
+      account_name: "Nu Teste",
+    });
+
+    assert.equal(res.statusCode, 400, label);
+    assert.equal(res.body.error.code, "ACCOUNT_ID_INVALID", label);
+    assert.equal(res.body.error.message, "account_id must be a valid account UUID returned by context.");
+    assert.equal(db.calls.includes("accounts"), false, label);
+    assert.equal(db.store.transactions.length, 0, label);
+  }
+});
+
+test("real handler rejects empty account_id without HTTP 500", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invoke(handler, {
+    ...baseBody,
+    provider_message_id: "empty-account-id",
+    account_id: "  ",
+  });
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error.code, "ACCOUNT_ID_REQUIRED");
+  assert.equal(db.calls.includes("accounts"), false);
+});
+
+test("missing or foreign account UUID returns ACCOUNT_NOT_FOUND", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+
+  for (const accountId of [
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "ab765f75-1261-4c9a-a11c-bc708e45ea58",
+  ]) {
+    const db = createSupabase();
+    const handler = loadRealHandler(db.client);
+    const res = await invoke(handler, {
+      ...baseBody,
+      provider_message_id: `not-owned-${accountId}`,
+      account_id: accountId,
+    });
+
+    assert.equal(res.statusCode, 404);
+    assert.equal(res.body.error.code, "ACCOUNT_NOT_FOUND");
+    assert.equal(db.store.transactions.length, 0);
+  }
+});
+
+test("context keeps returning the official account UUID", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const req: any = {
+    method: "GET",
+    query: { action: "context", whatsapp_phone: "5511999999999" },
+    headers: { authorization: "Bearer integration-token" },
+  };
+  const res = response();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.accounts.map((account: Row) => account.id), [
+    "6d61847f-12dd-4167-8039-0a5a9fc8a49b",
+  ]);
+});
+
+test("PostgreSQL 22P02 is never exposed to the client", () => {
+  const { sendError } = require("../api/_lib/http");
+  const res = response();
+  const databaseError: any = new Error("invalid input syntax for type uuid");
+  databaseError.code = "22P02";
+
+  sendError(res, databaseError);
+
+  assert.equal(res.statusCode, 500);
+  assert.equal(res.body.error.code, "INTERNAL_ERROR");
+  assert.notEqual(res.body.error.code, "22P02");
+  assert.equal(res.body.error.message, "Internal server error");
 });

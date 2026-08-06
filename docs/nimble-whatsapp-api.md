@@ -303,7 +303,12 @@ Exemplo de resposta:
 
 Regras para a Nimble:
 
+- consultar `context` primeiro, escolher a conta desejada e enviar exatamente o UUID de `accounts[].id`;
 - usar `accounts[].id`, nunca o nome, nos campos `account_id`;
+- aliases internos (por exemplo, `account_nu`), apelidos, nomes, índices locais e chaves simbólicas nunca devem ser enviados como `account_id`;
+- `account_name`, quando presente, é apenas informativo: não substitui nem corrige `account_id`;
+- não buscar conta somente por nome, pois nomes podem se repetir;
+- o contexto pode ser mantido em cache somente enquanto o mapeamento pertencer ao mesmo usuário identificado pelo WhatsApp e continuar válido; diante de dúvida ou falha, consultar `context` novamente;
 - usar `credit_cards[].id` em `credit_card_id`;
 - categoria deve corresponder ao tipo do lançamento; categorias são globais por usuário e não possuem escopo PF/PJ;
 - o body das criações recebe o nome da categoria/tag, não o ID;
@@ -406,7 +411,8 @@ Campos:
 | `amount` | Sim | Valor positivo; a API aplica o sinal. |
 | `date` | Sim | `YYYY-MM-DD`. |
 | `paid` | Sim | Booleano. |
-| `account_id` | Sim | ID retornado por `context`. |
+| `account_id` | Sim | UUID oficial retornado em `context.accounts[].id`; nomes e aliases são rejeitados. |
+
 | `category` | Não | Se enviada, deve existir para perfil e tipo. |
 | `payment_method` | Não | Ver valores aceitos abaixo. |
 | `spending_type` | Não | `variavel`, `variável`, `normal` ou `fixo`. |
@@ -423,6 +429,12 @@ Campos:
 - `debito_conta`
 
 Use `create_fixed` para uma recorrência real. Em `create_transaction`, `spending_type:"fixo"` apenas classifica um lançamento único.
+
+Fluxo obrigatório: consultar `context`, selecionar a conta do mesmo usuário e copiar
+exatamente `accounts[].id` para `account_id`. A API responde HTTP `400`
+`ACCOUNT_ID_INVALID` para formatos que não sejam UUID e HTTP `404`
+`ACCOUNT_NOT_FOUND` para UUID válido que não exista ou não pertença ao usuário,
+sem tentar resolver pelo campo informativo `account_name`.
 
 ## 12. POST `create_installments`
 

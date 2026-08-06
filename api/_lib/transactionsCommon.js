@@ -13,6 +13,30 @@ const PAYMENT_METHODS = new Set([
   "transferencia_bancaria",
   "debito_conta",
 ]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateAccountId(accountId, options = {}) {
+  const cleanAccountId = String(accountId ?? "").trim();
+  const fieldName = String(options.fieldName || "account_id");
+
+  if (!cleanAccountId) {
+    throw new ApiError(
+      400,
+      options.requiredCode || "ACCOUNT_ID_REQUIRED",
+      options.requiredMessage || `${fieldName} is required.`
+    );
+  }
+
+  if (!UUID_PATTERN.test(cleanAccountId)) {
+    throw new ApiError(
+      400,
+      "ACCOUNT_ID_INVALID",
+      `${fieldName} must be a valid account UUID returned by context.`
+    );
+  }
+
+  return cleanAccountId;
+}
 
 function normalizeTransactionType(value) {
   const type = String(value ?? "").trim().toLowerCase();
@@ -211,11 +235,7 @@ function getAccountProfileId(account) {
 }
 
 async function requireOwnedAccount(supabase, userId, accountId) {
-  const cleanAccountId = String(accountId ?? "").trim();
-
-  if (!cleanAccountId) {
-    throw new ApiError(400, "ACCOUNT_ID_REQUIRED", "account_id is required.");
-  }
+  const cleanAccountId = validateAccountId(accountId);
 
   const { data, error } = await supabase
     .from("accounts")
@@ -356,4 +376,5 @@ module.exports = {
   parsePositiveAmount,
   requireOwnedAccount,
   requireOwnedCommonTransaction,
+  validateAccountId,
 };

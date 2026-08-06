@@ -30,7 +30,7 @@ function errorResponse(code, message, details) {
 
 function sendError(res, err) {
   const statusCode = Number(err?.statusCode || 500);
-  const code = String(err?.code || "INTERNAL_ERROR");
+  const code = err instanceof ApiError ? String(err.code) : "INTERNAL_ERROR";
   const message =
     err instanceof ApiError
       ? err.message

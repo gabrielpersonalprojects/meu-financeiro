@@ -39,8 +39,9 @@ class Query {
   }
 }
 
-function createSupabase() {
+function createSupabase(options: { removeDestinationBeforeSecondValidation?: boolean } = {}) {
   const calls: string[] = [];
+  let accountQueryCount = 0;
   const store: Record<string, Row[]> = {
     user_access: [{ user_id: "user-1", whatsapp_number: "5511999999999" }],
     accounts: [{
@@ -49,6 +50,14 @@ function createSupabase() {
       name: "Conta Preview",
       banco: "Banco",
       perfil_conta: "pj",
+      tipo_conta: "corrente",
+    }, {
+      id: "40fe8db6-35a4-4e5d-84aa-f92a2bba7c28",
+      user_id: "user-1",
+      name: "Conta Destino Canonica",
+      banco: "Banco Destino",
+      perfil_conta: "pj",
+      tipo_conta: "poupanca",
     }, {
       id: "ab765f75-1261-4c9a-a11c-bc708e45ea58",
       user_id: "user-2",
@@ -68,6 +77,14 @@ function createSupabase() {
     calls,
     client: { from: (table: string) => {
       calls.push(table);
+      if (table === "accounts") {
+        accountQueryCount += 1;
+        if (options.removeDestinationBeforeSecondValidation && accountQueryCount === 3) {
+          store.accounts = store.accounts.filter(
+            (account) => account.id !== "40fe8db6-35a4-4e5d-84aa-f92a2bba7c28"
+          );
+        }
+      }
       return new Query(table, store);
     } },
   };
@@ -122,6 +139,24 @@ async function invoke(handler: any, body: Row) {
     method: "POST",
     query: { action: "create_transaction" },
     headers: { authorization: "Bearer integration-token", "x-idempotency-key": "preview-regression-key" },
+    body,
+  };
+  const res = response();
+  await handler(req, res);
+  return res;
+}
+
+async function invokeAction(handler: any, action: string, body: Row) {
+  const headers: Record<string, string> = {
+    authorization: "Bearer integration-token",
+  };
+  if (action !== "validate_transfer_accounts") {
+    headers["x-idempotency-key"] = `test-${action}-${body.provider_message_id || "write"}`;
+  }
+  const req: any = {
+    method: "POST",
+    query: { action },
+    headers,
     body,
   };
   const res = response();
@@ -235,6 +270,7 @@ test("context keeps returning the official account UUID", async () => {
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.accounts.map((account: Row) => account.id), [
     "6d61847f-12dd-4167-8039-0a5a9fc8a49b",
+    "40fe8db6-35a4-4e5d-84aa-f92a2bba7c28",
   ]);
 });
 
@@ -250,4 +286,104 @@ test("PostgreSQL 22P02 is never exposed to the client", () => {
   assert.equal(res.body.error.code, "INTERNAL_ERROR");
   assert.notEqual(res.body.error.code, "22P02");
   assert.equal(res.body.error.message, "Internal server error");
+});
+
+const transferValidationBody = {
+  whatsapp_phone: "5511999999999",
+  from_account_id: "6d61847f-12dd-4167-8039-0a5a9fc8a49b",
+  to_account_id: "40fe8db6-35a4-4e5d-84aa-f92a2bba7c28",
+};
+
+test("validate_transfer_accounts returns canonical accounts without creating transactions", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "validate_transfer_accounts", transferValidationBody);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.valid, true);
+  assert.deepEqual(res.body.from_account, {
+    id: transferValidationBody.from_account_id,
+    name: "Conta Preview",
+    bank: "Banco",
+    account_type: "corrente",
+    profile_type: "PJ",
+  });
+  assert.deepEqual(res.body.to_account, {
+    id: transferValidationBody.to_account_id,
+    name: "Conta Destino Canonica",
+    bank: "Banco Destino",
+    account_type: "poupanca",
+    profile_type: "PJ",
+  });
+  assert.equal(db.store.transactions.length, 0);
+});
+
+test("validate_transfer_accounts rejects malformed, missing, unknown, foreign and same accounts", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const cases = [
+    [{ ...transferValidationBody, from_account_id: undefined }, 400, "FROM_ACCOUNT_ID_REQUIRED"],
+    [{ ...transferValidationBody, to_account_id: undefined }, 400, "TO_ACCOUNT_ID_REQUIRED"],
+    [{ ...transferValidationBody, from_account_id: "account_nu" }, 400, "ACCOUNT_ID_INVALID"],
+    [{ ...transferValidationBody, to_account_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, 404, "ACCOUNT_NOT_FOUND"],
+    [{ ...transferValidationBody, to_account_id: "ab765f75-1261-4c9a-a11c-bc708e45ea58" }, 404, "ACCOUNT_NOT_FOUND"],
+    [{ ...transferValidationBody, to_account_id: transferValidationBody.from_account_id }, 400, "TRANSFER_ACCOUNTS_SAME"],
+  ] as const;
+
+  for (const [body, statusCode, code] of cases) {
+    const db = createSupabase();
+    const handler = loadRealHandler(db.client);
+    const res = await invokeAction(handler, "validate_transfer_accounts", body);
+    assert.equal(res.statusCode, statusCode, code);
+    assert.equal(res.body.error.code, code);
+    assert.equal(db.store.transactions.length, 0);
+  }
+});
+
+test("create_transfer revalidates accounts before writing and returns canonical names", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "create_transfer", {
+    ...transferValidationBody,
+    provider_message_id: "transfer-revalidation-001",
+    confirmed: true,
+    create_new_confirmed: true,
+    description: "Transferencia de teste",
+    amount: 10,
+    date: "2026-08-06",
+    paid: true,
+    deadline_mode: "single",
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(db.calls.filter((table) => table === "accounts").length, 4);
+  assert.equal(db.store.transactions.length, 2);
+  assert.equal(res.body.from_account.id, transferValidationBody.from_account_id);
+  assert.equal(res.body.from_account.name, "Conta Preview");
+  assert.equal(res.body.to_account.id, transferValidationBody.to_account_id);
+  assert.equal(res.body.to_account.name, "Conta Destino Canonica");
+});
+
+test("create_transfer aborts if an account is no longer valid before persistence", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase({ removeDestinationBeforeSecondValidation: true });
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "create_transfer", {
+    ...transferValidationBody,
+    provider_message_id: "transfer-revalidation-removed-account",
+    confirmed: true,
+    create_new_confirmed: true,
+    description: "Transferencia bloqueada",
+    amount: 10,
+    date: "2026-08-06",
+    paid: true,
+    deadline_mode: "single",
+  });
+
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error.code, "ACCOUNT_NOT_FOUND");
+  assert.equal(db.calls.filter((table) => table === "accounts").length, 4);
+  assert.equal(db.store.transactions.length, 0);
 });

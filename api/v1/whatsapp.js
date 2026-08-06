@@ -47,6 +47,7 @@ const {
   parseIsoDate,
   parsePositiveAmount,
   requireOwnedAccount,
+  requireValidTransferAccounts,
   validateAccountId,
   SEM_PRAZO_MONTHS,
   requireOwnedCommonTransaction,
@@ -74,6 +75,16 @@ function mapAccount(row) {
     bank: row.banco || "",
     account_type: row.tipo_conta || "",
     profile_type: row.perfil_conta || "",
+  };
+}
+
+function mapCanonicalTransferAccount(row) {
+  return {
+    id: row.id,
+    name: row.name || row.banco || "Conta",
+    bank: row.banco || "",
+    account_type: row.tipo_conta || "",
+    profile_type: String(row.perfil_conta || "").trim().toUpperCase(),
   };
 }
 
@@ -2805,6 +2816,32 @@ async function handleResolveTransaction(req, res, supabase) {
 }
 
 
+async function handleValidateTransferAccounts(req, res, supabase) {
+  requireMethod(req, "POST");
+  const body = await parseJson(req);
+  rejectUserIdFromSupplier(body);
+
+  const whatsappPhone = requireString(
+    body.whatsapp_phone,
+    "WHATSAPP_PHONE_REQUIRED",
+    "whatsapp_phone is required."
+  );
+  const user = await resolveWhatsappUser(supabase, whatsappPhone);
+  const { fromAccount, toAccount } = await requireValidTransferAccounts(
+    supabase,
+    user.user_id,
+    body.from_account_id,
+    body.to_account_id
+  );
+
+  json(res, 200, {
+    ok: true,
+    valid: true,
+    from_account: mapCanonicalTransferAccount(fromAccount),
+    to_account: mapCanonicalTransferAccount(toAccount),
+  });
+}
+
 async function getCreditInvoiceSummaries(
   supabase,
   userId,
@@ -4935,40 +4972,16 @@ async function handleCreateTransfer(req, res, action) {
     const date = parseIsoDate(body.date);
     const paid = parseBoolean(body.paid, "paid");
     const notes = String(body.notes ?? "").trim();
-    const fromAccountId = validateAccountId(body.from_account_id, {
-      fieldName: "from_account_id",
-      requiredCode: "FROM_ACCOUNT_ID_REQUIRED",
-      requiredMessage: "from_account_id is required.",
-    });
-    const toAccountId = validateAccountId(body.to_account_id, {
-      fieldName: "to_account_id",
-      requiredCode: "TO_ACCOUNT_ID_REQUIRED",
-      requiredMessage: "to_account_id is required.",
-    });
     const recurrenceMode = normalizeTransferRecurrenceMode(body.deadline_mode);
     const allowCreateDespitePending =
       body.create_new_confirmed === true || body.force_create === true;
 
-    if (sameAccountId(fromAccountId, toAccountId)) {
-      throw new ApiError(
-        400,
-        "SAME_TRANSFER_ACCOUNT",
-        "from_account_id and to_account_id must be different."
-      );
-    }
-
-    const [fromAccount, toAccount] = await Promise.all([
-      requireOwnedAccount(supabase, user.user_id, fromAccountId),
-      requireOwnedAccount(supabase, user.user_id, toAccountId),
-    ]);
-
-    if (sameAccountId(fromAccount.id, toAccount.id)) {
-      throw new ApiError(
-        400,
-        "SAME_TRANSFER_ACCOUNT",
-        "from_account_id and to_account_id must be different."
-      );
-    }
+    let { fromAccount, toAccount } = await requireValidTransferAccounts(
+      supabase,
+      user.user_id,
+      body.from_account_id,
+      body.to_account_id
+    );
 
     if (!allowCreateDespitePending) {
       const candidates = await findCompatiblePendingTransferCandidates(
@@ -5126,6 +5139,12 @@ async function handleCreateTransfer(req, res, action) {
       };
 
       if (recurrenceMode === "single") {
+        ({ fromAccount, toAccount } = await requireValidTransferAccounts(
+          supabase,
+          user.user_id,
+          body.from_account_id,
+          body.to_account_id
+        ));
         const rows = createPfPjLegsForDate({
           currentDate: date,
           index: 0,
@@ -5147,6 +5166,8 @@ async function handleCreateTransfer(req, res, action) {
             ok: true,
             status: "created",
             summary: `Movimento PF/PJ ${description} lançado com sucesso.`,
+            from_account: mapCanonicalTransferAccount(fromAccount),
+            to_account: mapCanonicalTransferAccount(toAccount),
             transfer_group: {
               movement_kind: "pf_pj",
               from_account_id: fromAccount.id,
@@ -5187,6 +5208,12 @@ async function handleCreateTransfer(req, res, action) {
       }
 
       const recurrenceId = `rec_${createdAt}`;
+      ({ fromAccount, toAccount } = await requireValidTransferAccounts(
+        supabase,
+        user.user_id,
+        body.from_account_id,
+        body.to_account_id
+      ));
       const rows = [];
 
       for (let index = 0; index < months; index += 1) {
@@ -5215,6 +5242,8 @@ async function handleCreateTransfer(req, res, action) {
           ok: true,
           status: "created",
           summary: `Movimento PF/PJ recorrente ${description} lançado com sucesso.`,
+          from_account: mapCanonicalTransferAccount(fromAccount),
+          to_account: mapCanonicalTransferAccount(toAccount),
           transfer_group: {
             movement_kind: "pf_pj",
             from_account_id: fromAccount.id,
@@ -5232,6 +5261,12 @@ async function handleCreateTransfer(req, res, action) {
       };
     }
 
+    ({ fromAccount, toAccount } = await requireValidTransferAccounts(
+      supabase,
+      user.user_id,
+      body.from_account_id,
+      body.to_account_id
+    ));
     const transferId = buildRef("tr");
 
     const basePayload = {
@@ -5316,6 +5351,8 @@ async function handleCreateTransfer(req, res, action) {
         ok: true,
         status: "created",
         summary: `Transferência ${description} lançada com sucesso.`,
+        from_account: mapCanonicalTransferAccount(fromAccount),
+        to_account: mapCanonicalTransferAccount(toAccount),
         transfer_group: {
           movement_kind: "internal_transfer",
           transfer_id: transferId,
@@ -5914,6 +5951,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "resolve_transaction") {
     return handleResolveTransaction(req, res, getSupabaseAdmin());
+  }
+  if (action === "validate_transfer_accounts") {
+    return handleValidateTransferAccounts(req, res, getSupabaseAdmin());
   }
   if (action === "payable_invoices") {
     return handlePayableInvoices(req, res, getSupabaseAdmin());

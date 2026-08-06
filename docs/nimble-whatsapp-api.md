@@ -85,6 +85,7 @@ Compras em cartão são sempre despesas.
 | Action | Finalidade | `confirmed:true` |
 |---|---|---|
 | `resolve_transaction` | Localizar uma única pendência e retornar `selected_transaction.transaction_id`. É somente leitura. | Não exigido. |
+| `validate_transfer_accounts` | Validar UUIDs e retornar as contas canônicas antes de uma transferência. É somente leitura. | Não exigido. |
 | `create_category` | Criar categoria de receita ou despesa. | Não exigido pelo backend. |
 | `create_credit_card_tag` | Criar tag de cartão. | Não exigido pelo backend. |
 | `create_transaction` | Criar receita ou despesa comum. | Obrigatório. |
@@ -618,9 +619,60 @@ Regras:
 - `paid` é opcional e assume `false`;
 - não enviar `account_id`.
 
+## 15.1 POST `validate_transfer_accounts`
+
+Action pública destinada à função Nimble `FM_SYS_07_VALIDAR_CONTAS_TRANSFERENCIA`.
+Ela é somente leitura, não exige idempotência e nunca cria transações. Os nomes
+não são aceitos como fonte de verdade: são sempre resolvidos pelo FluxMoney a
+partir dos UUIDs e do usuário identificado por `whatsapp_phone`.
+
+```http
+POST /api/v1/whatsapp?action=validate_transfer_accounts
+```
+
+```json
+{
+  "whatsapp_phone": "<WHATSAPP_PHONE>",
+  "from_account_id": "<FROM_ACCOUNT_UUID>",
+  "to_account_id": "<TO_ACCOUNT_UUID>"
+}
+```
+
+Resposta válida:
+
+```json
+{
+  "ok": true,
+  "valid": true,
+  "from_account": {
+    "id": "<FROM_ACCOUNT_UUID>",
+    "name": "Conta de origem",
+    "bank": "Banco",
+    "account_type": "Conta Corrente",
+    "profile_type": "PF"
+  },
+  "to_account": {
+    "id": "<TO_ACCOUNT_UUID>",
+    "name": "Conta de destino",
+    "bank": "Banco",
+    "account_type": "Conta Corrente",
+    "profile_type": "PJ"
+  }
+}
+```
+
+Erros: HTTP `400` com `FROM_ACCOUNT_ID_REQUIRED`, `TO_ACCOUNT_ID_REQUIRED`,
+`ACCOUNT_ID_INVALID` ou `TRANSFER_ACCOUNTS_SAME`; HTTP `404` com
+`ACCOUNT_NOT_FOUND` para conta inexistente ou pertencente a outro usuário.
+
 ## 16. POST `create_transfer`
 
 Cria transferência interna ou movimento entre perfis.
+
+Antes de solicitar a confirmação, a Nimble deve chamar
+`validate_transfer_accounts` com os UUIDs escolhidos no `context`. Mesmo assim,
+`create_transfer` repete a validação imediatamente antes da gravação e retorna
+`from_account` e `to_account` com os IDs e nomes canônicos efetivamente usados.
 
 ```http
 POST /api/v1/whatsapp?action=create_transfer

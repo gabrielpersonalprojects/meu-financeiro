@@ -239,7 +239,7 @@ async function requireOwnedAccount(supabase, userId, accountId) {
 
   const { data, error } = await supabase
     .from("accounts")
-    .select("id, name, banco, perfil_conta")
+    .select("id, name, banco, tipo_conta, perfil_conta")
     .eq("id", cleanAccountId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -255,6 +255,47 @@ async function requireOwnedAccount(supabase, userId, accountId) {
   }
 
   return data;
+}
+
+async function requireValidTransferAccounts(
+  supabase,
+  userId,
+  fromAccountId,
+  toAccountId
+) {
+  const cleanFromAccountId = validateAccountId(fromAccountId, {
+    fieldName: "from_account_id",
+    requiredCode: "FROM_ACCOUNT_ID_REQUIRED",
+    requiredMessage: "from_account_id is required.",
+  });
+  const cleanToAccountId = validateAccountId(toAccountId, {
+    fieldName: "to_account_id",
+    requiredCode: "TO_ACCOUNT_ID_REQUIRED",
+    requiredMessage: "to_account_id is required.",
+  });
+
+  if (cleanFromAccountId === cleanToAccountId) {
+    throw new ApiError(
+      400,
+      "TRANSFER_ACCOUNTS_SAME",
+      "from_account_id and to_account_id must be different."
+    );
+  }
+
+  const [fromAccount, toAccount] = await Promise.all([
+    requireOwnedAccount(supabase, userId, cleanFromAccountId),
+    requireOwnedAccount(supabase, userId, cleanToAccountId),
+  ]);
+
+  if (String(fromAccount.id) === String(toAccount.id)) {
+    throw new ApiError(
+      400,
+      "TRANSFER_ACCOUNTS_SAME",
+      "from_account_id and to_account_id must be different."
+    );
+  }
+
+  return { fromAccount, toAccount };
 }
 
 function isBlockedTransaction(row) {
@@ -376,5 +417,6 @@ module.exports = {
   parsePositiveAmount,
   requireOwnedAccount,
   requireOwnedCommonTransaction,
+  requireValidTransferAccounts,
   validateAccountId,
 };

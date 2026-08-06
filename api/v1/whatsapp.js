@@ -36,6 +36,8 @@ const {
   countMonthsInclusive,
   getAccountProfileId,
   isFutureDate,
+  mapCanonicalAccount,
+  mapCanonicalCreditCard,
   mapTransactionResponse,
   MAX_FIXED_MONTHS,
   normalizeDeadlineMode,
@@ -47,10 +49,13 @@ const {
   parseIsoDate,
   parsePositiveAmount,
   requireOwnedAccount,
+  requireOwnedCreditCard,
   requireValidTransferAccounts,
   validateAccountId,
+  validateCreditCardId,
   SEM_PRAZO_MONTHS,
   requireOwnedCommonTransaction,
+  requireValidInvoicePaymentTargets,
 } = require("../_lib/transactionsCommon");
 const { resolvePendingTransaction } = require("../_lib/transactionResolver");
 
@@ -75,16 +80,6 @@ function mapAccount(row) {
     bank: row.banco || "",
     account_type: row.tipo_conta || "",
     profile_type: row.perfil_conta || "",
-  };
-}
-
-function mapCanonicalTransferAccount(row) {
-  return {
-    id: row.id,
-    name: row.name || row.banco || "Conta",
-    bank: row.banco || "",
-    account_type: row.tipo_conta || "",
-    profile_type: String(row.perfil_conta || "").trim().toUpperCase(),
   };
 }
 
@@ -1735,45 +1730,6 @@ async function resolveGetUser(supabase, req) {
   return resolveWhatsappUser(supabase, whatsappPhone);
 }
 
-async function requireOwnedCreditCard(supabase, userId, creditCardId) {
-  const cleanCreditCardId = String(creditCardId ?? "").trim();
-
-  if (!cleanCreditCardId) {
-    throw new ApiError(
-      400,
-      "CREDIT_CARD_ID_REQUIRED",
-      "credit_card_id is required."
-    );
-  }
-
-  const { data, error } = await supabase
-    .from("credit_cards")
-    .select("*")
-    .eq("id", cleanCreditCardId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!data?.id) {
-    throw new ApiError(
-      404,
-      "CREDIT_CARD_NOT_FOUND",
-      "credit_card_id was not found for this user."
-    );
-  }
-
-  if (data.is_active === false) {
-    throw new ApiError(
-      400,
-      "CREDIT_CARD_INACTIVE",
-      "credit_card_id is inactive."
-    );
-  }
-
-  return data;
-}
-
 async function validateCreditCardTagIfProvided({ supabase, userId, tag }) {
   const cleanTag = String(tag ?? "").trim();
   if (!cleanTag) return "";
@@ -2831,14 +2787,119 @@ async function handleValidateTransferAccounts(req, res, supabase) {
     supabase,
     user.user_id,
     body.from_account_id,
-    body.to_account_id
+    body.to_account_id,
+    {
+      fromAccountName: body.from_account_name,
+      toAccountName: body.to_account_name,
+    }
   );
 
   json(res, 200, {
     ok: true,
     valid: true,
-    from_account: mapCanonicalTransferAccount(fromAccount),
-    to_account: mapCanonicalTransferAccount(toAccount),
+    from_account: mapCanonicalAccount(fromAccount),
+    to_account: mapCanonicalAccount(toAccount),
+  });
+}
+
+async function handleValidateTransactionTarget(req, res, supabase) {
+  requireMethod(req, "POST");
+  const body = await parseJson(req);
+  rejectUserIdFromSupplier(body);
+  const whatsappPhone = requireString(
+    body.whatsapp_phone,
+    "WHATSAPP_PHONE_REQUIRED",
+    "whatsapp_phone is required."
+  );
+  const targetType = requireString(
+    body.target_type,
+    "TARGET_TYPE_REQUIRED",
+    "target_type is required."
+  ).toLowerCase();
+  const user = await resolveWhatsappUser(supabase, whatsappPhone);
+
+  if (targetType === "account") {
+    const account = await requireOwnedAccount(
+      supabase,
+      user.user_id,
+      body.account_id,
+      { providedName: body.account_name }
+    );
+    return json(res, 200, {
+      ok: true,
+      valid: true,
+      target_type: "account",
+      account: mapCanonicalAccount(account),
+    });
+  }
+
+  if (targetType === "credit_card") {
+    const creditCard = await requireOwnedCreditCard(
+      supabase,
+      user.user_id,
+      body.credit_card_id,
+      { providedName: body.credit_card_name }
+    );
+    return json(res, 200, {
+      ok: true,
+      valid: true,
+      target_type: "credit_card",
+      credit_card: mapCanonicalCreditCard(creditCard),
+    });
+  }
+
+  throw new ApiError(
+    400,
+    "TARGET_TYPE_INVALID",
+    "target_type must be account or credit_card."
+  );
+}
+
+async function handleValidateInvoicePaymentTargets(req, res, supabase) {
+  requireMethod(req, "POST");
+  const body = await parseJson(req);
+  rejectUserIdFromSupplier(body);
+  const whatsappPhone = requireString(
+    body.whatsapp_phone,
+    "WHATSAPP_PHONE_REQUIRED",
+    "whatsapp_phone is required."
+  );
+  const cicloKey = requireString(
+    body.ciclo_key,
+    "CICLO_KEY_REQUIRED",
+    "ciclo_key is required."
+  );
+  const user = await resolveWhatsappUser(supabase, whatsappPhone);
+  const { creditCard, paymentAccount } = await requireValidInvoicePaymentTargets(
+    supabase,
+    user.user_id,
+    body.credit_card_id,
+    body.account_id,
+    {
+      creditCardName: body.credit_card_name,
+      paymentAccountName: body.payment_account_name ?? body.account_name,
+    }
+  );
+  const cycle = parseCreditInvoiceCycleKey(cicloKey);
+  if (String(cycle.credit_card_id) !== String(creditCard.id)) {
+    throw new ApiError(
+      400,
+      "CICLO_KEY_CARD_MISMATCH",
+      "ciclo_key does not belong to credit_card_id."
+    );
+  }
+
+  json(res, 200, {
+    ok: true,
+    valid: true,
+    credit_card: mapCanonicalCreditCard(creditCard),
+    invoice_ref: {
+      ciclo_key: cycle.ciclo_key,
+      credit_card_id: creditCard.id,
+      cycle_start: cycle.cycle_start,
+      cycle_end: cycle.cycle_end,
+    },
+    payment_account: mapCanonicalAccount(paymentAccount),
   });
 }
 
@@ -4187,7 +4248,9 @@ async function handleCreateTransaction(req, res, action) {
     const spendingType = normalizeSpendingType(body.spending_type, type);
     const notes = String(body.notes ?? "").trim();
 
-    const account = await requireOwnedAccount(supabase, user.user_id, body.account_id);
+    let account = await requireOwnedAccount(supabase, user.user_id, body.account_id, {
+      providedName: body.account_name,
+    });
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
@@ -4197,6 +4260,9 @@ async function handleCreateTransaction(req, res, action) {
 
     const signedAmount = type === "receita" ? amountAbs : -amountAbs;
     const createdAt = Date.now();
+    account = await requireOwnedAccount(supabase, user.user_id, body.account_id, {
+      providedName: body.account_name,
+    });
 
     const { data: created, error } = await supabase
       .from("transactions")
@@ -4252,6 +4318,7 @@ async function handleCreateTransaction(req, res, action) {
         status: "created",
         summary: buildTransactionSummary(type, description),
         transaction: mapTransactionResponse(created),
+        account: mapCanonicalAccount(account),
       },
     };
   });
@@ -4703,7 +4770,9 @@ async function handleCreateInstallments(req, res, action) {
     const paymentMethod = normalizePaymentMethod(body.payment_method);
     const notes = String(body.notes ?? "").trim();
 
-    const account = await requireOwnedAccount(supabase, user.user_id, body.account_id);
+    let account = await requireOwnedAccount(supabase, user.user_id, body.account_id, {
+      providedName: body.account_name,
+    });
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
@@ -4717,6 +4786,9 @@ async function handleCreateInstallments(req, res, action) {
     const signedTotal = type === "receita" ? amountAbs : -amountAbs;
     const createdAt = Date.now();
     const recorrenciaId = `rec_${createdAt}`;
+    account = await requireOwnedAccount(supabase, user.user_id, body.account_id, {
+      providedName: body.account_name,
+    });
 
     const rows = Array.from({ length: installments }, (_, index) => ({
       user_id: user.user_id,
@@ -4773,6 +4845,7 @@ async function handleCreateInstallments(req, res, action) {
         ok: true,
         status: "created",
         summary: buildInstallmentsSummary(type, description, installments),
+        account: mapCanonicalAccount(account),
         installment_group: {
           recorrencia_id: recorrenciaId,
           installments,
@@ -4830,7 +4903,9 @@ async function handleCreateFixed(req, res, action) {
       );
     }
 
-    const account = await requireOwnedAccount(supabase, user.user_id, body.account_id);
+    let account = await requireOwnedAccount(supabase, user.user_id, body.account_id, {
+      providedName: body.account_name,
+    });
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
@@ -4856,6 +4931,9 @@ async function handleCreateFixed(req, res, action) {
         recurrenceLastActionAt: "",
       };
 
+    account = await requireOwnedAccount(supabase, user.user_id, body.account_id, {
+      providedName: body.account_name,
+    });
     const rows = Array.from({ length: months }, (_, index) => ({
       user_id: user.user_id,
       tipo: type,
@@ -4901,6 +4979,7 @@ async function handleCreateFixed(req, res, action) {
         ok: true,
         status: "created",
         summary: buildFixedSummary(type, description, deadlineMode),
+        account: mapCanonicalAccount(account),
         fixed_group: {
           recorrencia_id: recorrenciaId,
           deadline_mode: deadlineMode,
@@ -4980,7 +5059,11 @@ async function handleCreateTransfer(req, res, action) {
       supabase,
       user.user_id,
       body.from_account_id,
-      body.to_account_id
+      body.to_account_id,
+      {
+        fromAccountName: body.from_account_name,
+        toAccountName: body.to_account_name,
+      }
     );
 
     if (!allowCreateDespitePending) {
@@ -5143,7 +5226,11 @@ async function handleCreateTransfer(req, res, action) {
           supabase,
           user.user_id,
           body.from_account_id,
-          body.to_account_id
+          body.to_account_id,
+          {
+            fromAccountName: body.from_account_name,
+            toAccountName: body.to_account_name,
+          }
         ));
         const rows = createPfPjLegsForDate({
           currentDate: date,
@@ -5166,8 +5253,8 @@ async function handleCreateTransfer(req, res, action) {
             ok: true,
             status: "created",
             summary: `Movimento PF/PJ ${description} lançado com sucesso.`,
-            from_account: mapCanonicalTransferAccount(fromAccount),
-            to_account: mapCanonicalTransferAccount(toAccount),
+            from_account: mapCanonicalAccount(fromAccount),
+            to_account: mapCanonicalAccount(toAccount),
             transfer_group: {
               movement_kind: "pf_pj",
               from_account_id: fromAccount.id,
@@ -5212,7 +5299,11 @@ async function handleCreateTransfer(req, res, action) {
         supabase,
         user.user_id,
         body.from_account_id,
-        body.to_account_id
+        body.to_account_id,
+        {
+          fromAccountName: body.from_account_name,
+          toAccountName: body.to_account_name,
+        }
       ));
       const rows = [];
 
@@ -5242,8 +5333,8 @@ async function handleCreateTransfer(req, res, action) {
           ok: true,
           status: "created",
           summary: `Movimento PF/PJ recorrente ${description} lançado com sucesso.`,
-          from_account: mapCanonicalTransferAccount(fromAccount),
-          to_account: mapCanonicalTransferAccount(toAccount),
+          from_account: mapCanonicalAccount(fromAccount),
+          to_account: mapCanonicalAccount(toAccount),
           transfer_group: {
             movement_kind: "pf_pj",
             from_account_id: fromAccount.id,
@@ -5265,7 +5356,11 @@ async function handleCreateTransfer(req, res, action) {
       supabase,
       user.user_id,
       body.from_account_id,
-      body.to_account_id
+      body.to_account_id,
+      {
+        fromAccountName: body.from_account_name,
+        toAccountName: body.to_account_name,
+      }
     ));
     const transferId = buildRef("tr");
 
@@ -5351,8 +5446,8 @@ async function handleCreateTransfer(req, res, action) {
         ok: true,
         status: "created",
         summary: `Transferência ${description} lançada com sucesso.`,
-        from_account: mapCanonicalTransferAccount(fromAccount),
-        to_account: mapCanonicalTransferAccount(toAccount),
+        from_account: mapCanonicalAccount(fromAccount),
+        to_account: mapCanonicalAccount(toAccount),
         transfer_group: {
           movement_kind: "internal_transfer",
           transfer_id: transferId,
@@ -5401,12 +5496,12 @@ async function handleCreateCreditCardPurchase(req, res, action) {
     const notes = String(body.notes ?? "").trim();
     const spendingType = normalizeCreditSpendingType(body.spending_type);
 
-    const card = await requireOwnedCreditCard(
+    let card = await requireOwnedCreditCard(
       supabase,
       user.user_id,
-      body.credit_card_id
+      body.credit_card_id,
+      { providedName: body.credit_card_name }
     );
-    const creditCardId = String(card.id);
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
@@ -5418,6 +5513,11 @@ async function handleCreateCreditCardPurchase(req, res, action) {
       userId: user.user_id,
       tag: body.tag,
     });
+
+    card = await requireOwnedCreditCard(supabase, user.user_id, body.credit_card_id, {
+      providedName: body.credit_card_name,
+    });
+    const creditCardId = String(card.id);
 
     const invoiceMonth = getCreditInvoiceMonth(
       date,
@@ -5486,6 +5586,7 @@ async function handleCreateCreditCardPurchase(req, res, action) {
         ok: true,
         status: "created",
         summary: `Compra ${description} lançada no cartão com sucesso.`,
+        credit_card: mapCanonicalCreditCard(card),
         transaction: {
           id: created.id,
           type: created.tipo,
@@ -5529,12 +5630,12 @@ async function handleCreateCreditCardInstallments(req, res, action) {
     const installments = parseInstallments(body.installments);
     const notes = String(body.notes ?? "").trim();
 
-    const card = await requireOwnedCreditCard(
+    let card = await requireOwnedCreditCard(
       supabase,
       user.user_id,
-      body.credit_card_id
+      body.credit_card_id,
+      { providedName: body.credit_card_name }
     );
-    const creditCardId = String(card.id);
     const category = await validateCategoryIfProvided({
       supabase,
       userId: user.user_id,
@@ -5546,6 +5647,11 @@ async function handleCreateCreditCardInstallments(req, res, action) {
       userId: user.user_id,
       tag: body.tag,
     });
+
+    card = await requireOwnedCreditCard(supabase, user.user_id, body.credit_card_id, {
+      providedName: body.credit_card_name,
+    });
+    const creditCardId = String(card.id);
 
     const linkedAccountId = getCreditCardAccountId(card);
     const createdAt = Date.now();
@@ -5623,6 +5729,7 @@ async function handleCreateCreditCardInstallments(req, res, action) {
         ok: true,
         status: "created",
         summary: `Compra ${description} parcelada em ${installments}x lançada no cartão com sucesso.`,
+        credit_card: mapCanonicalCreditCard(card),
         installment_group: {
           installments,
           total_amount: amountAbs,
@@ -5658,11 +5765,7 @@ async function handlePayCreditCardInvoice(req, res, action) {
       );
     }
 
-    const creditCardId = requireString(
-      body.credit_card_id,
-      "CREDIT_CARD_ID_REQUIRED",
-      "credit_card_id is required."
-    );
+    const creditCardId = validateCreditCardId(body.credit_card_id);
     const cicloKey = requireString(
       body.ciclo_key,
       "CICLO_KEY_REQUIRED",
@@ -5697,10 +5800,17 @@ async function handlePayCreditCardInvoice(req, res, action) {
       );
     }
 
-    const [card, account] = await Promise.all([
-      requireOwnedCreditCard(supabase, user.user_id, creditCardId),
-      requireOwnedAccount(supabase, user.user_id, accountId),
-    ]);
+    let { creditCard: card, paymentAccount: account } =
+      await requireValidInvoicePaymentTargets(
+        supabase,
+        user.user_id,
+        creditCardId,
+        accountId,
+        {
+          creditCardName: body.credit_card_name,
+          paymentAccountName: body.payment_account_name ?? body.account_name,
+        }
+      );
 
     const closingDay = Number(card.dia_fechamento ?? card.diaFechamento ?? 1);
     const dueDay = Number(card.dia_vencimento ?? card.diaVencimento ?? 10);
@@ -5784,6 +5894,17 @@ async function handlePayCreditCardInvoice(req, res, action) {
       );
     }
 
+    ({ creditCard: card, paymentAccount: account } =
+      await requireValidInvoicePaymentTargets(
+        supabase,
+        user.user_id,
+        creditCardId,
+        accountId,
+        {
+          creditCardName: body.credit_card_name,
+          paymentAccountName: body.payment_account_name ?? body.account_name,
+        }
+      ));
     const createdAt = Date.now();
     const accountLabel = String(account.name || account.banco || "").trim() || null;
     const description = buildInvoicePaymentTransactionDescription(card);
@@ -5914,6 +6035,8 @@ async function handlePayCreditCardInvoice(req, res, action) {
         ok: true,
         status: "created",
         summary: `Fatura ${card.nome || card.bank_text || "do cartão"} paga com sucesso.`,
+        credit_card: mapCanonicalCreditCard(card),
+        payment_account: mapCanonicalAccount(account),
         payment: {
           id: createdPayment.id,
           credit_card_id: creditCardId,
@@ -5954,6 +6077,12 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "validate_transfer_accounts") {
     return handleValidateTransferAccounts(req, res, getSupabaseAdmin());
+  }
+  if (action === "validate_transaction_target") {
+    return handleValidateTransactionTarget(req, res, getSupabaseAdmin());
+  }
+  if (action === "validate_invoice_payment_targets") {
+    return handleValidateInvoicePaymentTargets(req, res, getSupabaseAdmin());
   }
   if (action === "payable_invoices") {
     return handlePayableInvoices(req, res, getSupabaseAdmin());

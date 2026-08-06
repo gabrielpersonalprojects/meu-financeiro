@@ -86,6 +86,8 @@ Compras em cartão são sempre despesas.
 |---|---|---|
 | `resolve_transaction` | Localizar uma única pendência e retornar `selected_transaction.transaction_id`. É somente leitura. | Não exigido. |
 | `validate_transfer_accounts` | Validar UUIDs e retornar as contas canônicas antes de uma transferência. É somente leitura. | Não exigido. |
+| `validate_transaction_target` | Validar e retornar uma conta ou cartão canônico. É somente leitura. | Não exigido. |
+| `validate_invoice_payment_targets` | Validar cartão, referência da fatura e conta de pagamento. É somente leitura. | Não exigido. |
 | `create_category` | Criar categoria de receita ou despesa. | Não exigido pelo backend. |
 | `create_credit_card_tag` | Criar tag de cartão. | Não exigido pelo backend. |
 | `create_transaction` | Criar receita ou despesa comum. | Obrigatório. |
@@ -619,6 +621,41 @@ Regras:
 - `paid` é opcional e assume `false`;
 - não enviar `account_id`.
 
+## 15. POST `validate_transaction_target`
+
+Use antes da confirmação de lançamentos em conta ou cartão. UUID é a única
+fonte de verdade. `account_name` e `credit_card_name` são opcionais; quando
+enviados, devem coincidir com o nome oficial resolvido pelo UUID ou a API
+responde `ACCOUNT_ID_NAME_MISMATCH` ou `CREDIT_CARD_ID_NAME_MISMATCH`.
+
+```json
+{
+  "whatsapp_phone": "<WHATSAPP_PHONE>",
+  "target_type": "account",
+  "account_id": "<ACCOUNT_UUID>"
+}
+```
+
+```json
+{
+  "ok": true,
+  "valid": true,
+  "target_type": "account",
+  "account": {
+    "id": "<ACCOUNT_UUID>",
+    "name": "Mercado Pago",
+    "bank": "Mercado Pago",
+    "account_type": "Conta Corrente",
+    "profile_type": "PF"
+  }
+}
+```
+
+Para cartão, use `target_type:"credit_card"` e `credit_card_id`. A resposta
+contém `credit_card` com `id`, `name`, `issuer`, `category`, `profile_type`,
+`closing_day`, `due_day` e `is_active`. A action nunca cria transações e não
+exige chave de idempotência.
+
 ## 15.1 POST `validate_transfer_accounts`
 
 Action pública destinada à função Nimble `FM_SYS_07_VALIDAR_CONTAS_TRANSFERENCIA`.
@@ -664,6 +701,27 @@ Resposta válida:
 Erros: HTTP `400` com `FROM_ACCOUNT_ID_REQUIRED`, `TO_ACCOUNT_ID_REQUIRED`,
 `ACCOUNT_ID_INVALID` ou `TRANSFER_ACCOUNTS_SAME`; HTTP `404` com
 `ACCOUNT_NOT_FOUND` para conta inexistente ou pertencente a outro usuário.
+
+## 15.2 POST `validate_invoice_payment_targets`
+
+Use antes de confirmar o pagamento integral de uma fatura. Envie
+`whatsapp_phone`, `credit_card_id`, `ciclo_key` e `account_id`. A resposta
+somente leitura retorna `credit_card`, `invoice_ref` e `payment_account`
+canônicos. `credit_card_name` e `payment_account_name` são opcionais e, se
+presentes, precisam coincidir com os nomes resolvidos pelos UUIDs.
+
+```json
+{
+  "whatsapp_phone": "<WHATSAPP_PHONE>",
+  "credit_card_id": "<CREDIT_CARD_UUID>",
+  "ciclo_key": "<CREDIT_CARD_UUID>__2026-07-29__2026-08-28",
+  "account_id": "<PAYMENT_ACCOUNT_UUID>"
+}
+```
+
+Nenhuma action de validação exige idempotência ou cria dados. A Nimble deve
+montar a confirmação exclusivamente com os nomes devolvidos por essas actions,
+nunca com nomes mantidos em campos personalizados ou texto anterior.
 
 ## 16. POST `create_transfer`
 
@@ -1269,6 +1327,12 @@ Use create_credit_card_purchase para compra única no cartão.
 Use create_credit_card_installments para compra parcelada no cartão.
 Use create_transfer para transferências e movimentos PF/PJ.
 
+Antes de qualquer confirmação financeira, use a action de validação adequada.
+Depois da execução, apresente somente os objetos canônicos devolvidos pelo
+FluxMoney: `account`, `credit_card`, `payment_account`, `from_account` e
+`to_account`. Todas as criações revalidam os UUIDs antes da persistência;
+parcelas e ocorrências sempre usam o mesmo UUID canônico revalidado.
+
 Se uma categoria ou tag não existir, não envie o nome diretamente para a
 action financeira: crie primeiro com create_category ou
 create_credit_card_tag.
@@ -1306,10 +1370,16 @@ Erros que a Nimble deve tratar:
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | Não reutilizar chave com payload diferente. |
 | `CONFIRMATION_REQUIRED` | Confirmar com o usuário antes do POST financeiro. |
 | `ACCOUNT_ID_REQUIRED` | Resolver conta por `context`. |
+| `ACCOUNT_ID_INVALID` | Enviar UUID oficial retornado pelo `context`. |
 | `ACCOUNT_NOT_FOUND` | Atualizar contexto e pedir nova escolha. |
+| `ACCOUNT_ID_NAME_MISMATCH` | Descartar o nome local e refazer a validação canônica. |
 | `CREDIT_CARD_ID_REQUIRED` | Resolver cartão por `context`. |
+| `CREDIT_CARD_ID_INVALID` | Enviar UUID oficial do cartão retornado pelo `context`. |
 | `CREDIT_CARD_NOT_FOUND` | Atualizar contexto e pedir nova escolha. |
+| `CREDIT_CARD_ID_NAME_MISMATCH` | Descartar o nome local e refazer a validação canônica. |
 | `CREDIT_CARD_INACTIVE` | Informar que o cartão está inativo. |
+| `TRANSFER_ACCOUNTS_SAME` | Selecionar contas de origem e destino diferentes. |
+| `TRANSFER_ACCOUNT_ID_NAME_MISMATCH` | Refazer a validação canônica das duas contas. |
 | `CATEGORY_NOT_FOUND` | Criar categoria ou pedir outra. |
 | `TAG_NOT_FOUND` | Criar tag ou pedir outra. |
 | `INVALID_AMOUNT` | Enviar valor positivo maior que zero. |

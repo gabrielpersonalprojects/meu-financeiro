@@ -15,6 +15,29 @@ const PAYMENT_METHODS = new Set([
 ]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function normalizeEntityName(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function assertCanonicalName(providedName, canonicalName, code, fieldName) {
+  if (providedName === undefined || providedName === null) return;
+  const cleanProvidedName = String(providedName).trim();
+  if (!cleanProvidedName) return;
+
+  if (normalizeEntityName(cleanProvidedName) !== normalizeEntityName(canonicalName)) {
+    throw new ApiError(
+      400,
+      code,
+      `${fieldName} does not match the canonical entity resolved from its UUID.`
+    );
+  }
+}
+
 function validateAccountId(accountId, options = {}) {
   const cleanAccountId = String(accountId ?? "").trim();
   const fieldName = String(options.fieldName || "account_id");
@@ -36,6 +59,25 @@ function validateAccountId(accountId, options = {}) {
   }
 
   return cleanAccountId;
+}
+
+function validateCreditCardId(creditCardId) {
+  const cleanCreditCardId = String(creditCardId ?? "").trim();
+  if (!cleanCreditCardId) {
+    throw new ApiError(
+      400,
+      "CREDIT_CARD_ID_REQUIRED",
+      "credit_card_id is required."
+    );
+  }
+  if (!UUID_PATTERN.test(cleanCreditCardId)) {
+    throw new ApiError(
+      400,
+      "CREDIT_CARD_ID_INVALID",
+      "credit_card_id must be a valid credit card UUID returned by context."
+    );
+  }
+  return cleanCreditCardId;
 }
 
 function normalizeTransactionType(value) {
@@ -234,7 +276,7 @@ function getAccountProfileId(account) {
     : "pf";
 }
 
-async function requireOwnedAccount(supabase, userId, accountId) {
+async function requireOwnedAccount(supabase, userId, accountId, options = {}) {
   const cleanAccountId = validateAccountId(accountId);
 
   const { data, error } = await supabase
@@ -254,14 +296,84 @@ async function requireOwnedAccount(supabase, userId, accountId) {
     );
   }
 
+  assertCanonicalName(
+    options.providedName,
+    data.name || data.banco || "Conta",
+    options.mismatchCode || "ACCOUNT_ID_NAME_MISMATCH",
+    options.nameField || "account_name"
+  );
+
   return data;
+}
+
+async function requireOwnedCreditCard(supabase, userId, creditCardId, options = {}) {
+  const cleanCreditCardId = validateCreditCardId(creditCardId);
+  const { data, error } = await supabase
+    .from("credit_cards")
+    .select("*")
+    .eq("id", cleanCreditCardId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data?.id) {
+    throw new ApiError(
+      404,
+      "CREDIT_CARD_NOT_FOUND",
+      "credit_card_id was not found for this user."
+    );
+  }
+  if (data.is_active === false) {
+    throw new ApiError(400, "CREDIT_CARD_INACTIVE", "credit_card_id is inactive.");
+  }
+
+  assertCanonicalName(
+    options.providedName,
+    data.nome || data.name || data.bank_text || "Cartão",
+    "CREDIT_CARD_ID_NAME_MISMATCH",
+    options.nameField || "credit_card_name"
+  );
+  return data;
+}
+
+function mapCanonicalAccount(row) {
+  return {
+    id: row.id,
+    name: row.name || row.banco || "Conta",
+    bank: row.banco || "",
+    account_type: row.tipo_conta || "",
+    profile_type: String(row.perfil_conta || "").trim().toUpperCase(),
+  };
+}
+
+function mapCanonicalCreditCard(row) {
+  const rawProfile = String(
+    row.perfil ??
+      row.perfil_cartao ??
+      row.perfilCartao ??
+      row.categoria ??
+      row.category ??
+      row.brand ??
+      ""
+  ).trim().toLowerCase();
+  return {
+    id: row.id,
+    name: row.nome || row.name || "",
+    issuer: row.bank_text || row.titular || row.banco || "",
+    category: row.categoria || row.bandeira || "",
+    profile_type: rawProfile === "pj" ? "PJ" : "PF",
+    closing_day: Number(row.dia_fechamento ?? row.diaFechamento ?? 1),
+    due_day: Number(row.dia_vencimento ?? row.diaVencimento ?? 10),
+    is_active: row.is_active !== false,
+  };
 }
 
 async function requireValidTransferAccounts(
   supabase,
   userId,
   fromAccountId,
-  toAccountId
+  toAccountId,
+  options = {}
 ) {
   const cleanFromAccountId = validateAccountId(fromAccountId, {
     fieldName: "from_account_id",
@@ -283,8 +395,16 @@ async function requireValidTransferAccounts(
   }
 
   const [fromAccount, toAccount] = await Promise.all([
-    requireOwnedAccount(supabase, userId, cleanFromAccountId),
-    requireOwnedAccount(supabase, userId, cleanToAccountId),
+    requireOwnedAccount(supabase, userId, cleanFromAccountId, {
+      providedName: options.fromAccountName,
+      mismatchCode: "TRANSFER_ACCOUNT_ID_NAME_MISMATCH",
+      nameField: "from_account_name",
+    }),
+    requireOwnedAccount(supabase, userId, cleanToAccountId, {
+      providedName: options.toAccountName,
+      mismatchCode: "TRANSFER_ACCOUNT_ID_NAME_MISMATCH",
+      nameField: "to_account_name",
+    }),
   ]);
 
   if (String(fromAccount.id) === String(toAccount.id)) {
@@ -296,6 +416,25 @@ async function requireValidTransferAccounts(
   }
 
   return { fromAccount, toAccount };
+}
+
+async function requireValidInvoicePaymentTargets(
+  supabase,
+  userId,
+  creditCardId,
+  accountId,
+  options = {}
+) {
+  const [creditCard, paymentAccount] = await Promise.all([
+    requireOwnedCreditCard(supabase, userId, creditCardId, {
+      providedName: options.creditCardName,
+    }),
+    requireOwnedAccount(supabase, userId, accountId, {
+      providedName: options.paymentAccountName,
+      nameField: "payment_account_name",
+    }),
+  ]);
+  return { creditCard, paymentAccount };
 }
 
 function isBlockedTransaction(row) {
@@ -406,6 +545,8 @@ module.exports = {
   countMonthsInclusive,
   getAccountProfileId,
   isFutureDate,
+  mapCanonicalAccount,
+  mapCanonicalCreditCard,
   mapTransactionResponse,
   normalizePaymentMethod,
   normalizeDeadlineMode,
@@ -416,7 +557,10 @@ module.exports = {
   parseIsoDate,
   parsePositiveAmount,
   requireOwnedAccount,
+  requireOwnedCreditCard,
   requireOwnedCommonTransaction,
+  requireValidInvoicePaymentTargets,
   requireValidTransferAccounts,
   validateAccountId,
+  validateCreditCardId,
 };

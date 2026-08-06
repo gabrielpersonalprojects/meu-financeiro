@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 type Row = Record<string, any>;
 
@@ -39,23 +40,28 @@ class Query {
   }
 }
 
-function createSupabase(options: { removeDestinationBeforeSecondValidation?: boolean } = {}) {
+function createSupabase(options: {
+  removeDestinationBeforeSecondValidation?: boolean;
+  removeAccountBeforeSecondValidation?: boolean;
+  removeCreditCardBeforeSecondValidation?: boolean;
+} = {}) {
   const calls: string[] = [];
   let accountQueryCount = 0;
+  let creditCardQueryCount = 0;
   const store: Record<string, Row[]> = {
     user_access: [{ user_id: "user-1", whatsapp_number: "5511999999999" }],
     accounts: [{
       id: "6d61847f-12dd-4167-8039-0a5a9fc8a49b",
       user_id: "user-1",
-      name: "Conta Preview",
-      banco: "Banco",
+      name: "Mercado Pago",
+      banco: "Mercado Pago",
       perfil_conta: "pj",
       tipo_conta: "corrente",
     }, {
-      id: "40fe8db6-35a4-4e5d-84aa-f92a2bba7c28",
+      id: "c95693a1-4394-4c89-9391-fcc4c66caffd",
       user_id: "user-1",
-      name: "Conta Destino Canonica",
-      banco: "Banco Destino",
+      name: "Nu Teste",
+      banco: "Nubank",
       perfil_conta: "pj",
       tipo_conta: "poupanca",
     }, {
@@ -65,7 +71,27 @@ function createSupabase(options: { removeDestinationBeforeSecondValidation?: boo
       banco: "Bank",
       perfil_conta: "pf",
     }],
-    credit_cards: [],
+    credit_cards: [{
+      id: "11111111-1111-4111-8111-111111111111",
+      user_id: "user-1",
+      nome: "Cartao Canonico",
+      bank_text: "Emissor Teste",
+      categoria: "PF",
+      perfil_conta: "pf",
+      dia_fechamento: 28,
+      dia_vencimento: 7,
+      is_active: true,
+    }, {
+      id: "22222222-2222-4222-8222-222222222222",
+      user_id: "user-1",
+      nome: "Cartao Inativo",
+      is_active: false,
+    }, {
+      id: "33333333-3333-4333-8333-333333333333",
+      user_id: "user-2",
+      nome: "Cartao Alheio",
+      is_active: true,
+    }],
     user_tags: [],
     user_categories: [
       { id: "delivery-real-id", user_id: "user-1", profile_id: "pf", tipo: "despesa", nome: "Delivery" },
@@ -79,9 +105,22 @@ function createSupabase(options: { removeDestinationBeforeSecondValidation?: boo
       calls.push(table);
       if (table === "accounts") {
         accountQueryCount += 1;
+        if (options.removeAccountBeforeSecondValidation && accountQueryCount === 2) {
+          store.accounts = store.accounts.filter(
+            (account) => account.id !== "6d61847f-12dd-4167-8039-0a5a9fc8a49b"
+          );
+        }
         if (options.removeDestinationBeforeSecondValidation && accountQueryCount === 3) {
           store.accounts = store.accounts.filter(
-            (account) => account.id !== "40fe8db6-35a4-4e5d-84aa-f92a2bba7c28"
+            (account) => account.id !== "c95693a1-4394-4c89-9391-fcc4c66caffd"
+          );
+        }
+      }
+      if (table === "credit_cards") {
+        creditCardQueryCount += 1;
+        if (options.removeCreditCardBeforeSecondValidation && creditCardQueryCount === 2) {
+          store.credit_cards = store.credit_cards.filter(
+            (card) => card.id !== "11111111-1111-4111-8111-111111111111"
           );
         }
       }
@@ -150,7 +189,7 @@ async function invokeAction(handler: any, action: string, body: Row) {
   const headers: Record<string, string> = {
     authorization: "Bearer integration-token",
   };
-  if (action !== "validate_transfer_accounts") {
+  if (!action.startsWith("validate_")) {
     headers["x-idempotency-key"] = `test-${action}-${body.provider_message_id || "write"}`;
   }
   const req: any = {
@@ -270,7 +309,7 @@ test("context keeps returning the official account UUID", async () => {
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.accounts.map((account: Row) => account.id), [
     "6d61847f-12dd-4167-8039-0a5a9fc8a49b",
-    "40fe8db6-35a4-4e5d-84aa-f92a2bba7c28",
+    "c95693a1-4394-4c89-9391-fcc4c66caffd",
   ]);
 });
 
@@ -291,7 +330,7 @@ test("PostgreSQL 22P02 is never exposed to the client", () => {
 const transferValidationBody = {
   whatsapp_phone: "5511999999999",
   from_account_id: "6d61847f-12dd-4167-8039-0a5a9fc8a49b",
-  to_account_id: "40fe8db6-35a4-4e5d-84aa-f92a2bba7c28",
+  to_account_id: "c95693a1-4394-4c89-9391-fcc4c66caffd",
 };
 
 test("validate_transfer_accounts returns canonical accounts without creating transactions", async () => {
@@ -305,15 +344,15 @@ test("validate_transfer_accounts returns canonical accounts without creating tra
   assert.equal(res.body.valid, true);
   assert.deepEqual(res.body.from_account, {
     id: transferValidationBody.from_account_id,
-    name: "Conta Preview",
-    bank: "Banco",
+    name: "Mercado Pago",
+    bank: "Mercado Pago",
     account_type: "corrente",
     profile_type: "PJ",
   });
   assert.deepEqual(res.body.to_account, {
     id: transferValidationBody.to_account_id,
-    name: "Conta Destino Canonica",
-    bank: "Banco Destino",
+    name: "Nu Teste",
+    bank: "Nubank",
     account_type: "poupanca",
     profile_type: "PJ",
   });
@@ -329,6 +368,7 @@ test("validate_transfer_accounts rejects malformed, missing, unknown, foreign an
     [{ ...transferValidationBody, to_account_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, 404, "ACCOUNT_NOT_FOUND"],
     [{ ...transferValidationBody, to_account_id: "ab765f75-1261-4c9a-a11c-bc708e45ea58" }, 404, "ACCOUNT_NOT_FOUND"],
     [{ ...transferValidationBody, to_account_id: transferValidationBody.from_account_id }, 400, "TRANSFER_ACCOUNTS_SAME"],
+    [{ ...transferValidationBody, from_account_name: "Nu Teste" }, 400, "TRANSFER_ACCOUNT_ID_NAME_MISMATCH"],
   ] as const;
 
   for (const [body, statusCode, code] of cases) {
@@ -361,9 +401,9 @@ test("create_transfer revalidates accounts before writing and returns canonical 
   assert.equal(db.calls.filter((table) => table === "accounts").length, 4);
   assert.equal(db.store.transactions.length, 2);
   assert.equal(res.body.from_account.id, transferValidationBody.from_account_id);
-  assert.equal(res.body.from_account.name, "Conta Preview");
+  assert.equal(res.body.from_account.name, "Mercado Pago");
   assert.equal(res.body.to_account.id, transferValidationBody.to_account_id);
-  assert.equal(res.body.to_account.name, "Conta Destino Canonica");
+  assert.equal(res.body.to_account.name, "Nu Teste");
 });
 
 test("create_transfer aborts if an account is no longer valid before persistence", async () => {
@@ -386,4 +426,276 @@ test("create_transfer aborts if an account is no longer valid before persistence
   assert.equal(res.body.error.code, "ACCOUNT_NOT_FOUND");
   assert.equal(db.calls.filter((table) => table === "accounts").length, 4);
   assert.equal(db.store.transactions.length, 0);
+});
+
+test("regression: Mercado Pago name cannot be combined with Nu Teste UUID", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invoke(handler, {
+    ...baseBody,
+    provider_message_id: "mercado-pago-nu-mismatch",
+    account_id: "c95693a1-4394-4c89-9391-fcc4c66caffd",
+    account_name: "Mercado Pago",
+  });
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error.code, "ACCOUNT_ID_NAME_MISMATCH");
+  assert.equal(db.store.transactions.length, 0);
+});
+
+test("Mercado Pago UUID without supplied name resolves, persists and returns Mercado Pago", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invoke(handler, {
+    ...baseBody,
+    provider_message_id: "mercado-pago-canonical",
+    account_id: "6d61847f-12dd-4167-8039-0a5a9fc8a49b",
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(db.store.transactions[0].conta_id, "6d61847f-12dd-4167-8039-0a5a9fc8a49b");
+  assert.equal(res.body.account.id, "6d61847f-12dd-4167-8039-0a5a9fc8a49b");
+  assert.equal(res.body.account.name, "Mercado Pago");
+});
+
+test("bank transaction aborts if canonical account disappears before insert", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase({ removeAccountBeforeSecondValidation: true });
+  const handler = loadRealHandler(db.client);
+  const res = await invoke(handler, {
+    ...baseBody,
+    provider_message_id: "removed-account-before-insert",
+  });
+
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error.code, "ACCOUNT_NOT_FOUND");
+  assert.equal(db.store.transactions.length, 0);
+});
+
+test("validate_transaction_target validates canonical account without persistence", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "validate_transaction_target", {
+    whatsapp_phone: "5511999999999",
+    target_type: "account",
+    account_id: "6d61847f-12dd-4167-8039-0a5a9fc8a49b",
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.account.name, "Mercado Pago");
+  assert.equal(db.store.transactions.length, 0);
+});
+
+const creditCardId = "11111111-1111-4111-8111-111111111111";
+
+test("validate_transaction_target covers credit card validation and canonical response", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const cases = [
+    [{ target_type: "credit_card" }, 400, "CREDIT_CARD_ID_REQUIRED"],
+    [{ target_type: "credit_card", credit_card_id: "card_alias" }, 400, "CREDIT_CARD_ID_INVALID"],
+    [{ target_type: "credit_card", credit_card_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, 404, "CREDIT_CARD_NOT_FOUND"],
+    [{ target_type: "credit_card", credit_card_id: "33333333-3333-4333-8333-333333333333" }, 404, "CREDIT_CARD_NOT_FOUND"],
+    [{ target_type: "credit_card", credit_card_id: "22222222-2222-4222-8222-222222222222" }, 400, "CREDIT_CARD_INACTIVE"],
+    [{ target_type: "credit_card", credit_card_id: creditCardId, credit_card_name: "Outro Cartao" }, 400, "CREDIT_CARD_ID_NAME_MISMATCH"],
+  ];
+
+  for (const [partialBody, statusCode, code] of cases) {
+    const db = createSupabase();
+    const handler = loadRealHandler(db.client);
+    const res = await invokeAction(handler, "validate_transaction_target", {
+      whatsapp_phone: "5511999999999",
+      ...(partialBody as Row),
+    });
+    assert.equal(res.statusCode, statusCode, String(code));
+    assert.equal(res.body.error.code, code);
+    assert.equal(db.store.transactions.length, 0);
+  }
+
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const valid = await invokeAction(handler, "validate_transaction_target", {
+    whatsapp_phone: "5511999999999",
+    target_type: "credit_card",
+    credit_card_id: creditCardId,
+  });
+  assert.equal(valid.statusCode, 200);
+  assert.equal(valid.body.credit_card.name, "Cartao Canonico");
+  assert.equal(valid.body.credit_card.issuer, "Emissor Teste");
+  assert.equal(db.store.transactions.length, 0);
+});
+
+test("credit card purchase revalidates and returns the canonical card", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "create_credit_card_purchase", {
+    whatsapp_phone: "5511999999999",
+    provider_message_id: "canonical-card-purchase",
+    confirmed: true,
+    description: "Compra teste",
+    amount: 25,
+    date: "2026-08-06",
+    credit_card_id: creditCardId,
+    category: "Alimentacao",
+    spending_type: "variavel",
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(db.calls.filter((table) => table === "credit_cards").length, 2);
+  assert.equal(db.store.transactions[0].cartao_id, creditCardId);
+  assert.equal(res.body.credit_card.id, creditCardId);
+  assert.equal(res.body.credit_card.name, "Cartao Canonico");
+});
+
+test("credit card purchase aborts when card disappears before persistence", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase({ removeCreditCardBeforeSecondValidation: true });
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "create_credit_card_purchase", {
+    whatsapp_phone: "5511999999999",
+    provider_message_id: "removed-card-purchase",
+    confirmed: true,
+    description: "Compra bloqueada",
+    amount: 25,
+    date: "2026-08-06",
+    credit_card_id: creditCardId,
+    spending_type: "variavel",
+  });
+
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error.code, "CREDIT_CARD_NOT_FOUND");
+  assert.equal(db.store.transactions.length, 0);
+});
+
+test("credit card purchase never persists when supplied name belongs to another card", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "create_credit_card_purchase", {
+    whatsapp_phone: "5511999999999",
+    provider_message_id: "card-name-mismatch",
+    confirmed: true,
+    description: "Compra divergente",
+    amount: 25,
+    date: "2026-08-06",
+    credit_card_id: creditCardId,
+    credit_card_name: "Outro Cartao",
+    spending_type: "variavel",
+  });
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error.code, "CREDIT_CARD_ID_NAME_MISMATCH");
+  assert.equal(db.store.transactions.length, 0);
+});
+
+test("bank installments and fixed occurrences keep the revalidated canonical account", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const cases = [
+    ["create_installments", { installments: 3 }],
+    ["create_fixed", { deadline_mode: "com_prazo", end_date: "2026-10-06" }],
+  ] as const;
+
+  for (const [action, extra] of cases) {
+    const db = createSupabase();
+    const handler = loadRealHandler(db.client);
+    const res = await invokeAction(handler, action, {
+      ...baseBody,
+      provider_message_id: `canonical-${action}`,
+      account_name: "Mercado Pago",
+      ...extra,
+    });
+    assert.equal(res.statusCode, 201, action);
+    assert.equal(db.calls.filter((table) => table === "accounts").length, 2, action);
+    assert.equal(res.body.account.name, "Mercado Pago", action);
+    assert.ok(db.store.transactions.length > 1, action);
+    assert.ok(db.store.transactions.every((row) => row.conta_id === baseBody.account_id), action);
+  }
+});
+
+test("credit card installments keep one canonical card UUID in every installment", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "create_credit_card_installments", {
+    whatsapp_phone: "5511999999999",
+    provider_message_id: "canonical-card-installments",
+    confirmed: true,
+    description: "Compra parcelada",
+    amount: 90,
+    date: "2026-08-06",
+    installments: 3,
+    credit_card_id: creditCardId,
+    credit_card_name: "Cartao Canonico",
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(db.calls.filter((table) => table === "credit_cards").length, 2);
+  assert.equal(res.body.credit_card.name, "Cartao Canonico");
+  assert.equal(db.store.transactions.length, 3);
+  assert.ok(db.store.transactions.every((row) => row.cartao_id === creditCardId));
+});
+
+test("validate_invoice_payment_targets returns canonical card, invoice ref and account", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const cicloKey = `${creditCardId}__2026-07-29__2026-08-28`;
+  const res = await invokeAction(handler, "validate_invoice_payment_targets", {
+    whatsapp_phone: "5511999999999",
+    credit_card_id: creditCardId,
+    ciclo_key: cicloKey,
+    account_id: baseBody.account_id,
+    credit_card_name: "Cartao Canonico",
+    payment_account_name: "Mercado Pago",
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.credit_card.name, "Cartao Canonico");
+  assert.equal(res.body.payment_account.name, "Mercado Pago");
+  assert.equal(res.body.invoice_ref.ciclo_key, cicloKey);
+  assert.equal(db.store.transactions.length, 0);
+});
+
+test("invoice target validation rejects foreign entities and divergent names", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const cicloKey = `${creditCardId}__2026-07-29__2026-08-28`;
+  const cases = [
+    [{ credit_card_id: "33333333-3333-4333-8333-333333333333" }, 404, "CREDIT_CARD_NOT_FOUND"],
+    [{ account_id: "ab765f75-1261-4c9a-a11c-bc708e45ea58" }, 404, "ACCOUNT_NOT_FOUND"],
+    [{ credit_card_name: "Cartao Errado" }, 400, "CREDIT_CARD_ID_NAME_MISMATCH"],
+    [{ payment_account_name: "Nu Teste" }, 400, "ACCOUNT_ID_NAME_MISMATCH"],
+  ] as const;
+
+  for (const [override, statusCode, code] of cases) {
+    const db = createSupabase();
+    const handler = loadRealHandler(db.client);
+    const res = await invokeAction(handler, "validate_invoice_payment_targets", {
+      whatsapp_phone: "5511999999999",
+      credit_card_id: creditCardId,
+      ciclo_key: cicloKey,
+      account_id: baseBody.account_id,
+      ...override,
+    });
+    assert.equal(res.statusCode, statusCode, code);
+    assert.equal(res.body.error.code, code);
+    assert.equal(db.store.transactions.length, 0);
+  }
+});
+
+test("pay_credit_card_invoice source revalidates both targets and returns canonical objects", () => {
+  const source = readFileSync("api/v1/whatsapp.js", "utf8");
+  const start = source.indexOf("async function handlePayCreditCardInvoice");
+  const end = source.indexOf("module.exports =", start);
+  const handlerSource = source.slice(start, end);
+
+  assert.equal(
+    (handlerSource.match(/requireValidInvoicePaymentTargets\(/g) || []).length,
+    2
+  );
+  assert.match(handlerSource, /credit_card:\s*mapCanonicalCreditCard\(card\)/);
+  assert.match(handlerSource, /payment_account:\s*mapCanonicalAccount\(account\)/);
+  assert.ok(handlerSource.lastIndexOf("requireValidInvoicePaymentTargets(") < handlerSource.indexOf('.from("transactions")'));
 });

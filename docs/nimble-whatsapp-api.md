@@ -314,6 +314,8 @@ Regras para a Nimble:
 - o contexto pode ser mantido em cache somente enquanto o mapeamento pertencer ao mesmo usuário identificado pelo WhatsApp e continuar válido; diante de dúvida ou falha, consultar `context` novamente;
 - usar `credit_cards[].id` em `credit_card_id`;
 - categoria deve corresponder ao tipo do lançamento; categorias são globais por usuário e não possuem escopo PF/PJ;
+- `credit_card_tags` é a fonte oficial para seleção de tag nas operações de cartão;
+- `create_credit_card_purchase` e `create_credit_card_installments` aceitam exatamente os nomes retornados em `credit_card_tags`, preservando caracteres significativos como `|`;
 - o body das criações recebe o nome da categoria/tag, não o ID;
 - não usar nem armazenar `user_id`, mesmo que uma versão do backend ainda o exponha na resposta.
 
@@ -374,7 +376,8 @@ Comportamento:
 
 - tag nova: HTTP `201`, `status:"created"`;
 - tag já existente: HTTP `200`, `status:"already_exists"`;
-- depois da criação, usar `tag.name` na compra do cartão.
+- depois da criação, usar `tag.name` na compra do cartão;
+- se a mesma tag já veio em `context.credit_card_tags`, não recriar: reutilizar o nome retornado no contexto.
 
 ## 11. POST `create_transaction`
 
@@ -571,7 +574,7 @@ Campos:
 | `date` | Sim | `YYYY-MM-DD`. |
 | `credit_card_id` | Sim | ID retornado por `context`. |
 | `category` | Não | Deve existir como categoria de despesa do usuário; categorias não são separadas por perfil PF/PJ. |
-| `tag` | Não | Deve existir em `credit_card_tags`. |
+| `tag` | Não | Deve existir em `credit_card_tags`; enviar o nome exatamente como retornado em `context`. |
 | `spending_type` | Não | `variavel`, `variável`, `normal` ou `fixo`. |
 | `paid` | Não | Se omitido, assume `false`. |
 | `notes` | Não | Observação livre. |
@@ -584,6 +587,13 @@ Não enviar:
 Para compra parcelada, usar `create_credit_card_installments`.
 
 Importante: `spending_type:"fixo"` classifica esta compra como fixa, mas esta action cria somente uma ocorrência. A API atual não possui uma action dedicada para compra fixa mensal recorrente no cartão.
+
+Resolução de tag:
+
+- a API resolve a tag pelo mesmo catálogo exposto em `context.credit_card_tags`;
+- diferenças seguras de acento, caixa e espaços extras são normalizadas apenas para a comparação;
+- o valor persistido e devolvido na resposta é sempre o nome canônico salvo no banco;
+- `TAG_NOT_FOUND` significa que a tag realmente não existe mais para aquele usuário no momento da persistência, não diferença de acento, caixa ou espaço.
 
 ## 15. POST `create_credit_card_installments`
 
@@ -618,6 +628,7 @@ Regras:
 - `installments` deve ser inteiro entre `2` e `120`;
 - cada parcela é vinculada ao mês de fatura correspondente;
 - `category` e `tag`, se enviadas, precisam existir;
+- `tag` aceita os nomes retornados em `context.credit_card_tags` e persiste o nome canônico correspondente;
 - `paid` é opcional e assume `false`;
 - não enviar `account_id`.
 

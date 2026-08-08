@@ -203,6 +203,21 @@ async function invokeAction(handler: any, action: string, body: Row) {
   return res;
 }
 
+async function invokeGetAction(handler: any, action: string, query: Row = {}) {
+  const req: any = {
+    method: "GET",
+    query: {
+      action,
+      whatsapp_phone: "5511999999999",
+      ...query,
+    },
+    headers: { authorization: "Bearer integration-token" },
+  };
+  const res = response();
+  await handler(req, res);
+  return res;
+}
+
 test("handler real aceita categoria nativa do contexto e persiste o nome canônico", async () => {
   process.env.SUPPLIER_API_TOKEN = "integration-token";
   const db = createSupabase();
@@ -298,19 +313,171 @@ test("context keeps returning the official account UUID", async () => {
   process.env.SUPPLIER_API_TOKEN = "integration-token";
   const db = createSupabase();
   const handler = loadRealHandler(db.client);
-  const req: any = {
-    method: "GET",
-    query: { action: "context", whatsapp_phone: "5511999999999" },
-    headers: { authorization: "Bearer integration-token" },
-  };
-  const res = response();
-  await handler(req, res);
+  const res = await invokeGetAction(handler, "context");
 
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.accounts.map((account: Row) => account.id), [
     "6d61847f-12dd-4167-8039-0a5a9fc8a49b",
     "c95693a1-4394-4c89-9391-fcc4c66caffd",
   ]);
+});
+
+test("credit card tag invariant: context tag is accepted by card purchase and installments", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  db.store.user_tags.push({
+    id: "tag-pais",
+    user_id: "user-1",
+    nome: "Pai | Mãe",
+    normalized_name: null,
+  });
+  const handler = loadRealHandler(db.client);
+
+  const contextRes = await invokeGetAction(handler, "context");
+  assert.equal(contextRes.statusCode, 200);
+  assert.deepEqual(contextRes.body.credit_card_tags, [
+    { id: "tag-pais", name: "Pai | Mãe" },
+  ]);
+
+  const officialTag = contextRes.body.credit_card_tags[0].name;
+  const initialTagCount = db.store.user_tags.length;
+
+  const purchaseRes = await invokeAction(handler, "create_credit_card_purchase", {
+    whatsapp_phone: "5511999999999",
+    provider_message_id: "tag-invariant-purchase",
+    confirmed: true,
+    description: "Compra com tag oficial",
+    amount: 25,
+    date: "2026-08-06",
+    credit_card_id: creditCardId,
+    tag: officialTag,
+    spending_type: "variavel",
+  });
+
+  assert.equal(purchaseRes.statusCode, 201);
+  assert.equal(purchaseRes.body.transaction.tag, "Pai | Mãe");
+  assert.equal(db.store.transactions[0].tag, "Pai | Mãe");
+  assert.equal(db.store.user_tags.length, initialTagCount);
+
+  const installmentsRes = await invokeAction(handler, "create_credit_card_installments", {
+    whatsapp_phone: "5511999999999",
+    provider_message_id: "tag-invariant-installments",
+    confirmed: true,
+    description: "Parcelado com tag oficial",
+    amount: 90,
+    date: "2026-08-06",
+    installments: 3,
+    credit_card_id: creditCardId,
+    tag: officialTag,
+  });
+
+  assert.equal(installmentsRes.statusCode, 201);
+  assert.equal(installmentsRes.body.transactions.length, 3);
+  assert.ok(installmentsRes.body.transactions.every((row: Row) => row.tag === "Pai | Mãe"));
+  assert.ok(db.store.transactions.slice(1).every((row) => row.tag === "Pai | Mãe"));
+  assert.equal(db.store.user_tags.length, initialTagCount);
+});
+
+test("credit card purchase resolves canonical legacy tag with empty normalized_name and normalized input", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  db.store.user_tags.push({
+    id: "tag-empty",
+    user_id: "user-1",
+    nome: "Pai | Mãe",
+    normalized_name: "",
+  });
+  const handler = loadRealHandler(db.client);
+
+  const res = await invokeAction(handler, "create_credit_card_purchase", {
+    whatsapp_phone: "5511999999999",
+    provider_message_id: "tag-empty-normalized",
+    confirmed: true,
+    description: "Compra normalizada",
+    amount: 42,
+    date: "2026-08-06",
+    credit_card_id: creditCardId,
+    tag: "  PAI | MÃE  ",
+    spending_type: "variavel",
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.transaction.tag, "Pai | Mãe");
+  assert.equal(db.store.transactions[0].tag, "Pai | Mãe");
+  assert.equal(db.store.user_tags.length, 1);
+});
+
+test("create_credit_card_tag reuses canonical legacy tag instead of duplicating it", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  db.store.user_tags.push({
+    id: "tag-legacy",
+    user_id: "user-1",
+    nome: "Pai | Mãe",
+    normalized_name: "desatualizado",
+  });
+  const handler = loadRealHandler(db.client);
+
+  const res = await invokeAction(handler, "create_credit_card_tag", {
+    whatsapp_phone: "5511999999999",
+    provider_message_id: "tag-create-reuse",
+    name: "  PAI | MÃE  ",
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.status, "already_exists");
+  assert.equal(res.body.tag.name, "Pai | Mãe");
+  assert.equal(db.store.user_tags.length, 1);
+});
+
+test("credit card tag not found never auto-creates a tag and rejects other-user ownership", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+
+  for (const action of ["create_credit_card_purchase", "create_credit_card_installments"]) {
+    const missingDb = createSupabase();
+    const missingHandler = loadRealHandler(missingDb.client);
+    const missingRes = await invokeAction(missingHandler, action, {
+      whatsapp_phone: "5511999999999",
+      provider_message_id: `missing-${action}`,
+      confirmed: true,
+      description: "Tag ausente",
+      amount: 30,
+      date: "2026-08-06",
+      credit_card_id: creditCardId,
+      tag: "Pai | Mãe",
+      ...(action === "create_credit_card_installments" ? { installments: 2 } : { spending_type: "variavel" }),
+    });
+
+    assert.equal(missingRes.statusCode, 400, action);
+    assert.equal(missingRes.body.error.code, "TAG_NOT_FOUND", action);
+    assert.equal(missingDb.store.user_tags.length, 0, action);
+    assert.equal(missingDb.store.transactions.length, 0, action);
+
+    const foreignDb = createSupabase();
+    foreignDb.store.user_tags.push({
+      id: `foreign-${action}`,
+      user_id: "user-2",
+      nome: "Pai | Mãe",
+      normalized_name: "pai | mae",
+    });
+    const foreignHandler = loadRealHandler(foreignDb.client);
+    const foreignRes = await invokeAction(foreignHandler, action, {
+      whatsapp_phone: "5511999999999",
+      provider_message_id: `foreign-${action}`,
+      confirmed: true,
+      description: "Tag alheia",
+      amount: 30,
+      date: "2026-08-06",
+      credit_card_id: creditCardId,
+      tag: "Pai | Mãe",
+      ...(action === "create_credit_card_installments" ? { installments: 2 } : { spending_type: "variavel" }),
+    });
+
+    assert.equal(foreignRes.statusCode, 400, action);
+    assert.equal(foreignRes.body.error.code, "TAG_NOT_FOUND", action);
+    assert.equal(foreignDb.store.user_tags.length, 1, action);
+    assert.equal(foreignDb.store.transactions.length, 0, action);
+  }
 });
 
 test("PostgreSQL 22P02 is never exposed to the client", () => {

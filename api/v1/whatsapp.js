@@ -21,6 +21,11 @@ const {
   validateCategoryIfProvided,
 } = require("../_lib/categories");
 const {
+  listCreditCardTags,
+  resolveCreditCardTagByName,
+  validateCreditCardTagIfProvided,
+} = require("../_lib/creditCardTags");
+const {
   requireIdempotencyKey,
   runIdempotentCommand,
   validateIdempotencyIdentifiers,
@@ -1730,33 +1735,6 @@ async function resolveGetUser(supabase, req) {
   return resolveWhatsappUser(supabase, whatsappPhone);
 }
 
-async function validateCreditCardTagIfProvided({ supabase, userId, tag }) {
-  const cleanTag = String(tag ?? "").trim();
-  if (!cleanTag) return "";
-
-  const normalizedName = normalizeCatalogName(cleanTag);
-
-  const { data, error } = await supabase
-    .from("user_tags")
-    .select("id, nome, normalized_name")
-    .eq("user_id", userId)
-    .eq("normalized_name", normalizedName)
-    .limit(1);
-
-  if (error) throw error;
-
-  const found = data?.[0] ?? null;
-  if (!found) {
-    throw new ApiError(
-      400,
-      "TAG_NOT_FOUND",
-      "tag does not exist for this user."
-    );
-  }
-
-  return found.nome || cleanTag;
-}
-
 function normalizeTransactionListSource(value) {
   const raw = normalizeText(value);
   if (!raw || ["all", "todos", "todas"].includes(raw)) return "all";
@@ -2381,7 +2359,7 @@ async function handleContext(req, res, supabase) {
   rejectUserIdFromSupplier(req.query || {});
   const user = await resolveGetUser(supabase, req);
 
-  const [accountsResult, cardsResult, tagsResult, ...categoryGroups] =
+  const [accountsResult, cardsResult, creditCardTags, ...categoryGroups] =
     await Promise.all([
       supabase
         .from("accounts")
@@ -2393,11 +2371,10 @@ async function handleContext(req, res, supabase) {
         .select("id, nome, titular, bank_text, categoria, dia_fechamento, dia_vencimento, is_active")
         .eq("user_id", user.user_id)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("user_tags")
-        .select("id, nome")
-        .eq("user_id", user.user_id)
-        .order("nome", { ascending: true }),
+      listCreditCardTags({
+        supabase,
+        userId: user.user_id,
+      }),
       ...["receita", "despesa"].map((type) =>
         resolveAvailableCategories({
           supabase,
@@ -2407,7 +2384,7 @@ async function handleContext(req, res, supabase) {
       ),
     ]);
 
-  for (const result of [accountsResult, cardsResult, tagsResult]) {
+  for (const result of [accountsResult, cardsResult]) {
     if (result.error) throw result.error;
   }
 
@@ -2424,9 +2401,9 @@ async function handleContext(req, res, supabase) {
       { id: "pf", label: "PF" },
       { id: "pj", label: "PJ" },
     ],
-    credit_card_tags: (tagsResult.data ?? []).map((row) => ({
+    credit_card_tags: creditCardTags.map((row) => ({
       id: row.id,
-      name: row.nome,
+      name: row.name,
     })),
     rules: {
       public_contract_language: "en",
@@ -4175,16 +4152,11 @@ async function handleCreateCreditCardTag(req, res, action) {
     const name = String(body.name ?? "").trim();
     const normalizedName = normalizeCatalogName(body.name);
 
-    const { data: existingRows, error: existingError } = await supabase
-      .from("user_tags")
-      .select("id, nome, normalized_name")
-      .eq("user_id", user.user_id)
-      .eq("normalized_name", normalizedName)
-      .limit(1);
-
-    if (existingError) throw existingError;
-
-    const existing = existingRows?.[0] ?? null;
+    const existing = await resolveCreditCardTagByName({
+      supabase,
+      userId: user.user_id,
+      tag: name,
+    });
 
     if (existing) {
       return {
@@ -4194,7 +4166,7 @@ async function handleCreateCreditCardTag(req, res, action) {
           status: "already_exists",
           tag: {
             id: existing.id,
-            name: existing.nome,
+            name: existing.name,
             normalized_name: existing.normalized_name || normalizedName,
           },
         },

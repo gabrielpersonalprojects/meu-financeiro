@@ -12,6 +12,15 @@ import {
   type ProjectionPreferences,
   type ProjectionProfile,
 } from "../../app/transactions/projectionPreferences";
+import {
+  getProjectionMovementDirection,
+  matchesProjectionMovementFilter,
+  matchesProjectionOriginFilter,
+  matchesProjectionSearch,
+  type ProjectionMovementFilter,
+  type ProjectionOriginFilter,
+  type ProjectionOriginType,
+} from "./projectionModalFilters";
 
 type Props = {
   profile: ProjectionProfile;
@@ -46,7 +55,8 @@ export default function ProjectionConfigModal({
 }: Props) {
   const [draft, setDraft] = useState(() => normalizeProjectionPreferences(initialPreferences));
   const [search, setSearch] = useState("");
-  const [origin, setOrigin] = useState<"todos" | "contas" | "cartoes">("todos");
+  const [origin, setOrigin] = useState<ProjectionOriginFilter>("todos");
+  const [movement, setMovement] = useState<ProjectionMovementFilter>("todos");
 
   const accounts = useMemo(
     () => (profiles ?? []).filter((item) => profileOf(item) === profile),
@@ -60,8 +70,13 @@ export default function ProjectionConfigModal({
   const excludedCards = new Set(draft.excludedCardIds);
 
   const visibleEntries = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-    const byKey = new Map<string, { transaction: any; count: number; originId: string; originLabel: string; originType: "contas" | "cartoes" }>();
+    const byKey = new Map<string, {
+      transaction: any;
+      count: number;
+      originId: string;
+      originLabel: string;
+      originType: ProjectionOriginType;
+    }>();
 
     for (const transaction of transactions ?? []) {
       if (!transactionBelongsToProjectionProfile({ transaction, profile, profiles, creditCards })) continue;
@@ -70,18 +85,19 @@ export default function ProjectionConfigModal({
         ? getProjectionCardId(transaction, creditCards)
         : getProjectionAccountId(transaction);
       if (!originId || (isCard ? excludedCards.has(originId) : excludedAccounts.has(originId))) continue;
-      const originType = isCard ? "cartoes" : "contas";
-      if (origin !== "todos" && origin !== originType) continue;
+      const originType: ProjectionOriginType = isCard ? "cartoes" : "contas";
+      if (!matchesProjectionOriginFilter(origin, originType)) continue;
       const entity = (isCard ? cards : accounts).find((item: any) => String(item?.id ?? "") === originId);
       const originLabel = String(
         isCard
           ? entity?.emissor ?? entity?.bankText ?? entity?.name ?? entity?.nome ?? "Cartão"
           : entity?.name ?? entity?.banco ?? "Conta"
       ).trim();
-      const searchable = [transaction.descricao, transaction.categoria, transaction.tag, originLabel]
-        .join(" ")
-        .toLowerCase();
-      if (normalizedSearch && !searchable.includes(normalizedSearch)) continue;
+      const movementDirection = getProjectionMovementDirection(transaction);
+      if (!matchesProjectionMovementFilter(movement, movementDirection)) continue;
+      if (!matchesProjectionSearch(search, [transaction.descricao, transaction.categoria, transaction.tag, originLabel])) {
+        continue;
+      }
       const groupKey = getProjectionTransactionGroupKey(transaction);
       const transactionId = getProjectionTransactionId(transaction);
       const selectionKey = groupKey || (transactionId ? `transaction:${transactionId}` : "");
@@ -95,7 +111,7 @@ export default function ProjectionConfigModal({
       a.originLabel.localeCompare(b.originLabel, "pt-BR") ||
       String(a.transaction?.data ?? "").localeCompare(String(b.transaction?.data ?? ""))
     );
-  }, [transactions, profile, profiles, creditCards, accounts, cards, draft, search, origin]);
+  }, [transactions, profile, profiles, creditCards, accounts, cards, draft, search, origin, movement]);
 
   const toggleExcluded = (field: "excludedAccountIds" | "excludedCardIds", id: string) => {
     setDraft((current) => {
@@ -170,9 +186,54 @@ export default function ProjectionConfigModal({
 
           <section>
             <h3 className="mb-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Lançamentos considerados</h3>
-            <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-              <label className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar lançamento..." className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none dark:border-white/10 dark:bg-slate-950 dark:text-white" /></label>
-              <div className="inline-flex rounded-2xl border border-slate-200 p-1 dark:border-white/10">{(["todos", "contas", "cartoes"] as const).map((value) => <button key={value} type="button" onClick={() => setOrigin(value)} className={`rounded-xl px-3 py-1.5 text-xs font-bold ${origin === value ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500"}`}>{value === "todos" ? "Todos" : value === "contas" ? "Contas" : "Cartões"}</button>)}</div>
+            <div className="mb-3 space-y-2">
+              <label className="relative block"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar lançamento..." className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none dark:border-white/10 dark:bg-slate-950 dark:text-white" /></label>
+
+              <div className="flex flex-wrap items-start gap-2">
+                <div>
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Origem</p>
+                  <div className="inline-flex rounded-2xl border border-slate-200 p-1 dark:border-white/10">
+                    {(["todos", "contas", "cartoes"] as const).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setOrigin(value)}
+                        className={`rounded-xl px-3 py-1.5 text-xs font-bold ${
+                          origin === value
+                            ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                            : "text-slate-500"
+                        }`}
+                      >
+                        {value === "todos" ? "Todos" : value === "contas" ? "Contas" : "Cartões"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Movimentação</p>
+                  <div className="inline-flex rounded-2xl border border-slate-200 p-1 dark:border-white/10">
+                    {(["todos", "entradas", "saidas"] as const).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setMovement(value)}
+                        className={`rounded-xl px-3 py-1.5 text-xs font-bold ${
+                          movement === value
+                            ? value === "entradas"
+                              ? "bg-emerald-600 text-white"
+                              : value === "saidas"
+                                ? "bg-rose-600 text-white"
+                                : "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                            : "text-slate-500"
+                        }`}
+                      >
+                        {value === "todos" ? "Todos" : value === "entradas" ? "Entradas" : "Saídas"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               {visibleEntries.map(([selectionKey, entry], index) => {

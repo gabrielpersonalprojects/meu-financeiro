@@ -209,3 +209,12 @@ test("modal preserva acessibilidade, Escape e retorno de foco", () => {
   assert.match(tab, /event\.key === "Escape" && !clearPendingRef\.current/);
   assert.match(tab, /configTriggerRef\.current\?\.focus\(\)/);
 });
+
+test("filtros de lançamentos usam duas linhas com busca e grupos separados", () => {
+  const { modal } = readProjectionUi();
+  assert.match(modal, /Buscar lançamento\.\.\./);
+  assert.match(modal, /className="mb-3 space-y-2"/);
+  assert.match(modal, />Origem<\/p>/);
+  assert.match(modal, />Movimentação<\/p>/);
+  assert.match(modal, /value === "todos" \? "Todos" : value === "entradas" \? "Entradas" : "Saídas"/);
+});

@@ -25,8 +25,14 @@ type Props = {
   creditCards: any[];
   transactions: Transaction[];
   preferencesByProfile: Record<ProjectionProfile, ProjectionPreferences>;
-  onApplyPreferences: (profile: ProjectionProfile, preferences: ProjectionPreferences) => void;
-  onClearPreferences: (profile: ProjectionProfile) => void;
+  onApplyPreferences: (profile: ProjectionProfile, preferences: ProjectionPreferences) => Promise<void>;
+  onClearPreferences: (profile: ProjectionProfile) => Promise<void>;
+  onReloadPreferences: (
+    profile: ProjectionProfile,
+    options?: { migrateLocalWhenRemoteMissing?: boolean }
+  ) => Promise<void>;
+  preferencesLoadingByProfile: Record<ProjectionProfile, boolean>;
+  preferencesErrorByProfile: Record<ProjectionProfile, string | null>;
   viewResetSignal?: number;
 };
 
@@ -42,10 +48,17 @@ export default function ProjecaoTab({
   preferencesByProfile,
   onApplyPreferences,
   onClearPreferences,
+  onReloadPreferences,
+  preferencesLoadingByProfile,
+  preferencesErrorByProfile,
   viewResetSignal = 0,
 }: Props) {
   const [configProfile, setConfigProfile] = useState<ProjectionProfile | null>(null);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
   const clearPendingRef = useRef(false);
+  const configLoadRequestRef = useRef(0);
   const configTriggerRef = useRef<HTMLButtonElement | null>(null);
   const clearTriggerRef = useRef<HTMLButtonElement | null>(null);
   const activePreferences = perfilView === "geral" ? null : preferencesByProfile[perfilView];
@@ -54,12 +67,51 @@ export default function ProjecaoTab({
   const lastColTitle = projectionMode === "acumulado" ? "Saldo projetado" : "Resultado do mês";
   const closeConfig = () => {
     setConfigProfile(null);
+    setConfigLoading(false);
+    setConfigError(null);
     window.requestAnimationFrame(() => configTriggerRef.current?.focus());
   };
-  const openConfig = (profile: ProjectionProfile, trigger: HTMLButtonElement) => {
-    configTriggerRef.current = trigger;
+
+  const openConfig = async (
+    profile: ProjectionProfile,
+    trigger?: HTMLButtonElement | null
+  ) => {
+    const requestId = configLoadRequestRef.current + 1;
+    configLoadRequestRef.current = requestId;
+
+    if (trigger) {
+      configTriggerRef.current = trigger;
+    }
+
+    if (!isMountedRef.current) return;
+
     setConfigProfile(profile);
+    setConfigError(null);
+    setConfigLoading(true);
+
+    try {
+      await onReloadPreferences(profile, { migrateLocalWhenRemoteMissing: true });
+    } catch {
+      if (!isMountedRef.current || configLoadRequestRef.current !== requestId) return;
+      setConfigError("Não foi possível carregar a configuração da projeção agora.");
+    } finally {
+      if (isMountedRef.current && configLoadRequestRef.current === requestId) {
+        setConfigLoading(false);
+      }
+    }
   };
+
+  const requestReloadConfig = async () => {
+    if (!configProfile) return;
+    await openConfig(configProfile, null);
+  };
+
+  const requestApplyPreferences = async (preferences: ProjectionPreferences) => {
+    if (!configProfile) return;
+    await onApplyPreferences(configProfile, preferences);
+    closeConfig();
+  };
+
   const requestClearPreferences = async (profile: ProjectionProfile) => {
     if (clearPendingRef.current) return;
     clearPendingRef.current = true;
@@ -72,12 +124,28 @@ export default function ProjecaoTab({
         tone: "danger",
       });
       if (!accepted) return;
-      onClearPreferences(profile);
+      await onClearPreferences(profile);
       closeConfig();
+    } catch {
+      if (isMountedRef.current) {
+        setConfigError("Não foi possível salvar a configuração da projeção. Tente novamente.");
+      }
     } finally {
       clearPendingRef.current = false;
       window.requestAnimationFrame(() => clearTriggerRef.current?.focus());
     }
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const openConfigFromTrigger = (profile: ProjectionProfile, trigger: HTMLButtonElement) => {
+    configTriggerRef.current = trigger;
+    void openConfig(profile, trigger);
   };
 
   useEffect(() => {
@@ -98,7 +166,7 @@ export default function ProjecaoTab({
       type="button"
       onClick={(event) => {
         setPerfilView(profile);
-        if (profile !== "geral") openConfig(profile, event.currentTarget);
+        if (profile !== "geral") openConfigFromTrigger(profile, event.currentTarget);
       }}
       className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
         perfilView === profile
@@ -138,7 +206,7 @@ export default function ProjecaoTab({
           <div className="mt-3 flex w-full flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50/70 p-4 text-left dark:border-violet-400/20 dark:bg-violet-500/10 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="text-sm font-black text-violet-800 dark:text-violet-200">Projeção personalizada</p><p className="mt-0.5 text-xs font-semibold text-violet-700/80 dark:text-violet-300/80">{summaryMessage}</p></div>
             <div className="flex gap-2">
-              <button type="button" onClick={(event) => openConfig(perfilView as ProjectionProfile, event.currentTarget)} className="rounded-xl bg-[#4600ac] px-3 py-2 text-xs font-bold text-white">Ajustar filtros</button>
+              <button type="button" onClick={(event) => openConfigFromTrigger(perfilView as ProjectionProfile, event.currentTarget)} className="rounded-xl bg-[#4600ac] px-3 py-2 text-xs font-bold text-white">Ajustar filtros</button>
               <button type="button" onClick={(event) => { clearTriggerRef.current = event.currentTarget; void requestClearPreferences(perfilView as ProjectionProfile); }} className="rounded-xl border border-violet-200 px-3 py-2 text-xs font-bold text-violet-800 dark:border-violet-400/20 dark:text-violet-200">Limpar</button>
             </div>
           </div>
@@ -166,7 +234,7 @@ export default function ProjecaoTab({
         </table>
       </div>
 
-      {configProfile && <ProjectionConfigModal key={configProfile} profile={configProfile} profiles={profiles} creditCards={creditCards} transactions={transactions} initialPreferences={preferencesByProfile[configProfile]} onCancel={closeConfig} onApply={(preferences) => { onApplyPreferences(configProfile, preferences); closeConfig(); }} />}
+      {configProfile && <ProjectionConfigModal key={configProfile} profile={configProfile} profiles={profiles} creditCards={creditCards} transactions={transactions} initialPreferences={preferencesByProfile[configProfile]} isLoadingInitial={configLoading || preferencesLoadingByProfile[configProfile]} loadingError={configError || preferencesErrorByProfile[configProfile]} onRetryLoad={() => { void requestReloadConfig(); }} onCancel={closeConfig} onApply={requestApplyPreferences} />}
     </div>
   );
 }

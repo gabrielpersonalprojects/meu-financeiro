@@ -82,22 +82,49 @@ export const formatProjectionPreferencesMessage = (summary: {
   return `${subject} ${participle} da projeção.`;
 };
 
-const storageKey = (userId: string, profile: ProjectionProfile) =>
+export const buildProjectionPreferencesStorageKey = (
+  userId: string,
+  profile: ProjectionProfile
+) =>
   `fluxmoney:projection-preferences:v1:${String(userId).trim()}:${profile}`;
+
+export const readProjectionPreferencesStorageEntry = (
+  userId: string,
+  profile: ProjectionProfile,
+  storage: Pick<Storage, "getItem"> = localStorage
+): {
+  key: string;
+  exists: boolean;
+  preferences: ProjectionPreferences | null;
+} => {
+  const key = buildProjectionPreferencesStorageKey(userId, profile);
+  if (!String(userId ?? "").trim()) {
+    return { key, exists: false, preferences: null };
+  }
+
+  const raw = storage.getItem(key);
+  if (raw == null) {
+    return { key, exists: false, preferences: null };
+  }
+
+  try {
+    return {
+      key,
+      exists: true,
+      preferences: normalizeProjectionPreferences(JSON.parse(raw)),
+    };
+  } catch {
+    return { key, exists: true, preferences: null };
+  }
+};
 
 export const loadProjectionPreferences = (
   userId: string,
   profile: ProjectionProfile,
   storage: Pick<Storage, "getItem"> = localStorage
 ) => {
-  if (!String(userId ?? "").trim()) return { ...EMPTY_PROJECTION_PREFERENCES };
-  try {
-    return normalizeProjectionPreferences(
-      JSON.parse(storage.getItem(storageKey(userId, profile)) ?? "null")
-    );
-  } catch {
-    return { ...EMPTY_PROJECTION_PREFERENCES };
-  }
+  const entry = readProjectionPreferencesStorageEntry(userId, profile, storage);
+  return entry.preferences ?? { ...EMPTY_PROJECTION_PREFERENCES };
 };
 
 export const saveProjectionPreferences = (
@@ -106,7 +133,7 @@ export const saveProjectionPreferences = (
   value: ProjectionPreferences,
   storage: Pick<Storage, "setItem"> = localStorage
 ) => {
-  const key = storageKey(userId, profile);
+  const key = buildProjectionPreferencesStorageKey(userId, profile);
   const normalized = normalizeProjectionPreferences(value);
   if (!String(userId ?? "").trim()) return normalized;
   storage.setItem(key, JSON.stringify(normalized));
@@ -119,7 +146,7 @@ export const clearProjectionPreferences = (
   storage: Pick<Storage, "removeItem"> = localStorage
 ) => {
   if (!String(userId ?? "").trim()) return;
-  storage.removeItem(storageKey(userId, profile));
+  storage.removeItem(buildProjectionPreferencesStorageKey(userId, profile));
 };
 
 const firstId = (...values: unknown[]) =>

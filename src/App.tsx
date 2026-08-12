@@ -112,12 +112,20 @@ import {
   EMPTY_PROJECTION_PREFERENCES,
   clearProjectionPreferences,
   filterTransactionsForProjection,
-  loadProjectionPreferences,
+  normalizeProjectionPreferences,
   sanitizeProjectionPreferences,
-  saveProjectionPreferences,
   type ProjectionPreferences,
   type ProjectionProfile,
 } from "./app/transactions/projectionPreferences";
+import {
+  REMOTE_PROJECTION_PREFERENCES_ERROR,
+  REMOTE_PROJECTION_PREFERENCES_SAVE_ERROR,
+  resolveProjectionPreferencesRemoteFirst,
+} from "./app/transactions/projectionPreferencesSync";
+import {
+  fetchProjectionPreferencesRemote,
+  upsertProjectionPreferencesRemote,
+} from "./services/projectionPreferences";
 import { togglePagoById, applyEditToTransactions } from "./app/transactions/useTransactionActions";
 import {
   buildSemPrazoAlerts,
@@ -1392,6 +1400,20 @@ const [faturasStatusManual, setFaturasStatusManual] = useState<FaturaStatusManua
   const [projectionPreferencesByProfile, setProjectionPreferencesByProfile] = useState<Record<ProjectionProfile, ProjectionPreferences>>({
     pf: { ...EMPTY_PROJECTION_PREFERENCES },
     pj: { ...EMPTY_PROJECTION_PREFERENCES },
+  });
+  const [projectionPreferencesLoadingByProfile, setProjectionPreferencesLoadingByProfile] =
+    useState<Record<ProjectionProfile, boolean>>({
+      pf: false,
+      pj: false,
+    });
+  const [projectionPreferencesErrorByProfile, setProjectionPreferencesErrorByProfile] =
+    useState<Record<ProjectionProfile, string | null>>({
+      pf: null,
+      pj: null,
+    });
+  const projectionPreferencesLoadRequestRef = useRef<Record<ProjectionProfile, number>>({
+    pf: 0,
+    pj: 0,
   });
 
   const ui = useUI();
@@ -6776,13 +6798,103 @@ const transacoesAnoProjecao = useMemo(() => {
   );
 }, [transactions, anoBaseProjecao]);
 
+const loadProjectionPreferencesForProfile = useCallback(async (
+  profile: ProjectionProfile,
+  options?: { migrateLocalWhenRemoteMissing?: boolean }
+) => {
+  const userId = String(session?.user?.id ?? "").trim();
+
+  if (!userId) {
+    setProjectionPreferencesByProfile((current) => ({
+      ...current,
+      [profile]: { ...EMPTY_PROJECTION_PREFERENCES },
+    }));
+    setProjectionPreferencesLoadingByProfile((current) => ({
+      ...current,
+      [profile]: false,
+    }));
+    setProjectionPreferencesErrorByProfile((current) => ({
+      ...current,
+      [profile]: null,
+    }));
+    return;
+  }
+
+  const requestId = projectionPreferencesLoadRequestRef.current[profile] + 1;
+  projectionPreferencesLoadRequestRef.current[profile] = requestId;
+
+  setProjectionPreferencesLoadingByProfile((current) => ({
+    ...current,
+    [profile]: true,
+  }));
+  setProjectionPreferencesErrorByProfile((current) => ({
+    ...current,
+    [profile]: null,
+  }));
+
+  try {
+    const result = await resolveProjectionPreferencesRemoteFirst({
+      userId,
+      profileId: profile,
+      remoteStore: {
+        fetch: fetchProjectionPreferencesRemote,
+        upsert: upsertProjectionPreferencesRemote,
+      },
+      migrateLocalWhenRemoteMissing:
+        options?.migrateLocalWhenRemoteMissing !== false,
+    });
+
+    if (projectionPreferencesLoadRequestRef.current[profile] !== requestId) {
+      return;
+    }
+
+    setProjectionPreferencesByProfile((current) => ({
+      ...current,
+      [profile]: normalizeProjectionPreferences(result.preferences),
+    }));
+
+    if (result.migrationError) {
+      setProjectionPreferencesErrorByProfile((current) => ({
+        ...current,
+        [profile]: REMOTE_PROJECTION_PREFERENCES_ERROR,
+      }));
+    }
+  } catch (error) {
+    if (projectionPreferencesLoadRequestRef.current[profile] !== requestId) {
+      return;
+    }
+    console.error("Erro ao carregar preferências da projeção:", error);
+    setProjectionPreferencesErrorByProfile((current) => ({
+      ...current,
+      [profile]: REMOTE_PROJECTION_PREFERENCES_ERROR,
+    }));
+  } finally {
+    if (projectionPreferencesLoadRequestRef.current[profile] === requestId) {
+      setProjectionPreferencesLoadingByProfile((current) => ({
+        ...current,
+        [profile]: false,
+      }));
+    }
+  }
+}, [session?.user?.id]);
+
 useEffect(() => {
   const userId = String(session?.user?.id ?? "").trim();
-  setProjectionPreferencesByProfile({
-    pf: loadProjectionPreferences(userId, "pf"),
-    pj: loadProjectionPreferences(userId, "pj"),
-  });
-}, [session?.user?.id]);
+  if (!userId) {
+    setProjectionPreferencesByProfile({
+      pf: { ...EMPTY_PROJECTION_PREFERENCES },
+      pj: { ...EMPTY_PROJECTION_PREFERENCES },
+    });
+    setProjectionPreferencesLoadingByProfile({ pf: false, pj: false });
+    setProjectionPreferencesErrorByProfile({ pf: null, pj: null });
+    return;
+  }
+
+  void Promise.all([
+    loadProjectionPreferencesForProfile("pf", { migrateLocalWhenRemoteMissing: true }),
+    loadProjectionPreferencesForProfile("pj", { migrateLocalWhenRemoteMissing: true }),
+  ]);
+}, [session?.user?.id, loadProjectionPreferencesForProfile]);
 
 const effectiveProjectionPreferencesByProfile = useMemo(() => ({
   pf: sanitizeProjectionPreferences({
@@ -6813,10 +6925,15 @@ const transacoesConsideradasNaProjecao = useMemo(() =>
   }),
 [transacoes, projecaoPerfilView, profiles, activeCreditCards, effectiveProjectionPreferencesByProfile]);
 
-const handleApplyProjectionPreferences = (
+const handleApplyProjectionPreferences = async (
   profile: ProjectionProfile,
   preferences: ProjectionPreferences
 ) => {
+  const userId = String(session?.user?.id ?? "").trim();
+  if (!userId) {
+    throw new Error(REMOTE_PROJECTION_PREFERENCES_SAVE_ERROR);
+  }
+
   const sanitized = sanitizeProjectionPreferences({
     preferences,
     profile,
@@ -6824,15 +6941,51 @@ const handleApplyProjectionPreferences = (
     creditCards: activeCreditCards,
     transactions: transacoes,
   });
-  saveProjectionPreferences(String(session?.user?.id ?? ""), profile, sanitized);
+
+  try {
+    await upsertProjectionPreferencesRemote({
+      userId,
+      profileId: profile,
+      preferences: sanitized,
+    });
+  } catch (error) {
+    console.error("Erro ao salvar preferências da projeção:", error);
+    throw new Error(REMOTE_PROJECTION_PREFERENCES_SAVE_ERROR);
+  }
+
+  clearProjectionPreferences(userId, profile);
   setProjectionPreferencesByProfile((current) => ({ ...current, [profile]: sanitized }));
+  setProjectionPreferencesErrorByProfile((current) => ({
+    ...current,
+    [profile]: null,
+  }));
 };
 
-const handleClearProjectionPreferences = (profile: ProjectionProfile) => {
-  clearProjectionPreferences(String(session?.user?.id ?? ""), profile);
+const handleClearProjectionPreferences = async (profile: ProjectionProfile) => {
+  const userId = String(session?.user?.id ?? "").trim();
+  if (!userId) {
+    throw new Error(REMOTE_PROJECTION_PREFERENCES_SAVE_ERROR);
+  }
+
+  try {
+    await upsertProjectionPreferencesRemote({
+      userId,
+      profileId: profile,
+      preferences: { ...EMPTY_PROJECTION_PREFERENCES },
+    });
+  } catch (error) {
+    console.error("Erro ao limpar preferências da projeção:", error);
+    throw new Error(REMOTE_PROJECTION_PREFERENCES_SAVE_ERROR);
+  }
+
+  clearProjectionPreferences(userId, profile);
   setProjectionPreferencesByProfile((current) => ({
     ...current,
     [profile]: { ...EMPTY_PROJECTION_PREFERENCES },
+  }));
+  setProjectionPreferencesErrorByProfile((current) => ({
+    ...current,
+    [profile]: null,
   }));
 };
 
@@ -13926,6 +14079,9 @@ stats={stats}
   preferencesByProfile={effectiveProjectionPreferencesByProfile}
   onApplyPreferences={handleApplyProjectionPreferences}
   onClearPreferences={handleClearProjectionPreferences}
+  onReloadPreferences={loadProjectionPreferencesForProfile}
+  preferencesLoadingByProfile={projectionPreferencesLoadingByProfile}
+  preferencesErrorByProfile={projectionPreferencesErrorByProfile}
   viewResetSignal={applicationViewResetSignal}
 />
 </div>

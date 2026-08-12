@@ -167,7 +167,7 @@ test("modal de configuracao possui somente Cancelar e Aplicar", () => {
   const { modal, tab } = readProjectionUi();
   const footer = modal.slice(modal.indexOf('className="flex flex-wrap justify-end gap-2'));
   assert.match(footer, />Cancelar<\/button>/);
-  assert.match(footer, />Aplicar<\/button>/);
+  assert.match(footer, /\{isApplying \? "Salvando\.\.\." : "Aplicar"\}/);
   assert.equal((footer.match(/<button/g) ?? []).length, 2);
   assert.doesNotMatch(modal, /Limpar filtros|\bonClear\b/);
   assert.equal((tab.match(/>Limpar<\/button>/g) ?? []).length, 1);

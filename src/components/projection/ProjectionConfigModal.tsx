@@ -1,5 +1,5 @@
 import { Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatarData, formatarMoeda } from "../../utils/formatters";
 import type { Transaction } from "../../app/types";
 import {
@@ -21,6 +21,10 @@ import {
   type ProjectionOriginFilter,
   type ProjectionOriginType,
 } from "./projectionModalFilters";
+import {
+  buildProjectionSelectionKeysForProfile,
+  computeProjectionSelectionStats,
+} from "./projectionSelection";
 
 type Props = {
   profile: ProjectionProfile;
@@ -65,6 +69,7 @@ export default function ProjectionConfigModal({
   const [search, setSearch] = useState("");
   const [origin, setOrigin] = useState<ProjectionOriginFilter>("todos");
   const [movement, setMovement] = useState<ProjectionMovementFilter>("todos");
+  const transactionsAllRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setDraft(normalizeProjectionPreferences(initialPreferences));
@@ -142,6 +147,32 @@ export default function ProjectionConfigModal({
     );
   }, [transactions, profile, profiles, creditCards, accounts, cards, draft, search, origin, movement]);
 
+  const selectionKeysForProfile = useMemo(
+    () =>
+      buildProjectionSelectionKeysForProfile({
+        transactions,
+        profile,
+        profiles,
+        creditCards,
+        preferences: draft,
+      }),
+    [transactions, profile, profiles, creditCards, draft]
+  );
+
+  const transactionSelectionStats = useMemo(
+    () =>
+      computeProjectionSelectionStats({
+        selectionKeys: selectionKeysForProfile,
+        preferences: draft,
+      }),
+    [selectionKeysForProfile, draft]
+  );
+
+  useEffect(() => {
+    if (!transactionsAllRef.current) return;
+    transactionsAllRef.current.indeterminate = transactionSelectionStats.indeterminate;
+  }, [transactionSelectionStats.indeterminate]);
+
   const toggleExcluded = (field: "excludedAccountIds" | "excludedCardIds", id: string) => {
     setDraft((current) => {
       const values = new Set(current[field]);
@@ -165,6 +196,52 @@ export default function ProjectionConfigModal({
       const values = new Set(current[field]);
       values.has(id) ? values.delete(id) : values.add(id);
       return { ...current, [field]: Array.from(values) };
+    });
+  };
+
+  const toggleAllTransactions = () => {
+    setDraft((current) => {
+      const keys = buildProjectionSelectionKeysForProfile({
+        transactions,
+        profile,
+        profiles,
+        creditCards,
+        preferences: current,
+      });
+
+      if (!keys.length) return current;
+
+      const stats = computeProjectionSelectionStats({
+        selectionKeys: keys,
+        preferences: current,
+      });
+
+      const excludedGroups = new Set(current.excludedGroupIds);
+      const excludedTransactions = new Set(current.excludedTransactionIds);
+
+      if (stats.allSelected) {
+        for (const key of keys) {
+          if (key.startsWith("transaction:")) {
+            excludedTransactions.add(key.slice("transaction:".length));
+          } else {
+            excludedGroups.add(key);
+          }
+        }
+      } else {
+        for (const key of keys) {
+          if (key.startsWith("transaction:")) {
+            excludedTransactions.delete(key.slice("transaction:".length));
+          } else {
+            excludedGroups.delete(key);
+          }
+        }
+      }
+
+      return {
+        ...current,
+        excludedGroupIds: Array.from(excludedGroups),
+        excludedTransactionIds: Array.from(excludedTransactions),
+      };
     });
   };
 
@@ -235,7 +312,19 @@ export default function ProjectionConfigModal({
           })}
 
           <section>
-            <h3 className="mb-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Lançamentos considerados</h3>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Lançamentos considerados</h3>
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-violet-700 dark:text-violet-300">
+                <input
+                  ref={transactionsAllRef}
+                  type="checkbox"
+                  checked={transactionSelectionStats.allSelected}
+                  onChange={toggleAllTransactions}
+                  className="h-4 w-4 accent-violet-700"
+                />
+                Selecionar todas
+              </label>
+            </div>
             <div className="mb-3 space-y-2">
               <label className="relative block"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar lançamento..." className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none dark:border-white/10 dark:bg-slate-950 dark:text-white" /></label>
 

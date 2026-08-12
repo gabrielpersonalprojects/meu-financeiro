@@ -218,3 +218,12 @@ test("filtros de lançamentos usam duas linhas com busca e grupos separados", ()
   assert.match(modal, />Movimentação<\/p>/);
   assert.match(modal, /value === "todos" \? "Todos" : value === "entradas" \? "Entradas" : "Saídas"/);
 });
+
+test("lançamentos considerados possui controle geral no mesmo padrão de contas e cartões", () => {
+  const { modal } = readProjectionUi();
+  assert.match(modal, /Lançamentos considerados/);
+  assert.match(modal, /Selecionar todas/);
+  assert.match(modal, /transactionsAllRef/);
+  assert.match(modal, /transactionSelectionStats\.indeterminate/);
+  assert.match(modal, /onChange=\{toggleAllTransactions\}/);
+});

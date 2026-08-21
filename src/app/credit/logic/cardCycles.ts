@@ -48,8 +48,7 @@ export const getInvoiceMonthKeyForTransaction = ({
 
   const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
 
-  // O dia do fechamento ainda pertence à fatura atual.
-  // A próxima fatura começa no dia seguinte ao fechamento.
+  // O dia do fechamento já pertence à próxima competência da fatura.
   if (dt.getDate() >= fechamento) {
     base.setMonth(base.getMonth() + 1);
   }

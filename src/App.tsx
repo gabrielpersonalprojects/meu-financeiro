@@ -145,6 +145,7 @@ import {
   getCreditCardTransactionsByInvoiceMonth,
   sumCreditTransactionsAbs,
 } from "./app/credit/logic/creditTransactions";
+import { calculateCreditInvoice } from "./app/credit/logic/invoiceCalculation";
 import { printCardsResumoPdfReport } from "./app/credit/reports/cardsResumoPdfReport";
 import {
   matchesCardsResumoFilters,
@@ -8624,28 +8625,13 @@ function getCardCycleMonthFromDate(
   diaFechamento: number,
   diaVencimento?: number
 ) {
-  const dt = new Date(`${dataISO}T12:00:00`);
-  if (Number.isNaN(dt.getTime())) return getHojeLocal().slice(0, 7);
-
-const dia = dt.getDate();
-const fechamento = Math.max(1, Math.min(31, Number(diaFechamento ?? 1)));
-const vencimento = Math.max(1, Math.min(31, Number(diaVencimento ?? 1)));
-const fechamentoEfetivo = Math.min(
-  fechamento,
-  new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate()
-);
-const invoiceStartOffset = vencimento > fechamento ? 0 : 1;
-
-  const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
-
-  // Regra correta:
-  // - antes do dia de fechamento: permanece na fatura atual
-  // - no dia do fechamento ou depois: vai para a próxima fatura
-  if (dia > fechamentoEfetivo) {
-    base.setMonth(base.getMonth() + 1);
-  }
-base.setMonth(base.getMonth() + invoiceStartOffset);
-  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
+  return (
+    getInvoiceMonthKeyForTransaction({
+      iso: dataISO,
+      diaFechamento,
+      diaVencimento: Number(diaVencimento ?? 1),
+    }) || getHojeLocal().slice(0, 7)
+  );
 };
 
 function makeCardCycleDate(year: number, monthIndex0: number, day: number) {
@@ -13030,40 +13016,17 @@ const getCicloKeyDaFatura = (invoiceMonth: string) => {
             return pertenceAoCartaoDiretamente || pertenceAoCartaoViaParcelamento;
           });
 
-const transacoesDaFaturaAtual = transacoesDoCartao.filter((t: any) => {
-  const dataRaw = String((t as any)?.data ?? "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataRaw)) return false;
-
-  return (
-    getCardCycleMonthFromDate(
-      dataRaw,
-      Number(c?.diaFechamento ?? 1),
-      Number(c?.diaVencimento ?? 1)
-    ) === cicloBase
-  );
-});
-
-          const pagamentosDaFaturaAtual = (pagamentosFatura ?? []).filter((p: any) => {
-            if (String(p?.cartaoId ?? "") !== String(c.id)) return false;
-
-            return String(p?.cicloKey ?? "").trim() === getCicloKeyDaFatura(cicloBase);
+          const calculoFaturaAtual = calculateCreditInvoice({
+            transactions: transacoes as any,
+            payments: pagamentosFatura as any,
+            cartaoId: String(c.id),
+            monthKey: cicloBase,
+            cicloKey: getCicloKeyDaFatura(cicloBase),
+            diaFechamento: diaFechamentoAtual,
+            diaVencimento: diaVencimentoNum,
           });
 
-          const totalFatura = roundMoney(
-            transacoesDaFaturaAtual.reduce(
-              (acc: number, t: any) => acc + Math.abs(Number(t.valor || 0)),
-              0
-            )
-          );
-
-          const totalPago = roundMoney(
-            pagamentosDaFaturaAtual.reduce(
-              (acc: number, p: any) => acc + Math.abs(Number(p.valor || 0)),
-              0
-            )
-          );
-
-          const emAberto = roundMoney(Math.max(0, totalFatura - totalPago));
+          const emAberto = calculoFaturaAtual.remaining;
 
 const statusManualPorCiclo = new Map<string, string>();
 

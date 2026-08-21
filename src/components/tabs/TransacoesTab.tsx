@@ -1416,7 +1416,10 @@ className={`group/account flex items-center gap-2 w-full min-w-0 transition-all 
 )}
 
     <span className="shrink-0">
-      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600/25 text-indigo-300 border border-indigo-500/20">
+      <span
+        data-profile={String(p?.perfilConta ?? "").toUpperCase() || "PF"}
+        className="profile-badge rounded-full border px-2 py-0.5 text-[10px] font-bold"
+      >
         {String(p?.perfilConta ?? "").toUpperCase() || "PF"}
       </span>
     </span>

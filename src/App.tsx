@@ -14396,20 +14396,24 @@ stats={stats}
             }
           }}
         >
-<div className="flux-help-modal-scroll max-h-[88vh] w-full max-w-xl overflow-y-auto bg-white/90 dark:bg-slate-900/85 rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200/70 dark:border-slate-700/60 backdrop-blur">              <div className="flex items-center justify-between mb-6">
+<div
+  data-theme={isDarkMode ? "dark" : "light"}
+  className="settings-modal flux-help-modal-scroll max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-3xl border p-5 shadow-2xl sm:p-7"
+>              <div className="mb-6 flex items-center justify-between">
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white">Configurações</h3>
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(false)}
-                  className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                  className="settings-close p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition"
                   title="Fechar"
                 >
                   ✕
                 </button>
               </div>
 
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-3 flex items-center justify-between gap-4">
+              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-5">
+                <div className="space-y-3">
+                <div className="settings-card rounded-2xl border px-4 py-3 flex items-center justify-between gap-4">
                   <div>
                     <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Tema</p>
                     <p className="text-[12px] text-slate-500 dark:text-slate-400">Alternar entre claro e escuro</p>
@@ -14451,7 +14455,7 @@ stats={stats}
 </button>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-3 flex items-center justify-between gap-4">
+                <div className="settings-card rounded-2xl border px-4 py-3 flex items-center justify-between gap-4">
                   <div>
                     <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Dados do app</p>
                     <p className="text-[12px] text-slate-500 dark:text-slate-400">Apaga tudo e volta ao padrão inicial</p>
@@ -14471,7 +14475,7 @@ stats={stats}
                   </button>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-3 flex items-center justify-between gap-4">
+                <div className="settings-card rounded-2xl border px-4 py-3 flex items-center justify-between gap-4">
   <div>
     <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Assinatura</p>
     <p className="text-[12px] text-slate-500 dark:text-slate-400">
@@ -14496,9 +14500,10 @@ stats={stats}
   </button>
 </div>
 
+                </div>
 <div className="space-y-3">
   {/* CONTA DE ACESSO */}
-  <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-800/40">
+  <div className="settings-card overflow-hidden rounded-2xl border">
     <button
       type="button"
       onClick={() => setSettingsAccessOpen((prev) => !prev)}
@@ -14573,7 +14578,7 @@ stats={stats}
   </div>
 
 {/* SENHA DE ACESSO */}
-<div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-800/40">
+<div className="settings-card overflow-hidden rounded-2xl border">
   <button
     type="button"
     onClick={() => setSettingsPasswordOpen((prev) => !prev)}
@@ -14662,7 +14667,7 @@ stats={stats}
 </div>
 
   {/* WHATSAPP */}
-  <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-800/40">
+  <div className="settings-card overflow-hidden rounded-2xl border">
     <button
       type="button"
       onClick={() => setSettingsWhatsappOpen((prev) => !prev)}
@@ -14722,6 +14727,8 @@ stats={stats}
   </div>
 </div>
 
+</div>
+
 <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/40 px-4 py-3 flex md:hidden items-center justify-between gap-4">
   <div>
     <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Conta</p>
@@ -14739,7 +14746,6 @@ stats={stats}
     Sair da conta
   </button>
 </div>
-              </div>
             </div>
           </div>
       )}
@@ -14850,7 +14856,7 @@ stats={stats}
         </h3>
       </div>
 
-      <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+      <div className="flux-help-modal-scroll max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
         <div>
           <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
             Descrição
@@ -15547,10 +15553,8 @@ stats={stats}
   <div className="flex items-center gap-3 min-w-0">
     {/* badge PF/PJ */}
 <span
-  className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg
-             bg-slate-100 border border-slate-200 text-slate-700
-             dark:bg-white/5 dark:border-white/10 dark:text-slate-200
-             text-[10px] font-bold"
+  data-profile={String((p as any)?.perfilConta ?? "").trim().toUpperCase() === "PJ" ? "PJ" : "PF"}
+  className="profile-badge inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-[10px] font-bold"
 >
   {String((p as any)?.perfilConta ?? "")
     .trim()

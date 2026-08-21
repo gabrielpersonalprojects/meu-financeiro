@@ -45,8 +45,8 @@ export function renderContaOptionLabel(p: ContaLike) {
     <div className="flex items-center gap-2">
       {!!info.perfil && (
         <span
-          className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide
-                     bg-indigo-600/20 text-indigo-300 border border-indigo-500/20"
+          data-profile={info.perfil}
+          className="profile-badge rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
         >
           {info.perfil}
         </span>

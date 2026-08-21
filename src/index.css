@@ -336,3 +336,68 @@ body.dark .flux-help-modal-scroll::-webkit-scrollbar-thumb:hover,
 .dark .flux-help-modal-scroll::-webkit-scrollbar-thumb:hover {
   background-color: rgba(168, 85, 247, 0.8) !important;
 }
+
+.profile-badge {
+  border-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.profile-badge[data-profile="PF"] {
+  color: #fff !important;
+  background: #40009c !important;
+}
+
+.profile-badge[data-profile="PJ"] {
+  color: #fff !important;
+  background: #ec4899 !important;
+}
+
+.settings-modal {
+  border-color: rgba(203, 213, 225, 0.7);
+  background: #fff;
+  color: #0f172a;
+}
+
+.settings-card {
+  border-color: rgba(203, 213, 225, 0.7) !important;
+  background: #f8fafc !important;
+}
+
+.settings-modal[data-theme="dark"] {
+  border-color: rgba(71, 85, 105, 0.65);
+  background: #0f172a;
+  color: #fff;
+}
+
+.settings-modal[data-theme="dark"] .settings-card {
+  border-color: rgba(71, 85, 105, 0.65) !important;
+  background: #1e293b !important;
+}
+
+.settings-modal[data-theme="dark"] .text-slate-900,
+.settings-modal[data-theme="dark"] .text-slate-800,
+.settings-modal[data-theme="dark"] .text-slate-100 {
+  color: #fff !important;
+}
+
+.settings-modal[data-theme="dark"] .text-slate-500,
+.settings-modal[data-theme="dark"] .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+.settings-modal[data-theme="dark"] .settings-close {
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+.settings-modal[data-theme="dark"] .settings-close:hover {
+  background: #1e293b;
+  color: #fff;
+}
+
+.settings-modal[data-theme="dark"] .settings-card input {
+  border-color: #334155 !important;
+  background: rgba(2, 6, 23, 0.72) !important;
+  color: #f8fafc !important;
+}

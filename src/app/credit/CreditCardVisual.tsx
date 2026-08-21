@@ -141,7 +141,10 @@ const mostrarFutura = !mostrarOculto && statusMiniCard === "futura";
             )}
           </div>
 
-          <div className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white/90">
+          <div
+            data-profile={labelPerfil}
+            className="profile-badge rounded-full border px-3 py-1 text-xs font-semibold"
+          >
             {labelPerfil}
           </div>
         </div>

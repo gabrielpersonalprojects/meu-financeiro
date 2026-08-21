@@ -41,27 +41,10 @@ export const getCreditCardTransactionsByInvoiceMonth = ({
 
   if (!safeMonthKey) return [];
 
-  const cardTransactions = getCreditCardTransactions({
+  return getCreditCardTransactions({
     transactions,
     cartaoId,
-  });
-  const referencedParentIds = new Set(
-    cardTransactions
-      .map((tx: any) =>
-        String(
-          tx?.parentId ??
-            tx?.parent_id ??
-            tx?.payload?.parentId ??
-            tx?.payload?.parent_id ??
-            ""
-        ).trim()
-      )
-      .filter(Boolean)
-  );
-
-  return cardTransactions.filter((tx: any) => {
-    if (referencedParentIds.has(String(tx?.id ?? "").trim())) return false;
-
+  }).filter((tx: any) => {
     const dataTx = String(tx?.data ?? "").trim();
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dataTx)) {

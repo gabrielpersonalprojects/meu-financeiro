@@ -11,6 +11,6 @@
     "rootDir": ".",
     "outDir": "dist-test"
   },
-  "include": ["src/app/transactions/semPrazoAlerts.ts", "src/app/transactions/projection.ts", "src/app/transactions/projectionPreferences.ts", "src/app/credit/cardsResumoFiltering.ts", "src/app/credit/logic/invoiceCalculation.ts", "api/v1/whatsapp.js", "shared/nativeCategories.json", "tests/**/*.ts"],
+  "include": ["src/app/transactions/semPrazoAlerts.ts", "src/app/transactions/projection.ts", "src/app/transactions/projectionPreferences.ts", "src/app/credit/cardsResumoFiltering.ts", "api/v1/whatsapp.js", "shared/nativeCategories.json", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist", "dist-test"]
 }

@@ -44,7 +44,6 @@ import {
   getCreditCardTransactionsByInvoiceMonth,
   sumCreditTransactionsAbs,
 } from "./logic/creditTransactions";
-import { calculateCreditInvoice } from "./logic/invoiceCalculation";
 
 import {
   getCreditCategoriesFromTransactions,
@@ -354,6 +353,8 @@ const txDoCartao = useMemo(
   diaVencimento,
 ]);
 
+  const txFaturaCiclo = txMes;
+const valorFaturaTotal = sumCreditTransactionsAbs(txFaturaCiclo);
 
 const [filtroCategoriaCC, setFiltroCategoriaCC] = useState<string>("todas");
 const [filtroTagCC, setFiltroTagCC] = useState<string>("todas");
@@ -523,20 +524,18 @@ const [invoiceParcelamentoPrimeiraParcela, setInvoiceParcelamentoPrimeiraParcela
     if (!existe) setContaPagamentoFatura(contaPagamentoOptions[0].value);
   }, [contaPagamentoOptions, contaPagamentoFatura]);
 
-const calculoFatura = calculateCreditInvoice({
-  transactions: transacoes,
+const pagamentosDoCiclo = getInvoicePaymentsByCycle({
   payments: pagamentosFatura,
   cartaoId: String(cartao.id),
-  monthKey: baseMonthKey,
   cicloKey: String(cicloKeyFatura),
-  diaFechamento,
-  diaVencimento,
 });
 
-const pagamentosDoCiclo = calculoFatura.payments;
-const valorFaturaTotal = calculoFatura.total;
-const valorPagoFatura = calculoFatura.paid;
-const saldoRestanteFatura = calculoFatura.remaining;
+const valorPagoFatura = sumInvoicePayments(pagamentosDoCiclo);
+
+const saldoRestanteFatura = getInvoiceRemainingBalance({
+  invoiceTotal: valorFaturaTotal,
+  paidTotal: valorPagoFatura,
+});
 
 const limiteDisponivel = Math.max(
   0,

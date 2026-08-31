@@ -132,7 +132,7 @@ test("contexto e todas as criações de conta e cartão usam o resolvedor centra
   const apiSource = readFileSync("api/v1/whatsapp.js", "utf8");
   const categorySource = readFileSync("api/_lib/categories.js", "utf8");
   assert.match(apiSource, /buildContextCategories\(categoryGroups\)/);
-  assert.equal((apiSource.match(/validateCategoryIfProvided\(\{/g) ?? []).length, 7);
+  assert.equal((apiSource.match(/validateCategoryIfProvided\(\{/g) ?? []).length, 8);
   assert.match(categorySource, /async function validateCategoryIfProvided/);
   assert.match(categorySource, /const found = await resolveCategoryByName/);
   for (const action of ["handleCreateTransaction", "handleCreateCreditCardPurchase", "handleCreateCreditCardInstallments"]) {

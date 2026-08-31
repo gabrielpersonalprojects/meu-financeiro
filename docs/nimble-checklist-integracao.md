@@ -1,5 +1,13 @@
 # Checklist de Integracao - Nimble / FluxMoney
 
+**Versão:** 26/08/2026
+
+> **AÇÃO NECESSÁRIA DA NIMBLE:** cadastrar somente `create_credit_card_fixed`, se aplicável.
+>
+> **APENAS TESTES ADICIONAIS:** R$ 100,00 em 3x, dias 29–31, cartão mensal, renovação e matriz PF/PJ.
+>
+> **NENHUMA AÇÃO NECESSÁRIA:** `create_transfer`, seu body/schema, URL, autenticação e respostas anteriores permanecem compatíveis. Não recadastrar nem repetir testes já aprovados.
+
 ## 1. Configuracao inicial
 
 - Receber `SUPPLIER_API_TOKEN` com seguranca.
@@ -175,6 +183,14 @@ Resultado esperado:
 - `chart_data`.
 
 ## 4. Testes de mutacao segura
+
+### Criações financeiras incrementais
+
+- `create_installments`: testar R$ 100,00 em 3x e confirmar `33.33`, `33.33`, `33.34`.
+- `create_fixed`: testar datas 31/01 → fevereiro → 31/03 e modo `sem_prazo`.
+- `create_credit_card_installments`: testar resíduo e `invoice_month`.
+- `create_credit_card_fixed` (`NOVO`): testar `com_prazo` e `sem_prazo`.
+- `create_transfer` (`SEM ALTERAÇÃO`): testar somente PF→PF, PJ→PJ, PF→PJ e PJ→PF; não mudar payload/schema.
 
 ### settle_transaction
 

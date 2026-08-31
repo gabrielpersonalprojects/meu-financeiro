@@ -7,7 +7,9 @@ import { passarFiltroConta as passarFiltroContaLogic } from "./logic";
 
 type FilterSetters = {
   setFiltroMes: Dispatch<SetStateAction<string>>;
-  setFiltroLancamento: Dispatch<SetStateAction<"despesa" | "receita" | "todos">>;
+  setFiltroLancamento: Dispatch<
+    SetStateAction<"despesa" | "receita" | "transferencia" | "todos">
+  >;
   setFiltroCategoria: Dispatch<SetStateAction<string>>;
   setFiltroMetodo: Dispatch<SetStateAction<string>>;
   setFiltroTipoGasto: Dispatch<SetStateAction<string>>;

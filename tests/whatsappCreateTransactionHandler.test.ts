@@ -65,6 +65,20 @@ function createSupabase(options: {
       perfil_conta: "pj",
       tipo_conta: "poupanca",
     }, {
+      id: "44444444-4444-4444-8444-444444444444",
+      user_id: "user-1",
+      name: "Conta PF A",
+      banco: "Banco A",
+      perfil_conta: "pf",
+      tipo_conta: "corrente",
+    }, {
+      id: "55555555-5555-4555-8555-555555555555",
+      user_id: "user-1",
+      name: "Conta PF B",
+      banco: "Banco B",
+      perfil_conta: "pf",
+      tipo_conta: "poupanca",
+    }, {
       id: "ab765f75-1261-4c9a-a11c-bc708e45ea58",
       user_id: "user-2",
       name: "Other account",
@@ -319,6 +333,8 @@ test("context keeps returning the official account UUID", async () => {
   assert.deepEqual(res.body.accounts.map((account: Row) => account.id), [
     "6d61847f-12dd-4167-8039-0a5a9fc8a49b",
     "c95693a1-4394-4c89-9391-fcc4c66caffd",
+    "44444444-4444-4444-8444-444444444444",
+    "55555555-5555-4555-8555-555555555555",
   ]);
 });
 
@@ -573,6 +589,47 @@ test("create_transfer revalidates accounts before writing and returns canonical 
   assert.equal(res.body.to_account.name, "Nu Teste");
 });
 
+test("create_transfer preserves the PF/PJ matrix and returns additive operation links", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const scenarios = [
+    ["PF-PF", "44444444-4444-4444-8444-444444444444", "55555555-5555-4555-8555-555555555555", "internal_transfer"],
+    ["PJ-PJ", "6d61847f-12dd-4167-8039-0a5a9fc8a49b", "c95693a1-4394-4c89-9391-fcc4c66caffd", "internal_transfer"],
+    ["PF-PJ", "44444444-4444-4444-8444-444444444444", "6d61847f-12dd-4167-8039-0a5a9fc8a49b", "pf_pj"],
+    ["PJ-PF", "6d61847f-12dd-4167-8039-0a5a9fc8a49b", "44444444-4444-4444-8444-444444444444", "pf_pj"],
+  ] as const;
+
+  for (const [label, from, to, movementKind] of scenarios) {
+    const db = createSupabase();
+    const handler = loadRealHandler(db.client);
+    const res = await invokeAction(handler, "create_transfer", {
+      whatsapp_phone: "5511999999999",
+      provider_message_id: `matrix-${label}-0001`,
+      confirmed: true,
+      create_new_confirmed: true,
+      description: `Matriz ${label}`,
+      amount: "100.00",
+      date: "2026-08-06",
+      paid: true,
+      from_account_id: from,
+      to_account_id: to,
+      deadline_mode: "single",
+    });
+    assert.equal(res.statusCode, 201, label);
+    assert.equal(res.body.transfer_group.movement_kind, movementKind, label);
+    assert.ok(res.body.operation_id, label);
+    assert.equal(res.body.transactions.length, 2, label);
+    assert.deepEqual(res.body.transactions.map((row: Row) => row.amount), [-100, 100], label);
+    assert.equal(res.body.transactions.reduce((sum: number, row: Row) => sum + row.amount, 0), 0, label);
+    assert.ok(res.body.transactions.every((row: Row) => row.from_account_id === from), label);
+    assert.ok(res.body.transactions.every((row: Row) => row.to_account_id === to), label);
+    if (movementKind === "pf_pj") {
+      assert.equal(res.body.transactions[0].linked_movement_id, res.body.transactions[1].linked_movement_id, label);
+    } else {
+      assert.equal(res.body.transactions[0].transfer_id, res.body.transactions[1].transfer_id, label);
+    }
+  }
+});
+
 test("create_transfer aborts if an account is no longer valid before persistence", async () => {
   process.env.SUPPLIER_API_TOKEN = "integration-token";
   const db = createSupabase({ removeDestinationBeforeSecondValidation: true });
@@ -803,6 +860,29 @@ test("credit card installments keep one canonical card UUID in every installment
   assert.equal(res.body.credit_card.name, "Cartao Canonico");
   assert.equal(db.store.transactions.length, 3);
   assert.ok(db.store.transactions.every((row) => row.cartao_id === creditCardId));
+});
+
+test("create_credit_card_fixed creates safe monthly occurrences with invoice months", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "create_credit_card_fixed", {
+    whatsapp_phone: "5511999999999",
+    provider_message_id: "credit-fixed-0001",
+    confirmed: true,
+    description: "Streaming",
+    amount: "59.90",
+    date: "2026-01-31",
+    paid: false,
+    deadline_mode: "com_prazo",
+    end_date: "2026-03-31",
+    credit_card_id: creditCardId,
+  });
+  assert.equal(res.statusCode, 201);
+  assert.deepEqual(res.body.transactions.map((row: Row) => row.date), ["2026-01-31", "2026-02-28", "2026-03-31"]);
+  assert.equal(res.body.fixed_group.monthly_amount, -59.9);
+  assert.ok(res.body.transactions.every((row: Row) => row.credit_card_id === creditCardId));
+  assert.ok(res.body.transactions.every((row: Row) => /^\d{4}-\d{2}$/.test(row.invoice_month)));
 });
 
 test("validate_invoice_payment_targets returns canonical card, invoice ref and account", async () => {

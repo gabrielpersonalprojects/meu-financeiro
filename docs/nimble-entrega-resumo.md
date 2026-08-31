@@ -1,5 +1,13 @@
 # FluxMoney + Nimble - Integracao WhatsApp API
 
+**Versão:** 26/08/2026
+
+> **AÇÃO NECESSÁRIA DA NIMBLE:** cadastrar somente `create_credit_card_fixed`, se oferecer cartão mensal.
+>
+> **APENAS TESTES ADICIONAIS:** resíduo de centavos, dias 29–31, recorrência sem prazo e matriz PF→PF/PJ→PJ/PF→PJ/PJ→PF.
+>
+> **NENHUMA AÇÃO NECESSÁRIA:** não trocar URL, token, autenticação, headers, nomes, payloads ou Actions existentes. `create_transfer` permanece igual e não deve ser recadastrada.
+
 ## Visao geral
 
 A API WhatsApp do FluxMoney permite que a Nimble consulte dados financeiros e execute acoes controladas autorizadas pelo usuario, como baixar uma receita/despesa comum ou pagar uma fatura de cartao elegivel.
@@ -44,9 +52,23 @@ GET:
 - `financial_summary`
 - `financial_projection`
 - `financial_analytics`
+- `list_transactions`
 
 POST:
 
+- `resolve_transaction` (somente leitura)
+- `validate_transfer_accounts` (somente leitura)
+- `validate_transaction_target` (somente leitura)
+- `validate_invoice_payment_targets` (somente leitura)
+- `create_category`
+- `create_credit_card_tag`
+- `create_transaction`
+- `create_installments`
+- `create_fixed`
+- `create_transfer` (`SEM ALTERAÇÃO`)
+- `create_credit_card_purchase`
+- `create_credit_card_installments`
+- `create_credit_card_fixed` (`NOVO`)
 - `settle_transaction`
 - `pay_credit_card_invoice`
 
@@ -70,6 +92,8 @@ POST:
 6. Consultar resumo financeiro: `GET action=financial_summary`.
 7. Consultar projecao: `GET action=financial_projection`.
 8. Consultar analise por categoria: `GET action=financial_analytics`.
+9. Criar lançamentos comuns, parcelados e mensais pelas Actions oficiais.
+10. Transferir com `create_transfer`, preservando o payload já homologado.
 
 ## Observacao importante
 

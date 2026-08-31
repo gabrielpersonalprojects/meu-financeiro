@@ -2,8 +2,8 @@
 
 Contrato técnico e guia de configuração da integração.
 
-**Versão da documentação:** 24/07/2026
-**Código de referência revisado:** API publicada até o endpoint `resolve_transaction` + correção de filtros de 24/07/2026
+**Versão da documentação:** 26/08/2026
+**Código de referência revisado:** política monetária/calendário, recorrência automática, cartão mensal e matriz PF/PJ de 26/08/2026
 **Base URL de produção:**
 
 ```text
@@ -22,6 +22,12 @@ https://app.fluxmoneyapp.com.br/api/v1/whatsapp?action=<ACTION>
 > explícito nas consultas sensíveis e normaliza corretamente o perfil PF/PJ dos
 > cartões. Assim, a ausência de parâmetros não pode mais virar silenciosamente
 > uma consulta `all`.
+
+> **NOVO — AÇÃO DA NIMBLE:** cadastrar somente `create_credit_card_fixed`, se compras mensais em cartão forem oferecidas.
+>
+> **ATUALIZADO — APENAS TESTES:** parcelamentos com resíduo, dias 29–31, recorrência sem prazo e matriz PF/PJ.
+>
+> **SEM ALTERAÇÃO:** URL, autenticação, headers, payloads e Actions existentes. `create_transfer` permanece exatamente igual; não recadastrar nem renomear campos. Consulte o guia incremental `docs/nimble-atualizacao-parcelamentos-recorrencias-transferencias.md`.
 
 ## 1. O que a integração permite
 
@@ -96,6 +102,7 @@ Compras em cartão são sempre despesas.
 | `create_transfer` | Criar transferência interna ou movimento PF/PJ. | Obrigatório. |
 | `create_credit_card_purchase` | Criar compra comum no cartão. | Obrigatório. |
 | `create_credit_card_installments` | Criar compra parcelada no cartão. | Obrigatório. |
+| `create_credit_card_fixed` | `NOVO`: criar compra mensal recorrente no cartão. | Obrigatório. |
 | `settle_transaction` | Baixar pendência como paga/recebida. | Obrigatório. |
 | `pay_credit_card_invoice` | Pagar integralmente fatura elegível. | Obrigatório. |
 
@@ -586,7 +593,7 @@ Não enviar:
 
 Para compra parcelada, usar `create_credit_card_installments`.
 
-Importante: `spending_type:"fixo"` classifica esta compra como fixa, mas esta action cria somente uma ocorrência. A API atual não possui uma action dedicada para compra fixa mensal recorrente no cartão.
+Importante: `spending_type:"fixo"` continua classificando esta compra como fixa e criando somente uma ocorrência, por retrocompatibilidade. Para uma série mensal real, usar a nova `create_credit_card_fixed`.
 
 Resolução de tag:
 
@@ -631,6 +638,93 @@ Regras:
 - `tag` aceita os nomes retornados em `context.credit_card_tags` e persiste o nome canônico correspondente;
 - `paid` é opcional e assume `false`;
 - não enviar `account_id`.
+
+Resposta: HTTP `201`, com `credit_card`, `installment_group` e `transactions`. `installment_group` preserva `installments`, `total_amount`, `installment_amount` e `recorrencia_id`, e acrescenta `installment_amounts` com os valores exatos de todas as parcelas. Cada transação retorna `id`, `type`, `description`, `amount`, `date`, `credit_card_id`, `category`, `tag`, `paid`, `invoice_month`, `installment` e `total_installments`.
+
+## 15.A POST `create_credit_card_fixed` — `NOVO` / `AÇÃO DA NIMBLE`
+
+Cria uma compra mensal recorrente no cartão. Esta é a única Action nova desta versão.
+
+```http
+POST /api/v1/whatsapp?action=create_credit_card_fixed
+```
+
+```json
+{
+  "whatsapp_phone": "<WHATSAPP_PHONE>",
+  "provider_message_id": "<PROVIDER_MESSAGE_ID>",
+  "confirmed": true,
+  "description": "Streaming",
+  "amount": 59.90,
+  "date": "2026-08-26",
+  "paid": false,
+  "deadline_mode": "sem_prazo",
+  "credit_card_id": "<CREDIT_CARD_UUID>",
+  "credit_card_name": "Nubank",
+  "category": "Assinaturas",
+  "tag": "Pessoal",
+  "notes": ""
+}
+```
+
+Obrigatórios: `confirmed`, `description`, `amount`, `date`, `deadline_mode` e `credit_card_id`, além do envelope comum. Opcionais: `provider_message_id` conforme a regra real de idempotência, `paid` (padrão `false`), `credit_card_name`, `category`, `tag`, `notes` e `end_date`. `deadline_mode` aceita `sem_prazo` ou `com_prazo`; no segundo caso `end_date` é obrigatório. `amount` é mensal. São criadas no máximo 120 ocorrências; a janela inicial sem prazo contém 12 meses. `account_id` é proibido.
+
+Resposta:
+
+```json
+{
+  "ok": true,
+  "status": "created",
+  "summary": "Compra mensal Streaming lançada no cartão com sucesso.",
+  "credit_card": {
+    "id": "<CREDIT_CARD_UUID>",
+    "name": "Nubank",
+    "issuer": "Nubank",
+    "category": "PF",
+    "profile_type": "PF",
+    "closing_day": 28,
+    "due_day": 10,
+    "is_active": true
+  },
+  "fixed_group": {
+    "recorrencia_id": "cc_fixo_<CREDIT_CARD_UUID>_<TIMESTAMP>",
+    "deadline_mode": "sem_prazo",
+    "months": 12,
+    "monthly_amount": -59.9,
+    "end_date": null
+  },
+  "transactions": [
+    {
+      "id": "<TRANSACTION_ID>",
+      "type": "cartao_credito",
+      "description": "Streaming",
+      "amount": -59.9,
+      "date": "2026-08-26",
+      "credit_card_id": "<CREDIT_CARD_UUID>",
+      "category": "Assinaturas",
+      "tag": "Pessoal",
+      "paid": false,
+      "invoice_month": "2026-08"
+    }
+  ],
+  "idempotency": { "replayed": false }
+}
+```
+
+O array contém todas as ocorrências criadas. Cada ocorrência recalcula `invoice_month`. Erros específicos: `ACCOUNT_ID_NOT_ALLOWED`, `INVALID_END_DATE`, `INVALID_DEADLINE_MODE`, `FIXED_MONTHS_LIMIT_EXCEEDED`, erros `CREDIT_CARD_*`, `CATEGORY_NOT_FOUND` e `TAG_NOT_FOUND`, além dos erros gerais.
+
+### Política monetária e datas — `ATUALIZADO`
+
+- Todas as criações aceitam valor positivo com até duas casas e calculam em centavos.
+- Precisão maior retorna `INVALID_AMOUNT_PRECISION`.
+- R$ 100,00 em 3x gera `33.33`, `33.33`, `33.34`; o resíduo fica na última parcela.
+- Datas mensais são sempre calculadas a partir da primeira data: 31/01 → 28/02 → 31/03; em ano bissexto, fevereiro usa dia 29.
+- A regra vale para parcelas e recorrências em conta e cartão e para movimentos PF/PJ recorrentes.
+- No cartão, compra no dia do fechamento já pertence ao ciclo seguinte; `invoice_month` considera também a relação entre vencimento e fechamento.
+
+### Recorrência sem prazo — `NOVO`
+
+`sem_prazo` cria uma janela inicial de 12 meses. A renovação posterior é gerenciada automaticamente pela infraestrutura FluxMoney e gera somente ocorrências ausentes. Ela preserva `recorrenciaId`, não altera ocorrências pagas e ignora séries canceladas. Nenhuma configuração adicional é necessária na Nimble.
 
 ## 15. POST `validate_transaction_target`
 
@@ -738,6 +832,12 @@ nunca com nomes mantidos em campos personalizados ou texto anterior.
 
 Cria transferência interna ou movimento entre perfis.
 
+> **SEM ALTERAÇÃO / NENHUMA AÇÃO NECESSÁRIA NA NIMBLE:** a Action continua `create_transfer`; método, URL, autenticação, headers, body, schema e todos os campos anteriores da resposta permanecem compatíveis. Não recadastrar a ferramenta nem renomear variáveis.
+>
+> **SOMENTE TESTE:** executar apenas os cenários adicionais PF→PF, PJ→PJ, PF→PJ e PJ→PF. Testes anteriores já aprovados não precisam ser repetidos.
+>
+> **RESPOSTA ADITIVA:** `operation_id` e os vínculos opcionais por item (`linked_movement_id`, `transfer_id`, `from_account_id`, `to_account_id`) foram acrescentados. Consumidores atuais podem ignorá-los.
+
 Antes de solicitar a confirmação, a Nimble deve chamar
 `validate_transfer_accounts` com os UUIDs escolhidos no `context`. Mesmo assim,
 `create_transfer` repete a validação imediatamente antes da gravação e retorna
@@ -799,6 +899,34 @@ Resultado:
 - `com_prazo` exige `end_date`;
 - categorias são opcionais; sem elas, a API usa `Movimento PF/PJ`;
 - para data futura, a API força o movimento inicial como pendente.
+
+Resposta canônica preservada e aditiva:
+
+```json
+{
+  "ok": true,
+  "status": "created",
+  "summary": "Movimento PF/PJ Pró-labore lançado com sucesso.",
+  "from_account": { "id": "<FROM_ACCOUNT_UUID>", "name": "Origem", "bank": "Banco", "account_type": "Corrente", "profile_type": "PJ" },
+  "to_account": { "id": "<TO_ACCOUNT_UUID>", "name": "Destino", "bank": "Banco", "account_type": "Corrente", "profile_type": "PF" },
+  "transfer_group": {
+    "movement_kind": "pf_pj",
+    "from_account_id": "<FROM_ACCOUNT_UUID>",
+    "to_account_id": "<TO_ACCOUNT_UUID>",
+    "amount": 3000,
+    "paid": false,
+    "recurring": false
+  },
+  "operation_id": "mov_<UUID>",
+  "transactions": [
+    { "id": "<OUT_ID>", "type": "despesa", "description": "Pró-labore", "amount": -3000, "date": "2026-08-26", "account_id": "<FROM_ACCOUNT_UUID>", "paid": false, "category": "Pró-labore", "linked_movement_id": "mov_<UUID>", "transfer_id": null, "from_account_id": "<FROM_ACCOUNT_UUID>", "to_account_id": "<TO_ACCOUNT_UUID>" },
+    { "id": "<IN_ID>", "type": "receita", "description": "Pró-labore", "amount": 3000, "date": "2026-08-26", "account_id": "<TO_ACCOUNT_UUID>", "paid": false, "category": "Pró-labore", "linked_movement_id": "mov_<UUID>", "transfer_id": null, "from_account_id": "<FROM_ACCOUNT_UUID>", "to_account_id": "<TO_ACCOUNT_UUID>" }
+  ],
+  "idempotency": { "replayed": false }
+}
+```
+
+Em mesmo perfil, `movement_kind` é `internal_transfer`, `operation_id` coincide com `transfer_group.transfer_id` e as duas pernas compartilham `transfer_id`. Em todos os quatro sentidos a origem é negativa, o destino positivo e o efeito consolidado é zero. As duas linhas são persistidas em um único statement: falha de inserção não deixa uma perna isolada. A chave idempotente protege o conjunto inteiro.
 
 ### 16.3 Proteção contra duplicidade
 
@@ -1351,8 +1479,7 @@ create_credit_card_tag.
 Se a API retornar PENDING_TRANSFER_MATCH_FOUND, não crie duplicado.
 Pergunte se o usuário quer baixar a pendência encontrada ou criar outra.
 
-Edição, exclusão, desfazer baixa, pagamento parcial de fatura e recorrência
-fixa de cartão não estão disponíveis por esta API.
+Edição, exclusão, desfazer baixa e pagamento parcial de fatura não estão disponíveis por esta API. Recorrência fixa de cartão usa `create_credit_card_fixed`.
 ```
 
 ## 27. Formato de erro
@@ -1394,6 +1521,7 @@ Erros que a Nimble deve tratar:
 | `CATEGORY_NOT_FOUND` | Criar categoria ou pedir outra. |
 | `TAG_NOT_FOUND` | Criar tag ou pedir outra. |
 | `INVALID_AMOUNT` | Enviar valor positivo maior que zero. |
+| `INVALID_AMOUNT_PRECISION` | Enviar no máximo duas casas decimais. |
 | `INVALID_DATE` | Enviar data válida em `YYYY-MM-DD`. |
 | `INVALID_BOOLEAN` | Enviar booleano real em `paid`. |
 | `INVALID_INSTALLMENTS` | Enviar inteiro entre 2 e 120. |
@@ -1411,9 +1539,9 @@ Erros que a Nimble deve tratar:
 | `ACTION_DEPRECATED` | Trocar `mark_paid` por `settle_transaction`. |
 | `ACTION_NOT_SUPPORTED` | Orientar uso do painel FluxMoney. |
 
-## 28. Checklist de configuração
+## 28. Checklist de configuração — `ATUALIZADO`
 
-- Configurar as 17 actions oficiais listadas na seção 2.
+- Manter as actions existentes e cadastrar somente a nova `create_credit_card_fixed`.
 - Não limitar a integração às actions GET.
 - Incluir as oito criações financeiras/catalogais:
   - `create_category`
@@ -1424,6 +1552,7 @@ Erros que a Nimble deve tratar:
   - `create_transfer`
   - `create_credit_card_purchase`
   - `create_credit_card_installments`
+  - `create_credit_card_fixed` (`NOVO`)
 - Incluir `resolve_transaction`, `settle_transaction` e `pay_credit_card_invoice`.
 - Incluir `list_transactions` para consultas detalhadas.
 - Configurar Bearer token em armazenamento secreto.
@@ -1528,11 +1657,11 @@ Erros que a Nimble deve tratar:
 ### Melhorias recomendadas no backend
 
 1. **Remover `user_id` da resposta de `context`.** O fornecedor não pode enviar nem precisa receber esse identificador.
-2. **Criar action para despesa fixa recorrente no cartão.** Hoje `spending_type:"fixo"` em `create_credit_card_purchase` cria apenas uma ocorrência.
+2. **Concluído em 26/08/2026:** `create_credit_card_fixed` foi adicionada sem alterar `spending_type:"fixo"` em `create_credit_card_purchase`, que continua criando uma única ocorrência para retrocompatibilidade.
 3. **Padronizar `paid`.** Em criações de conta ele é obrigatório; em cartão é opcional. Um padrão único reduziria erros de configuração.
 4. **Padronizar confirmação de categoria/tag.** O backend não exige `confirmed:true` nessas duas mutações, embora todas as demais criações financeiras exijam.
 5. **Usar fuso de São Paulo nas regras de “hoje”.** A função principal de data atual usa UTC e pode divergir do Brasil próximo da meia-noite.
-6. **Homologar datas no dia 29, 30 e 31.** Parcelamentos de cartão usam ajuste seguro de fim do mês; recorrências e parcelamentos comuns usam outra rotina e merecem teste específico.
+6. **Concluído em 26/08/2026:** parcelamentos e recorrências usam a mesma rotina segura de fim do mês; manter os dias 29–31 na homologação incremental.
 
 ## 31. Critério de aceite da integração
 

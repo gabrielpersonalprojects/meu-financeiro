@@ -95,13 +95,41 @@ function normalizeTransactionType(value) {
 }
 
 function parsePositiveAmount(value) {
-  const amount = Number(value);
+  const raw = typeof value === "string" ? value.trim() : value;
+  const amount = Number(raw);
 
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new ApiError(400, "INVALID_AMOUNT", "amount must be greater than zero.");
   }
 
-  return Math.abs(amount);
+  const cents = Math.round(amount * 100);
+  if (Math.abs(amount * 100 - cents) > 1e-8) {
+    throw new ApiError(
+      400,
+      "INVALID_AMOUNT_PRECISION",
+      "amount must have at most two decimal places."
+    );
+  }
+
+  return cents / 100;
+}
+
+function toMoneyCents(value) {
+  return Math.round(parsePositiveAmount(value) * 100);
+}
+
+function fromMoneyCents(cents) {
+  return Number(cents) / 100;
+}
+
+function splitMoneyInCents(totalValue, parts) {
+  const count = parseInstallments(parts);
+  const totalCents = toMoneyCents(totalValue);
+  const baseCents = Math.floor(totalCents / count);
+  const remainder = totalCents - baseCents * count;
+  return Array.from({ length: count }, (_, index) =>
+    fromMoneyCents(baseCents + (index === count - 1 ? remainder : 0))
+  );
 }
 
 function parseInstallments(value) {
@@ -178,8 +206,11 @@ function isFutureDate(date) {
 
 function addMonthsLikeUi(isoDate, monthsToAdd) {
   const [year, month, day] = String(isoDate).split("-").map(Number);
-  const date = new Date(year, month - 1, day, 12, 0, 0, 0);
-  date.setMonth(date.getMonth() + monthsToAdd);
+  const targetMonthStart = new Date(year, month - 1 + monthsToAdd, 1, 12, 0, 0, 0);
+  const targetYear = targetMonthStart.getFullYear();
+  const targetMonth = targetMonthStart.getMonth();
+  const lastDay = new Date(targetYear, targetMonth + 1, 0, 12, 0, 0, 0).getDate();
+  const date = new Date(targetYear, targetMonth, Math.min(day, lastDay), 12, 0, 0, 0);
 
   const pad = (value) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
@@ -556,6 +587,9 @@ module.exports = {
   parseInstallments,
   parseIsoDate,
   parsePositiveAmount,
+  toMoneyCents,
+  fromMoneyCents,
+  splitMoneyInCents,
   requireOwnedAccount,
   requireOwnedCreditCard,
   requireOwnedCommonTransaction,

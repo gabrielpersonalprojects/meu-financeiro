@@ -53,6 +53,7 @@ const {
   parseInstallments,
   parseIsoDate,
   parsePositiveAmount,
+  splitMoneyInCents,
   requireOwnedAccount,
   requireOwnedCreditCard,
   requireValidTransferAccounts,
@@ -417,14 +418,7 @@ function buildInvoicePaymentGuidance(status, remainingAmount) {
 }
 
 function addMonthsSafeLikeCreditUi(isoDate, monthsToAdd) {
-  const [year, month, day] = String(isoDate).split("-").map(Number);
-  const lastDayTarget = new Date(year, month - 1 + monthsToAdd + 1, 0).getDate();
-  const safeDay = Math.min(day, lastDayTarget);
-  const date = new Date(year, month - 1 + monthsToAdd, safeDay, 12, 0, 0, 0);
-
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-    date.getDate()
-  ).padStart(2, "0")}`;
+  return addMonthsLikeUi(isoDate, monthsToAdd);
 }
 
 function normalizeCreditSpendingType(value) {
@@ -4752,9 +4746,7 @@ async function handleCreateInstallments(req, res, action) {
       category: body.category,
     });
 
-    const installmentAbs = amountAbs / installments;
-    const signedInstallment =
-      type === "receita" ? Math.abs(installmentAbs) : -Math.abs(installmentAbs);
+    const installmentAmounts = splitMoneyInCents(amountAbs, installments);
     const signedTotal = type === "receita" ? amountAbs : -amountAbs;
     const createdAt = Date.now();
     const recorrenciaId = `rec_${createdAt}`;
@@ -4765,7 +4757,10 @@ async function handleCreateInstallments(req, res, action) {
     const rows = Array.from({ length: installments }, (_, index) => ({
       user_id: user.user_id,
       tipo: type,
-      valor: signedInstallment,
+      valor:
+        type === "receita"
+          ? installmentAmounts[index]
+          : -installmentAmounts[index],
       data: addMonthsLikeUi(date, index),
       descricao: `${description} (${index + 1}/${installments})`,
       categoria: category,
@@ -4822,7 +4817,11 @@ async function handleCreateInstallments(req, res, action) {
           recorrencia_id: recorrenciaId,
           installments,
           total_amount: signedTotal,
-          installment_amount: signedInstallment,
+          installment_amount:
+            type === "receita" ? installmentAmounts[0] : -installmentAmounts[0],
+          installment_amounts: installmentAmounts.map((value) =>
+            type === "receita" ? value : -value
+          ),
         },
         transactions: (created ?? []).map(mapTransactionResponse),
       },
@@ -5235,7 +5234,14 @@ async function handleCreateTransfer(req, res, action) {
               paid: effectivePaid,
               recurring: false,
             },
-            transactions: verifiedCreated.map(mapTransactionResponse),
+            operation_id: getLinkedMovementId(verifiedCreated[0]) || null,
+            transactions: verifiedCreated.map((row) => ({
+              ...mapTransactionResponse(row),
+              linked_movement_id: getLinkedMovementId(row) || null,
+              transfer_id: getTransferId(row) || null,
+              from_account_id: getTransferFromAccountId(row) || null,
+              to_account_id: getTransferToAccountId(row) || null,
+            })),
           },
         };
       }
@@ -5319,7 +5325,14 @@ async function handleCreateTransfer(req, res, action) {
             months,
             end_date: recurrenceMode === "com_prazo" ? endDate : null,
           },
-          transactions: verifiedCreated.map(mapTransactionResponse),
+          operation_id: recurrenceId,
+          transactions: verifiedCreated.map((row) => ({
+            ...mapTransactionResponse(row),
+            linked_movement_id: getLinkedMovementId(row) || null,
+            transfer_id: getTransferId(row) || null,
+            from_account_id: getTransferFromAccountId(row) || null,
+            to_account_id: getTransferToAccountId(row) || null,
+          })),
         },
       };
     }
@@ -5428,7 +5441,14 @@ async function handleCreateTransfer(req, res, action) {
           amount: amountAbs,
           paid: effectivePaid,
         },
-        transactions: verifiedCreated.map(mapTransactionResponse),
+        operation_id: transferId,
+        transactions: verifiedCreated.map((row) => ({
+          ...mapTransactionResponse(row),
+          linked_movement_id: getLinkedMovementId(row) || null,
+          transfer_id: getTransferId(row) || null,
+          from_account_id: getTransferFromAccountId(row) || null,
+          to_account_id: getTransferToAccountId(row) || null,
+        })),
       },
     };
   });
@@ -5628,7 +5648,7 @@ async function handleCreateCreditCardInstallments(req, res, action) {
     const linkedAccountId = getCreditCardAccountId(card);
     const createdAt = Date.now();
     const recorrenciaId = `cc_parc_${creditCardId}_${createdAt}`;
-    const installmentAmount = -Math.abs(amountAbs / installments);
+    const installmentAmounts = splitMoneyInCents(amountAbs, installments);
 
     const rows = Array.from({ length: installments }, (_, index) => {
       const installmentNumber = index + 1;
@@ -5642,7 +5662,7 @@ async function handleCreateCreditCardInstallments(req, res, action) {
       return {
         user_id: user.user_id,
         tipo: "cartao_credito",
-        valor: installmentAmount,
+        valor: -installmentAmounts[index],
         data: installmentDate,
         descricao: `${description} (${installmentNumber}/${installments})`,
         categoria: category,
@@ -5705,7 +5725,8 @@ async function handleCreateCreditCardInstallments(req, res, action) {
         installment_group: {
           installments,
           total_amount: amountAbs,
-          installment_amount: installmentAmount,
+          installment_amount: -installmentAmounts[0],
+          installment_amounts: installmentAmounts.map((value) => -value),
           recorrencia_id: recorrenciaId,
         },
         transactions: (created ?? []).map((row) => ({
@@ -5721,6 +5742,180 @@ async function handleCreateCreditCardInstallments(req, res, action) {
           invoice_month: row.payload?.faturaMes || "",
           installment: Number(row.payload?.parcelaAtual || 0),
           total_installments: Number(row.payload?.totalParcelas || 0),
+        })),
+      },
+    };
+  });
+}
+
+function getTransferFromAccountId(row) {
+  return getMovementAccountIds(row).fromAccountId;
+}
+
+function getTransferToAccountId(row) {
+  return getMovementAccountIds(row).toAccountId;
+}
+
+async function handleCreateCreditCardFixed(req, res, action) {
+  await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
+    ensureMutationConfirmed(
+      body,
+      "Confirme com o usuário antes de lançar uma compra mensal no cartão."
+    );
+
+    if (body.account_id !== undefined) {
+      throw new ApiError(
+        400,
+        "ACCOUNT_ID_NOT_ALLOWED",
+        "account_id is not accepted for credit card purchases."
+      );
+    }
+
+    const description = requireString(
+      body.description,
+      "DESCRIPTION_REQUIRED",
+      "description is required."
+    );
+    const amountAbs = parsePositiveAmount(body.amount);
+    const date = parseIsoDate(body.date);
+    const paid = body.paid === undefined ? false : parseBoolean(body.paid, "paid");
+    const deadlineMode = normalizeDeadlineMode(body.deadline_mode);
+    const notes = String(body.notes ?? "").trim();
+    let months = SEM_PRAZO_MONTHS;
+    let endDate = "";
+    let recurrencePayload = null;
+
+    if (deadlineMode === "com_prazo") {
+      endDate = parseIsoDate(body.end_date, "INVALID_END_DATE", "end_date");
+      if (endDate < date) {
+        throw new ApiError(400, "INVALID_END_DATE", "end_date cannot be before date.");
+      }
+      months = countMonthsInclusive(date, endDate);
+    } else {
+      recurrencePayload = buildSemPrazoMeta(date, SEM_PRAZO_MONTHS);
+    }
+
+    if (months > MAX_FIXED_MONTHS) {
+      throw new ApiError(
+        400,
+        "FIXED_MONTHS_LIMIT_EXCEEDED",
+        `fixed transactions can generate at most ${MAX_FIXED_MONTHS} months.`
+      );
+    }
+
+    let card = await requireOwnedCreditCard(
+      supabase,
+      user.user_id,
+      body.credit_card_id,
+      { providedName: body.credit_card_name }
+    );
+    const category = await validateCategoryIfProvided({
+      supabase,
+      userId: user.user_id,
+      type: "despesa",
+      category: body.category,
+    });
+    const tag = await validateCreditCardTagIfProvided({
+      supabase,
+      userId: user.user_id,
+      tag: body.tag,
+    });
+    card = await requireOwnedCreditCard(supabase, user.user_id, body.credit_card_id, {
+      providedName: body.credit_card_name,
+    });
+
+    const creditCardId = String(card.id);
+    const linkedAccountId = getCreditCardAccountId(card);
+    const createdAt = Date.now();
+    const recorrenciaId = `cc_fixo_${creditCardId}_${createdAt}`;
+    const rows = Array.from({ length: months }, (_, index) => {
+      const occurrenceDate = addMonthsLikeUi(date, index);
+      const invoiceMonth = getCreditInvoiceMonth(
+        occurrenceDate,
+        Number(card.dia_fechamento ?? card.diaFechamento ?? 1),
+        Number(card.dia_vencimento ?? card.diaVencimento ?? 1)
+      );
+      return {
+        user_id: user.user_id,
+        tipo: "cartao_credito",
+        valor: -amountAbs,
+        data: occurrenceDate,
+        descricao: description,
+        categoria: category,
+        tag,
+        pago: index === 0 ? paid : false,
+        conta_id: linkedAccountId,
+        conta_origem_id: null,
+        conta_destino_id: null,
+        cartao_id: creditCardId,
+        transfer_from_id: "",
+        transfer_to_id: "",
+        qual_conta: creditCardId,
+        criado_em: createdAt + index,
+        payload: {
+          metodoPagamento: "",
+          tipoGasto: "Fixo",
+          recorrenciaId,
+          isRecorrente: true,
+          ...(recurrencePayload || {
+            recurrenceKind: "",
+            recurrenceWindowMonths: null,
+            recurrenceOriginDate: "",
+            recurrenceWindowStart: "",
+            recurrenceWindowEnd: "",
+            recurrenceStatus: "",
+            recurrenceRenewalDecision: "",
+            recurrenceDismissedAt: "",
+            recurrenceCanceledAt: "",
+            recurrenceLastActionAt: "",
+          }),
+          contraParte: "",
+          transferId: "",
+          observacoes: notes,
+          parcelaAtual: null,
+          totalParcelas: null,
+          cartaoId: creditCardId,
+          qualCartao: creditCardId,
+          targetId: creditCardId,
+          faturaMes: invoiceMonth,
+          origemLancamento: "whatsapp_credit_card_fixed",
+          parcelamentoFaturaId: "",
+          faturaOrigemCicloKey: "",
+        },
+      };
+    });
+
+    const { data: created, error } = await supabase
+      .from("transactions")
+      .insert(rows)
+      .select("*");
+    if (error) throw error;
+
+    return {
+      statusCode: 201,
+      body: {
+        ok: true,
+        status: "created",
+        summary: `Compra mensal ${description} lançada no cartão com sucesso.`,
+        credit_card: mapCanonicalCreditCard(card),
+        fixed_group: {
+          recorrencia_id: recorrenciaId,
+          deadline_mode: deadlineMode,
+          months,
+          monthly_amount: -amountAbs,
+          end_date: deadlineMode === "com_prazo" ? endDate : null,
+        },
+        transactions: (created ?? []).map((row) => ({
+          id: row.id,
+          type: row.tipo,
+          description: row.descricao || "",
+          amount: Number(row.valor || 0),
+          date: row.data,
+          credit_card_id: row.cartao_id || creditCardId,
+          category: row.categoria || "",
+          tag: row.tag || "",
+          paid: Boolean(row.pago),
+          invoice_month: row.payload?.faturaMes || "",
         })),
       },
     };
@@ -6100,6 +6295,9 @@ module.exports = withApi(async function handler(req, res) {
   }
   if (action === "create_credit_card_installments") {
     return handleCreateCreditCardInstallments(req, res, action);
+  }
+  if (action === "create_credit_card_fixed") {
+    return handleCreateCreditCardFixed(req, res, action);
   }
   if (action === "pay_credit_card_invoice") {
     return handlePayCreditCardInvoice(req, res, action);

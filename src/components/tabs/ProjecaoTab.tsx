@@ -1,5 +1,5 @@
 import { RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Profile, Transaction } from "../../app/types";
 import type { ProjectionMode, ProjectionRow } from "../../app/transactions/projection";
@@ -12,6 +12,10 @@ import {
 } from "../../app/transactions/projectionPreferences";
 import { formatarMoeda } from "../../utils/formatters";
 import ProjectionConfigModal from "../projection/ProjectionConfigModal";
+import {
+  buildProjectionSelectionKeysForProfile,
+  computeProjectionSelectionStats,
+} from "../projection/projectionSelection";
 import { confirm } from "../../services/confirm";
 
 type Props = {
@@ -62,7 +66,26 @@ export default function ProjecaoTab({
   const configTriggerRef = useRef<HTMLButtonElement | null>(null);
   const clearTriggerRef = useRef<HTMLButtonElement | null>(null);
   const activePreferences = perfilView === "geral" ? null : preferencesByProfile[perfilView];
-  const summary = activePreferences ? getProjectionPreferencesSummary(activePreferences) : null;
+  const projectionPeriodStart = projection12Months[0]?.period ?? "";
+  const projectionPeriodEnd = projection12Months[projection12Months.length - 1]?.period ?? "";
+  const summary = useMemo(() => {
+    if (!activePreferences || perfilView === "geral") return null;
+    const base = getProjectionPreferencesSummary(activePreferences);
+    const selectionKeys = buildProjectionSelectionKeysForProfile({
+      transactions,
+      profile: perfilView,
+      profiles,
+      creditCards,
+      preferences: activePreferences,
+      projectionPeriodStart,
+      projectionPeriodEnd,
+    });
+    const stats = computeProjectionSelectionStats({
+      selectionKeys,
+      preferences: activePreferences,
+    });
+    return { ...base, transactions: stats.total - stats.selected };
+  }, [activePreferences, perfilView, transactions, profiles, creditCards, projectionPeriodStart, projectionPeriodEnd]);
   const summaryMessage = summary ? formatProjectionPreferencesMessage(summary) : null;
   const lastColTitle = projectionMode === "acumulado" ? "Saldo projetado" : "Resultado do mês";
   const closeConfig = () => {
@@ -234,7 +257,7 @@ export default function ProjecaoTab({
         </table>
       </div>
 
-      {configProfile && <ProjectionConfigModal key={configProfile} profile={configProfile} profiles={profiles} creditCards={creditCards} transactions={transactions} initialPreferences={preferencesByProfile[configProfile]} isLoadingInitial={configLoading || preferencesLoadingByProfile[configProfile]} loadingError={configError || preferencesErrorByProfile[configProfile]} onRetryLoad={() => { void requestReloadConfig(); }} onCancel={closeConfig} onApply={requestApplyPreferences} />}
+      {configProfile && <ProjectionConfigModal key={configProfile} profile={configProfile} profiles={profiles} creditCards={creditCards} transactions={transactions} projectionPeriodStart={projectionPeriodStart} projectionPeriodEnd={projectionPeriodEnd} initialPreferences={preferencesByProfile[configProfile]} isLoadingInitial={configLoading || preferencesLoadingByProfile[configProfile]} loadingError={configError || preferencesErrorByProfile[configProfile]} onRetryLoad={() => { void requestReloadConfig(); }} onCancel={closeConfig} onApply={requestApplyPreferences} />}
     </div>
   );
 }

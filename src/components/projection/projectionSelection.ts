@@ -1,5 +1,9 @@
 import type { Transaction } from "../../app/types";
 import {
+  getProjectionTransactionPeriod,
+  isProjectionPeriodWithinRange,
+} from "../../app/transactions/projectionPeriod";
+import {
   getProjectionAccountId,
   getProjectionCardId,
   getProjectionTransactionGroupKey,
@@ -24,8 +28,18 @@ export const buildProjectionSelectionKeysForProfile = (params: {
   profiles: any[];
   creditCards: any[];
   preferences: ProjectionPreferences;
+  projectionPeriodStart?: string;
+  projectionPeriodEnd?: string;
 }) => {
-  const { transactions, profile, profiles, creditCards, preferences } = params;
+  const {
+    transactions,
+    profile,
+    profiles,
+    creditCards,
+    preferences,
+    projectionPeriodStart,
+    projectionPeriodEnd,
+  } = params;
   const normalized = normalizeProjectionPreferences(preferences);
   const excludedAccounts = new Set(normalized.excludedAccountIds);
   const excludedCards = new Set(normalized.excludedCardIds);
@@ -34,6 +48,13 @@ export const buildProjectionSelectionKeysForProfile = (params: {
   for (const transaction of transactions ?? []) {
     if (!transactionBelongsToProjectionProfile({ transaction, profile, profiles, creditCards })) {
       continue;
+    }
+
+    if (projectionPeriodStart || projectionPeriodEnd) {
+      const period = getProjectionTransactionPeriod(transaction, creditCards);
+      if (!isProjectionPeriodWithinRange(period, projectionPeriodStart, projectionPeriodEnd)) {
+        continue;
+      }
     }
 
     const isCard = String((transaction as any)?.tipo ?? "").toLowerCase() === "cartao_credito";

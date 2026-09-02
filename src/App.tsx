@@ -146,6 +146,10 @@ import {
   getCreditCardTransactionsByInvoiceMonth,
   sumCreditTransactionsAbs,
 } from "./app/credit/logic/creditTransactions";
+import {
+  sortCardsByInvoicePriority,
+  type CardInvoicePriorityInfo,
+} from "./app/credit/logic/cardListOrdering";
 import { printCardsResumoPdfReport } from "./app/credit/reports/cardsResumoPdfReport";
 import {
   matchesCardsResumoFilters,
@@ -4875,7 +4879,7 @@ const orderedCreditCards = useMemo(() => {
 
   const getTxCardId = (tx: any) => getCreditTransactionCardRef(tx);
 
-  const getCardPriorityInfo = (card: any) => {
+  const getCardPriorityInfo = (card: any): CardInvoicePriorityInfo => {
     const cardId = getCardId(card);
 
     if (!cardId) {
@@ -4923,11 +4927,11 @@ const orderedCreditCards = useMemo(() => {
       if (!data) return;
 
       const ciclo = String(
-        getCardCycleMonthFromDate(
-          data,
-          diaFechamentoNum,
-          diaVencimentoNum
-        )
+        getInvoiceMonthKeyForTransaction({
+          iso: data,
+          diaFechamento: diaFechamentoNum,
+          diaVencimento: diaVencimentoNum,
+        })
       ).trim();
 
       if (!/^\d{4}-\d{2}$/.test(ciclo)) return;
@@ -4945,10 +4949,18 @@ const orderedCreditCards = useMemo(() => {
   const pagamentoCardId = String(p?.cartaoId ?? "").trim();
   if (pagamentoCardId !== cardId) return;
 
-  const ciclo = normalizePaymentCycleKeyToYm(
-    p?.cicloKey,
-    p?.dataPagamento ?? p?.criadoEm ?? ""
-  );
+  const cycleParts = String(p?.cicloKey ?? "").trim().split("__");
+  const cycleEndIso = String(cycleParts[2] ?? "").trim();
+  const ciclo = /^\d{4}-\d{2}-\d{2}$/.test(cycleEndIso)
+    ? getCardCycleMonthFromDate(
+        cycleEndIso,
+        diaFechamentoNum,
+        diaVencimentoNum
+      )
+    : normalizePaymentCycleKeyToYm(
+        p?.cicloKey,
+        p?.dataPagamento ?? p?.criadoEm ?? ""
+      );
 
   if (!ciclo) return;
 
@@ -4987,27 +4999,24 @@ const statusManualPorCiclo = new Map<string, string>();
       ""
   ).trim();
 
-  const cicloNormalizado = normalizePaymentCycleKeyToYm(cicloRaw);
-
-  if (cicloNormalizado) {
-    statusManualPorCiclo.set(cicloNormalizado, status);
-  }
-
   if (cicloRaw.includes("__")) {
     const parts = cicloRaw.split("__");
-    const startIso = String(parts[1] ?? "").trim();
+    const cycleEndIso = String(parts[2] ?? "").trim();
 
-    if (/^\d{4}-\d{2}-\d{2}$/.test(startIso)) {
-      const cicloPorDataInicio = getCardCycleMonthFromDate(
-        startIso,
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cycleEndIso)) {
+      const cicloPorDataFim = getCardCycleMonthFromDate(
+        cycleEndIso,
         diaFechamentoNum,
         diaVencimentoNum
       );
 
-      if (cicloPorDataInicio) {
-        statusManualPorCiclo.set(cicloPorDataInicio, status);
+      if (cicloPorDataFim) {
+        statusManualPorCiclo.set(cicloPorDataFim, status);
       }
     }
+  } else {
+    const cicloNormalizado = normalizePaymentCycleKeyToYm(cicloRaw);
+    if (cicloNormalizado) statusManualPorCiclo.set(cicloNormalizado, status);
   }
 });
 
@@ -5127,54 +5136,10 @@ const saldo = Number(
     };
   };
 
-  return [...(creditCards ?? [])].sort((a: any, b: any) => {
-    const aInactive = a?.is_active === false ? 1 : 0;
-    const bInactive = b?.is_active === false ? 1 : 0;
-
-    if (aInactive !== bInactive) return aInactive - bInactive;
-
-    const infoA = getCardPriorityInfo(a);
-    const infoB = getCardPriorityInfo(b);
-
-    // 1º: atrasados
-    // 2º: fechados aguardando pagamento
-    // 3º: em aberto/normais
-    if (infoA.rank !== infoB.rank) {
-      return infoA.rank - infoB.rank;
-    }
-
-    // Dentro de atrasados/fechados, ordenar pelo vencimento mais próximo/mais antigo.
-    // Assim o cartão mais urgente vem primeiro.
-    if (infoA.rank !== 2 && infoA.dueTime !== infoB.dueTime) {
-      return infoA.dueTime - infoB.dueTime;
-    }
-
-    // Dentro de atrasados/fechados com mesmo vencimento, maior saldo primeiro.
-    if (infoA.rank !== 2 && infoA.saldo !== infoB.saldo) {
-      return infoB.saldo - infoA.saldo;
-    }
-
-    // Só cartões normais/em aberto usam updatedAt.
-    // Assim clicar/mexer em cartão aberto não passa na frente de fechado/atrasado.
-    const aTime = Math.max(
-      new Date(String(a?.updatedAt ?? a?.updated_at ?? "")).getTime() || 0,
-      new Date(String(a?.createdAt ?? a?.created_at ?? "")).getTime() || 0
-    );
-
-    const bTime = Math.max(
-      new Date(String(b?.updatedAt ?? b?.updated_at ?? "")).getTime() || 0,
-      new Date(String(b?.createdAt ?? b?.created_at ?? "")).getTime() || 0
-    );
-
-    if (aTime !== bTime) return bTime - aTime;
-
-    return String(
-      a?.emissor ?? a?.name ?? a?.nome ?? ""
-    ).localeCompare(
-      String(b?.emissor ?? b?.name ?? b?.nome ?? ""),
-      "pt-BR"
-    );
-  });
+  return sortCardsByInvoicePriority(
+    creditCards ?? [],
+    getCardPriorityInfo
+  );
 }, [
   creditCards,
   transacoes,

@@ -1,7 +1,12 @@
 import { Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { formatarData, formatarMoeda } from "../../utils/formatters";
+import { formatarMoeda } from "../../utils/formatters";
 import type { Transaction } from "../../app/types";
+import {
+  formatProjectionPeriod,
+  getProjectionTransactionPeriod,
+  isProjectionPeriodWithinRange,
+} from "../../app/transactions/projectionPeriod";
 import {
   getProjectionAccountId,
   getProjectionCardId,
@@ -31,6 +36,8 @@ type Props = {
   profiles: any[];
   creditCards: any[];
   transactions: Transaction[];
+  projectionPeriodStart: string;
+  projectionPeriodEnd: string;
   initialPreferences: ProjectionPreferences;
   isLoadingInitial?: boolean;
   loadingError?: string | null;
@@ -56,6 +63,8 @@ export default function ProjectionConfigModal({
   profiles,
   creditCards,
   transactions,
+  projectionPeriodStart,
+  projectionPeriodEnd,
   initialPreferences,
   isLoadingInitial = false,
   loadingError = null,
@@ -110,10 +119,13 @@ export default function ProjectionConfigModal({
       originId: string;
       originLabel: string;
       originType: ProjectionOriginType;
+      period: string;
     }>();
 
     for (const transaction of transactions ?? []) {
       if (!transactionBelongsToProjectionProfile({ transaction, profile, profiles, creditCards })) continue;
+      const period = getProjectionTransactionPeriod(transaction, creditCards);
+      if (!isProjectionPeriodWithinRange(period, projectionPeriodStart, projectionPeriodEnd)) continue;
       const isCard = String((transaction as any)?.tipo ?? "").toLowerCase() === "cartao_credito";
       const originId = isCard
         ? getProjectionCardId(transaction, creditCards)
@@ -137,15 +149,30 @@ export default function ProjectionConfigModal({
       const selectionKey = groupKey || (transactionId ? `transaction:${transactionId}` : "");
       if (!selectionKey) continue;
       const current = byKey.get(selectionKey);
-      byKey.set(selectionKey, current
-        ? { ...current, count: current.count + 1 }
-        : { transaction, count: 1, originId, originLabel, originType });
+      if (!current) {
+        byKey.set(selectionKey, {
+          transaction,
+          count: 1,
+          originId,
+          originLabel,
+          originType,
+          period,
+        });
+        continue;
+      }
+
+      const currentOrder = `${current.period}:${String(current.transaction?.data ?? "")}`;
+      const nextOrder = `${period}:${String((transaction as any)?.data ?? "")}`;
+      byKey.set(selectionKey, nextOrder < currentOrder
+        ? { transaction, count: current.count + 1, originId, originLabel, originType, period }
+        : { ...current, count: current.count + 1 });
     }
     return Array.from(byKey.entries()).sort(([, a], [, b]) =>
       a.originLabel.localeCompare(b.originLabel, "pt-BR") ||
+      a.period.localeCompare(b.period) ||
       String(a.transaction?.data ?? "").localeCompare(String(b.transaction?.data ?? ""))
     );
-  }, [transactions, profile, profiles, creditCards, accounts, cards, draft, search, origin, movement]);
+  }, [transactions, profile, profiles, creditCards, accounts, cards, draft, search, origin, movement, projectionPeriodStart, projectionPeriodEnd]);
 
   const selectionKeysForProfile = useMemo(
     () =>
@@ -155,8 +182,10 @@ export default function ProjectionConfigModal({
         profiles,
         creditCards,
         preferences: draft,
+        projectionPeriodStart,
+        projectionPeriodEnd,
       }),
-    [transactions, profile, profiles, creditCards, draft]
+    [transactions, profile, profiles, creditCards, draft, projectionPeriodStart, projectionPeriodEnd]
   );
 
   const transactionSelectionStats = useMemo(
@@ -207,6 +236,8 @@ export default function ProjectionConfigModal({
         profiles,
         creditCards,
         preferences: current,
+        projectionPeriodStart,
+        projectionPeriodEnd,
       });
 
       if (!keys.length) return current;
@@ -251,7 +282,9 @@ export default function ProjectionConfigModal({
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 dark:border-white/10 sm:px-6">
           <div>
             <h2 className="text-lg font-black text-slate-900 dark:text-white">Configurar projeção {profile.toUpperCase()}</h2>
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Escolha o que participa dos cálculos.</p>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Escolha o que participa dos cálculos de {formatProjectionPeriod(projectionPeriodStart)} a {formatProjectionPeriod(projectionPeriodEnd)}.
+            </p>
           </div>
           <button type="button" onClick={onCancel} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10" aria-label="Fechar"><X className="h-5 w-5" /></button>
         </div>
@@ -386,7 +419,7 @@ export default function ProjectionConfigModal({
                   {startsOriginGroup && <div className="mb-1 mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 first:mt-0">{entry.originType === "cartoes" ? "Cartão" : "Conta"} · {entry.originLabel}</div>}
                 <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 p-3 dark:border-white/10">
                   <input type="checkbox" checked={!excluded} onChange={() => toggleTransaction(selectionKey)} className="mt-1 h-4 w-4 accent-violet-700" aria-label="Considerar na projeção" title="Considerar na projeção" />
-                  <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><span className="truncate text-sm font-bold text-slate-800 dark:text-white">{tx?.descricao || "Sem descrição"}</span><span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">{transactionBadge(tx)}</span>{entry.count > 1 && <span className="text-[10px] font-bold text-slate-400">{entry.count} ocorrências</span>}</span><span className="mt-1 block text-xs text-slate-500">{entry.originLabel} · {formatarData(tx?.data)} · {String(tx?.categoria ?? "Sem categoria")}{tx?.tag ? ` · ${tx.tag}` : ""}</span></span>
+                  <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><span className="truncate text-sm font-bold text-slate-800 dark:text-white">{tx?.descricao || "Sem descrição"}</span><span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">{transactionBadge(tx)}</span>{entry.count > 1 && <span className="text-[10px] font-bold text-slate-400">{entry.count} ocorrências na projeção</span>}</span><span className="mt-1 block text-xs text-slate-500">{entry.originLabel} · {formatProjectionPeriod(entry.period)} · {String(tx?.categoria ?? "Sem categoria")}{tx?.tag ? ` · ${tx.tag}` : ""}</span></span>
                   <span className="shrink-0 text-sm font-black text-slate-800 dark:text-white">{formatarMoeda(Math.abs(Number(tx?.valor ?? 0)))}</span>
                 </label></div>;
               })}

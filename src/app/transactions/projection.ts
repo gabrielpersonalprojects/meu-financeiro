@@ -1,7 +1,9 @@
 // src/app/transactions/projection.ts
 import type { Profile, Transaction } from "../types";
+import { getProjectionTransactionPeriod } from "./projectionPeriod";
 
 export type ProjectionRow = {
+  period: string;
   mesAno: string;
   fixas: number;
   variaveis: number;
@@ -179,31 +181,6 @@ const isActiveCardTransaction = (t: Transaction) => {
   return !!cartaoAtivo;
 };
 
-const pad2 = (value: number) => String(value).padStart(2, "0");
-
-const clampDay = (year: number, monthIndex0: number, day: number) => {
-  const lastDay = new Date(year, monthIndex0 + 1, 0).getDate();
-  return Math.max(1, Math.min(day, lastDay));
-};
-
-const makeDate = (year: number, monthIndex0: number, day: number) => {
-  const dd = clampDay(year, monthIndex0, day);
-  return new Date(year, monthIndex0, dd, 12, 0, 0, 0);
-};
-
-const parseISODateLocal = (iso: string) => {
-  const [y, m, d] = String(iso || "").split("-").map(Number);
-  if (!y || !m || !d) return new Date(NaN);
-  return new Date(y, m - 1, d, 12, 0, 0, 0);
-};
-
-const addMonths = (base: Date, delta: number) => {
-  const d = new Date(base);
-  d.setDate(1);
-  d.setMonth(d.getMonth() + delta);
-  return d;
-};
-
 const getCardRefFromTransaction = (t: Transaction) => {
   const refs = [
     (t as any)?.cartaoId,
@@ -243,58 +220,6 @@ const getCardRefFromTransaction = (t: Transaction) => {
       });
     }) ?? null
   );
-};
-
-const getMesCompetenciaProjection = (t: Transaction) => {
-  const tipo = String((t as any)?.tipo ?? "").trim().toLowerCase();
-  const data = String((t as any)?.data ?? "").trim();
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return "";
-
-  if (tipo !== "cartao_credito") {
-    return data.slice(0, 7);
-  }
-
-  const faturaMesSalva = String(
-    (t as any)?.faturaMes ??
-      (t as any)?.payload?.faturaMes ??
-      ""
-  ).trim();
-
-  if (/^\d{4}-\d{2}$/.test(faturaMesSalva)) {
-    return faturaMesSalva;
-  }
-
-  const cartao = getCardRefFromTransaction(t);
-  if (!cartao) {
-    return data.slice(0, 7);
-  }
-
-  const diaFechamento =
-    Number((cartao as any)?.diaFechamento ?? (cartao as any)?.closingDay ?? 1) || 1;
-
-  const diaVencimento =
-    Number((cartao as any)?.diaVencimento ?? (cartao as any)?.dueDay ?? 1) || 1;
-
-  const fechamento = Math.max(1, Math.min(31, Number(diaFechamento ?? 1)));
-  const vencimento = Math.max(1, Math.min(31, Number(diaVencimento ?? 1)));
-  const invoiceStartOffset = vencimento > fechamento ? 0 : 1;
-
-  const dt = parseISODateLocal(data);
-
-  if (Number.isNaN(dt.getTime())) {
-    return data.slice(0, 7);
-  }
-
-  const base = new Date(dt.getFullYear(), dt.getMonth(), 1, 12, 0, 0, 0);
-
-  if (dt.getDate() >= fechamento) {
-    base.setMonth(base.getMonth() + 1);
-  }
-
-  base.setMonth(base.getMonth() + invoiceStartOffset);
-
-  return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}`;
 };
 
 const getPerfilContaFromTransaction = (t: Transaction): "PF" | "PJ" | null => {
@@ -533,7 +458,7 @@ return selectedProfileIdsSet.has(contaId);
     ).padStart(2, "0")}`;
 
 const monthTransactions = (transacoesFiltradas || [])
-  .filter((t) => getMesCompetenciaProjection(t) === targetMonthStr)
+  .filter((t) => getProjectionTransactionPeriod(t, creditCards) === targetMonthStr)
   .filter((t) => !isTransfer(t));
 
 const isPgtoFatura = (t: any) => {
@@ -623,6 +548,7 @@ const variaveis = monthTransactions
     if (mode === "acumulado") {
       runningSaldo += resultadoMes;
       results.push({
+        period: targetMonthStr,
         mesAno: getMesAnoExtenso(targetMonthStr),
         fixas,
         variaveis,
@@ -632,6 +558,7 @@ const variaveis = monthTransactions
     } else {
       // mensal (não acumulado): mostra só o resultado do mês
       results.push({
+        period: targetMonthStr,
         mesAno: getMesAnoExtenso(targetMonthStr),
         fixas,
         variaveis,

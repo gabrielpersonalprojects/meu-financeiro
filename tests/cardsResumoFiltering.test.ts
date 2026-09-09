@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
+  getCardsResumoInvoiceMonth,
   matchesCardsResumoFilters,
   summarizeFilteredCardsResumo,
 } from "../src/app/credit/cardsResumoFiltering";
@@ -131,4 +132,51 @@ test("html2pdf usa seletores locais de quebra sem avoid-all", () => {
   assert.match(pagebreakConfig, /mode:\s*\["css",\s*"legacy"\]/);
   assert.match(pagebreakConfig, /avoid:\s*\["\.card-group",\s*"\.card-group-header",\s*"tr"/);
   assert.doesNotMatch(pagebreakConfig, /avoid-all/);
+});
+
+test("resumo usa a mesma competencia da fatura no dia exato do fechamento", () => {
+  const card = { id: "sams-club", diaFechamento: 23, diaVencimento: 3 };
+
+  assert.equal(
+    getCardsResumoInvoiceMonth({ transactionDate: "2026-08-22", card }),
+    "2026-09"
+  );
+  assert.equal(
+    getCardsResumoInvoiceMonth({ transactionDate: "2026-08-23", card }),
+    "2026-10"
+  );
+  assert.equal(
+    getCardsResumoInvoiceMonth({ transactionDate: "2026-08-24", card }),
+    "2026-10"
+  );
+});
+
+test("regressao Sams Club: 26 itens mais quatro do fechamento totalizam a fatura", () => {
+  const card = { id: "sams-club", diaFechamento: 23, diaVencimento: 3 };
+  const itensResumo = Array.from({ length: 26 }, (_, index) => ({
+    id: `resumo-${index}`, cartaoId: card.id, data: "2026-08-25",
+    valor: index === 0 ? 1507.78 : 0,
+  }));
+  const itensDoFechamento = [20, 27, 29.72, 36.96].map((valor, index) => ({
+    id: `fechamento-${index}`, cartaoId: card.id, data: "2026-08-23", valor,
+  }));
+  const outubro = [...itensResumo, ...itensDoFechamento].filter(
+    (item) => getCardsResumoInvoiceMonth({ transactionDate: item.data, card }) === "2026-10"
+  );
+  const result = summarizeFilteredCardsResumo(
+    outubro, (item) => item.cartaoId, (item) => item.valor
+  );
+
+  assert.equal(result.count, 30);
+  assert.equal(Number(result.total.toFixed(2)), 1621.46);
+});
+
+test("correcao do resumo nao altera a regra global de fechamento", () => {
+  const source = readFileSync(path.join(process.cwd(), "src", "App.tsx"), "utf8");
+  const cycleStart = source.indexOf("function getCardCycleMonthFromDate(");
+  const cycleEnd = source.indexOf("function makeCardCycleDate", cycleStart);
+  const cycleSource = source.slice(cycleStart, cycleEnd);
+
+  assert.match(cycleSource, /if \(dia > fechamentoEfetivo\)/);
+  assert.match(source, /getCardsResumoInvoiceMonth\(\{/);
 });

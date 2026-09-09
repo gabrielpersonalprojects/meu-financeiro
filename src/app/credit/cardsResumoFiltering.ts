@@ -1,3 +1,23 @@
+import { getInvoiceMonthKeyForTransaction } from "./logic/cardCycles";
+
+export const getCardsResumoInvoiceMonth = ({
+  transactionDate,
+  card,
+}: {
+  transactionDate: string;
+  card?: any;
+}) => {
+  const safeDate = String(transactionDate ?? "").trim();
+
+  if (!card) return safeDate.slice(0, 7);
+
+  return getInvoiceMonthKeyForTransaction({
+    iso: safeDate,
+    diaFechamento: Number(card?.diaFechamento ?? card?.fechamento ?? 1),
+    diaVencimento: Number(card?.diaVencimento ?? card?.vencimento ?? 1),
+  });
+};
+
 export type CardsResumoItemFilterValues = {
   month: string;
   cardId: string;

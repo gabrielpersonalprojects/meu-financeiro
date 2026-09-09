@@ -152,6 +152,7 @@ import {
 } from "./app/credit/logic/cardListOrdering";
 import { printCardsResumoPdfReport } from "./app/credit/reports/cardsResumoPdfReport";
 import {
+  getCardsResumoInvoiceMonth,
   matchesCardsResumoFilters,
   summarizeFilteredCardsResumo,
 } from "./app/credit/cardsResumoFiltering";
@@ -4673,13 +4674,10 @@ const card = (creditCards ?? []).find(
 
 const cardAny = card as any;
 
-const mesVencimentoFatura = cardAny
-  ? getCardCycleMonthFromDate(
-      dataTransacao,
-      Number(cardAny?.diaFechamento ?? cardAny?.fechamento ?? 1),
-      Number(cardAny?.diaVencimento ?? cardAny?.vencimento ?? 1)
-    )
-  : dataTransacao.slice(0, 7);
+const mesVencimentoFatura = getCardsResumoInvoiceMonth({
+  transactionDate: dataTransacao,
+  card: cardAny,
+});
     const categoria = categoriaResumoCartoesLabel(t?.categoria);
     const tag = String(t?.tag ?? "").trim();
 

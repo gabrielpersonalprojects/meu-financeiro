@@ -8,7 +8,12 @@ class Query {
   private rows: Row[];
   private inserted: Row[] | null = null;
 
-  constructor(private table: string, private store: Record<string, Row[]>, rows?: Row[]) {
+  constructor(
+    private table: string,
+    private store: Record<string, Row[]>,
+    rows?: Row[],
+    private queryError: any = null
+  ) {
     this.rows = (rows ?? store[table] ?? []).map((row) => ({ ...row }));
   }
 
@@ -18,7 +23,16 @@ class Query {
     this.rows = this.rows.filter((row) => String(row[field]) === String(value));
     return this;
   }
+  in(field: string, values: unknown[]) {
+    const accepted = new Set((values ?? []).map(String));
+    this.rows = this.rows.filter((row) => accepted.has(String(row[field])));
+    return this;
+  }
   order() { return this; }
+  range(from: number, to: number) {
+    this.rows = this.rows.slice(from, to + 1);
+    return this;
+  }
   insert(payload: Row | Row[]) {
     const items = (Array.isArray(payload) ? payload : [payload]).map((row, index) => ({
       id: row.id ?? `created-${this.store.transactions.length + index + 1}`,
@@ -30,13 +44,13 @@ class Query {
     return this;
   }
   maybeSingle() {
-    return Promise.resolve({ data: this.rows[0] ?? null, error: null });
+    return Promise.resolve({ data: this.rows[0] ?? null, error: this.queryError });
   }
   single() {
-    return Promise.resolve({ data: this.rows[0] ?? null, error: null });
+    return Promise.resolve({ data: this.rows[0] ?? null, error: this.queryError });
   }
   then(resolve: any, reject: any) {
-    return Promise.resolve({ data: this.rows, error: null }).then(resolve, reject);
+    return Promise.resolve({ data: this.rows, error: this.queryError }).then(resolve, reject);
   }
 }
 
@@ -44,6 +58,7 @@ function createSupabase(options: {
   removeDestinationBeforeSecondValidation?: boolean;
   removeAccountBeforeSecondValidation?: boolean;
   removeCreditCardBeforeSecondValidation?: boolean;
+  contextAccountFailures?: number;
 } = {}) {
   const calls: string[] = [];
   let accountQueryCount = 0;
@@ -90,8 +105,8 @@ function createSupabase(options: {
       user_id: "user-1",
       nome: "Cartao Canonico",
       bank_text: "Emissor Teste",
-      categoria: "PF",
-      perfil_conta: "pf",
+      categoria: "Compras",
+      brand: "pj",
       dia_fechamento: 28,
       dia_vencimento: 7,
       is_active: true,
@@ -111,6 +126,9 @@ function createSupabase(options: {
       { id: "delivery-real-id", user_id: "user-1", profile_id: "pf", tipo: "despesa", nome: "Delivery" },
     ],
     transactions: [],
+    user_projection_preferences: [],
+    invoice_payments: [],
+    invoice_manual_status: [],
   };
   return {
     store,
@@ -138,7 +156,12 @@ function createSupabase(options: {
           );
         }
       }
-      return new Query(table, store);
+      const queryError =
+        table === "accounts" &&
+        accountQueryCount <= Number(options.contextAccountFailures || 0)
+          ? { code: "ETIMEDOUT", message: "temporary timeout" }
+          : null;
+      return new Query(table, store, undefined, queryError);
     } },
   };
 }
@@ -336,6 +359,190 @@ test("context keeps returning the official account UUID", async () => {
     "44444444-4444-4444-8444-444444444444",
     "55555555-5555-4555-8555-555555555555",
   ]);
+  assert.equal(res.body.credit_cards[0].profile_type, "PJ");
+  assert.equal(res.body.credit_cards[0].category, "Compras");
+  assert.equal(
+    res.body.rules.creation_action_routing.credit_card_fixed_or_monthly,
+    "create_credit_card_fixed"
+  );
+});
+
+test("financial_projection uses card brand for PF/PJ and applies saved projection filters", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const pfCardId = "66666666-6666-4666-8666-666666666666";
+  db.store.credit_cards.push({
+    id: pfCardId,
+    user_id: "user-1",
+    nome: "Cartao PF",
+    bank_text: "Banco PF",
+    categoria: "Casa",
+    brand: "pf",
+    dia_fechamento: 28,
+    dia_vencimento: 7,
+    is_active: true,
+  });
+  db.store.transactions.push(
+    {
+      id: "tx-card-pj",
+      user_id: "user-1",
+      tipo: "cartao_credito",
+      valor: -20,
+      data: "2026-09-10",
+      descricao: "PJ",
+      cartao_id: creditCardId,
+      qual_conta: creditCardId,
+      payload: { faturaMes: "2026-09", tipoGasto: "variável" },
+    },
+    {
+      id: "tx-card-pf",
+      user_id: "user-1",
+      tipo: "cartao_credito",
+      valor: -10,
+      data: "2026-09-10",
+      descricao: "PF",
+      cartao_id: pfCardId,
+      qual_conta: pfCardId,
+      payload: { faturaMes: "2026-09", tipoGasto: "variável" },
+    }
+  );
+  db.store.user_projection_preferences.push({
+    user_id: "user-1",
+    profile_id: "pf",
+    preferences: {
+      version: 1,
+      excludedAccountIds: [],
+      excludedCardIds: [pfCardId],
+      excludedTransactionIds: [],
+      excludedGroupIds: [],
+    },
+  });
+
+  const handler = loadRealHandler(db.client);
+  const pj = await invokeGetAction(handler, "financial_projection", {
+    profile: "PJ",
+    months: "1",
+    start_period: "2026-09",
+    mode: "mensal",
+  });
+  assert.equal(pj.statusCode, 200);
+  assert.equal(pj.body.projection[0].variable_and_card_expenses, 20);
+  assert.deepEqual(pj.body.scope.credit_card_ids, [creditCardId]);
+
+  const pf = await invokeGetAction(handler, "financial_projection", {
+    profile: "PF",
+    months: "1",
+    start_period: "2026-09",
+    mode: "mensal",
+  });
+  assert.equal(pf.statusCode, 200);
+  assert.equal(pf.body.projection[0].variable_and_card_expenses, 0);
+  assert.equal(pf.body.scope.projection_preferences.excluded_cards, 1);
+});
+
+test("read endpoints keep the same PJ card classification and expose a self-contained invoice", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const pfCardId = "77777777-7777-4777-8777-777777777777";
+  db.store.credit_cards.push({
+    id: pfCardId,
+    user_id: "user-1",
+    nome: "Cartao PF",
+    bank_text: "Banco PF",
+    categoria: "Casa",
+    brand: "pf",
+    dia_fechamento: 28,
+    dia_vencimento: 7,
+    is_active: true,
+  });
+  db.store.transactions.push(
+    {
+      id: "tx-read-pj",
+      user_id: "user-1",
+      tipo: "cartao_credito",
+      valor: -40,
+      data: "2026-09-10",
+      descricao: "Despesa empresa",
+      categoria: "Operação",
+      tag: "Fornecedor",
+      cartao_id: creditCardId,
+      qual_conta: creditCardId,
+      pago: false,
+      payload: { faturaMes: "2026-09", tipoGasto: "variável" },
+    },
+    {
+      id: "tx-read-pf",
+      user_id: "user-1",
+      tipo: "cartao_credito",
+      valor: -15,
+      data: "2026-09-10",
+      descricao: "Despesa pessoal",
+      categoria: "Casa",
+      tag: "Pessoal",
+      cartao_id: pfCardId,
+      qual_conta: pfCardId,
+      pago: false,
+      payload: { faturaMes: "2026-09", tipoGasto: "variável" },
+    }
+  );
+
+  const handler = loadRealHandler(db.client);
+  const list = await invokeGetAction(handler, "list_transactions", {
+    profile: "PJ",
+    source: "credit_cards",
+    period: "2026-09",
+  });
+  assert.equal(list.statusCode, 200);
+  assert.equal(list.body.pagination.total_items, 1);
+  assert.equal(list.body.transactions[0].id, "tx-read-pj");
+  assert.equal(list.body.transactions[0].profile, "PJ");
+
+  const filteredList = await invokeGetAction(handler, "list_transactions", {
+    profile: "PJ",
+    source: "credit_cards",
+    period: "2026-09",
+    credit_card_id: creditCardId,
+    category: "Operação",
+    tag: "Fornecedor",
+  });
+  assert.equal(filteredList.statusCode, 200);
+  assert.equal(filteredList.body.pagination.total_items, 1);
+  assert.equal(filteredList.body.totals.expenses, 40);
+  assert.equal(filteredList.body.transactions[0].category, "Operação");
+  assert.equal(filteredList.body.transactions[0].tag, "Fornecedor");
+
+  const analytics = await invokeGetAction(handler, "financial_analytics", {
+    profile: "PJ",
+    source: "credit_cards",
+    period: "2026-09",
+  });
+  assert.equal(analytics.statusCode, 200);
+  assert.equal(analytics.body.summary.credit_card_expenses_total, 40);
+
+  const invoices = await invokeGetAction(handler, "payable_invoices");
+  assert.equal(invoices.statusCode, 200);
+  const pjInvoice = invoices.body.invoices.find(
+    (invoice: Row) => invoice.credit_card_id === creditCardId
+  );
+  assert.equal(pjInvoice.credit_card_profile, "PJ");
+  assert.equal(pjInvoice.credit_card_issuer, "Emissor Teste");
+  assert.match(pjInvoice.credit_card_label, /Cartao Canonico/);
+});
+
+test("context retries one transient read and returns an explicit retryable 503 after two failures", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+
+  const recoveredDb = createSupabase({ contextAccountFailures: 1 });
+  const recovered = await invokeGetAction(loadRealHandler(recoveredDb.client), "context");
+  assert.equal(recovered.statusCode, 200);
+
+  const failedDb = createSupabase({ contextAccountFailures: 2 });
+  const failed = await invokeGetAction(loadRealHandler(failedDb.client), "context");
+  assert.equal(failed.statusCode, 503);
+  assert.equal(failed.body.error.code, "CONTEXT_TEMPORARILY_UNAVAILABLE");
+  assert.equal(failed.body.error.details.retryable, true);
+  assert.equal(failed.body.error.details.failed_stage, "accounts");
+  assert.equal(failedDb.store.transactions.length, 0);
 });
 
 test("credit card tag invariant: context tag is accepted by card purchase and installments", async () => {
@@ -772,6 +979,62 @@ test("credit card purchase revalidates and returns the canonical card", async ()
   assert.equal(db.store.transactions[0].cartao_id, creditCardId);
   assert.equal(res.body.credit_card.id, creditCardId);
   assert.equal(res.body.credit_card.name, "Cartao Canonico");
+  assert.equal(res.body.credit_card.profile_type, "PJ");
+});
+
+test("generic actions reject fixed and installment semantics before writing", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+
+  const cases = [
+    [
+      "create_transaction",
+      { ...baseBody, provider_message_id: "wrong-fixed-account", spending_type: "fixo" },
+      "create_fixed",
+    ],
+    [
+      "create_transaction",
+      { ...baseBody, provider_message_id: "wrong-installments-account", installments: 3 },
+      "create_installments",
+    ],
+    [
+      "create_credit_card_purchase",
+      {
+        whatsapp_phone: "5511999999999",
+        provider_message_id: "wrong-fixed-card",
+        confirmed: true,
+        description: "Assinatura",
+        amount: 25,
+        date: "2026-08-06",
+        credit_card_id: creditCardId,
+        spending_type: "fixo",
+      },
+      "create_credit_card_fixed",
+    ],
+    [
+      "create_credit_card_purchase",
+      {
+        whatsapp_phone: "5511999999999",
+        provider_message_id: "wrong-installments-card",
+        confirmed: true,
+        description: "Compra parcelada",
+        amount: 90,
+        date: "2026-08-06",
+        credit_card_id: creditCardId,
+        installments: 3,
+      },
+      "create_credit_card_installments",
+    ],
+  ] as const;
+
+  for (const [action, body, requiredAction] of cases) {
+    const db = createSupabase();
+    const handler = loadRealHandler(db.client);
+    const res = await invokeAction(handler, action, body as Row);
+    assert.equal(res.statusCode, 400, action);
+    assert.equal(res.body.error.code, "ACTION_SEMANTICS_MISMATCH", action);
+    assert.equal(res.body.error.details.required_action, requiredAction, action);
+    assert.equal(db.store.transactions.length, 0, action);
+  }
 });
 
 test("credit card purchase aborts when card disappears before persistence", async () => {
@@ -881,6 +1144,53 @@ test("create_credit_card_fixed creates safe monthly occurrences with invoice mon
   assert.equal(res.statusCode, 201);
   assert.deepEqual(res.body.transactions.map((row: Row) => row.date), ["2026-01-31", "2026-02-28", "2026-03-31"]);
   assert.equal(res.body.fixed_group.monthly_amount, -59.9);
+  assert.ok(res.body.transactions.every((row: Row) => row.credit_card_id === creditCardId));
+  assert.ok(res.body.transactions.every((row: Row) => /^\d{4}-\d{2}$/.test(row.invoice_month)));
+});
+
+test("fixed without deadline creates 12 safe monthly occurrences for accounts", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "create_fixed", {
+    ...baseBody,
+    provider_message_id: "account-fixed-open-0001",
+    description: "Mensalidade conta",
+    amount: "100.00",
+    date: "2026-01-31",
+    spending_type: "fixo",
+    deadline_mode: "sem_prazo",
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.transactions.length, 12);
+  assert.deepEqual(
+    res.body.transactions.slice(0, 3).map((row: Row) => row.date),
+    ["2026-01-31", "2026-02-28", "2026-03-31"]
+  );
+  assert.equal(res.body.transactions[11].date, "2026-12-31");
+  assert.ok(res.body.transactions.every((row: Row) => row.account_id === baseBody.account_id));
+});
+
+test("fixed without deadline creates 12 invoice occurrences for credit cards", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  const handler = loadRealHandler(db.client);
+  const res = await invokeAction(handler, "create_credit_card_fixed", {
+    whatsapp_phone: "5511999999999",
+    provider_message_id: "card-fixed-open-0001",
+    confirmed: true,
+    description: "Assinatura mensal",
+    amount: "59.90",
+    date: "2026-01-31",
+    paid: false,
+    deadline_mode: "sem_prazo",
+    credit_card_id: creditCardId,
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.transactions.length, 12);
+  assert.equal(res.body.transactions[11].date, "2026-12-31");
   assert.ok(res.body.transactions.every((row: Row) => row.credit_card_id === creditCardId));
   assert.ok(res.body.transactions.every((row: Row) => /^\d{4}-\d{2}$/.test(row.invoice_month)));
 });

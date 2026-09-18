@@ -1,6 +1,10 @@
 const { ApiError } = require("./http");
 
 const BRAZIL_COUNTRY_CODE = "55";
+const DDD_WITH_MANDATORY_NINTH_DIGIT = new Set([
+  "11", "12", "13", "14", "15", "16", "17", "18", "19",
+  "22", "24", "27", "28",
+]);
 
 function onlyDigits(value) {
   return String(value ?? "").replace(/\D/g, "");
@@ -22,9 +26,22 @@ function toCanonicalBrazilPhone(value) {
   const digits = onlyDigits(value);
   const localDigits = getBrazilLocalDigits(digits);
 
-  if (!localDigits) return digits;
+  if (!localDigits) return "";
 
-  return `${BRAZIL_COUNTRY_CODE}${localDigits}`;
+  const ddd = localDigits.slice(0, 2);
+  let subscriber = localDigits.slice(2);
+
+  if (DDD_WITH_MANDATORY_NINTH_DIGIT.has(ddd)) {
+    if (subscriber.length === 8) subscriber = `9${subscriber}`;
+    if (subscriber.length !== 9) return "";
+  } else {
+    if (subscriber.length === 9 && subscriber.startsWith("9")) {
+      subscriber = subscriber.slice(1);
+    }
+    if (subscriber.length !== 8) return "";
+  }
+
+  return `${BRAZIL_COUNTRY_CODE}${ddd}${subscriber}`;
 }
 
 function toEquivalentDigits(value) {
@@ -33,10 +50,24 @@ function toEquivalentDigits(value) {
 
   const variants = new Set([digits]);
   const localDigits = getBrazilLocalDigits(digits);
+  const canonical = toCanonicalBrazilPhone(digits);
 
   if (localDigits) {
     variants.add(localDigits);
     variants.add(`${BRAZIL_COUNTRY_CODE}${localDigits}`);
+  }
+
+  if (canonical) {
+    const canonicalLocal = canonical.slice(2);
+    variants.add(canonical);
+    variants.add(canonicalLocal);
+
+    const ddd = canonicalLocal.slice(0, 2);
+    const subscriber = canonicalLocal.slice(2);
+    if (!DDD_WITH_MANDATORY_NINTH_DIGIT.has(ddd) && subscriber.length === 8) {
+      variants.add(`${ddd}9${subscriber}`);
+      variants.add(`${BRAZIL_COUNTRY_CODE}${ddd}9${subscriber}`);
+    }
   }
 
   return Array.from(variants);
@@ -53,11 +84,20 @@ function normalizeWhatsappPhone(phone) {
     );
   }
 
-  return toCanonicalBrazilPhone(digits);
+  const canonical = toCanonicalBrazilPhone(digits);
+  if (!canonical) {
+    throw new ApiError(
+      400,
+      "INVALID_WHATSAPP_PHONE",
+      "whatsapp_phone must be a valid Brazilian phone number with DDD."
+    );
+  }
+
+  return canonical;
 }
 
 function normalizeStoredPhone(phone) {
-  return onlyDigits(phone);
+  return toCanonicalBrazilPhone(phone) || onlyDigits(phone);
 }
 
 async function resolveWhatsappUser(supabase, whatsappPhone) {
@@ -112,4 +152,5 @@ async function resolveWhatsappUser(supabase, whatsappPhone) {
 module.exports = {
   normalizeWhatsappPhone,
   resolveWhatsappUser,
+  toEquivalentDigits,
 };

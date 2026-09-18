@@ -307,6 +307,39 @@ function getAccountProfileId(account) {
     : "pf";
 }
 
+function normalizeProfileIdCandidate(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "pf" || normalized === "pj" ? normalized : "";
+}
+
+function getCreditCardProfileId(card) {
+  // `brand` is the canonical persistence field used by the FluxMoney UI for
+  // the PF/PJ profile. The remaining explicit profile fields keep backwards
+  // compatibility with older payloads. `categoria` is only a final legacy
+  // fallback when its value is literally PF or PJ; ordinary categories must
+  // never silently turn a PJ card into PF.
+  const explicitCandidates = [
+    card?.brand,
+    card?.perfil,
+    card?.perfil_cartao,
+    card?.perfilCartao,
+    card?.profile_type,
+    card?.profileType,
+  ];
+
+  for (const candidate of explicitCandidates) {
+    const profile = normalizeProfileIdCandidate(candidate);
+    if (profile) return profile;
+  }
+
+  for (const candidate of [card?.categoria, card?.category]) {
+    const legacyProfile = normalizeProfileIdCandidate(candidate);
+    if (legacyProfile) return legacyProfile;
+  }
+
+  return "pf";
+}
+
 async function requireOwnedAccount(supabase, userId, accountId, options = {}) {
   const cleanAccountId = validateAccountId(accountId);
 
@@ -378,21 +411,12 @@ function mapCanonicalAccount(row) {
 }
 
 function mapCanonicalCreditCard(row) {
-  const rawProfile = String(
-    row.perfil ??
-      row.perfil_cartao ??
-      row.perfilCartao ??
-      row.categoria ??
-      row.category ??
-      row.brand ??
-      ""
-  ).trim().toLowerCase();
   return {
     id: row.id,
     name: row.nome || row.name || "",
     issuer: row.bank_text || row.titular || row.banco || "",
     category: row.categoria || row.bandeira || "",
-    profile_type: rawProfile === "pj" ? "PJ" : "PF",
+    profile_type: getCreditCardProfileId(row).toUpperCase(),
     closing_day: Number(row.dia_fechamento ?? row.diaFechamento ?? 1),
     due_day: Number(row.dia_vencimento ?? row.diaVencimento ?? 10),
     is_active: row.is_active !== false,
@@ -551,6 +575,7 @@ function buildFixedSummary(type, description, deadlineMode) {
 }
 
 function mapTransactionResponse(row) {
+  const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
   return {
     id: row.id,
     type: row.tipo,
@@ -560,6 +585,17 @@ function mapTransactionResponse(row) {
     account_id: row.conta_id || row.qual_conta || null,
     paid: Boolean(row.pago),
     category: row.categoria || "",
+    tag: row.tag || "",
+    spending_type: payload.tipoGasto || null,
+    recurrence_id: payload.recorrenciaId || null,
+    recurrence_kind: payload.recurrenceKind || null,
+    recurrence_window_start: payload.recurrenceWindowStart || null,
+    recurrence_window_end: payload.recurrenceWindowEnd || null,
+    installment: Number(payload.parcelaAtual || 0) || null,
+    total_installments: Number(payload.totalParcelas || 0) || null,
+    credit_card_id:
+      row.cartao_id || payload.cartaoId || payload.qualCartao || null,
+    invoice_month: payload.faturaMes || null,
   };
 }
 
@@ -575,6 +611,7 @@ module.exports = {
   buildTransactionSummary,
   countMonthsInclusive,
   getAccountProfileId,
+  getCreditCardProfileId,
   isFutureDate,
   mapCanonicalAccount,
   mapCanonicalCreditCard,

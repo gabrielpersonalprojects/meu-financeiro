@@ -70,8 +70,8 @@ export const mapCreditCardAppToInsert = (
     dia_vencimento: Number(card.diaVencimento ?? 10),
     bank_text: card.emissor || null,
     categoria: card.categoria || null,
-brand: "",
-last4: "",
+    brand: card.perfil || "pf",
+    last4: "",
     gradient_from: card.gradientFrom || "#220055",
     gradient_to: card.gradientTo || "#4600ac",
   };

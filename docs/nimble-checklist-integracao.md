@@ -1,5 +1,9 @@
 # Checklist de Integracao - Nimble / FluxMoney
 
+> **Checklist operacional vigente (16/09/2026):** execute a matriz de homologação
+> de `docs/nimble-contrato-homologacao-2026-09-16.md`. Este checklist anterior é
+> mantido como histórico e complemento de configuração.
+
 **Versão:** 26/08/2026
 
 > **AÇÃO NECESSÁRIA DA NIMBLE:** cadastrar somente `create_credit_card_fixed`, se aplicável.
@@ -279,7 +283,19 @@ Recomendacao de chave:
 nimble:<PROVIDER_MESSAGE_ID>:<action>
 ```
 
-## 6. Acoes proibidas
+## 6. Webhook de cadastro e boas-vindas
+
+- Validar `POST` com body contendo somente `whatsapp` e `first_name`.
+- Deduplicar pelo header `X-Idempotency-Key`.
+- Confirmar `X-FluxMoney-Event: user.whatsapp_linked`.
+- Testar `(11) 8765-4321` como `5511987654321`.
+- Testar `(41) 99876-5432` como `554198765432`.
+- Testar `(41) 8765-4321` como `554187654321`.
+- Confirmar que o exemplo original `55418765432` e invalido por conter somente sete digitos depois do DDD.
+- Repetir o mesmo evento e confirmar que apenas uma mensagem de boas-vindas e enviada.
+- Confirmar que a Nimble consegue consultar a API usando o mesmo telefone normalizado recebido no webhook.
+
+## 7. Acoes proibidas
 
 A Nimble nao deve executar via API:
 
@@ -293,7 +309,7 @@ A Nimble nao deve executar via API:
 - acoes administrativas;
 - enviar `user_id`.
 
-## 7. Criterios de aceite
+## 8. Criterios de aceite
 
 A integracao so deve ser considerada pronta quando:
 
@@ -304,8 +320,9 @@ A integracao so deve ser considerada pronta quando:
 - `user_id` for rejeitado;
 - erros forem tratados pela Nimble com mensagem amigavel;
 - dados sensiveis nao aparecerem em logs, prompts ou mensagens ao usuario.
+- o webhook de cadastro gerar uma unica mensagem de boas-vindas por usuario + telefone.
 
-## 8. Mensagens recomendadas da Nimble
+## 9. Mensagens recomendadas da Nimble
 
 ### Confirmacao de baixa
 

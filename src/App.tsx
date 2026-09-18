@@ -214,6 +214,7 @@ import {
   getUserAccountOrder,
   getUserContactInfo,
   isWhatsappAlreadyLinkedError,
+  notifyNimbleUserRegistration,
   type OnboardingWhatsappStatus,
   setUserFavoriteAccount,
   setUserHiddenAccounts,
@@ -1584,6 +1585,12 @@ const handleSaveSettingsWhatsapp = async () => {
     await assertWhatsappAvailableForUser(userId, whatsapp);
     await setUserWhatsapp(userId, whatsapp);
 
+    void notifyNimbleUserRegistration(String(session?.access_token ?? "")).catch(
+      (error) => {
+        console.error("ERRO AO NOTIFICAR CADASTRO PARA NIMBLE:", error);
+      }
+    );
+
     setUserWhatsappState(whatsapp);
     setSettingsWhatsapp(formatWhatsappForDisplay(whatsapp));
     setSupportForm((prev) => ({
@@ -1627,6 +1634,12 @@ const handleSaveOnboardingWhatsapp = async () => {
   try {
     await assertWhatsappAvailableForUser(userId, whatsapp);
     await setUserWhatsappAndOnboardingStatus(userId, whatsapp, "done");
+
+    void notifyNimbleUserRegistration(String(session?.access_token ?? "")).catch(
+      (error) => {
+        console.error("ERRO AO NOTIFICAR CADASTRO PARA NIMBLE:", error);
+      }
+    );
 
     setOnboardingWhatsappStatusState("done");
     setUserWhatsappState(whatsapp);
@@ -2254,6 +2267,14 @@ setSupportForm((prev) => ({
   ...prev,
   whatsapp: whatsappMasked,
 }));
+
+if (whatsappFromDb && userContactInfo?.nimbleWelcomeStatus === "failed") {
+  void notifyNimbleUserRegistration(String(session?.access_token ?? "")).catch(
+    (error) => {
+      console.error("ERRO AO REPROCESSAR NOTIFICACAO PARA NIMBLE:", error);
+    }
+  );
+}
 
   } catch (err) {
     console.error("ERRO AO CARREGAR DADOS DO USUARIO:", err);

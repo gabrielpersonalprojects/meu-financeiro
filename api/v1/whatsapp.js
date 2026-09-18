@@ -40,6 +40,7 @@ const {
   buildTransactionSummary,
   countMonthsInclusive,
   getAccountProfileId,
+  getCreditCardProfileId,
   isFutureDate,
   mapCanonicalAccount,
   mapCanonicalCreditCard,
@@ -100,6 +101,46 @@ function mapCreditCard(row) {
     due_day: Number(row.dia_vencimento || 10),
     is_active: row.is_active !== false,
   };
+}
+
+const CONTEXT_READ_MAX_ATTEMPTS = 2;
+
+async function readContextStage(stage, operation) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= CONTEXT_READ_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      console.error("WHATSAPP_CONTEXT_READ_ERROR", {
+        stage,
+        attempt,
+        code: String(error?.code ?? ""),
+        message: String(error?.message ?? "context read failed"),
+      });
+    }
+  }
+
+  throw new ApiError(
+    503,
+    "CONTEXT_TEMPORARILY_UNAVAILABLE",
+    "Financial context is temporarily unavailable. Retry the same request shortly.",
+    {
+      retryable: true,
+      failed_stage: stage,
+      attempts: CONTEXT_READ_MAX_ATTEMPTS,
+      upstream_code: String(lastError?.code ?? "") || null,
+    }
+  );
+}
+
+async function executeContextQuery(stage, buildQuery) {
+  return readContextStage(stage, async () => {
+    const result = await buildQuery();
+    if (result?.error) throw result.error;
+    return result;
+  });
 }
 
 function parseLimit(value) {
@@ -436,22 +477,6 @@ function normalizeCreditSpendingType(value) {
     "INVALID_SPENDING_TYPE",
     "spending_type must be variavel, variável, fixo, or omitted."
   );
-}
-
-function getCreditCardProfileId(card) {
-  const raw = String(
-    card?.perfil ??
-      card?.perfil_cartao ??
-      card?.perfilCartao ??
-      card?.categoria ??
-      card?.category ??
-      card?.brand ??
-      ""
-  )
-    .trim()
-    .toLowerCase();
-
-  return raw === "pj" ? "pj" : "pf";
 }
 
 function getCreditCardAccountId(card) {
@@ -945,20 +970,88 @@ function normalizeProjectionAccountProfile(account) {
 }
 
 function normalizeProjectionCardProfile(card) {
-  const raw = String(
-    card?.perfil ??
-      card?.perfil_cartao ??
-      card?.perfilCartao ??
-      card?.categoria ??
-      card?.category ??
-      card?.brand ??
-      ""
-  )
-    .trim()
-    .toUpperCase();
-
-  if (raw === "PF" || raw === "PJ") return raw;
   return getCreditCardProfileId(card).toUpperCase();
+}
+
+function normalizeProjectionPreferences(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const uniqueIds = (items) =>
+    Array.from(
+      new Set(
+        (Array.isArray(items) ? items : [])
+          .map((item) => String(item ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+
+  return {
+    version: 1,
+    excludedAccountIds: uniqueIds(source.excludedAccountIds),
+    excludedCardIds: uniqueIds(source.excludedCardIds),
+    excludedTransactionIds: uniqueIds(source.excludedTransactionIds),
+    excludedGroupIds: uniqueIds(source.excludedGroupIds),
+  };
+}
+
+function getProjectionTransactionId(row) {
+  return String(row?.id ?? row?.transactionId ?? row?.transaction_id ?? "").trim();
+}
+
+function getProjectionTransactionGroupKey(row) {
+  const payload = getTransactionPayload(row);
+  const recurrenceId = String(
+    row?.recorrenciaId ??
+      row?.recurrenceId ??
+      payload?.recorrenciaId ??
+      payload?.recurrenceId ??
+      ""
+  ).trim();
+  if (recurrenceId) return `recurrence:${recurrenceId}`;
+
+  const installmentId = String(
+    row?.installmentGroupId ??
+      row?.parcelamentoId ??
+      row?.parcelamentoFaturaId ??
+      payload?.installmentGroupId ??
+      payload?.parcelamentoId ??
+      payload?.parcelamentoFaturaId ??
+      ""
+  ).trim();
+  if (installmentId) return `installment:${installmentId}`;
+
+  const parentId = String(
+    row?.parentId ??
+      row?.parent_id ??
+      row?.groupId ??
+      row?.group_id ??
+      payload?.parentId ??
+      payload?.parent_id ??
+      payload?.groupId ??
+      payload?.group_id ??
+      ""
+  ).trim();
+  if (parentId) return `group:${parentId}`;
+
+  const linkedId = String(
+    row?.linkedMovementId ??
+      row?.transferId ??
+      row?.transfer_id ??
+      payload?.linkedMovementId ??
+      payload?.transferId ??
+      payload?.transfer_id ??
+      ""
+  ).trim();
+  return linkedId ? `linked:${linkedId}` : "";
+}
+
+function transactionAllowedByProjectionPreferences(row, preferences) {
+  const groupKey = getProjectionTransactionGroupKey(row);
+  if (groupKey) {
+    return !new Set(preferences.excludedGroupIds).has(groupKey);
+  }
+  return !new Set(preferences.excludedTransactionIds).has(
+    getProjectionTransactionId(row)
+  );
 }
 
 function getProjectionInitialBalance(account) {
@@ -1147,6 +1240,8 @@ function mapSummaryInvoiceItem(invoice) {
     ciclo_key: invoice.ciclo_key,
     type: "credit_card_invoice",
     name: invoice.credit_card_name || "Fatura",
+    issuer: invoice.credit_card_issuer || "",
+    credit_card_profile: invoice.credit_card_profile || null,
     amount: Number(invoice.remaining_amount || 0),
     due_date: invoice.due_date,
     status: invoice.status,
@@ -1166,7 +1261,9 @@ function computeFinancialProjection({
   months,
   mode,
   initialBalance,
+  preferences,
 }) {
+  const effectivePreferences = normalizeProjectionPreferences(preferences);
   const selectedAccountSet = new Set(selectedAccountIds.map((id) => String(id)));
   const selectedCardSet = new Set(selectedCreditCardIds.map((id) => String(id)));
   const hasAccountFilter = selectedAccountSet.size > 0;
@@ -1210,6 +1307,9 @@ function computeFinancialProjection({
   const scopedTransactions = (transactions ?? []).filter((transaction) => {
     if (!transactionBelongsToProjection(transaction)) return false;
     if (!includeTransfers && isProjectionTransfer(transaction)) return false;
+    if (!transactionAllowedByProjectionPreferences(transaction, effectivePreferences)) {
+      return false;
+    }
     return true;
   });
 
@@ -1626,6 +1726,25 @@ function getAnalyticsCardMonthFromDate(dateIso, closingDay, dueDay) {
 
   base.setMonth(base.getMonth() + invoiceOffset);
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getAnalyticsCardTransactionPeriod(transaction, card) {
+  const payload = getTransactionPayload(transaction);
+  const savedInvoiceMonth = String(
+    transaction?.faturaMes ??
+      transaction?.fatura_mes ??
+      payload?.faturaMes ??
+      payload?.fatura_mes ??
+      ""
+  ).trim();
+
+  if (/^\d{4}-\d{2}$/.test(savedInvoiceMonth)) return savedInvoiceMonth;
+
+  return getAnalyticsCardMonthFromDate(
+    transaction?.data,
+    getAnalyticsCardClosingDay(card),
+    getAnalyticsCardDueDay(card)
+  );
 }
 
 function buildAnalyticsCategoryRows(grouped, limit) {
@@ -2355,32 +2474,36 @@ async function handleContext(req, res, supabase) {
 
   const [accountsResult, cardsResult, creditCardTags, ...categoryGroups] =
     await Promise.all([
-      supabase
-        .from("accounts")
-        .select("id, banco, name, tipo_conta, perfil_conta")
-        .eq("user_id", user.user_id)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("credit_cards")
-        .select("id, nome, titular, bank_text, categoria, dia_fechamento, dia_vencimento, is_active")
-        .eq("user_id", user.user_id)
-        .order("created_at", { ascending: false }),
-      listCreditCardTags({
-        supabase,
-        userId: user.user_id,
-      }),
-      ...["receita", "despesa"].map((type) =>
-        resolveAvailableCategories({
+      executeContextQuery("accounts", () =>
+        supabase
+          .from("accounts")
+          .select("id, banco, name, tipo_conta, perfil_conta")
+          .eq("user_id", user.user_id)
+          .order("created_at", { ascending: true })
+      ),
+      executeContextQuery("credit_cards", () =>
+        supabase
+          .from("credit_cards")
+          .select("id, nome, titular, bank_text, categoria, brand, dia_fechamento, dia_vencimento, is_active")
+          .eq("user_id", user.user_id)
+          .order("created_at", { ascending: false })
+      ),
+      readContextStage("credit_card_tags", () =>
+        listCreditCardTags({
           supabase,
           userId: user.user_id,
-          type,
         })
       ),
+      ...["receita", "despesa"].map((type) =>
+        readContextStage(`categories_${type}`, () =>
+          resolveAvailableCategories({
+            supabase,
+            userId: user.user_id,
+            type,
+          })
+        )
+      ),
     ]);
-
-  for (const result of [accountsResult, cardsResult]) {
-    if (result.error) throw result.error;
-  }
 
   json(res, 200, {
     ok: true,
@@ -2429,6 +2552,16 @@ async function handleContext(req, res, supabase) {
         "all",
       ],
       filtered_actions_require_explicit_scope: true,
+      generic_actions_reject_specialized_payloads: true,
+      creation_action_routing: {
+        common_single: "create_transaction",
+        account_installments: "create_installments",
+        account_fixed_or_monthly: "create_fixed",
+        transfer: "create_transfer",
+        credit_card_single: "create_credit_card_purchase",
+        credit_card_installments: "create_credit_card_installments",
+        credit_card_fixed_or_monthly: "create_credit_card_fixed",
+      },
       user_id_from_supplier_body: "not_accepted",
       invoice_ref_format: "credit_card_id:YYYY-MM",
     },
@@ -2971,6 +3104,12 @@ async function getCreditInvoiceSummaries(
       cycle_end: cycle.cycle_end,
       credit_card_id: cardId,
       credit_card_name: card.nome || "",
+      credit_card_issuer: card.bank_text || card.titular || "",
+      credit_card_category: card.categoria || "",
+      credit_card_label: [
+        String(card.nome || "").trim(),
+        String(card.bank_text || card.titular || "").trim(),
+      ].filter(Boolean).join(" · "),
       credit_card_profile: getCreditCardProfileId(card).toUpperCase(),
       invoice_month: invoiceMonth,
       due_date: cycle.due_date,
@@ -3486,7 +3625,16 @@ async function handleFinancialProjection(req, res, supabase) {
     );
   }
 
-  const [accountsResult, cardsResult, transactionRows] = await Promise.all([
+  const projectionPreferencesRequest =
+    profile === "PF" || profile === "PJ"
+      ? supabase
+          .from("user_projection_preferences")
+          .select("profile_id, preferences")
+          .eq("user_id", user.user_id)
+          .eq("profile_id", profile.toLowerCase())
+      : Promise.resolve({ data: [], error: null });
+
+  const [accountsResult, cardsResult, transactionRows, preferencesResult] = await Promise.all([
     supabase
       .from("accounts")
       .select("*")
@@ -3501,15 +3649,21 @@ async function handleFinancialProjection(req, res, supabase) {
       build: (query) =>
         query.order("data", { ascending: true }).order("id", { ascending: true }),
     }),
+    projectionPreferencesRequest,
   ]);
 
-  for (const result of [accountsResult, cardsResult]) {
+  for (const result of [accountsResult, cardsResult, preferencesResult]) {
     if (result.error) throw result.error;
   }
 
   const accounts = accountsResult.data ?? [];
   const cards = cardsResult.data ?? [];
   const transactions = transactionRows;
+  const preferences = normalizeProjectionPreferences(
+    preferencesResult.data?.[0]?.preferences
+  );
+  const excludedAccountIds = new Set(preferences.excludedAccountIds);
+  const excludedCardIds = new Set(preferences.excludedCardIds);
   const accountsById = new Map(accounts.map((account) => [String(account.id), account]));
   const cardsById = new Map(cards.map((card) => [String(card.id), card]));
 
@@ -3545,6 +3699,7 @@ async function handleFinancialProjection(req, res, supabase) {
     if (profileFilter && normalizeProjectionAccountProfile(account) !== profileFilter) {
       return false;
     }
+    if (profileFilter && excludedAccountIds.has(id)) return false;
     return hasAccountFilter || profileFilter || profile === "all";
   });
 
@@ -3555,6 +3710,7 @@ async function handleFinancialProjection(req, res, supabase) {
     if (profileFilter && normalizeProjectionCardProfile(card) !== profileFilter) {
       return false;
     }
+    if (profileFilter && excludedCardIds.has(id)) return false;
     return hasCardFilter || profileFilter || profile === "all";
   });
 
@@ -3592,6 +3748,7 @@ async function handleFinancialProjection(req, res, supabase) {
     months,
     mode,
     initialBalance,
+    preferences,
   });
 
   assertFinancialProjectionContract(projection, months);
@@ -3664,6 +3821,16 @@ async function handleFinancialProjection(req, res, supabase) {
       include_credit_cards: includeCreditCards,
       include_transfers: includeTransfers,
       strict_filters: strictFilters,
+      projection_preferences: {
+        applied: Boolean(profileFilter),
+        profile_id: profileFilter ? profileFilter.toLowerCase() : null,
+        excluded_accounts: profileFilter ? preferences.excludedAccountIds.length : 0,
+        excluded_cards: profileFilter ? preferences.excludedCardIds.length : 0,
+        excluded_transactions:
+          profileFilter
+            ? preferences.excludedTransactionIds.length + preferences.excludedGroupIds.length
+            : 0,
+      },
       is_global: !profileFilter && !hasAccountFilter && !hasCardFilter,
       notes,
     },
@@ -3897,10 +4064,9 @@ async function handleFinancialAnalytics(req, res, supabase) {
         continue;
       }
 
-      const transactionPeriod = getAnalyticsCardMonthFromDate(
-        transaction.data,
-        getAnalyticsCardClosingDay(card),
-        getAnalyticsCardDueDay(card)
+      const transactionPeriod = getAnalyticsCardTransactionPeriod(
+        transaction,
+        card
       );
       if (transactionPeriod !== period) continue;
 
@@ -4194,12 +4360,67 @@ async function handleCreateCreditCardTag(req, res, action) {
   });
 }
 
+function throwActionSemanticsMismatch(requiredAction, reason, forbiddenFields) {
+  throw new ApiError(
+    400,
+    "ACTION_SEMANTICS_MISMATCH",
+    `This payload must use the ${requiredAction} action.`,
+    {
+      required_action: requiredAction,
+      reason,
+      forbidden_fields_for_current_action: forbiddenFields,
+      retryable_with_required_action: true,
+    }
+  );
+}
+
+function validateCommonTransactionAction(body) {
+  if (body?.installments !== undefined) {
+    throwActionSemanticsMismatch(
+      "create_installments",
+      "installments require creation of the complete installment series",
+      ["installments"]
+    );
+  }
+
+  const hasFixedWindow =
+    body?.deadline_mode !== undefined || body?.end_date !== undefined;
+  if (hasFixedWindow || normalizeText(body?.spending_type) === "fixo") {
+    throwActionSemanticsMismatch(
+      "create_fixed",
+      "fixed/monthly transactions require creation of the complete recurrence window",
+      ["spending_type=fixo", "deadline_mode", "end_date"]
+    );
+  }
+}
+
+function validateCreditCardPurchaseAction(body) {
+  if (body?.installments !== undefined) {
+    throwActionSemanticsMismatch(
+      "create_credit_card_installments",
+      "installments require creation of the complete credit-card installment series",
+      ["installments"]
+    );
+  }
+
+  const hasFixedWindow =
+    body?.deadline_mode !== undefined || body?.end_date !== undefined;
+  if (hasFixedWindow || normalizeText(body?.spending_type) === "fixo") {
+    throwActionSemanticsMismatch(
+      "create_credit_card_fixed",
+      "fixed/monthly card purchases require creation of the complete recurrence window",
+      ["spending_type=fixo", "deadline_mode", "end_date"]
+    );
+  }
+}
+
 async function handleCreateTransaction(req, res, action) {
   await runPostCommand(req, res, action, async ({ body, supabase, user }) => {
     ensureMutationConfirmed(
       body,
       "Confirme com o usuário antes de criar um novo lançamento."
     );
+    validateCommonTransactionAction(body);
 
     const type = normalizeTransactionType(body.type);
     const description = requireString(
@@ -5460,20 +5681,13 @@ async function handleCreateCreditCardPurchase(req, res, action) {
       body,
       "Confirme com o usuário antes de lançar uma compra no cartão."
     );
+    validateCreditCardPurchaseAction(body);
 
     if (body.account_id !== undefined) {
       throw new ApiError(
         400,
         "ACCOUNT_ID_NOT_ALLOWED",
         "account_id is not accepted for credit card purchases."
-      );
-    }
-
-    if (body.installments !== undefined) {
-      throw new ApiError(
-        400,
-        "INSTALLMENTS_NOT_ALLOWED",
-        "installments is not accepted for this action."
       );
     }
 

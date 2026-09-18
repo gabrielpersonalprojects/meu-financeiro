@@ -236,7 +236,9 @@ Testar somente os quatro cenários acima, vínculo e replay. Não repetir autent
 
 ## Renovação automática — `NOVO`
 
-A renovação das séries `sem_prazo` é gerenciada automaticamente pela infraestrutura FluxMoney. Ela gera somente ocorrências futuras ausentes, preserva o `recorrenciaId`, ignora séries canceladas e não altera ocorrências pagas. Nenhuma configuração adicional é necessária na Nimble.
+A série `sem_prazo` aparece no Resumo do FluxMoney nos 60 dias finais da janela atual. O usuário pode antecipar a renovação por mais 12 meses ou cancelar a renovação. Se não houver decisão manual, a infraestrutura FluxMoney renova a janela no vencimento. Em todos os casos são geradas somente ocorrências futuras ausentes, o `recorrenciaId` é preservado, séries canceladas são ignoradas e ocorrências pagas não são alteradas. A Nimble não deve fabricar a renovação.
+
+Séries `com_prazo` não participam desse ciclo: encerram em `end_date`, não exibem o aviso e só podem continuar após uma nova confirmação e uma nova operação.
 
 ## Checklist final da Nimble
 

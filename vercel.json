@@ -2,6 +2,9 @@
   "functions": {
     "api/cron/renew-recurring.js": {
       "maxDuration": 60
+    },
+    "api/nimble/user-registration.js": {
+      "maxDuration": 40
     }
   },
   "crons": [

@@ -1,9 +1,15 @@
 # FluxMoney + Nimble — API do Assistente Financeiro para WhatsApp
 
+> **Documento operacional vigente (16/09/2026):** para roteamento das Actions,
+> semântica de recorrências e parcelamentos, competência de faturas, projeção,
+> resiliência e critérios de homologação, use
+> `docs/nimble-contrato-homologacao-2026-09-16.md`. Este arquivo permanece como
+> referência detalhada dos endpoints e payloads.
+
 Contrato técnico e guia de configuração da integração.
 
-**Versão da documentação:** 26/08/2026
-**Código de referência revisado:** política monetária/calendário, recorrência automática, cartão mensal e matriz PF/PJ de 26/08/2026
+**Versão da documentação:** 18/09/2026
+**Código de referência revisado:** contrato de homologação, normalização canônica do WhatsApp e webhook de boas-vindas de 18/09/2026
 **Base URL de produção:**
 
 ```text
@@ -129,6 +135,30 @@ Regras obrigatórias:
 - Se `user_id` for enviado, a API retorna `USER_ID_NOT_ACCEPTED`.
 
 Use placeholders nesta documentação. Não substitua o token em arquivos que serão compartilhados.
+
+### 3.1 Webhook de cadastro e boas-vindas
+
+Ao salvar ou alterar o WhatsApp de um usuário, o backend autenticado do FluxMoney envia à URL de cadastro fornecida pela Nimble:
+
+```json
+{
+  "whatsapp": "554187654321",
+  "first_name": "Gabriel"
+}
+```
+
+O evento usa `X-FluxMoney-Event: user.whatsapp_linked` e um `X-Idempotency-Key` estável. A Nimble deve deduplicar por essa chave e enviar uma única mensagem de boas-vindas.
+
+Normalização compartilhada:
+
+- formato final somente numérico: `55 + DDD + número`;
+- DDDs `11–19`, `22`, `24`, `27` e `28`: nove dígitos, adicionando `9` quando necessário;
+- demais DDDs: oito dígitos, removendo o primeiro `9` quando recebido com nove dígitos iniciados em `9`;
+- nunca duplicar o código `55`.
+
+Exemplos corretos pela regra textual: `(11) 8765-4321` e `(11) 98765-4321` viram `5511987654321`; `(41) 99876-5432` vira `554198765432`; `(41) 8765-4321` vira `554187654321`. O exemplo `55418765432` recebido originalmente da Nimble possui somente sete dígitos após o DDD e precisa ser corrigido/confirmado por eles.
+
+A URL é configurada somente no backend pela variável `NIMBLE_USER_REGISTRATION_WEBHOOK_URL`; ela não deve ser colocada no navegador nem no repositório.
 
 ## 4. Headers
 
@@ -724,7 +754,9 @@ O array contém todas as ocorrências criadas. Cada ocorrência recalcula `invoi
 
 ### Recorrência sem prazo — `NOVO`
 
-`sem_prazo` cria uma janela inicial de 12 meses. A renovação posterior é gerenciada automaticamente pela infraestrutura FluxMoney e gera somente ocorrências ausentes. Ela preserva `recorrenciaId`, não altera ocorrências pagas e ignora séries canceladas. Nenhuma configuração adicional é necessária na Nimble.
+`sem_prazo` cria uma janela inicial de 12 meses. A série usa os mesmos metadados do sistema e aparece no Resumo do FluxMoney quando entra nos 60 dias finais da janela. Nesse aviso, o usuário pode antecipar a renovação por mais 12 meses ou cancelar a renovação. Se não houver cancelamento nem renovação manual, a infraestrutura FluxMoney renova a janela no vencimento, gerando somente ocorrências futuras ausentes. A renovação preserva `recorrenciaId`, não altera ocorrências pagas e ignora séries canceladas. A Nimble não deve criar as ocorrências de renovação por conta própria.
+
+`com_prazo` é deliberadamente finita: termina em `end_date`, não aparece no aviso de renovação do Resumo e não é renovada pelo cron. Para continuar depois do prazo, a Nimble deve obter nova confirmação do usuário e criar uma nova série com nova chave de idempotência.
 
 ## 15. POST `validate_transaction_target`
 

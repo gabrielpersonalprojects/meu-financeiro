@@ -5,6 +5,42 @@ export type OnboardingWhatsappStatus = "pending" | "done" | "skipped";
 export const WHATSAPP_ALREADY_LINKED_MESSAGE =
   "Este WhatsApp já está vinculado a outra conta.";
 
+export type NimbleWelcomeNotificationResult = {
+  ok: boolean;
+  status?: "sent" | "already_sent_or_in_progress";
+  event_id?: string;
+};
+
+export async function notifyNimbleUserRegistration(
+  accessToken: string
+): Promise<NimbleWelcomeNotificationResult> {
+  const token = String(accessToken ?? "").trim();
+  if (!token) {
+    throw new Error("Sessão inválida para notificar integração do WhatsApp.");
+  }
+
+  const response = await fetch("/api/nimble/user-registration", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok || data?.ok !== true) {
+    const error = new Error(
+      String(data?.error || "Não foi possível notificar a Nimble.")
+    );
+    (error as any).code = data?.error;
+    (error as any).retryable = data?.retryable === true;
+    throw error;
+  }
+
+  return data as NimbleWelcomeNotificationResult;
+}
+
 const isUniqueViolation = (error: any): boolean =>
   String(error?.code ?? "") === "23505";
 
@@ -96,6 +132,7 @@ export type UserContactInfo = {
   whatsappNumber: string;
   whatsappUpdatedAt: string | null;
   onboardingWhatsappStatus: OnboardingWhatsappStatus | null;
+  nimbleWelcomeStatus: "sending" | "sent" | "failed" | null;
 };
 
 export async function getUserContactInfo(
@@ -108,12 +145,15 @@ export async function getUserContactInfo(
       whatsappNumber: "",
       whatsappUpdatedAt: null,
       onboardingWhatsappStatus: null,
+      nimbleWelcomeStatus: null,
     };
   }
 
   const { data, error } = await supabase
     .from("user_access")
-    .select("whatsapp_number, whatsapp_updated_at, onboarding_whatsapp_status")
+    .select(
+      "whatsapp_number, whatsapp_updated_at, onboarding_whatsapp_status, nimble_welcome_status"
+    )
     .eq("user_id", cleanUserId)
     .maybeSingle();
 
@@ -127,6 +167,12 @@ export async function getUserContactInfo(
       data?.onboarding_whatsapp_status === "done" ||
       data?.onboarding_whatsapp_status === "skipped"
         ? data.onboarding_whatsapp_status
+        : null,
+    nimbleWelcomeStatus:
+      data?.nimble_welcome_status === "sending" ||
+      data?.nimble_welcome_status === "sent" ||
+      data?.nimble_welcome_status === "failed"
+        ? data.nimble_welcome_status
         : null,
   };
 }

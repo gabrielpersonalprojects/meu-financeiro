@@ -8688,15 +8688,20 @@ function getCardInvoiceCycleDatesFromMonth(
 }
 
 // --- Add Transaction (com suporte simples a transferencia/cartao_credito) ---
-const handleAddTransaction = async () => {
+const handleAddTransaction = async (draft?: {
+  description: string;
+  amount: string;
+}) => {
   if (addTxLockRef.current) return;
   addTxLockRef.current = true;
   setIsSubmittingTransaction(true);
 
   try {
-    const valorNum = extrairValorMoeda(formValor);
+    const submittedDescription = draft?.description ?? formDesc;
+    const submittedAmount = draft?.amount ?? formValor;
+    const valorNum = extrairValorMoeda(submittedAmount);
 
-if (!String(formDesc ?? "").trim()) {
+if (!String(submittedDescription ?? "").trim()) {
   toastCompact("Por favor, preencha a descrição do lançamento.", "error");
   return;
 }
@@ -8823,7 +8828,7 @@ const origemId = String(contaOrigemProfile?.id ?? formContaOrigem ?? "");
 const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
 
       // ✅ usa a descrição digitada; se vier vazia, cai no fallback
-      const descDigitada = (formDesc || "").trim();
+      const descDigitada = (submittedDescription || "").trim();
       const descFinal = descDigitada || `Transferência ${origemNome} → ${destinoNome}`;
 
       const origemPerfil =
@@ -9110,7 +9115,7 @@ const destinoId = String(contaDestinoProfile?.id ?? formContaDestino ?? "");
     // CARTÃO DE CRÉDITO
     // =========================
     if (formTipo === "cartao_credito") {
-      const desc = (formDesc || "").trim();
+      const desc = (submittedDescription || "").trim();
       const tagCC = (formTagCC || "").trim();
 
       if (!desc) {
@@ -9409,7 +9414,7 @@ return;
     // =========================
     // RECEITA / DESPESA
     // =========================
-if (!String(formDesc ?? "").trim()) {
+if (!String(submittedDescription ?? "").trim()) {
   toastCompact("Por favor, preencha a descrição do lançamento.", "error");
   return;
 }
@@ -9450,7 +9455,7 @@ const precisaEscolherPrazo =
     const newTrans: Transaction[] = [];
     const recorrenciaId = `rec_${Date.now()}`;
 
-    const descFinal = formDesc.trim() || (formTipo === "receita" ? formCat : "Despesa");
+    const descFinal = submittedDescription.trim() || (formTipo === "receita" ? formCat : "Despesa");
 
     // receita/despesa parcelada
     if (

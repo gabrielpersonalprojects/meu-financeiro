@@ -118,6 +118,15 @@ test("PDF nao quebra uma linha de lancamento entre paginas", () => {
   assert.match(rowCss, /page-break-inside:\s*avoid/);
 });
 
+test("PDF permite continuar um cartao longo na pagina seguinte", () => {
+  const source = getCardsResumoPdfSource();
+  const groupCss = source.match(/\.card-group\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+
+  assert.match(groupCss, /break-inside:\s*auto/);
+  assert.match(groupCss, /page-break-inside:\s*auto/);
+  assert.doesNotMatch(groupCss, /break-inside:\s*avoid-page/);
+});
+
 test("PDF exibe somente o total filtrado do grupo, sem estado de fatura", () => {
   const source = getCardsResumoPdfSource();
 
@@ -130,7 +139,8 @@ test("html2pdf usa seletores locais de quebra sem avoid-all", () => {
   const pagebreakConfig = source.match(/pagebreak:\s*\{([\s\S]*?)\n\s*\},/)?.[1] ?? "";
 
   assert.match(pagebreakConfig, /mode:\s*\["css",\s*"legacy"\]/);
-  assert.match(pagebreakConfig, /avoid:\s*\["\.card-group",\s*"\.card-group-header",\s*"tr"/);
+  assert.match(pagebreakConfig, /avoid:\s*\["\.card-group-header",\s*"tr",\s*"td"/);
+  assert.doesNotMatch(pagebreakConfig, /avoid:\s*\[[^\]]*"\.card-group"/);
   assert.doesNotMatch(pagebreakConfig, /avoid-all/);
 });
 

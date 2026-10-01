@@ -117,7 +117,10 @@ type Props = {
   SEM_PRAZO_MESES: number;
 
   // submit
-  handleAddTransaction: () => void;
+  handleAddTransaction: (draft?: {
+    description: string;
+    amount: string;
+  }) => void | Promise<void>;
   isSubmittingTransaction: boolean;
 
   // layout do centro
@@ -405,6 +408,19 @@ export default function NewTransactionCard({
   forcedTipo,
   hideTypeSwitcher = false,
 }: Props) {
+  // Keep high-frequency text input updates inside the form. Committing every
+  // keystroke to App.tsx causes the entire dashboard to render again.
+  const [draftDescription, setDraftDescription] = useState(formDesc);
+  const [draftAmount, setDraftAmount] = useState(formValor);
+
+  useEffect(() => {
+    setDraftDescription(formDesc);
+  }, [formDesc]);
+
+  useEffect(() => {
+    setDraftAmount(formValor);
+  }, [formValor]);
+
   // trocar aba / tipo (mata espelhamento e seta layout do centro certo)
   const trocarTipo = (tipo: TransactionType) => {
     setModoCentro?.(tipo === "cartao_credito" ? "credito" : "normal");
@@ -737,8 +753,9 @@ const ccCategoryOptions = despesaCategoryOptions;
 </label>
           <input
             type="text"
-            value={formDesc}
-            onChange={(e) => setFormDesc(e.target.value)}
+            value={draftDescription}
+            onChange={(e) => setDraftDescription(e.target.value)}
+            onBlur={() => setFormDesc(draftDescription)}
             placeholder={
   formTipo === "transferencia"
     ? "Ex: Reembolso, Reserva, Poupança..."
@@ -775,9 +792,13 @@ const ccCategoryOptions = despesaCategoryOptions;
             <input
               type="text"
               inputMode="decimal"
-              value={formValor}
-              onChange={(e) => setFormValor(normalizeBRLInput(e.target.value))}
-              onBlur={() => setFormValor(formatBRLOnBlur(formValor))}
+              value={draftAmount}
+              onChange={(e) => setDraftAmount(normalizeBRLInput(e.target.value))}
+              onBlur={() => {
+                const formattedAmount = formatBRLOnBlur(draftAmount);
+                setDraftAmount(formattedAmount);
+                setFormValor(formattedAmount);
+              }}
               placeholder="0,00"
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold outline-none"
             />
@@ -1346,7 +1367,18 @@ onClick={() => {
       return;
     }
 
-    handleAddTransaction();
+    const submittedAmount = formatBRLOnBlur(draftAmount) || draftAmount;
+
+    // Preserve the existing parent state for every other flow, while passing
+    // the current values explicitly so submit never depends on blur timing.
+    setFormDesc(draftDescription);
+    setFormValor(submittedAmount);
+    setDraftAmount(submittedAmount);
+
+    handleAddTransaction({
+      description: draftDescription,
+      amount: submittedAmount,
+    });
   }}
   className={[
     "mt-4 w-full h-12 rounded-2xl bg-gradient-to-r from-[#220055] to-[#4600ac]",

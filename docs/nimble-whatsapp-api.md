@@ -1138,6 +1138,14 @@ Sem correspondência, retorna HTTP 404 com `TRANSACTION_NOT_FOUND`.
 
 ## 18. GET `list_transactions`
 
+Parâmetros opcionais enviados como string vazia ou contendo apenas espaços são
+tratados como não informados. Isso permite que integrações com URL fixa mantenham
+uma única Action e deixem vazios filtros como `account_id`, `account_ids`,
+`credit_card_id`, `credit_card_ids`, `category`, `tag`, `period`, `date_from` e
+`date_to`. As exigências de `profile`, `source` e de `period` ou intervalo de datas
+continuam válidas; valores não vazios continuam sujeitos às validações e regras de
+conflito descritas abaixo.
+
 Lista lançamentos detalhados e separa corretamente despesas de contas e de
 cartões. Esta é a action indicada para pedidos como “mostre minhas despesas de
 cartão PF em julho”.

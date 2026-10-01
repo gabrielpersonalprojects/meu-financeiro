@@ -529,6 +529,82 @@ test("read endpoints keep the same PJ card classification and expose a self-cont
   assert.match(pjInvoice.credit_card_label, /Cartao Canonico/);
 });
 
+test("list_transactions ignores blank optional filters without weakening required filters", async () => {
+  process.env.SUPPLIER_API_TOKEN = "integration-token";
+  const db = createSupabase();
+  db.store.transactions.push({
+    id: "tx-empty-optional-filters",
+    user_id: "user-1",
+    tipo: "cartao_credito",
+    valor: -80,
+    data: "2026-10-15",
+    descricao: "Mercado",
+    categoria: "Alimentação",
+    tag: "Gabriel",
+    cartao_id: creditCardId,
+    qual_conta: creditCardId,
+    pago: false,
+    payload: { faturaMes: "2026-10", tipoGasto: "variável" },
+  });
+
+  const handler = loadRealHandler(db.client);
+  const result = await invokeGetAction(handler, "list_transactions", {
+    profile: "PJ",
+    source: "credit_cards",
+    period: "",
+    date_from: "2026-10-01",
+    date_to: "2026-10-31",
+    type: "despesa",
+    account_id: "",
+    account_ids: "   ",
+    credit_card_id: creditCardId,
+    credit_card_ids: "",
+    category: "Alimentação",
+    tag: "",
+    description: "",
+    paid: "",
+    status: "",
+    spending_type: "",
+    include_transfers: "",
+    page: "",
+    limit: "",
+    sort: "",
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.pagination.total_items, 1);
+  assert.equal(result.body.totals.expenses, 80);
+  assert.deepEqual(result.body.scope.account_ids, []);
+  assert.deepEqual(result.body.scope.credit_card_ids, [creditCardId]);
+  assert.equal(result.body.scope.period, null);
+  assert.equal(result.body.scope.tag, null);
+  assert.equal(result.body.transactions[0].id, "tx-empty-optional-filters");
+
+  const conflict = await invokeGetAction(handler, "list_transactions", {
+    profile: "PJ",
+    source: "all",
+    period: "2026-10",
+    account_id: baseBody.account_id,
+    credit_card_id: creditCardId,
+  });
+  assert.equal(conflict.statusCode, 400);
+  assert.equal(conflict.body.error.code, "FILTER_CONFLICT");
+
+  const missingRequired = await invokeGetAction(handler, "list_transactions", {
+    profile: "",
+    source: "",
+    period: "",
+    date_from: "",
+    date_to: "",
+    account_id: "",
+    credit_card_id: "",
+    category: "",
+    tag: "",
+  });
+  assert.equal(missingRequired.statusCode, 400);
+  assert.equal(missingRequired.body.error.code, "FILTER_REQUIRED");
+});
+
 test("context retries one transient read and returns an explicit retryable 503 after two failures", async () => {
   process.env.SUPPLIER_API_TOKEN = "integration-token";
 

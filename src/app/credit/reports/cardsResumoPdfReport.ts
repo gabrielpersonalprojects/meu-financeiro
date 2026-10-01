@@ -378,11 +378,11 @@ const valor = escapeHtml(
         .card-group {
           border: 1px solid #e2e8f0;
           border-radius: 16px;
-          overflow: hidden;
+          overflow: visible;
           margin-bottom: 16px;
           background: #ffffff;
-          break-inside: avoid-page;
-          page-break-inside: avoid;
+          break-inside: auto;
+          page-break-inside: auto;
         }
 
         .card-group-header {
@@ -621,7 +621,7 @@ tr:last-child td {
         },
         pagebreak: {
           mode: ["css", "legacy"],
-          avoid: [".card-group", ".card-group-header", "tr", ".summary", ".filters"],
+          avoid: [".card-group-header", "tr", "td", ".summary", ".filters"],
         },
       } as any;
 

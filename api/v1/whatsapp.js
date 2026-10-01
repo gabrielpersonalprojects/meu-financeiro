@@ -829,10 +829,10 @@ function normalizeProjectionProfile(value) {
 function parseProjectionIdFilters(query, singularName, pluralName, conflictCode, invalidCode) {
   const singleId = String(query?.[singularName] ?? "").trim();
   const idsRaw = String(query?.[pluralName] ?? "").trim();
-  const hasSingleParam = Object.prototype.hasOwnProperty.call(query ?? {}, singularName);
-  const hasPluralParam = Object.prototype.hasOwnProperty.call(query ?? {}, pluralName);
+  const hasSingleValue = singleId !== "";
+  const hasPluralValue = idsRaw !== "";
 
-  if (singleId && idsRaw) {
+  if (hasSingleValue && hasPluralValue) {
     throw new ApiError(
       400,
       conflictCode,
@@ -840,23 +840,15 @@ function parseProjectionIdFilters(query, singularName, pluralName, conflictCode,
     );
   }
 
-  if (hasSingleParam) {
+  if (hasSingleValue) {
     const validId = singularName === "account_id"
       ? validateAccountId(singleId)
       : singleId;
     return { single_id: validId, ids: [validId] };
   }
 
-  if (!idsRaw && !hasPluralParam) {
+  if (!hasPluralValue) {
     return { single_id: null, ids: [] };
-  }
-
-  if (!idsRaw && hasPluralParam) {
-    throw new ApiError(
-      400,
-      invalidCode,
-      `${pluralName} must include at least one id.`
-    );
   }
 
   const ids = idsRaw

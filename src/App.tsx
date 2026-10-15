@@ -10053,13 +10053,13 @@ rotina financeira com mais clareza, praticidade e tranquilidade.
       Depois do teste
     </span>
     <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-      R$ 16,90/mês
+      R$ 17,90/mês
     </span>
   </div>
 </div>
 
 <p className="mt-1 text-center text-[10px] text-slate-500 dark:text-slate-400">
-  7 dias grátis. Depois, R$ 16,90/mês. Cancele quando quiser.
+  7 dias grátis. Depois, R$ 17,90/mês. Cancele quando quiser.
 </p>
 <div className="mt-6 space-y-3">
   <label className="flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-3 text-left text-[12.5px] leading-5 text-slate-600 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-slate-300">

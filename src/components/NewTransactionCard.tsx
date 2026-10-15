@@ -9,6 +9,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { toastCompact } from "../services/toast";
+import DescriptionAutocomplete from "./DescriptionAutocomplete";
 
 type PrazoMode = "com_prazo" | "sem_prazo" | null;
 
@@ -43,6 +44,7 @@ type Props = {
   // descrição/valor/data/pago
   formDesc: string;
   setFormDesc: (v: string) => void;
+  descriptionSuggestions?: string[];
 
   formValor: string;
   setFormValor: (v: string) => void;
@@ -337,6 +339,7 @@ export default function NewTransactionCard({
 
   formDesc,
   setFormDesc,
+  descriptionSuggestions = [],
 
   formValor,
   setFormValor,
@@ -751,11 +754,11 @@ const ccCategoryOptions = despesaCategoryOptions;
 <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">
   Descrição <span className="text-violet-600 dark:text-violet-400">*</span>
 </label>
-          <input
-            type="text"
+          <DescriptionAutocomplete
             value={draftDescription}
-            onChange={(e) => setDraftDescription(e.target.value)}
-            onBlur={() => setFormDesc(draftDescription)}
+            onChange={setDraftDescription}
+            onCommit={setFormDesc}
+            suggestions={descriptionSuggestions}
             placeholder={
   formTipo === "transferencia"
     ? "Ex: Reembolso, Reserva, Poupança..."

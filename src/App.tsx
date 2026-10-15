@@ -6,7 +6,7 @@ import toast, { Toaster } from "react-hot-toast";
 import AuthPage from "./components/AuthPage";
 import { supabase } from "./lib/supabase";
 import { useUI } from "./components/UIProvider";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import type { FC } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { mergeTransfers } from "./app/transactions/logic";
@@ -98,6 +98,7 @@ import { AppHeaderNav } from "./components/layout/AppHeaderNav";
 import { runApplicationViewReset } from "./app/navigation/applicationViewReset";
 import { FluxMoneyLogo } from "./components/FluxMoneyLogo";
 import NewTransactionCard from "./components/NewTransactionCard";
+import BufferedEditTransactionFields from "./components/BufferedEditTransactionFields";
 import GastosTab from "./components/tabs/GastosTab";
 import ProjecaoTab from "./components/tabs/ProjecaoTab";
 import TransacoesTab from "./components/tabs/TransacoesTab";
@@ -1238,7 +1239,7 @@ const handleHeaderTabChange = (tab: TabType) => {
     setCreditCardsPage(1);
   }
 
-  setActiveTab(tab);
+  startTransition(() => setActiveTab(tab));
 };
 
 const scrollPorAbaRef = useRef<Record<string, number>>({
@@ -1399,6 +1400,34 @@ const [accountsLoaded, setAccountsLoaded] = useState(false);
 
 
  const [transacoes, setTransacoes] = useState<Transaction[]>([]);
+const descriptionSuggestions = useMemo(() => {
+  const seen = new Set<string>();
+
+  return [...(transacoes ?? [])]
+    .sort((a: any, b: any) => {
+      const dateCompare = String(b?.data ?? "").localeCompare(String(a?.data ?? ""));
+      if (dateCompare !== 0) return dateCompare;
+      return String(b?.createdAt ?? b?.created_at ?? "").localeCompare(
+        String(a?.createdAt ?? a?.created_at ?? "")
+      );
+    })
+    .map((transaction: any) =>
+      String(transaction?.descricao ?? "")
+        .replace(/\s*\(\s*\d+\s*\/\s*\d+\s*\)\s*$/g, "")
+        .trim()
+    )
+    .filter((description) => {
+      if (!description) return false;
+      const key = description
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase("pt-BR");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 500);
+}, [transacoes]);
 const [parcelamentosFatura, setParcelamentosFatura] = useState<ParcelamentoFaturaApp[]>([]);
 
 const [faturasStatusManual, setFaturasStatusManual] = useState<FaturaStatusManualApp[]>([]);
@@ -4189,8 +4218,8 @@ const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isSavingEditingTransaction, setIsSavingEditingTransaction] = useState(false);
-  const [editValueInput, setEditValueInput] = useState("");
-  const [editDescInput, setEditDescInput] = useState("");
+  const editValueInputRef = useRef("");
+  const editDescInputRef = useRef("");
   const [applyToAllRelated, setApplyToAllRelated] = useState(false);
 
   const [editDataInput, setEditDataInput] = useState<string>("");
@@ -7279,8 +7308,8 @@ const getLinkedPfPjTransactions = (tx: any, sourceTransactions: any[] = transaco
 
 const handleEditClick = (t: Transaction) => {
   setEditingTransaction(t);
-  setEditValueInput(centsDigitsFromAny(t.valor));
-  setEditDescInput(removeParcelaSuffixFromDescricao(t.descricao));
+  editValueInputRef.current = centsDigitsFromAny(t.valor);
+  editDescInputRef.current = removeParcelaSuffixFromDescricao(t.descricao);
   setEditDataInput(String((t as any).data ?? ""));
   setEditCategoriaInput(
     typeof (t as any).categoria === "string"
@@ -7338,10 +7367,10 @@ const salvarEdicao = async () => {
   setIsSavingEditingTransaction(true);
 
   try {
-const novoValorAbs = extrairValorMoeda(editValueInput);
+const novoValorAbs = extrairValorMoeda(editValueInputRef.current);
 const novaDesc = buildDescricaoEditadaSegura(
   editingTransaction,
-  editDescInput
+  editDescInputRef.current
 );
 const novaTag = String(editTagInput ?? "").trim();
 
@@ -10406,6 +10435,15 @@ const inferirCicloResumo = (
   );
 };
 
+const {
+  resumoCartoesEmAbertoValor,
+  resumoCartoesVencendoHojeValor,
+  resumoCartoesPendentesValor,
+  resumoCartoesAtrasadasValor,
+  cartoesVencendoHojeLista,
+  cartoesFechadosAguardandoPagamentoLista,
+  cartoesAtrasadosLista,
+} = (() => {
 let resumoCartoesEmAbertoValor = 0;
 let resumoCartoesVencendoHojeValor = 0;
 let resumoCartoesPendentesValor = 0;
@@ -10649,10 +10687,6 @@ if (!cartoesFechadosAguardandoPagamentoKeys.has(keyPrioritaria)) {
 
 });
 
-const resumoHojeLabel = formatResumoBRL(resumoHojeValor);
-const resumoSemanaLabel = formatResumoBRL(resumoSemanaValor);
-const resumoAtrasadosLabel = formatResumoBRL(resumoAtrasadosValor);
-
 cartoesAtrasadosLista.sort((a: any, b: any) =>
   String(a?.vencimentoIso ?? a?.ciclo ?? "").localeCompare(
     String(b?.vencimentoIso ?? b?.ciclo ?? "")
@@ -10670,6 +10704,21 @@ cartoesVencendoHojeLista.sort((a: any, b: any) =>
     String(b?.vencimentoIso ?? b?.ciclo ?? "")
   )
 );
+
+return {
+  resumoCartoesEmAbertoValor,
+  resumoCartoesVencendoHojeValor,
+  resumoCartoesPendentesValor,
+  resumoCartoesAtrasadasValor,
+  cartoesVencendoHojeLista,
+  cartoesFechadosAguardandoPagamentoLista,
+  cartoesAtrasadosLista,
+};
+})();
+
+const resumoHojeLabel = formatResumoBRL(resumoHojeValor);
+const resumoSemanaLabel = formatResumoBRL(resumoSemanaValor);
+const resumoAtrasadosLabel = formatResumoBRL(resumoAtrasadosValor);
 
 const resumoCartoesEmAbertoLabel = formatResumoBRL(resumoCartoesEmAbertoValor);
 const resumoCartoesVencendoHojeLabel = formatResumoBRL(resumoCartoesVencendoHojeValor);
@@ -10973,6 +11022,7 @@ const expensePanelContent = (
     setFormTipoGasto={setFormTipoGasto}
     formDesc={formDesc}
     setFormDesc={setFormDesc}
+    descriptionSuggestions={descriptionSuggestions}
     formValor={formValor}
     setFormValor={setFormValor}
     formData={formData}
@@ -11050,6 +11100,7 @@ const incomePanelContent = (
     setFormTipoGasto={setFormTipoGasto}
     formDesc={formDesc}
     setFormDesc={setFormDesc}
+    descriptionSuggestions={descriptionSuggestions}
     formValor={formValor}
     setFormValor={setFormValor}
     formData={formData}
@@ -11127,6 +11178,7 @@ const transferPanelContent = (
     setFormTipoGasto={setFormTipoGasto}
     formDesc={formDesc}
     setFormDesc={setFormDesc}
+    descriptionSuggestions={descriptionSuggestions}
     formValor={formValor}
     setFormValor={setFormValor}
     formData={formData}
@@ -11209,6 +11261,7 @@ const cardsPanelContent = (
     setFormTipoGasto={setFormTipoGasto}
     formDesc={formDesc}
     setFormDesc={setFormDesc}
+    descriptionSuggestions={descriptionSuggestions}
     formValor={formValor}
     setFormValor={setFormValor}
     formData={formData}
@@ -13346,19 +13399,23 @@ onClick={() => {
   if (cardIdToTouch) {
     const agoraIso = new Date().toISOString();
 
-    setCreditCards((prev) =>
-      (prev ?? []).map((card: any) =>
-        String(card?.id ?? "").trim() === cardIdToTouch
-          ? {
-              ...card,
-              updatedAt: agoraIso,
-              updated_at: agoraIso,
-            }
-          : card
-      )
-    );
+    requestAnimationFrame(() => {
+      startTransition(() => {
+        setCreditCards((prev) =>
+          (prev ?? []).map((card: any) =>
+            String(card?.id ?? "").trim() === cardIdToTouch
+              ? {
+                  ...card,
+                  updatedAt: agoraIso,
+                  updated_at: agoraIso,
+                }
+              : card
+          )
+        );
+      });
 
-    void touchCardAndRefreshInState(cardIdToTouch);
+      void touchCardAndRefreshInState(cardIdToTouch);
+    });
   }
 
   const cicloCorreto = getCardCycleMonthOnOpen(c);
@@ -14846,78 +14903,26 @@ stats={stats}
       </div>
 
       <div className="flux-help-modal-scroll max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
-        <div>
-          <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-            Descrição
-          </label>
-          <input
-            type="text"
-            value={editDescInput}
-            onChange={(e) => setEditDescInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                if (!isSavingEditingTransaction) {
-                  salvarEdicao();
-                }
-              }
-              if (e.key === "Escape" && !isSavingEditingTransaction) {
-                setEditingTransaction(null);
-                setEditTagInput("");
-              }
-            }}
-            className={inputModalClass}
-          />
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase mb-1.5">
-            Valor (R$)
-          </label>
-
-          <input
-            type="text"
-            inputMode="numeric"
-            value={formatBRLFromCentsDigits(editValueInput)}
-            onChange={(e) => {
-              setEditValueInput(digitsOnly(e.target.value));
-            }}
-            onPaste={(e) => {
-              e.preventDefault();
-              const text = e.clipboardData.getData("text");
-              setEditValueInput(digitsOnly(text));
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                if (!isSavingEditingTransaction) {
-                  salvarEdicao();
-                }
-              }
-              if (e.key === "Escape" && !isSavingEditingTransaction) {
-                setEditingTransaction(null);
-                setEditTagInput("");
-              }
-
-              if (e.ctrlKey || e.metaKey) return;
-              const allowed = [
-                "Backspace",
-                "Delete",
-                "ArrowLeft",
-                "ArrowRight",
-                "Home",
-                "End",
-                "Tab",
-              ];
-              if (allowed.includes(e.key)) return;
-
-              if (!/^\d$/.test(e.key)) {
-                e.preventDefault();
-              }
-            }}
-            className={inputModalClass}
-          />
-        </div>
+        <BufferedEditTransactionFields
+          key={String((editingTransaction as any)?.id ?? "editing-transaction")}
+          initialDescription={editDescInputRef.current}
+          initialValueDigits={editValueInputRef.current}
+          descriptionSuggestions={descriptionSuggestions}
+          disabled={isSavingEditingTransaction}
+          inputClassName={inputModalClass}
+          onDraftChange={(draft) => {
+            editDescInputRef.current = draft.description;
+            editValueInputRef.current = draft.valueDigits;
+          }}
+          onSubmit={() => {
+            if (!isSavingEditingTransaction) salvarEdicao();
+          }}
+          onCancel={() => {
+            if (isSavingEditingTransaction) return;
+            setEditingTransaction(null);
+            setEditTagInput("");
+          }}
+        />
 
 {(() => {
   const tipoEditando = String((editingTransaction as any)?.tipo ?? "")

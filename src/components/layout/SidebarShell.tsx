@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 
 export type SidebarPanelKey =
   | "resumo"
@@ -200,6 +200,9 @@ export default function SidebarShell({
   const [isPinnedOpen, setIsPinnedOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<SidebarPanelKey>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
+    typeof window === "undefined" ? true : window.matchMedia("(min-width: 768px)").matches
+  );
 
   const sidebarExpanded = isHovered || isPinnedOpen;
   const panelOpen = activePanel !== null;
@@ -217,6 +220,15 @@ export default function SidebarShell({
   useEffect(() => {
     closeAll();
   }, [viewResetSignal]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 768px)");
+    const updateViewport = () => setIsDesktopViewport(mediaQuery.matches);
+
+    updateViewport();
+    mediaQuery.addEventListener("change", updateViewport);
+    return () => mediaQuery.removeEventListener("change", updateViewport);
+  }, []);
 
   useEffect(() => {
     const body = document.body;
@@ -282,14 +294,14 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] f
                     setActivePanel(null);
                     setIsPinnedOpen(false);
                     setIsHovered(false);
-                    onPanelOpen?.(item.key);
+                    startTransition(() => onPanelOpen?.(item.key));
                     return;
                   }
 
                   setActivePanel(item.key);
                   setIsPinnedOpen(false);
                   setIsHovered(false);
-                  onPanelOpen?.(item.key);
+                  startTransition(() => onPanelOpen?.(item.key));
                 }}
                className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
                   active
@@ -401,7 +413,7 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] f
               if (isModalItem) {
                 setActivePanel(null);
                 setMobileMenuOpen(false);
-                onPanelOpen?.(item.key);
+                startTransition(() => onPanelOpen?.(item.key));
                 return;
               }
 
@@ -409,7 +421,7 @@ setMobileMenuOpen(false);
 
 requestAnimationFrame(() => {
   setActivePanel(item.key);
-  onPanelOpen?.(item.key);
+  startTransition(() => onPanelOpen?.(item.key));
 });
             }}
             className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
@@ -571,11 +583,11 @@ className={`hidden md:flex fixed left-24 top-0 z-[70] h-[100dvh] max-h-[100dvh] 
         </div>
 
  <div className="sidebar-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50 p-3 pr-2 pb-6 dark:bg-slate-950">
-          {activePanel && panelContent[activePanel] ? (
-            panelContent[activePanel]
-          ) : (
-            <PanelContent activePanel={activePanel} />
-          )}
+          {isDesktopViewport
+            ? activePanel && panelContent[activePanel]
+              ? panelContent[activePanel]
+              : <PanelContent activePanel={activePanel} />
+            : null}
         </div>
       </div>
 
@@ -679,11 +691,11 @@ className={`hidden md:flex fixed left-24 top-0 z-[70] h-[100dvh] max-h-[100dvh] 
           </div>
 
        <div className="sidebar-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50 p-3 pr-2 pb-6 dark:bg-slate-950">
-            {activePanel && panelContent[activePanel] ? (
-              panelContent[activePanel]
-            ) : (
-              <PanelContent activePanel={activePanel} />
-            )}
+            {!isDesktopViewport
+              ? activePanel && panelContent[activePanel]
+                ? panelContent[activePanel]
+                : <PanelContent activePanel={activePanel} />
+              : null}
           </div>
         </div>
       </div>

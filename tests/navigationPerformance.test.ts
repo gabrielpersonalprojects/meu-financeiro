@@ -24,18 +24,20 @@ test("painel lateral monta conteúdo pesado somente para o viewport ativo", () =
   assert.match(source, /\{!isDesktopViewport\s*\?/);
 });
 
-test("navegação prioriza fechamento e resposta visual antes de atualizações pesadas", () => {
+test("navegação aplica imediatamente o estado visual solicitado", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
   const sidebarSource = readFileSync(
     "src/components/layout/SidebarShell.tsx",
     "utf8"
   );
 
-  assert.match(appSource, /startTransition\(\(\) => setActiveTab\(tab\)\)/);
-  assert.match(
-    sidebarSource,
-    /startTransition\(\(\) => onPanelOpen\?\.\(item\.key\)\)/
+  assert.match(appSource, /setActiveTab\(tab\);\s*};/);
+  assert.doesNotMatch(
+    appSource,
+    /startTransition\(\(\) => setActiveTab\(tab\)\)/
   );
+  assert.doesNotMatch(sidebarSource, /startTransition/);
+  assert.doesNotMatch(sidebarSource, /requestAnimationFrame/);
 });
 
 test("resumo reutiliza cálculos bancários e de cartões em rerenders visuais", () => {
@@ -70,4 +72,41 @@ test("abas inativas preservam estado sem rerenderizar conteúdo oculto", () => {
     source,
     /<div className=\{activeTab === "(?:transacoes|gastos|projecao)" \? "block" : "hidden"\}>/
   );
+});
+
+test("navegação visual responde imediatamente e evita animações amplas", () => {
+  const appSource = readFileSync("src/App.tsx", "utf8");
+  const sidebarSource = readFileSync(
+    "src/components/layout/SidebarShell.tsx",
+    "utf8"
+  );
+  const headerSource = readFileSync(
+    "src/components/layout/AppHeaderNav.tsx",
+    "utf8"
+  );
+
+  assert.match(appSource, /setActiveTab\(tab\);\s*};/);
+  assert.doesNotMatch(
+    appSource,
+    /startTransition\(\(\) => setActiveTab\(tab\)\)/
+  );
+  assert.match(sidebarSource, /transition-\[width\] duration-150 ease-out/);
+  assert.match(
+    sidebarSource,
+    /transition-transform duration-150 ease-out will-change-transform/
+  );
+  assert.doesNotMatch(sidebarSource, /startTransition/);
+  assert.match(headerSource, /transition-colors duration-100/);
+});
+
+test("cartões montam sob demanda e permanecem preservados após a primeira abertura", () => {
+  const source = readFileSync("src/App.tsx", "utf8");
+
+  assert.match(source, /const LazyPreservedTabPanel = memo/);
+  assert.match(source, /const hasOpenedRef = useRef\(active\)/);
+  assert.match(
+    source,
+    /<LazyPreservedTabPanel active=\{activeTab === "cartoes"\} render=\{\(\) => \(/
+  );
+  assert.doesNotMatch(source, /\{activeTab === "cartoes" && \(/);
 });

@@ -53,3 +53,21 @@ test("resumo reutiliza cálculos bancários e de cartões em rerenders visuais",
     /cachedCardSummary\?\.manualStatuses === faturasStatusManual/
   );
 });
+
+test("abas inativas preservam estado sem rerenderizar conteúdo oculto", () => {
+  const source = readFileSync("src/App.tsx", "utf8");
+  const panels = source.match(
+    /<PreservedTabPanel active=\{activeTab === "(?:transacoes|gastos|projecao)"\}>/g
+  );
+
+  assert.equal(panels?.length, 3);
+  assert.match(
+    source,
+    /\(previous, next\) => !previous\.active && !next\.active/
+  );
+  assert.match(source, /aria-hidden=\{!active\}/);
+  assert.doesNotMatch(
+    source,
+    /<div className=\{activeTab === "(?:transacoes|gastos|projecao)" \? "block" : "hidden"\}>/
+  );
+});

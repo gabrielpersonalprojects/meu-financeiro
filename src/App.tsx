@@ -6,8 +6,8 @@ import toast, { Toaster } from "react-hot-toast";
 import AuthPage from "./components/AuthPage";
 import { supabase } from "./lib/supabase";
 import { useUI } from "./components/UIProvider";
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
-import type { FC } from "react";
+import { memo, startTransition, useEffect, useMemo, useRef, useState } from "react";
+import type { FC, ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { mergeTransfers } from "./app/transactions/logic";
 import { createPortal } from "react-dom";
@@ -380,6 +380,22 @@ const mergeSemPrazoPayloadMeta = (
   };
 
 };
+
+type PreservedTabPanelProps = {
+  active: boolean;
+  children: ReactNode;
+};
+
+const PreservedTabPanel = memo(
+  ({ active, children }: PreservedTabPanelProps) => (
+    <div className={active ? "block" : "hidden"} aria-hidden={!active}>
+      {children}
+    </div>
+  ),
+  (previous, next) => !previous.active && !next.active
+);
+
+PreservedTabPanel.displayName = "PreservedTabPanel";
 
 /* =========================
    PARTE 2/3 — APP: STATES + EFFECTS + FUNÇÕES (SEM DUPLICAÇÃO)
@@ -14142,7 +14158,7 @@ if (isUuid(String(id))) {
   </div>
 )}
 
-<div className={activeTab === "transacoes" ? "block" : "hidden"}>
+<PreservedTabPanel active={activeTab === "transacoes"}>
   <TransacoesTab
     filtroMes={filtroMesTransacoes}
     setFiltroMes={setFiltroMesTransacoes}
@@ -14184,9 +14200,9 @@ mostrarReceitasResumo={mostrarReceitasResumo}
 stats={stats}
     resetPaginationSignal={transacoesResetPageSignal}
   />
-</div>
+</PreservedTabPanel>
 
-<div className={activeTab === "gastos" ? "block" : "hidden"}>
+<PreservedTabPanel active={activeTab === "gastos"}>
 <GastosTab
   spendingByCategoryData={spendingByCategoryData}
   spendingByCardData={spendingByCardData}
@@ -14198,9 +14214,9 @@ stats={stats}
   setFonteView={setAnaliseFonteView}
   isDarkMode={isDarkMode}
 />
-</div>
+</PreservedTabPanel>
 
-<div className={activeTab === "projecao" ? "block" : "hidden"}>
+<PreservedTabPanel active={activeTab === "projecao"}>
 <ProjecaoTab
   projection12Months={projection12Months}
   projectionMode={projectionMode}
@@ -14219,7 +14235,7 @@ stats={stats}
   preferencesErrorByProfile={projectionPreferencesErrorByProfile}
   viewResetSignal={applicationViewResetSignal}
 />
-</div>
+</PreservedTabPanel>
   </div>
 
           </>

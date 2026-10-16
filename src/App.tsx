@@ -1400,6 +1400,26 @@ const [accountsLoaded, setAccountsLoaded] = useState(false);
 
 
  const [transacoes, setTransacoes] = useState<Transaction[]>([]);
+const dashboardPerformanceCacheRef = useRef<{
+  bankSummary?: {
+    transactions: Transaction[];
+    profiles: Profile[];
+    profileView: "geral" | "PF" | "PJ";
+    today: string;
+    result: any;
+  };
+  cardSummary?: {
+    transactions: Transaction[];
+    profiles: Profile[];
+    creditCards: any[];
+    installments: ParcelamentoFaturaApp[];
+    payments: PagamentoFaturaApp[];
+    manualStatuses: FaturaStatusManualApp[];
+    profileView: "geral" | "PF" | "PJ";
+    today: string;
+    result: any;
+  };
+}>({});
 const descriptionSuggestions = useMemo(() => {
   const seen = new Set<string>();
 
@@ -10292,6 +10312,14 @@ const pertenceAoResumoPerfil = (perfilRaw: any) => {
   );
 };
 
+const cachedBankSummary = dashboardPerformanceCacheRef.current.bankSummary;
+const canReuseBankSummary =
+  cachedBankSummary?.transactions === transacoes &&
+  cachedBankSummary?.profiles === profiles &&
+  cachedBankSummary?.profileView === resumoPerfilView &&
+  cachedBankSummary?.today === hojeResumoStr;
+
+const computeBankSummary = () => {
 const despesasEmAberto = (transacoes ?? []).filter((t: any) => {
   const tipo = String(t?.tipo ?? "").trim().toLowerCase();
   if (tipo !== "despesa") return false;
@@ -10352,6 +10380,35 @@ const resumoAtrasadosValor = despesasEmAberto.reduce((acc: number, t: any) => {
 
   return dataObj < hojeResumoDate ? acc + Math.abs(Number(t?.valor || 0)) : acc;
 }, 0);
+
+return {
+  despesasEmAberto,
+  resumoHojeValor,
+  resumoSemanaValor,
+  resumoAtrasadosValor,
+};
+};
+
+const bankSummary: ReturnType<typeof computeBankSummary> = canReuseBankSummary
+  ? cachedBankSummary.result
+  : computeBankSummary();
+
+if (!canReuseBankSummary) {
+  dashboardPerformanceCacheRef.current.bankSummary = {
+    transactions: transacoes,
+    profiles,
+    profileView: resumoPerfilView,
+    today: hojeResumoStr,
+    result: bankSummary,
+  };
+}
+
+const {
+  despesasEmAberto,
+  resumoHojeValor,
+  resumoSemanaValor,
+  resumoAtrasadosValor,
+} = bankSummary;
 const normalizeCycleResumo = (
   raw: any,
   referenceDate?: any
@@ -10435,15 +10492,18 @@ const inferirCicloResumo = (
   );
 };
 
-const {
-  resumoCartoesEmAbertoValor,
-  resumoCartoesVencendoHojeValor,
-  resumoCartoesPendentesValor,
-  resumoCartoesAtrasadasValor,
-  cartoesVencendoHojeLista,
-  cartoesFechadosAguardandoPagamentoLista,
-  cartoesAtrasadosLista,
-} = (() => {
+const cachedCardSummary = dashboardPerformanceCacheRef.current.cardSummary;
+const canReuseCardSummary =
+  cachedCardSummary?.transactions === transacoes &&
+  cachedCardSummary?.profiles === profiles &&
+  cachedCardSummary?.creditCards === activeCreditCards &&
+  cachedCardSummary?.installments === parcelamentosFatura &&
+  cachedCardSummary?.payments === pagamentosFatura &&
+  cachedCardSummary?.manualStatuses === faturasStatusManual &&
+  cachedCardSummary?.profileView === resumoPerfilView &&
+  cachedCardSummary?.today === hojeResumoStr;
+
+const computeCardSummary = () => {
 let resumoCartoesEmAbertoValor = 0;
 let resumoCartoesVencendoHojeValor = 0;
 let resumoCartoesPendentesValor = 0;
@@ -10714,7 +10774,35 @@ return {
   cartoesFechadosAguardandoPagamentoLista,
   cartoesAtrasadosLista,
 };
-})();
+};
+
+const cardSummary: ReturnType<typeof computeCardSummary> = canReuseCardSummary
+  ? cachedCardSummary.result
+  : computeCardSummary();
+
+if (!canReuseCardSummary) {
+  dashboardPerformanceCacheRef.current.cardSummary = {
+    transactions: transacoes,
+    profiles,
+    creditCards: activeCreditCards,
+    installments: parcelamentosFatura,
+    payments: pagamentosFatura,
+    manualStatuses: faturasStatusManual,
+    profileView: resumoPerfilView,
+    today: hojeResumoStr,
+    result: cardSummary,
+  };
+}
+
+const {
+  resumoCartoesEmAbertoValor,
+  resumoCartoesVencendoHojeValor,
+  resumoCartoesPendentesValor,
+  resumoCartoesAtrasadasValor,
+  cartoesVencendoHojeLista,
+  cartoesFechadosAguardandoPagamentoLista,
+  cartoesAtrasadosLista,
+} = cardSummary;
 
 const resumoHojeLabel = formatResumoBRL(resumoHojeValor);
 const resumoSemanaLabel = formatResumoBRL(resumoSemanaValor);

@@ -13,7 +13,7 @@ test("resumo não adiciona hooks depois do retorno condicional de acesso", () =>
     source.slice(accessReturnIndex),
     /\buse(?:Memo|State|Effect|Ref|Callback|Reducer|Context|LayoutEffect)\s*\(/
   );
-  assert.match(source, /cartoesAtrasadosLista,\s*\} = \(\(\) => \{/);
+  assert.match(source, /const computeCardSummary = \(\) => \{/);
 });
 
 test("painel lateral monta conteúdo pesado somente para o viewport ativo", () => {
@@ -35,5 +35,21 @@ test("navegação prioriza fechamento e resposta visual antes de atualizações 
   assert.match(
     sidebarSource,
     /startTransition\(\(\) => onPanelOpen\?\.\(item\.key\)\)/
+  );
+});
+
+test("resumo reutiliza cálculos bancários e de cartões em rerenders visuais", () => {
+  const source = readFileSync("src/App.tsx", "utf8");
+
+  assert.match(source, /dashboardPerformanceCacheRef/);
+  assert.match(source, /canReuseBankSummary/);
+  assert.match(source, /canReuseCardSummary/);
+  assert.match(
+    source,
+    /cachedCardSummary\?\.payments === pagamentosFatura/
+  );
+  assert.match(
+    source,
+    /cachedCardSummary\?\.manualStatuses === faturasStatusManual/
   );
 });

@@ -386,6 +386,11 @@ type PreservedTabPanelProps = {
   children: ReactNode;
 };
 
+type LazyPreservedTabPanelProps = {
+  active: boolean;
+  render: () => ReactNode;
+};
+
 const PreservedTabPanel = memo(
   ({ active, children }: PreservedTabPanelProps) => (
     <div className={active ? "block" : "hidden"} aria-hidden={!active}>
@@ -396,6 +401,25 @@ const PreservedTabPanel = memo(
 );
 
 PreservedTabPanel.displayName = "PreservedTabPanel";
+
+const LazyPreservedTabPanel = memo(
+  ({ active, render }: LazyPreservedTabPanelProps) => {
+    const hasOpenedRef = useRef(active);
+
+    if (active) {
+      hasOpenedRef.current = true;
+    }
+
+    return (
+      <div className={active ? "block" : "hidden"} aria-hidden={!active}>
+        {hasOpenedRef.current ? render() : null}
+      </div>
+    );
+  },
+  (previous, next) => !previous.active && !next.active
+);
+
+LazyPreservedTabPanel.displayName = "LazyPreservedTabPanel";
 
 /* =========================
    PARTE 2/3 — APP: STATES + EFFECTS + FUNÇÕES (SEM DUPLICAÇÃO)
@@ -1255,7 +1279,7 @@ const handleHeaderTabChange = (tab: TabType) => {
     setCreditCardsPage(1);
   }
 
-  startTransition(() => setActiveTab(tab));
+  setActiveTab(tab);
 };
 
 const scrollPorAbaRef = useRef<Record<string, number>>({
@@ -12781,7 +12805,7 @@ className={`lg:col-span-12 space-y-6 ${
 <div className="mt-8" />
 
 
-{activeTab === "cartoes" && (
+<LazyPreservedTabPanel active={activeTab === "cartoes"} render={() => (
   <div className="space-y-4">
 <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-3">
 {!isCcExpanded && !isCardsResumoOpen && (activeCreditCards ?? []).length > 0 && (
@@ -14156,7 +14180,7 @@ if (isUuid(String(id))) {
       </div>
     )}
   </div>
-)}
+)} />
 
 <PreservedTabPanel active={activeTab === "transacoes"}>
   <TransacoesTab

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import type { ReactNode } from "react";
-import { startTransition, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 export type SidebarPanelKey =
   | "resumo"
@@ -270,7 +270,7 @@ export default function SidebarShell({
 
       {/* SIDEBAR DESKTOP */}
       <aside
-className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 dark:border-white/10 dark:bg-slate-900 ${
+className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] flex-col overflow-hidden border-r border-slate-200 bg-white transition-[width] duration-150 ease-out dark:border-white/10 dark:bg-slate-900 ${
   sidebarExpanded ? "w-72" : "w-24"
 }`}
         onMouseEnter={() => setIsHovered(true)}
@@ -294,16 +294,16 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] f
                     setActivePanel(null);
                     setIsPinnedOpen(false);
                     setIsHovered(false);
-                    startTransition(() => onPanelOpen?.(item.key));
+                    onPanelOpen?.(item.key);
                     return;
                   }
 
                   setActivePanel(item.key);
                   setIsPinnedOpen(false);
                   setIsHovered(false);
-                  startTransition(() => onPanelOpen?.(item.key));
+                  onPanelOpen?.(item.key);
                 }}
-               className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
+               className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition-colors duration-100 ${
                   active
                     ? "bg-[#40009c] text-white shadow-sm"
                     : "text-slate-700 hover:bg-[#40009c]/8 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-[#40009c]/15 dark:hover:text-white"
@@ -312,7 +312,7 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] f
 <span className="flex min-w-[24px] justify-center">{item.icon}</span>
 
 <span
-  className={`overflow-hidden whitespace-nowrap text-[14px] font-normal tracking-[-0.01em] transition-all duration-300 ${
+  className={`overflow-hidden whitespace-nowrap text-[14px] font-normal tracking-[-0.01em] transition-[max-width,opacity] duration-150 ease-out ${
     sidebarExpanded ? "max-w-[180px] opacity-100" : "max-w-0 opacity-0"
   }`}
 >
@@ -358,7 +358,7 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] f
   </a>
 
   <div
-    className={`overflow-hidden transition-all duration-300 ${
+    className={`overflow-hidden transition-[max-width,opacity] duration-150 ease-out ${
       sidebarExpanded ? "max-w-[170px] opacity-100" : "max-w-0 opacity-0"
     }`}
   >
@@ -380,7 +380,7 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] f
 
 {/* MENU MOBILE OVERLAY */}
 <div
-  className={`fixed inset-0 z-[130] md:hidden transition ${
+  className={`fixed inset-0 z-[130] md:hidden ${
     mobileMenuOpen ? "pointer-events-auto" : "pointer-events-none"
   }`}
 >
@@ -388,13 +388,13 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] f
     type="button"
     aria-label="Fechar menu mobile"
     onClick={closeAll}
-    className={`absolute inset-0 bg-slate-900/10 transition-opacity dark:bg-black/25 ${
+    className={`absolute inset-0 bg-slate-900/10 transition-opacity duration-150 dark:bg-black/25 ${
       mobileMenuOpen ? "opacity-100" : "opacity-0"
     }`}
   />
 
   <aside
-    className={`absolute left-0 top-0 flex h-[100dvh] w-72 max-w-[82vw] flex-col border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${
+    className={`absolute left-0 top-0 flex h-[100dvh] w-72 max-w-[82vw] flex-col border-r border-slate-200 bg-white shadow-2xl transition-transform duration-150 ease-out will-change-transform dark:border-white/10 dark:bg-slate-900 ${
       mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
     }`}
   >
@@ -413,18 +413,15 @@ className={`hidden md:flex fixed left-0 top-0 z-[80] h-[100dvh] max-h-[100dvh] f
               if (isModalItem) {
                 setActivePanel(null);
                 setMobileMenuOpen(false);
-                startTransition(() => onPanelOpen?.(item.key));
+                onPanelOpen?.(item.key);
                 return;
               }
 
-setMobileMenuOpen(false);
-
-requestAnimationFrame(() => {
-  setActivePanel(item.key);
-  startTransition(() => onPanelOpen?.(item.key));
-});
+              setMobileMenuOpen(false);
+              setActivePanel(item.key);
+              onPanelOpen?.(item.key);
             }}
-            className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition ${
+            className={`relative flex h-14 items-center gap-4 rounded-2xl px-4 text-left transition-colors duration-100 ${
               active
                 ? "bg-[#40009c] text-white shadow-sm"
                 : "text-slate-700 hover:bg-[#40009c]/8 hover:text-[#40009c] dark:text-slate-200 dark:hover:bg-[#40009c]/15 dark:hover:text-white"
@@ -494,7 +491,7 @@ requestAnimationFrame(() => {
 
       {/* PAINEL DESKTOP */}
       <div
-className={`hidden md:flex fixed left-24 top-0 z-[70] h-[100dvh] max-h-[100dvh] min-h-0 w-[460px] max-w-[90vw] flex-col overflow-hidden border-r border-slate-200 bg-white shadow-2xl transition-transform duration-300 dark:border-white/10 dark:bg-slate-900 ${          panelOpen ? "translate-x-0" : "-translate-x-full"
+className={`hidden md:flex fixed left-24 top-0 z-[70] h-[100dvh] max-h-[100dvh] min-h-0 w-[460px] max-w-[90vw] flex-col overflow-hidden border-r border-slate-200 bg-white shadow-2xl transition-transform duration-150 ease-out will-change-transform dark:border-white/10 dark:bg-slate-900 ${          panelOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div
@@ -593,7 +590,7 @@ className={`hidden md:flex fixed left-24 top-0 z-[70] h-[100dvh] max-h-[100dvh] 
 
 {/* PAINEL MOBILE */}
 <div
-  className={`fixed inset-0 z-[260] md:hidden transition ${
+  className={`fixed inset-0 z-[260] md:hidden ${
     panelOpen ? "pointer-events-auto" : "pointer-events-none"
   }`}
 >
@@ -601,13 +598,13 @@ className={`hidden md:flex fixed left-24 top-0 z-[70] h-[100dvh] max-h-[100dvh] 
           type="button"
           aria-label="Fechar painel mobile"
           onClick={closeAll}
-          className={`absolute inset-0 bg-slate-900/30 transition-opacity dark:bg-black/40 ${
+          className={`absolute inset-0 bg-slate-900/30 transition-opacity duration-150 dark:bg-black/40 ${
             panelOpen ? "opacity-100" : "opacity-0"
           }`}
         />
 
         <div
-          className={`absolute left-0 top-0 flex h-[100dvh] max-h-[100dvh] min-h-0 w-[100vw] max-w-full flex-col overflow-hidden bg-white shadow-2xl transition-transform duration-300 dark:bg-slate-900 ${
+          className={`absolute left-0 top-0 flex h-[100dvh] max-h-[100dvh] min-h-0 w-[100vw] max-w-full flex-col overflow-hidden bg-white shadow-2xl transition-transform duration-150 ease-out will-change-transform dark:bg-slate-900 ${
             panelOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >

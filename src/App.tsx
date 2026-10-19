@@ -15911,7 +15911,7 @@ className={`w-full px-3 py-2 rounded-lg text-sm border border-slate-300 bg-slate
           Contas cadastradas
         </div>
 
-        <div className="max-h-[320px] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40">
+        <div className="flux-help-modal-scroll max-h-[320px] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40">
           {profiles.length === 0 ? (
             <div className="p-4 text-sm text-slate-600 dark:text-slate-300">
               Nenhuma conta cadastrada.

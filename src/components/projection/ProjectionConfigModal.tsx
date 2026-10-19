@@ -277,7 +277,7 @@ export default function ProjectionConfigModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4" role="dialog" aria-modal="true">
       <div className="mx-auto flex max-h-[calc(100vh-16px)] w-full max-w-4xl flex-col overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-900 sm:max-h-[calc(100vh-32px)]">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 dark:border-white/10 sm:px-6">
           <div>

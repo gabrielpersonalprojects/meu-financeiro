@@ -104,18 +104,20 @@ const getCardsResumoPdfSource = () =>
 
 test("PDF mantem o cabecalho junto do primeiro lancamento", () => {
   const source = getCardsResumoPdfSource();
-  const headerCss = source.match(/\.card-group-header\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+  const openingCss = source.match(/\.card-group-opening\s*\{([\s\S]*?)\}/)?.[1] ?? "";
 
-  assert.match(headerCss, /break-after:\s*avoid-page/);
-  assert.match(headerCss, /page-break-after:\s*avoid/);
+  assert.match(openingCss, /break-inside:\s*avoid-page/);
+  assert.match(openingCss, /page-break-inside:\s*avoid/);
+  assert.match(source, /<div class="card-group-opening">[\s\S]*\$\{primeiraLinhaHtml\}/);
 });
 
 test("PDF nao quebra uma linha de lancamento entre paginas", () => {
   const source = getCardsResumoPdfSource();
-  const rowCss = source.match(/\ntr\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+  const rowCss = source.match(/\.transaction-row\s*\{([\s\S]*?)\}/)?.[1] ?? "";
 
   assert.match(rowCss, /break-inside:\s*avoid-page/);
   assert.match(rowCss, /page-break-inside:\s*avoid/);
+  assert.doesNotMatch(source, /<tr>|<td>/);
 });
 
 test("PDF permite continuar um cartao longo na pagina seguinte", () => {
@@ -139,9 +141,16 @@ test("html2pdf usa seletores locais de quebra sem avoid-all", () => {
   const pagebreakConfig = source.match(/pagebreak:\s*\{([\s\S]*?)\n\s*\},/)?.[1] ?? "";
 
   assert.match(pagebreakConfig, /mode:\s*\["css",\s*"legacy"\]/);
-  assert.match(pagebreakConfig, /avoid:\s*\["\.card-group-header",\s*"tr",\s*"td"/);
+  assert.match(pagebreakConfig, /avoid:\s*\["\.card-group-opening",\s*"\.transaction-row"/);
   assert.doesNotMatch(pagebreakConfig, /avoid:\s*\[[^\]]*"\.card-group"/);
   assert.doesNotMatch(pagebreakConfig, /avoid-all/);
+});
+
+test("PDF nao cria pagina final somente para rodape", () => {
+  const source = getCardsResumoPdfSource();
+
+  assert.doesNotMatch(source, /<footer class="footer">/);
+  assert.doesNotMatch(source, /Relatório gerado pelo FluxMoney com base nos filtros/);
 });
 
 test("resumo usa a mesma competencia da fatura no dia exato do fechamento", () => {

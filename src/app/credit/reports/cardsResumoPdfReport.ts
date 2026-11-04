@@ -163,8 +163,8 @@ export const printCardsResumoPdfReport = ({
 
   const gruposHtml = (cardsResumoAgrupado ?? [])
     .map((grupo: any) => {
-      const itensHtml = (grupo.itens ?? [])
-        .map((item: any) => {
+      const itens = grupo.itens ?? [];
+      const linhasHtml = itens.map((item: any, index: number) => {
 const badge = getResumoCartoesPrintBadge(item);
 
 const badgeHtml = badge
@@ -190,40 +190,40 @@ const valor = escapeHtml(
 );
 
           return `
-            <tr>
-              <td>
+            <div class="transaction-row${index === itens.length - 1 ? " transaction-row-last" : ""}">
+              <div class="transaction-content">
                 <strong>${descricao}</strong>
 <div class="muted">
   ${data}${categoria ? ` • ${categoria}` : ""}${tag ? ` • ${tag}` : ""}${badgeHtml}
 </div>
-              </td>
-              <td class="value">${valor}</td>
-            </tr>
+              </div>
+              <div class="value">${valor}</div>
+            </div>
           `;
-        })
-        .join("");
+        });
+
+      const primeiraLinhaHtml = linhasHtml[0] ?? "";
+      const demaisLinhasHtml = linhasHtml.slice(1).join("");
 
       return `
         <section class="card-group">
-          <div class="card-group-header">
-            <div>
-              <h2>${escapeHtml(grupo.cartaoNome)}</h2>
-              <div class="muted">
-                ${escapeHtml(String(grupo.perfil ?? "").toUpperCase())}
-                ${grupo.cartaoCategoria ? ` • ${escapeHtml(grupo.cartaoCategoria)}` : ""}
+          <div class="card-group-opening">
+            <div class="card-group-header">
+              <div>
+                <h2>${escapeHtml(grupo.cartaoNome)}</h2>
+                <div class="muted">
+                  ${escapeHtml(String(grupo.perfil ?? "").toUpperCase())}
+                  ${grupo.cartaoCategoria ? ` • ${escapeHtml(grupo.cartaoCategoria)}` : ""}
+                </div>
+              </div>
+
+              <div class="group-total">
+                Total: ${escapeHtml(formatarMoeda(Number(grupo.total ?? 0)))}
               </div>
             </div>
-
-            <div class="group-total">
-              Total: ${escapeHtml(formatarMoeda(Number(grupo.total ?? 0)))}
-            </div>
+            ${primeiraLinhaHtml}
           </div>
-
-          <table>
-            <tbody>
-              ${itensHtml}
-            </tbody>
-          </table>
+          <div class="card-group-body">${demaisLinhasHtml}</div>
         </section>
       `;
     })
@@ -394,6 +394,11 @@ const valor = escapeHtml(
           page-break-after: avoid;
         }
 
+        .card-group-opening {
+          break-inside: avoid-page;
+          page-break-inside: avoid;
+        }
+
         .card-group-header h2 {
           margin: 0;
           font-size: 15px;
@@ -407,38 +412,34 @@ const valor = escapeHtml(
           white-space: nowrap;
         }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
+.card-group-body {
   break-inside: auto;
   page-break-inside: auto;
 }
 
-tbody {
-  break-inside: auto;
-  page-break-inside: auto;
-}
-
-tr {
+.transaction-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #edf2f7;
+  font-size: 11px;
   break-inside: avoid-page;
   page-break-inside: avoid;
 }
 
-td {
-  padding: 9px 14px;
-  border-bottom: 1px solid #edf2f7;
-  vertical-align: top;
-  font-size: 11px;
-  break-inside: avoid;
-  page-break-inside: avoid;
-}
-
-tr:last-child td {
+.transaction-row-last {
   border-bottom: none;
 }
 
+.transaction-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
         .value {
-          width: 120px;
+          flex: 0 0 120px;
           text-align: right;
           font-weight: 800;
           color: #0f172a;
@@ -474,14 +475,6 @@ tr:last-child td {
       color: #475569;
 }
 
-        .footer {
-          margin-top: 22px;
-          padding-top: 12px;
-          border-top: 1px solid #e2e8f0;
-          color: #94a3b8;
-          font-size: 9px;
-          text-align: center;
-        }
       </style>
 
       <header class="header">
@@ -548,9 +541,6 @@ tr:last-child td {
         "<p>Nenhum lançamento encontrado para os filtros selecionados.</p>"
       }
 
-      <footer class="footer">
-        Relatório gerado pelo FluxMoney com base nos filtros selecionados no resumo de cartões.
-      </footer>
     </div>
   `;
 
@@ -617,7 +607,7 @@ tr:last-child td {
         },
         pagebreak: {
           mode: ["css", "legacy"],
-          avoid: [".card-group-header", "tr", "td", ".summary", ".filters"],
+          avoid: [".card-group-opening", ".transaction-row", ".summary", ".filters"],
         },
       } as any;
 

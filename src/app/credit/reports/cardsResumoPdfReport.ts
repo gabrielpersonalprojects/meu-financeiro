@@ -1,4 +1,5 @@
 import html2pdf from "html2pdf.js";
+import { removeInstallmentSuffixFromDescription } from "./cardInstallmentDescription";
 
 type CardsResumoOption = {
   value: string;
@@ -53,11 +54,6 @@ const slugify = (value: string) =>
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .toLowerCase();
-
-    const removeParcelaSuffixFromResumoPrint = (descricao: any) =>
-  String(descricao ?? "")
-    .replace(/\s*\(\s*\d+\s*\/\s*\d+\s*\)\s*$/g, "")
-    .trim();
 
 const getResumoCartoesPrintBadge = (tx: any) => {
   const descricaoRaw = String(tx?.descricao ?? "");
@@ -178,7 +174,7 @@ const badgeHtml = badge
   : "";
 
 const descricao = escapeHtml(
-  removeParcelaSuffixFromResumoPrint(item?.descricao) || "Lançamento"
+  removeInstallmentSuffixFromDescription(item?.descricao) || "Lançamento"
 );
 
 const data = escapeHtml(formatarData(item?.data));

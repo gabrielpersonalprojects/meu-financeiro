@@ -257,3 +257,105 @@ test("18 - JSON preserva acentos e não contém mojibake", () => {
   );
   assert.doesNotMatch(raw, /Ã|Â|Ãƒ|�/);
 });
+
+test("19 - localiza Quatá somente pelo nome sem acento e ignora filtros vazios", () => {
+  const result = resolve(
+    [
+      row({
+        id: "tx-quata",
+        descricao: "Quatá",
+        tipo: "receita",
+        valor: 1693.5,
+        data: "2026-11-30",
+        conta_id: "acc-pj",
+        pago: false,
+        payload: { parcelaAtual: 4, totalParcelas: 12 },
+      }),
+    ],
+    {
+      description: "Quata",
+      amount: undefined,
+      date: "",
+      type: "",
+      profileId: "",
+    }
+  );
+
+  assert.equal(result.status, "selected");
+  assert.equal(selected(result).transaction_id, "tx-quata");
+});
+
+test("20 - localiza Quatá com tipo receita e perfil PJ", () => {
+  const result = resolve(
+    [
+      row({
+        id: "tx-quata-pj",
+        descricao: "Quatá",
+        tipo: "receita",
+        valor: 1693.5,
+        data: "2026-11-30",
+        conta_id: "acc-pj",
+        pago: false,
+        payload: { parcelaAtual: 4, totalParcelas: 12 },
+      }),
+    ],
+    { description: "Quatá", date: "", type: "receita", profileId: "pj" }
+  );
+
+  assert.equal(result.status, "selected");
+  assert.equal(selected(result).transaction_id, "tx-quata-pj");
+});
+
+test("21 - localiza Quatá pela data exata e mantém parcela mensal elegível", () => {
+  const result = resolve(
+    [
+      row({
+        id: "tx-quata-date",
+        descricao: "Quatá",
+        tipo: "receita",
+        valor: 1693.5,
+        data: "2026-11-30",
+        conta_id: "acc-pj",
+        pago: false,
+        payload: { parcelaAtual: 4, totalParcelas: 12 },
+      }),
+    ],
+    {
+      description: "Quatá",
+      date: "2026-11-30",
+      type: "receita",
+      profileId: "pj",
+    }
+  );
+
+  assert.equal(result.status, "selected");
+  assert.equal(selected(result).transaction_id, "tx-quata-date");
+});
+
+test("22 - diagnóstico identifica filtro responsável pela exclusão", () => {
+  const result: any = resolve(
+    [
+      row({
+        id: "tx-diagnostic",
+        descricao: "Quatá",
+        tipo: "receita",
+        valor: 1693.5,
+        data: "2026-11-30",
+        conta_id: "acc-pj",
+        pago: false,
+      }),
+    ],
+    {
+      description: "Quata",
+      date: "2026-11-29",
+      type: "despesa",
+      profileId: "pf",
+    }
+  );
+
+  assert.equal(result.status, "not_found");
+  assert.equal(result.diagnostics.description_matches_before_optional_filters, 1);
+  assert.equal(result.diagnostics.filter_rejections.type, 1);
+  assert.equal(result.diagnostics.filter_rejections.date, 1);
+  assert.equal(result.diagnostics.filter_rejections.profile_id, 1);
+});

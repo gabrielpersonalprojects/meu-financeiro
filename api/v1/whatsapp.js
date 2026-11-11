@@ -72,6 +72,14 @@ function routeForAction(action) {
   return `${BASE_ROUTE}?action=${action}`;
 }
 
+function buildPhoneFingerprint(phone) {
+  return crypto
+    .createHash("sha256")
+    .update(String(phone ?? ""))
+    .digest("hex")
+    .slice(0, 12);
+}
+
 function normalizeAction(req) {
   const action = String(req.query?.action ?? "").trim();
   if (!action) {
@@ -2757,6 +2765,8 @@ async function handleResolveTransaction(req, res, supabase) {
   const body = await parseJson(req);
   rejectUserIdFromSupplier(body);
 
+  const resolveRequestId = crypto.randomUUID();
+
   const whatsappPhone = requireString(
     body.whatsapp_phone,
     "WHATSAPP_PHONE_REQUIRED",
@@ -2785,24 +2795,27 @@ async function handleResolveTransaction(req, res, supabase) {
       ? ""
       : normalizeProfileId(body.profile_id);
 
+  const phoneFingerprint = buildPhoneFingerprint(whatsappPhone);
+
+  const receivedFilters = {
+    description: body.description,
+    amount: body.amount,
+    date: body.date,
+    type: body.type,
+    profile_id: body.profile_id,
+    provider_message_id: body.provider_message_id,
+  };
+
   const user = await resolveWhatsappUser(supabase, whatsappPhone);
   const pendingRows = await fetchAllTransactionsForUser(supabase, user.user_id, {
     select:
       "id, tipo, valor, data, descricao, categoria, conta_id, qual_conta, pago, payload, transfer_from_id, transfer_to_id, conta_origem_id, conta_destino_id",
     build: (query) => {
       let pendingQuery = query
-        .eq("pago", false)
+        .or("pago.eq.false,pago.is.null")
         .in("tipo", ["receita", "despesa"])
         .order("data", { ascending: true })
         .order("id", { ascending: true });
-
-      if (type) {
-        pendingQuery = pendingQuery.eq("tipo", type);
-      }
-
-      if (date) {
-        pendingQuery = pendingQuery.eq("data", date);
-      }
 
       return pendingQuery;
     },
@@ -2839,10 +2852,29 @@ async function handleResolveTransaction(req, res, supabase) {
   });
 
   if (resolution.status === "not_found") {
+    console.warn("WHATSAPP_RESOLVE_TRANSACTION_NOT_FOUND", {
+      request_id: resolveRequestId,
+      phone_fingerprint: phoneFingerprint,
+      received_body_keys: Object.keys(body).sort(),
+      received_filters: receivedFilters,
+      normalized_filters: {
+        description: normalizeText(description),
+        amount,
+        date,
+        type,
+        profile_id: profileId,
+      },
+      diagnostics: resolution.diagnostics,
+    });
+
     throw new ApiError(
       404,
       "TRANSACTION_NOT_FOUND",
-      "Nenhum lançamento pendente correspondente foi encontrado."
+      "Nenhum lançamento pendente correspondente foi encontrado.",
+      {
+        request_id: resolveRequestId,
+        diagnostics: resolution.diagnostics,
+      }
     );
   }
 

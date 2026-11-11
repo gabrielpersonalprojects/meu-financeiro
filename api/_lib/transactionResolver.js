@@ -119,6 +119,18 @@ function isSettleablePendingTransaction(row) {
   return true;
 }
 
+function getResolveIneligibilityReason(row) {
+  const type = String(row?.tipo ?? "").trim().toLowerCase();
+
+  if (isPaidValue(row?.pago)) return "already_paid";
+  if (type !== "receita" && type !== "despesa") return "unsupported_type";
+  if (isInvoicePayment(row)) return "invoice_payment";
+  if (!String(row?.id ?? "").trim()) return "missing_transaction_id";
+  if (!getTransactionAccountId(row)) return "missing_account_id";
+
+  return null;
+}
+
 function formatMoneyPtBr(value) {
   return `R$ ${Math.abs(Number(value || 0)).toLocaleString("pt-BR", {
     minimumFractionDigits: 2,
@@ -216,7 +228,16 @@ function resolvePendingTransaction({
   const requestedDate = String(date ?? "").trim();
   const amountCents = amount == null || amount === "" ? null : toCents(amount);
 
-  const eligible = (Array.isArray(rows) ? rows : [])
+  const sourceRows = Array.isArray(rows) ? rows : [];
+  const ineligible_reasons = {};
+
+  for (const row of sourceRows) {
+    const reason = getResolveIneligibilityReason(row);
+    if (!reason) continue;
+    ineligible_reasons[reason] = Number(ineligible_reasons[reason] || 0) + 1;
+  }
+
+  const eligibleBeforeOptionalFilters = sourceRows
     .filter(isSettleablePendingTransaction)
     .map((row) => {
       const account = accountMap.get(getTransactionAccountId(row)) || null;
@@ -226,8 +247,38 @@ function resolvePendingTransaction({
         candidate: buildResolveCandidate(row, account),
         normalizedDescription: normalizeResolveText(row?.descricao),
       };
-    })
-    .filter(({ candidate }) => {
+    });
+
+  const nameMatchesBeforeOptionalFilters = eligibleBeforeOptionalFilters.filter(
+    ({ normalizedDescription }) =>
+      Boolean(
+        queryDescription &&
+          normalizedDescription &&
+          (normalizedDescription === queryDescription ||
+            normalizedDescription.includes(queryDescription) ||
+            queryDescription.includes(normalizedDescription))
+      )
+  );
+
+  const filter_rejections = {
+    type: 0,
+    date: 0,
+    amount: 0,
+    profile_id: 0,
+  };
+
+  for (const { candidate } of nameMatchesBeforeOptionalFilters) {
+    if (requestedType && candidate.type !== requestedType) filter_rejections.type += 1;
+    if (requestedDate && candidate.date !== requestedDate) filter_rejections.date += 1;
+    if (amountCents != null && toCents(candidate.amount) !== amountCents) {
+      filter_rejections.amount += 1;
+    }
+    if (requestedProfile && candidate.profile_id !== requestedProfile) {
+      filter_rejections.profile_id += 1;
+    }
+  }
+
+  const eligible = eligibleBeforeOptionalFilters.filter(({ candidate }) => {
       if (requestedType && candidate.type !== requestedType) return false;
       if (requestedDate && candidate.date !== requestedDate) return false;
       if (amountCents != null && toCents(candidate.amount) !== amountCents) return false;
@@ -252,11 +303,23 @@ function resolvePendingTransaction({
 
   const candidates = matched.map(({ candidate }) => candidate).sort(compareCandidates);
 
+  const diagnostics = {
+    rows_received: sourceRows.length,
+    eligible_before_optional_filters: eligibleBeforeOptionalFilters.length,
+    description_matches_before_optional_filters:
+      nameMatchesBeforeOptionalFilters.length,
+    eligible_after_optional_filters: eligible.length,
+    description_matches_after_optional_filters: candidates.length,
+    ineligible_reasons,
+    filter_rejections,
+  };
+
   if (candidates.length === 0) {
     return {
       status: "not_found",
       match_strategy: exactMatches.length > 0 ? "exact" : "partial",
       candidates: [],
+      diagnostics,
     };
   }
 
@@ -266,6 +329,7 @@ function resolvePendingTransaction({
       match_strategy: exactMatches.length > 0 ? "exact" : "partial",
       selected_transaction: candidates[0],
       candidates,
+      diagnostics,
     };
   }
 
@@ -273,6 +337,7 @@ function resolvePendingTransaction({
     status: "multiple_matches",
     match_strategy: exactMatches.length > 0 ? "exact" : "partial",
     candidates,
+    diagnostics,
   };
 }
 

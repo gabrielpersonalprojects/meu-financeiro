@@ -1136,6 +1136,16 @@ Resposta ambígua:
 
 Sem correspondência, retorna HTTP 404 com `TRANSACTION_NOT_FOUND`.
 
+O erro inclui `error.details.request_id` e um diagnóstico sem dados de outras
+transações. Os contadores informam se a descrição foi encontrada antes dos
+filtros opcionais e quantas correspondências foram rejeitadas por `type`,
+`date`, `amount` ou `profile_id`. O mesmo `request_id` aparece no evento
+`WHATSAPP_RESOLVE_TRANSACTION_NOT_FOUND` dos logs da API junto aos campos
+efetivamente recebidos, sem registrar o telefone completo do usuário.
+
+Registros legados com `pago = null` são tratados como pendentes, da mesma forma
+que o painel FluxMoney. Valores explicitamente pagos continuam excluídos.
+
 ## 18. GET `list_transactions`
 
 Parâmetros opcionais enviados como string vazia ou contendo apenas espaços são
